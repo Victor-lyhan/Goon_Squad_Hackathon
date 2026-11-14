@@ -16,7 +16,9 @@ import { NO_FOCUS, type Focus, type LayerVisibility } from '../workspaceModel';
 import { CONNECTION_LOST_MESSAGE, type SimDataState } from '../live/simDataModel';
 import { buildNetworkView } from '../network/networkModel';
 import { selectionFromMapId, type Selection } from '../network/selectionModel';
-import { UNKNOWN_PLACE, buildJourney, statusLabelOf, type Journey, type UnmatchedJourney } from '../journey/journeyModel';
+import {
+  UNKNOWN_PLACE, boundsOf, buildJourney, statusLabelOf, type Journey, type UnmatchedJourney,
+} from '../journey/journeyModel';
 import {
   businessInspector, employeeInspector, type BusinessInspectorModel, type EmployeeInspectorModel,
 } from '../inspector/inspectorModel';
@@ -53,6 +55,10 @@ export type SimMapProps = {
   selectedIds: string[];
   stops: MapStop[];
   fitTo: 'places' | LatLngBounds;
+  /** Network view: name the businesses that are not dimmed, as many as fit without overlapping. */
+  labelBusinesses: boolean;
+  /** Journey: the sender, recipient and relay business are always named (never a carrier's home). */
+  alwaysLabelIds: string[];
 };
 
 export type SimControlsView = {
@@ -203,7 +209,10 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
 
   const network = (sel: Selection): SimMapProps => {
     const v = buildNetworkView({ map, sim, selection: sel, focus });
-    return { places: v.places, routes: v.routes, movers: v.movers, selectedIds: v.selectedIds, visible: layers, stops: [], fitTo: 'places' };
+    return {
+      places: v.places, routes: v.routes, movers: v.movers, selectedIds: v.selectedIds, visible: layers, stops: [],
+      fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [],
+    };
   };
 
   // ---- Journey mode: a package is selected ----
@@ -225,12 +234,17 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
       };
     }
     if (journey.kind === 'unmatched') {
-      // No plan: the network map with the package selected highlights its two businesses.
+      // No plan: the network map with the package selected highlights its two businesses, and the
+      // camera fits them, as a matched journey fits its places.
+      const shipment = sim.shipments.find((s) => s.id === shipmentId);
+      const ends = map.businesses.filter((b) => b.id === shipment?.originBusinessId || b.id === shipment?.destinationBusinessId);
+      const net = network(selection);
+      const fit = boundsOf(ends.map((b) => [b.lng, b.lat] as [number, number]));
       return {
         ...base,
         mode: 'journey',
         journeyTitle: journey.title,
-        map: network(selection),
+        map: fit ? { ...net, fitTo: fit } : net,
         legend: legendView('network', selection, focus),
         selectedPackageId: shipmentId,
         right: { kind: 'unmatched', journey },
@@ -245,9 +259,12 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
         routes: journey.routes,
         movers: journey.movers,
         selectedIds: [],
-        visible: layers,
+        // The journey always shows its package, whatever the network's Packages toggle says.
+        visible: { ...layers, packages: true },
         stops: journey.stops,
         fitTo: journey.bounds ?? 'places',
+        labelBusinesses: false,
+        alwaysLabelIds: journey.places.filter((p) => p.kind === 'business').map((p) => p.id),
       },
       legend: legendView('journey', selection, focus),
       selectedPackageId: shipmentId,

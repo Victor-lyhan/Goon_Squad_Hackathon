@@ -135,9 +135,10 @@ describe('buildLayerSpecs: journey routes', () => {
 });
 
 describe('buildLayerSpecs: stops', () => {
-  it('draws one circle per stop and the numbers 1, 2, 3 as the top-most layers', () => {
+  it('draws one circle per stop and the numbers 1, 2, 3 above everything but the package', () => {
     const specs = buildLayerSpecs({ places, routes, movers, visible: all, stops });
-    expect(ids(specs).slice(-2)).toEqual(['stops', 'stops-number']);
+    expect(ids(specs).slice(-3)).toEqual(['stops', 'stops-number', 'movers-package']);
+    expect(ids(buildLayerSpecs({ places, routes, movers: [], visible: all, stops })).slice(-2)).toEqual(['stops', 'stops-number']);
     const circles = byId<ScatterSpec>(specs, 'stops');
     const numbers = byId<TextSpec>(specs, 'stops-number');
     expect(circles.type).toBe('scatter');
@@ -153,7 +154,11 @@ describe('buildLayerSpecs: stops', () => {
     const specs = buildLayerSpecs({ places, routes, movers, visible: all, stops });
     const circles = byId<ScatterSpec>(specs, 'stops');
     expect(circles.props.pickable).toBe(true);
-    expect(circles.data[1].item).toEqual({ id: 'stop-2', kind: 'stop', label: 'Drop at Flatiron Relay', role: 'Stop 2' });
+    expect(circles.data[0].item).toEqual({ id: 'stop-1', kind: 'stop', label: 'Pickup at DUMBO Café', role: 'Stop 1' });
+    // Stops 2 and 3 share the relay: the tooltip names both, whichever circle is on top.
+    expect(circles.data[1].item).toEqual({
+      id: 'stop-2', kind: 'stop', label: 'Drop at Flatiron Relay · then Pickup at Flatiron Relay', role: 'Stops 2 and 3',
+    });
     expect(byId<TextSpec>(specs, 'stops-number').props.pickable).toBe(false);
   });
 
@@ -164,7 +169,7 @@ describe('buildLayerSpecs: stops', () => {
 
   it('stays on top and is never dimmed with a selection', () => {
     const specs = buildLayerSpecs({ places, routes, movers, visible: all, selectedIds: ['emp-1'], stops });
-    expect(ids(specs).slice(-3)).toEqual(['labels-selected', 'stops', 'stops-number']);
+    expect(ids(specs).slice(-4)).toEqual(['labels-selected', 'stops', 'stops-number', 'movers-package']);
     for (const d of byId<ScatterSpec>(specs, 'stops').data) {
       expect(d.fillColor[3]).toBe(255);
       expect(d.lineColor[3]).toBe(255);

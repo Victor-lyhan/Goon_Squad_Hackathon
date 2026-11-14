@@ -88,6 +88,36 @@ export function mapOptions() {
   };
 }
 
+/** Padding of every camera fit, in pixels. */
+export const FIT_PADDING_PX = 48;
+/** Google's highest zoom for the roadmap: a fit to one point stops here. */
+export const MAX_FIT_ZOOM = 21;
+
+/** Web Mercator y of a latitude, as a fraction of the world height (0 = north edge). */
+function mercatorY(lat: number): number {
+  const siny = Math.min(Math.max(Math.sin((lat * Math.PI) / 180), -0.9999), 0.9999);
+  return 0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI);
+}
+
+/**
+ * The zoom `map.fitBounds(bounds, padding)` picks for a map of this size: the largest whole zoom at
+ * which the bounds fit inside the padded viewport (256 px world tiles). Lets tests draw the names
+ * "at the zoom that fits them all" without a browser.
+ */
+export function fitZoom(
+  bounds: LatLngBounds,
+  size: { width: number; height: number },
+  padding = FIT_PADDING_PX,
+): number {
+  const w = Math.max(1, size.width - 2 * padding);
+  const h = Math.max(1, size.height - 2 * padding);
+  const dx = Math.abs(bounds.east - bounds.west) / 360;
+  const dy = Math.abs(mercatorY(bounds.south) - mercatorY(bounds.north));
+  const zx = dx > 0 ? Math.log2(w / (256 * dx)) : MAX_FIT_ZOOM;
+  const zy = dy > 0 ? Math.log2(h / (256 * dy)) : MAX_FIT_ZOOM;
+  return Math.max(0, Math.min(MAX_FIT_ZOOM, Math.floor(Math.min(zx, zy))));
+}
+
 /** Bounds around the places, padded slightly; null when there are none. */
 export function placesBounds(places: MapPlace[], pad = 0.005): LatLngBounds | null {
   const ok = places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
