@@ -2,6 +2,10 @@
 // API functions are injected, so tests run in Node with fake timers. A poller belongs to one employee:
 // `stop()` aborts what is in flight and nothing reaches the sink afterwards (the hook makes a new poller
 // when the employee ID changes).
+// The dashboard carries no run ID, so the run is read from the map, which is the whole set of route lines.
+// Only the first dashboard waits for it. After that a dashboard is dispatched as soon as it arrives, with
+// the last known run ID, and the run is checked in the background: at most once per RUN_CHECK_INTERVAL_MS
+// while the version keeps changing, and once more after the last change (#597, DECISIONS pass 61).
 import type {
   BusinessesResponse, EmployeeDashboard, EmployeesResponse, JobResponse,
 } from '../../../../../../shared/v2/api';
@@ -9,6 +13,8 @@ import { ApiRequestError, isAbortError, type RequestOptions } from '../../../../
 import type { WorkspaceAction } from './employeeWorkspaceState';
 
 export const POLL_INTERVAL_MS = 1000;
+/** The shortest time between two run checks (map requests). */
+export const RUN_CHECK_INTERVAL_MS = 5000;
 
 /** The v2 helpers the poller needs (same signatures as `client/src/api/v2`). */
 export type EmployeeWorkspaceApi = {
@@ -16,7 +22,7 @@ export type EmployeeWorkspaceApi = {
   getJob: (id: string, opts?: RequestOptions) => Promise<JobResponse>;
   getBusinesses: (opts?: RequestOptions) => Promise<BusinessesResponse>;
   getEmployees: (opts?: RequestOptions) => Promise<EmployeesResponse>;
-  /** Only `runId` is read: the dashboard has none, so a version change is checked against the map's run. */
+  /** Only `runId` is read: the dashboard has none, so version changes are checked against the map's run. */
   getMap: (opts?: RequestOptions) => Promise<{ runId: string }>;
 };
 
@@ -37,7 +43,9 @@ export function createEmployeePoller(
   employeeId: string,
   api: EmployeeWorkspaceApi,
   sink: EmployeePollerSink,
-  { intervalMs = POLL_INTERVAL_MS }: { intervalMs?: number } = {},
+  { intervalMs = POLL_INTERVAL_MS, runCheckMs = RUN_CHECK_INTERVAL_MS }: {
+    intervalMs?: number; runCheckMs?: number;
+  } = {},
 ): EmployeePoller {
   const ctl = new AbortController();
   const { signal } = ctl;
@@ -48,16 +56,25 @@ export function createEmployeePoller(
   let watched: string | null = null;
   let lastVersion: number | null = null;
   let runId: string | null = null;
+  /** Rises when a check finds another run, so a business list requested before it does not count. */
+  let runEpoch = 0;
   let haveBusinesses = false;
+  // Run check: `runAsked` = the first dashboard has waited for it; `checkWanted` = the version changed
+  // (or a check failed) since the last check began; `cooldown` runs for `runCheckMs` from each check.
+  let runAsked = false;
+  let checkWanted = false;
+  let checking = false;
+  let cooldown: ReturnType<typeof setTimeout> | undefined;
 
   const live = () => !signal.aborted;
   const dispatch = (a: WorkspaceAction) => { if (live()) sink.dispatch(a); };
 
   async function loadBusinesses(): Promise<void> {
+    const epoch = runEpoch;
     try {
       const b = await api.getBusinesses({ signal });
       if (!live()) return;
-      haveBusinesses = true;
+      if (epoch === runEpoch) haveBusinesses = true; // else the run changed meanwhile: loaded again next tick
       dispatch({ type: 'businesses', businesses: b.businesses });
     } catch { /* retried on the next tick */ }
   }
@@ -69,13 +86,34 @@ export function createEmployeePoller(
     } catch { return null; }
   }
 
-  /** The map's run ID when the version moved; the old one if the check fails (retried at the next change). */
-  async function checkRun(version: number): Promise<void> {
-    if (lastVersion !== null && version === lastVersion && runId !== null) return;
+  function startCooldown() {
+    cooldown = setTimeout(() => { cooldown = undefined; maybeCheckRun(); }, runCheckMs);
+  }
+
+  /**
+   * Reads the run ID from the map. Another run ID marks the business list for a reload; the next dashboard
+   * dispatch carries it. A failed check keeps the old run ID and is repeated after the cooldown.
+   */
+  async function checkRun(): Promise<void> {
+    checkWanted = false;
+    checking = true;
+    startCooldown();
     try {
       const m = await api.getMap({ signal });
-      if (live()) runId = m.runId;
-    } catch { /* keep the old run ID */ }
+      if (!live()) return;
+      if (runId !== null && m.runId !== runId) { runEpoch += 1; haveBusinesses = false; }
+      runId = m.runId;
+    } catch {
+      if (live()) { checkWanted = true; if (cooldown === undefined) startCooldown(); }
+    } finally {
+      checking = false;
+      maybeCheckRun();
+    }
+  }
+
+  /** Starts a wanted check unless one is in flight or the last one began less than `runCheckMs` ago. */
+  function maybeCheckRun() {
+    if (live() && checkWanted && !checking && cooldown === undefined) void checkRun();
   }
 
   async function poll(): Promise<void> {
@@ -97,12 +135,17 @@ export function createEmployeePoller(
       }
       dispatch({ type: 'dashboardFailed', error: e });
     } else {
-      const prevRun = runId;
-      await checkRun(dash.value.version);
-      if (!live()) return;
+      if (!runAsked) {
+        runAsked = true;
+        await checkRun();
+        if (!live()) return;
+      } else if (dash.value.version !== lastVersion || runId === null) {
+        checkWanted = true;
+        maybeCheckRun(); // not awaited: the dashboard never waits for the map
+      }
       lastVersion = dash.value.version;
       dispatch({ type: 'dashboard', dashboard: dash.value, runId });
-      if (!haveBusinesses || (prevRun !== null && runId !== prevRun)) await loadBusinesses();
+      if (!haveBusinesses) await loadBusinesses();
     }
 
     // The selection may have changed while this poll ran: then its result belongs to the old job.
@@ -144,6 +187,8 @@ export function createEmployeePoller(
       ctl.abort();
       if (timer) clearTimeout(timer);
       timer = undefined;
+      if (cooldown) clearTimeout(cooldown);
+      cooldown = undefined;
       const all = waiters; waiters = []; all.forEach((r) => r());
     },
     refetchNow,
