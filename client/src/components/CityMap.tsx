@@ -10,6 +10,9 @@ export type CityMapProps = {
   homes?: { employeeId: string; nodeId: string }[];
   highlightRoute?: string[];
   baselineRoute?: string[];
+  /** One polyline per route; legs are never joined. Odd-indexed (relay second) legs get a dashed style. */
+  highlightRoutes?: string[][];
+  baselineRoutes?: string[][];
   selectedNodeId?: string;
   onNodeClick?: (nodeId: string) => void;
   children?: ReactNode; // extra SVG layer (markers etc.)
@@ -19,7 +22,7 @@ export type CityMapProps = {
 const PAD = 90;
 
 export function CityMap({
-  graph, businesses, hubs, homes = [], highlightRoute, baselineRoute,
+  graph, businesses, hubs, homes = [], highlightRoute, baselineRoute, highlightRoutes, baselineRoutes,
   selectedNodeId, onNodeClick, children, className,
 }: CityMapProps) {
   const pos = projectNodes(graph.nodes);
@@ -34,6 +37,8 @@ export function CityMap({
   };
   const base = safeRoute(baselineRoute);
   const hi = safeRoute(highlightRoute);
+  const baseMany = (baselineRoutes ?? []).map(safeRoute);
+  const hiMany = (highlightRoutes ?? []).map(safeRoute);
   const clickable = !!onNodeClick;
   const lx = vb.x + 12;
   const ly = vb.y + vb.height - 100;
@@ -52,7 +57,11 @@ export function CityMap({
         ))}
       </g>
       {base && <polyline className="route-base" points={base} />}
+      {baseMany.map((pts, i) => pts && <polyline key={`bm${i}`} className="route-base route-base-leg" points={pts} />)}
       {hi && <polyline className="route-hi" points={hi} />}
+      {hiMany.map((pts, i) => pts && (
+        <polyline key={`hm${i}`} className={`route-hi route-hi-leg${i % 2 ? ' route-hi-alt' : ''}`} points={pts} />
+      ))}
 
       {clickable && (
         <g>

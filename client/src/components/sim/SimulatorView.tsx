@@ -9,7 +9,7 @@ import { MetricsCards } from './MetricsCards';
 import { PackageDetail } from './PackageDetail';
 import { PackageQueue } from './PackageQueue';
 import { PlaybackBar } from './PlaybackBar';
-import { resolveSelection } from './simPageModel';
+import { resolveSelection, selectedRoutes } from './simPageModel';
 import './SimulatorPage.css';
 
 export type SimulatorViewProps = {
@@ -38,13 +38,15 @@ export function SimulatorView({ sim, map, employees, selectedId, onSelect, onCon
     );
   }
   const selected = resolveSelection(selectedId, sim.shipments);
+  const routes = selectedRoutes(sim, selected);
   return (
     <div className="sp">
       {banner}
       <PlaybackBar clock={sim.clock} nextEventMin={sim.nextEventMin} settings={SIM_WINDOW} busy={busy} onControl={onControl} />
       <div className="sp-main">
         <div className="sp-map">
-          <CityMap graph={map.graph} businesses={map.businesses} hubs={map.hubs} homes={map.homes}>
+          <CityMap graph={map.graph} businesses={map.businesses} hubs={map.hubs} homes={map.homes}
+            highlightRoutes={routes.legs} baselineRoutes={routes.baselines}>
             <MapMarkers graph={map.graph} snapshot={sim.snapshot} clock={sim.clock} />
           </CityMap>
         </div>
