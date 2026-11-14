@@ -108,7 +108,7 @@ describe('submitReducer', () => {
   });
 
   it('409 is locked', () => {
-    expect(submitReducer(start, { type: 'failure', error: httpError(409, 'Locked') }).status).toEqual({ kind: 'locked' });
+    expect(submitReducer(start, { type: 'failure', error: httpError(409, 'Locked') }).status).toEqual({ kind: 'locked', message: 'Locked' });
   });
 
   it.each(['google_key_missing', 'travel_data_missing', 'google_unavailable'] as const)('503 %s is unavailable', (code) => {

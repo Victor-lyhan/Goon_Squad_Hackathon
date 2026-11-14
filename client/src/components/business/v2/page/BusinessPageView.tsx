@@ -1,0 +1,205 @@
+// MVP II Business page (#461): puts the merged Business pieces together. Props only, so tests render
+// every screen without the data hook. Local UI state: the table's search, filters and sort, whether the
+// New delivery form is open, and the retry-match status. All data comes from the hook state, and the
+// page changes only `?shipment=` (through onOpenShipment / onCloseShipment).
+import { useMemo, useState } from 'react';
+import type { ShipmentResponse } from '../../../../../../shared/v2/api';
+import type { CreateShipmentRequest } from '../../../../../../shared/v2/schemas';
+import { BusinessHeader } from '../activity/BusinessHeader';
+import { NotificationsPanel } from '../activity/NotificationsPanel';
+import { DeliveryDetails } from '../DeliveryDetails';
+import { RECONNECTING_TEXT, RUN_CHANGED_NOTE, type BusinessWorkspaceState } from '../live/businessWorkspaceState';
+import { NewDeliveryForm } from '../NewDeliveryForm';
+import { ShipmentsTable } from '../ShipmentsTable';
+import { ShipmentsToolbar } from '../ShipmentsToolbar';
+import { NO_FILTERS, nextSort } from '../shipmentsTableModel';
+import {
+  DELIVERY_MISSING_TEXT, DELIVERY_MISSING_TITLE, ERROR_TITLE, INITIAL_TABLE, LOADING_TEXT, NOT_FOUND_TEXT,
+  NOT_FOUND_TITLE, NO_BUSINESSES_TEXT, UNAVAILABLE_TITLE, matchErrorText, pageScreen, simulatorHref, tableModel,
+  type TableState,
+} from './businessPageModel';
+import './businessPage.css';
+
+export type BusinessPageViewProps = {
+  state: BusinessWorkspaceState;
+  /** The `?shipment=` value, null when absent. */
+  shipmentId: string | null;
+  createShipment: (req: CreateShipmentRequest) => Promise<ShipmentResponse>;
+  matchShipment: (id: string) => Promise<ShipmentResponse>;
+  refetchNow: () => Promise<void>;
+  dismissRunChanged: () => void;
+  /** Sets `?shipment=`. */
+  onOpenShipment: (shipmentId: string) => void;
+  /** Removes `?shipment=`. */
+  onCloseShipment: () => void;
+  /** Link to another business's workspace on this same route (for the not-found state). */
+  businessHref: (businessId: string) => string;
+  /** Starting UI state, for static renders. */
+  initialNewOpen?: boolean;
+  initialTable?: TableState;
+};
+
+export function BusinessPageView({
+  state, shipmentId, createShipment, matchShipment, refetchNow, dismissRunChanged,
+  onOpenShipment, onCloseShipment, businessHref, initialNewOpen = false, initialTable = INITIAL_TABLE,
+}: BusinessPageViewProps) {
+  const [newOpen, setNewOpen] = useState(initialNewOpen);
+  const [table, setTable] = useState<TableState>(initialTable);
+  /** Bumped by "Clear filters" so the toolbar drops its typed search text. */
+  const [toolbarKey, setToolbarKey] = useState(0);
+  const [matching, setMatching] = useState<string | null>(null);
+  const [matchError, setMatchError] = useState<{ shipmentId: string; text: string } | null>(null);
+
+  const screen = pageScreen(state, shipmentId);
+  const { dashboard, businesses, employees } = state;
+  // Recomputed only when the hook hands over a new dashboard (a same-version poll keeps the object).
+  const model = useMemo(
+    () => (dashboard ? tableModel(dashboard, businesses, table) : null),
+    [dashboard, businesses, table],
+  );
+
+  if (screen.kind === 'loading') {
+    return <main className="bp"><p className="bp-state" role="status">{LOADING_TEXT}</p></main>;
+  }
+  if (screen.kind === 'not_found') {
+    return (
+      <main className="bp">
+        <section className="bp-state" role="status">
+          <h1>{NOT_FOUND_TITLE}</h1>
+          <p>{screen.fallbackBusinessId ? NOT_FOUND_TEXT : NO_BUSINESSES_TEXT}</p>
+          <p className="bp-links">
+            {screen.fallbackBusinessId && (
+              <a href={businessHref(screen.fallbackBusinessId)}>Open a business in the current city</a>
+            )}
+            <a href="/">Back to the start page</a>
+          </p>
+        </section>
+      </main>
+    );
+  }
+  if (screen.kind === 'unavailable' || screen.kind === 'error') {
+    return (
+      <main className="bp">
+        <section className="bp-state bp-problem" role="alert">
+          <h1>{screen.kind === 'unavailable' ? UNAVAILABLE_TITLE : ERROR_TITLE}</h1>
+          <p>{screen.text}</p>
+          <button type="button" className="bp-btn" onClick={() => { void refetchNow(); }}>Retry</button>
+        </section>
+      </main>
+    );
+  }
+
+  const d = dashboard!;
+  const m = model!;
+  const setFilters = (f: Partial<TableState['filters']>) => setTable((t) => ({ ...t, filters: { ...t.filters, ...f } }));
+  const clearFilters = () => { setTable((t) => ({ ...t, filters: NO_FILTERS })); setToolbarKey((k) => k + 1); };
+
+  const retryMatch = async (id: string) => {
+    if (matching) return;
+    setMatching(id);
+    setMatchError(null);
+    try {
+      await matchShipment(id);
+    } catch (e) {
+      setMatchError({ shipmentId: id, text: matchErrorText(e) });
+    } finally {
+      setMatching(null);
+    }
+  };
+
+  let side;
+  if (screen.kind === 'delivery') {
+    const id = screen.view.shipment.id;
+    side = (
+      <>
+        {matchError && matchError.shipmentId === id && (
+          <p className="bp-notice bp-problem" role="alert">{matchError.text}</p>
+        )}
+        <DeliveryDetails
+          key={id}
+          view={screen.view}
+          businesses={businesses}
+          employees={employees}
+          viewerBusinessId={d.business.id}
+          phase={d.phase}
+          busy={matching === id}
+          onRetryMatch={() => { void retryMatch(id); }}
+          onClose={onCloseShipment}
+        />
+      </>
+    );
+  } else if (screen.kind === 'delivery_missing') {
+    side = (
+      <section className="bp-missing" role="status" aria-labelledby="bp-missing-title">
+        <h2 id="bp-missing-title">{DELIVERY_MISSING_TITLE}</h2>
+        <p>{DELIVERY_MISSING_TEXT}</p>
+        <p className="bp-mono">{screen.shipmentId}</p>
+        <p className="bp-links">
+          <button type="button" className="bp-btn" onClick={onCloseShipment}>Back to deliveries</button>
+          <a href={simulatorHref(screen.shipmentId)}>Look for it in the simulator</a>
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <main className="bp">
+      <BusinessHeader dashboard={d} />
+      <div className="bp-notices">
+        {state.reconnecting && (
+          <p className="bp-notice bp-problem" role="status">
+            {RECONNECTING_TEXT}{state.unavailable ? ` ${state.unavailable.message}` : ''}
+          </p>
+        )}
+        {state.runChanged && (
+          <p className="bp-notice" role="status">
+            {RUN_CHANGED_NOTE}{' '}
+            <button type="button" className="bp-btn bp-btn-link" onClick={dismissRunChanged}>Dismiss</button>
+          </p>
+        )}
+      </div>
+      <div className={side ? 'bp-layout bp-layout--open' : 'bp-layout'}>
+        <section className="bp-main" aria-label="Deliveries">
+          <ShipmentsToolbar
+            key={toolbarKey}
+            initialQuery={table.filters.query}
+            onQueryChange={(query) => setFilters({ query })}
+            direction={table.filters.direction}
+            onDirectionChange={(direction) => setFilters({ direction })}
+            status={table.filters.status}
+            onStatusChange={(status) => setFilters({ status })}
+            counts={m.counts}
+            total={m.all.length}
+            onNewDelivery={() => setNewOpen(true)}
+          />
+          {newOpen && (
+            <div className="bp-new">
+              <NewDeliveryForm
+                origin={d.business}
+                businesses={businesses}
+                phase={d.phase}
+                onSubmit={createShipment}
+                onOpenDelivery={onOpenShipment}
+                onCancel={() => setNewOpen(false)}
+              />
+            </div>
+          )}
+          <ShipmentsTable
+            rows={m.rows}
+            totalCount={m.all.length}
+            sort={table.sort}
+            onSort={(key) => setTable((t) => ({ ...t, sort: nextSort(t.sort, key) }))}
+            selectedId={shipmentId}
+            onSelect={onOpenShipment}
+            onNewDelivery={() => setNewOpen(true)}
+            onClearFilters={clearFilters}
+          />
+        </section>
+        <aside className="bp-side" aria-label="Delivery details and notifications">
+          {side && <div className="bp-details">{side}</div>}
+          <NotificationsPanel dashboard={d} businesses={businesses} onOpenShipment={onOpenShipment} />
+        </aside>
+      </div>
+    </main>
+  );
+}
