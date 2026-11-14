@@ -1,6 +1,7 @@
 // Commute route preview for the MVP II Employee workspace (#419): the saved commute on the NYC
-// map, the selected delivery's stops on top, and the same facts as text under the map so nothing
+// map, the selected delivery's stops on top, and both directions as text under the map so nothing
 // depends on the map loading. The page fetches GET /api/v2/map once per run and passes it in.
+// The legend lists only what is drawn: "Delivery route" needs a leg line (#626).
 import { useMemo } from 'react';
 import type { EmployeeJobView, MapResponse } from '../../../../../../shared/v2/api';
 import type { Employee, Home, NetworkBusiness, Trip } from '../../../../../../shared/v2/types';
@@ -52,16 +53,19 @@ export function CommuteRoutePreview({ employee, home, trips, businesses, map, jo
           <span className="ecr__swatch ecr__swatch--commute" style={{ background: COMMUTE_COLOR }} aria-hidden="true" />
           Your normal commute
         </li>
-        <li>
-          <span className="ecr__swatch ecr__swatch--delivery" style={{ background: DELIVERY_COLOR }} aria-hidden="true" />
-          Delivery route
-        </li>
+        {model.hasDeliveryRoute && (
+          <li>
+            <span className="ecr__swatch ecr__swatch--delivery" style={{ background: DELIVERY_COLOR }} aria-hidden="true" />
+            Delivery route
+          </li>
+        )}
       </ul>
 
       {model.notes.map((note) => (
         <p key={note} className="ecr__note">{note}</p>
       ))}
 
+      {/* Text for the two commute lines. No departure on the workspace: the commute card has it. */}
       {model.summary.length > 0 && (
         <ul className="ecr__summary">
           {model.summary.map((line) => (
