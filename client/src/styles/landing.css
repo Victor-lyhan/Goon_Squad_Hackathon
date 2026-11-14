@@ -53,7 +53,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3, 12px);
-  max-width: 560px;
+  max-width: 640px; /* each entry's line of text fits on one row at desktop widths (#714) */
 }
 .workspaces > li { display: flex; }
 .workspace-entry {
@@ -62,7 +62,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3, 12px);
-  padding: var(--space-3, 12px) var(--space-4, 16px);
+  padding: var(--space-2, 8px) var(--space-4, 16px);
   background: var(--panel, #FFFFFF);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
@@ -107,6 +107,11 @@ a.workspace-entry:focus-visible {
   padding: var(--space-2, 8px) 0 var(--space-4, 16px);
   font-size: var(--text-xs, 12px);
   color: var(--muted, #5B6472);
+}
+
+/* Projector widths: the button is taller, wider and set larger than the two entries under it (#714). */
+@media (min-width: 600px) {
+  .watch-button { min-width: 320px; min-height: 64px; font-size: 20px; }
 }
 
 @media (max-width: 480px) {
