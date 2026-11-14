@@ -1,27 +1,16 @@
-import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { createApp } from '../../server/index';
 import { createStore } from '../../server/store';
 import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
-import { businessDashboard } from '../../server/api/views';
-import { snapshotAt } from '../../server/domain/simulation';
-import type { ShipmentResponse } from '../../shared/api';
-import { MatchResultCard } from '../../client/src/components/business/MatchResultCard';
-import { ShipmentList } from '../../client/src/components/business/ShipmentList';
-import { ShipmentForm } from '../../client/src/components/ShipmentForm';
-import { patchFromRequest } from '../../client/src/components/business/businessPortalModel';
 import {
   actionErrorMessage, createSubmitGuard, formFromShipment, newClientRequestId, toRequest, validate,
 } from '../../client/src/components/business/shipmentFormModel';
 import { ApiRequestError, createShipment, getShipment, matchShipment, patchShipment } from '../../client/src/api';
-
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/'/g, '&#x27;');
 
 // Real server + real POSTs: ~0.9 s locally on the first test. Explicit 30 s (>3x, >=10 s) so a slow CI runner cannot hit the 5 s default (#307).
 const SLOW = 30_000;
@@ -58,40 +47,6 @@ describe('no-match -> Edit request -> Try again -> Duplicate (real pipeline)', {
     });
   }
 
-  const card = (response: ShipmentResponse, busy = false) => {
-    const { businesses, hubs, employees } = scenario();
-    return renderToStaticMarkup(
-      <MemoryRouter><MatchResultCard response={response} businesses={businesses} hubs={hubs} employees={employees}
-        busy={busy} onViewTracking={() => {}} onEdit={() => {}} onRetry={() => {}} /></MemoryRouter>,
-    );
-  };
-
-  it('renders the card with the backend reason and keeps the package in Outgoing', async () => {
-    const res = await postUnmatched();
-    expect(res.matched).toBe(false);
-    expect(res.unmatchedReason).toBeTruthy();
-    const html = card(res);
-    expect(html).toContain('No matching commute yet');
-    expect(html).toContain(esc(res.unmatchedReason!));
-    expect(html).toContain('Edit request');
-    expect(html).toContain('Try again');
-    expect(html).not.toMatch(/NaN|undefined|Delivery arranged/);
-
-    const run = store.get();
-    const d = businessDashboard(run, snapshotAt(run, run.clock.timeMin), origin().id)!;
-    const row = d.outgoing.find((v) => v.shipment.id === res.shipment.id);
-    expect(row).toBeDefined();
-    expect(row!.plan).toBeFalsy();
-    const list = renderToStaticMarkup(<ShipmentList views={d.outgoing} direction="outgoing" businesses={scenario().businesses} onSelect={() => {}} />);
-    expect(list).toContain('Tight contracts');
-    expect(list).toContain('No match yet');
-  });
-
-  it('busy disables Edit request and Try again', async () => {
-    const html = card(await postUnmatched(), true);
-    expect(html.match(/<button[^>]*disabled/g)?.length).toBe(2);
-  });
-
   it('Edit request prefills every field from the stored shipment and PATCHes it', async () => {
     const res = await postUnmatched();
     const stored = (await getShipment(res.shipment.id)).shipment;
@@ -104,21 +59,11 @@ describe('no-match -> Edit request -> Try again -> Duplicate (real pipeline)', {
     const day = (m: number) => (m >= 1440 ? 2 : 1);
     expect(form.readyDay).toBe(day(stored.readyMin));
     expect(form.deadlineDay).toBe(day(stored.deadlineMin));
-    // The rendered form shows them too.
-    const html = renderToStaticMarkup(
-      <ShipmentForm origin={origin()} businesses={scenario().businesses} locked={false} submitting={false} initial={form} onSubmit={() => {}} />,
-    );
-    expect(html).toContain('value="Tight contracts"');
-    expect(html).toContain('value="0.7"');
-    expect(html).toContain(form.readyTime);
-    expect(html).toContain('Needs it fast');
-
     // Edit: relax the deadline to the end of the sim and save.
     const edited = { ...form, deadlineDay: 2 as const, deadlineTime: '10:00' };
     expect(validate(edited)).toEqual({});
-    const req = toRequest(edited, 'ignored');
-    const body = patchFromRequest(req);
-    expect(body).not.toHaveProperty('clientRequestId');
+    // The PATCH body is the request without the create-only fields.
+    const { clientRequestId: _c, originBusinessId: _o, ...body } = toRequest(edited, 'ignored');
     const patched = await patchShipment(stored.id, body);
     expect(patched.shipment.id).toBe(stored.id);
     expect(patched.shipment.deadlineMin).toBe(2040);

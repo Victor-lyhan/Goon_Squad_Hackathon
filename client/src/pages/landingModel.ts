@@ -1,4 +1,4 @@
-// Pure helpers for the homepage's NYC data source (dataset="nyc"). Plain TS so Node tests can run them.
+// Pure helpers for the homepage's data source, the NYC run. Plain TS so Node tests can run them.
 // Every number comes from an /api/v2 response; nothing is counted from deliveries in the browser.
 import type { BusinessesResponse, EmployeesResponse, SimulatorResponse } from '../../../shared/v2/api';
 import type { DemoIdentity } from '../demoIdentity';
@@ -7,9 +7,7 @@ import {
   getBusinesses, getEmployees, getSimulator, isAbortError, isTravelUnavailable, type RequestOptions,
 } from '../api/v2';
 
-export type LandingDataset = 'synthetic' | 'nyc';
-
-/** Footer and indicator text for the NYC variant (the label must describe the data on screen, pass 44). */
+/** Footer and indicator text (the label must describe the data on screen, pass 44). */
 export const NYC_ENV_TEXT = ENV_LABELS.nyc;
 /** The one line shown instead of numbers when /api/v2 answers 503 (same copy as the v2 workspaces, pass 46). */
 export const NYC_UNAVAILABLE_TEXT = 'NYC travel data is not loaded on this server yet.';

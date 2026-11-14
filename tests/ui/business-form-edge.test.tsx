@@ -1,7 +1,4 @@
-import { MemoryRouter } from 'react-router-dom';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ShipmentForm } from '../../client/src/components/ShipmentForm';
 import { ApiRequestError } from '../../client/src/api';
 import {
   classifySubmitFailure, createRequestIdHolder, createSubmitGuard, defaultForm, parseWeightKg, toRequest, validate,
@@ -77,36 +74,5 @@ describe('retry keeps the same clientRequestId', () => {
     release();
     await p1;
     expect(calls).toBe(1);
-  });
-});
-
-const biz = (id: string, nodeId: string) => ({ id, name: id, district: 'D', nodeId } as never);
-const render = (props: Record<string, unknown>) => renderToStaticMarkup(
-  <MemoryRouter>
-    <ShipmentForm origin={biz('biz-a', 'n1')} businesses={[biz('biz-a', 'n1'), biz('biz-b', 'n2')]}
-      locked={false} submitting={false} onSubmit={() => {}} {...props} />
-  </MemoryRouter>,
-);
-
-describe('form rendering', () => {
-  it('shows the pending button disabled', () => {
-    const html = render({ submitting: true });
-    expect(html).toContain('Matching your package…');
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Matching your package/);
-  });
-  it('shows the retry message and keeps the form enabled', () => {
-    const html = render({ formError: { kind: 'retry', message: "We couldn't reach the server." } });
-    expect(html).toContain("couldn&#x27;t reach the server");
-    expect(html).toContain('Find a delivery match');
-  });
-  it('shows the 409 text with a /simulator link', () => {
-    const html = render({ formError: { kind: 'locked', message: 'x' }, locked: true });
-    expect(html).toContain('new requests are closed until the next planning cycle');
-    expect(html).toContain('href="/simulator"');
-  });
-  it('maps 400 field errors inline and surfaces unknown keys', () => {
-    const html = render({ fieldErrors: { weightKg: 'Max 2 kg', body: 'Bad body' } });
-    expect(html).toContain('Max 2 kg');
-    expect(html).toContain('Bad body');
   });
 });

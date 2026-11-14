@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { AppShell } from '../../client/src/App';
 import { ApiRequestError } from '../../client/src/api/v2';
 import {
-  HELP_STEPS, NYC_HELP_STEPS, NYC_HELP_UNAVAILABLE_TEXT, nycHelpView, startNycHelpLists,
+  NYC_HELP_STEPS, NYC_HELP_UNAVAILABLE_TEXT, nycHelpView, startNycHelpLists,
 } from '../../client/src/pages/Help';
 import type { V2BusinessDirectory, V2Directory } from '../../client/src/ui/shell';
 import { ENV_LABELS } from '../../client/src/ui/shellModel';
@@ -108,9 +108,9 @@ describe('NYC copy', () => {
     expect(about).toContain('homes are shown by neighborhood only');
     expect(about).not.toContain('demo data');
   });
-  it('shows the NYC indicator and the same number of steps as the MVP 1 page', () => {
+  it('shows the NYC indicator and six steps', () => {
     expect(main(html)).toContain(`<p class="help-indicator">${ENV_LABELS.nyc}</p>`);
-    expect(NYC_HELP_STEPS).toHaveLength(HELP_STEPS.length);
+    expect(NYC_HELP_STEPS).toHaveLength(6);
   });
 });
 
@@ -157,8 +157,7 @@ describe('loading the lists', () => {
   });
   it('the NYC help reads the stored demo identity but never writes it or loads MVP 1 lists', () => {
     const src = readFileSync('client/src/pages/Help.tsx', 'utf8');
-    const nyc = src.slice(src.indexOf('export const NYC_HELP_STEPS'), src.indexOf('function SyntheticHelp'));
-    expect(nyc).not.toMatch(/writeIdentity|localStorage|useDirectory/);
+    expect(src).not.toMatch(/writeIdentity|localStorage|useDirectory/);
     expect(src).toMatch(/useEffect\(\s*\(\) => startNycHelpLists\(/);
   });
   it('the step links use a stored identity that is in the lists, else the first account', () => {

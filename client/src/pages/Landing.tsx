@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { getBusinesses, getEmployees, getSimulator, isAbortError } from '../api';
-import { portalPaths, readIdentity, resolveIdentity, useDirectory } from '../demoIdentity';
-import { NYC_ENV_TEXT, NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, type LandingDataset, type NycSummary } from './landingModel';
+import { readIdentity } from '../demoIdentity';
+import { NYC_ENV_TEXT, NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, type NycSummary } from './landingModel';
 import '../styles/landing.css';
 
 export const SIMULATOR_PATH = '/simulator';
@@ -13,7 +12,7 @@ export const HELP_PATH = '/help';
 export type SummaryFacts =
   | { status: 'loading' }
   | { status: 'error' }
-  /** NYC only: /api/v2 answered 503 (travel data not loaded). One line, no numbers. */
+  /** /api/v2 answered 503 (travel data not loaded). One line, no numbers. */
   | { status: 'unavailable' }
   | { status: 'ready'; businesses: number; commuters: number; relayPoints: number; matched: number; requested: number };
 
@@ -97,31 +96,6 @@ export function WorkspaceEntries({ paths }: {
   );
 }
 
-function useSummaryFacts(initial?: SummaryFacts): SummaryFacts {
-  const [facts, setFacts] = useState<SummaryFacts>(initial ?? { status: 'loading' });
-  useEffect(() => {
-    if (initial) return;
-    const ctl = new AbortController();
-    const opts = { signal: ctl.signal };
-    Promise.all([getBusinesses(opts), getEmployees(opts), getSimulator(opts)])
-      .then(([b, e, sim]) => {
-        if (ctl.signal.aborted) return;
-        setFacts({
-          status: 'ready',
-          businesses: b.businesses.length,
-          commuters: e.employees.length,
-          relayPoints: b.hubs.length,
-          matched: sim.snapshot.metrics.matched,
-          requested: sim.snapshot.metrics.requested,
-        });
-      })
-      .catch((err) => { if (!ctl.signal.aborted && !isAbortError(err)) setFacts({ status: 'error' }); });
-    return () => ctl.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return facts;
-}
-
 /** The NYC summary from /api/v2 (requests aborted on unmount). `initial` skips the requests (tests). */
 function useNycSummary(initial?: NycSummary): NycSummary {
   const [summary, setSummary] = useState<NycSummary>(initial ?? { status: 'loading' });
@@ -140,7 +114,17 @@ function nycFacts(s: NycSummary): SummaryFacts {
 }
 
 /** The homepage on the NYC network: /api/v2 only, links to the main paths. */
-function NycLanding({ initialSummary, helpPath }: { initialSummary?: NycSummary; helpPath: string }) {
+export default function Landing({ initialSummary, helpPath = HELP_PATH }: {
+  /**
+   * Accepted and ignored: the NYC page is the only one. `App.tsx` still passes `dataset="nyc"` and is not
+   * edited by the deletion issue (#565); remove the prop together with that attribute.
+   */
+  dataset?: 'nyc';
+  /** Skip the /api/v2 requests and render this summary (tests). */
+  initialSummary?: NycSummary;
+  /** Where "Guided demo" goes (default /help). */
+  helpPath?: string;
+} = {}) {
   const summary = useNycSummary(initialSummary);
   return (
     <div className="landing landing-nyc">
@@ -154,47 +138,6 @@ function NycLanding({ initialSummary, helpPath }: { initialSummary?: NycSummary;
       <footer className="landing-footer">
         <span>{NYC_ENV_TEXT}</span>
         <Link to={helpPath}>Guided demo</Link>
-      </footer>
-    </div>
-  );
-}
-
-export default function Landing(
-  { initial, initialFacts, dataset = 'synthetic', initialSummary, helpPath = HELP_PATH }: {
-    initial?: Parameters<typeof useDirectory>[0]; initialFacts?: SummaryFacts;
-    /** Which data the page shows. The app mounts 'nyc' (/api/v2 only); 'synthetic' is the MVP 1 page, no longer mounted. */
-    dataset?: LandingDataset;
-    /** NYC only: skip the /api/v2 requests and render this summary (tests). */
-    initialSummary?: NycSummary;
-    /** NYC only: where "Guided demo" goes (default /help). */
-    helpPath?: string;
-  } = {},
-) {
-  if (dataset === 'nyc') return <NycLanding initialSummary={initialSummary} helpPath={helpPath} />;
-  return <SyntheticLanding initial={initial} initialFacts={initialFacts} />;
-}
-
-function SyntheticLanding(
-  { initial, initialFacts }: { initial?: Parameters<typeof useDirectory>[0]; initialFacts?: SummaryFacts },
-) {
-  const dir = useDirectory(initial);
-  const facts = useSummaryFacts(initialFacts);
-  const paths = portalPaths(
-    dir.status === 'ready' ? resolveIdentity(readIdentity(), dir.businesses, dir.employees) : null,
-  );
-  return (
-    <div className="landing">
-      <section className="landing-intro">
-        <h1>Delivery infrastructure, powered by existing commutes.</h1>
-        <p>Relay matches business packages to the trips employees already make, direct or through one relay point.</p>
-      </section>
-      <OperationalSummary facts={facts} />
-      <WorkspaceEntries paths={paths} />
-      {dir.status === 'loading' && <p className="landing-status">Loading demo accounts…</p>}
-      {dir.status === 'error' && <p className="landing-status" role="alert">Could not load demo accounts. Is the API running?</p>}
-      <footer className="landing-footer">
-        <span>Simulated environment. No real deliveries are made.</span>
-        <Link to={HELP_PATH}>Guided demo</Link>
       </footer>
     </div>
   );
