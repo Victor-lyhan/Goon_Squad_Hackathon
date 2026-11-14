@@ -20,6 +20,7 @@ import {
   panDecision,
   readBrowserKey,
   resolveFit,
+  selectedItemText,
   type MapStatus,
 } from './mapModel';
 import type {
@@ -100,6 +101,38 @@ function toDeckLayer(spec: LayerSpec, mod: DeckLayersModule) {
         ...props,
       });
   }
+}
+
+/** The no-key message. An alert, so it is announced without looking at the map area. */
+export function MapKeyMissing() {
+  return (
+    <div className="map-v2__panel" role="alert">
+      <strong>{KEY_MISSING_TEXT}</strong> Add <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code> to <code>.env</code> and
+      restart <code>npm run dev</code>.
+    </div>
+  );
+}
+
+/** The load-error message with Retry. An alert, like the no-key message. */
+export function MapLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="map-v2__panel" role="alert">
+      <strong>{LOAD_ERROR_TEXT}</strong>
+      <p>Check your connection and the key's allowed referrers, then try again.</p>
+      <Button variant="secondary" onClick={onRetry}>
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+/** The hover tooltip's text for the selected item, for keyboard and screen-reader users. */
+function SelectedAnnouncement({ text }: { text: string }) {
+  return (
+    <div className="map-v2__sr" role="status" aria-live="polite" data-testid="map-selected">
+      {text ? `Selected on map: ${text}` : ''}
+    </div>
+  );
 }
 
 function pickedItem(info: PickingInfo): MapItem | null {
@@ -222,13 +255,13 @@ export function GoogleBaseMap({
     if (target) map.panTo(target);
   }, [panKey, status]);
 
+  const selectedText = selectedItemText(selectedIds, places, movers, stops);
+
   if (status === 'missing-key') {
     return (
       <div className="map-v2 map-v2--state">
-        <div className="map-v2__panel" role="alert">
-          <strong>{KEY_MISSING_TEXT}</strong> Add <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code> to <code>.env</code> and
-          restart <code>npm run dev</code>.
-        </div>
+        <MapKeyMissing />
+        <SelectedAnnouncement text={selectedText} />
       </div>
     );
   }
@@ -252,13 +285,7 @@ export function GoogleBaseMap({
       )}
       {status === 'error' && (
         <div className="map-v2__overlay">
-          <div className="map-v2__panel" role="alert">
-            <strong>{LOAD_ERROR_TEXT}</strong>
-            <p>Check your connection and the key's allowed referrers, then try again.</p>
-            <Button variant="secondary" onClick={() => setAttempt((a) => a + 1)}>
-              Retry
-            </Button>
-          </div>
+          <MapLoadError onRetry={() => setAttempt((a) => a + 1)} />
         </div>
       )}
       {status === 'ready' && hover && (
@@ -267,6 +294,7 @@ export function GoogleBaseMap({
           <div className="map-v2__tooltip-role">{hover.item.role}</div>
         </div>
       )}
+      <SelectedAnnouncement text={selectedText} />
     </div>
   );
 }

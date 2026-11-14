@@ -1,6 +1,7 @@
 // Pure helpers for GoogleBaseMap (no DOM, no Google, no deck.gl), tested in Node.
+import { roleOf } from './layers';
 import { MAP_STYLE, NYC_CENTER, NYC_ZOOM } from './mapStyle';
-import type { LatLngBounds, MapPanTarget, MapPlace } from './types';
+import type { LatLngBounds, MapMover, MapPanTarget, MapPlace, MapStop } from './types';
 
 export type MapStatus = 'missing-key' | 'loading' | 'ready' | 'error';
 
@@ -83,4 +84,29 @@ export function panDecision(
   if (!panTo || panTo.key === lastKey) return { key: lastKey, target: null };
   const ok = Number.isFinite(panTo.lat) && Number.isFinite(panTo.lng);
   return { key: panTo.key, target: ok ? { lat: panTo.lat, lng: panTo.lng } : null };
+}
+
+/**
+ * The hover tooltip's text (name and role) for the selected item, so it is reachable without a
+ * mouse: GoogleBaseMap puts it in a visually hidden live region. The first selected ID that is a
+ * place, mover or stop wins (route IDs have no name of their own). Empty when nothing resolves.
+ */
+export function selectedItemText(
+  selectedIds: readonly string[],
+  places: MapPlace[],
+  movers: MapMover[],
+  stops: MapStop[] = [],
+): string {
+  for (const id of selectedIds) {
+    const place = places.find((p) => p.id === id);
+    if (place) {
+      const role = place.sublabel ? `${roleOf(place.kind)} · ${place.sublabel}` : roleOf(place.kind);
+      return `${place.label}, ${role}`;
+    }
+    const mover = movers.find((m) => m.id === id);
+    if (mover) return `${mover.label}, ${roleOf(mover.kind)}`;
+    const stop = stops.find((s) => s.id === id);
+    if (stop) return `${stop.label}, Stop ${stop.n}`;
+  }
+  return '';
 }

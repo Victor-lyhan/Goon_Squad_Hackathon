@@ -32,8 +32,8 @@
 .pk-chip:hover { border-color: var(--accent, #28618A); }
 .pk-chip.is-pressed {
   border-color: var(--accent, #28618A);
-  background: var(--accent-soft, #E6EFF6);
-  color: var(--accent-dark, #1D4866);
+  background: var(--accent-soft, #E8F0F6);
+  color: var(--accent-dark, #1F4E70);
 }
 .pk-count { font-family: var(--font-mono, monospace); color: var(--muted, #5B6472); }
 .pk-chip.is-pressed .pk-count { color: inherit; }
