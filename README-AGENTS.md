@@ -6,7 +6,7 @@ Copy everything in this folder into the root of your hackathon repo.
 - `AGENTS.md`: rules for all agents (fill in the <FILL IN> parts). `CLAUDE.md` points to it.
 - `SPEC.md`: what you're building and the milestones (humans write this before starting).
 - `STATUS.md`, `DECISIONS.md`, `QUESTIONS.md`: shared memory (planner maintains).
-- `contracts/`: interfaces between modules. Write these before starting the agents.
+- `shared/`: interfaces between modules. Write these before starting the agents.
 - `prompts/`: planner, worker and reviewer instructions.
 - `scripts/planner.sh`, `scripts/worker.sh`, `scripts/reviewer.sh`: the loops.
 - `scripts/setup-labels.sh`: creates the GitHub labels (run once).

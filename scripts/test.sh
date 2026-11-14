@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# The ONE command every agent and CI uses to check the project. Edit this for your stack.
-# Exit non-zero on any failure.
-set -e
+# The one check agents, the reviewer and CI run. Must pass before any PR.
+set -euo pipefail
+cd "$(dirname "$0")/.."
 
-# Examples; keep the ones that match your project:
-# (cd backend && python -m pytest -q)
-# (cd frontend && npm test --silent -- --watchAll=false)
-# (cd frontend && npm run build)
+if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi
 
-echo "scripts/test.sh: no tests configured yet. Edit this file."
+echo "== typecheck =="
+npm run -s typecheck
+
+echo "== tests =="
+npx vitest run
+
+echo "== build =="
+npm run -s build
+
+echo "OK"

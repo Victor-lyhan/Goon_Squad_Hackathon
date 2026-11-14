@@ -11,7 +11,7 @@ You are in a scratch git worktree with the PR's branch checked out.
 ## Block the PR (VERDICT: CHANGES) only for
 - tests or build fail
 - it does not meet the issue's acceptance criteria
-- it breaks a contract in contracts/ or an interface other modules use
+- it breaks a contract in shared/ or an interface other modules use
 - large, unexplained edits outside the module it owns
 - secrets/API keys committed, or obviously unsafe code
 - a serious bug you can point to concretely

@@ -1,0 +1,64 @@
+{
+  "_comment": "Spec §9 unit fixture. Partial directed graph; only the two listed trips exist. Times in minutes since Day 1 00:00.",
+  "graph": {
+    "nodes": [
+      { "id": "A", "x": 0, "y": 0, "label": "Business A" },
+      { "id": "H", "x": 1, "y": 1, "label": "Hub H" },
+      { "id": "X", "x": 0, "y": 2, "label": "Home X" },
+      { "id": "Y", "x": 2, "y": 0, "label": "Home Y" },
+      { "id": "B", "x": 2, "y": 2, "label": "Business B" }
+    ],
+    "edges": [
+      { "from": "A", "to": "X", "durationMin": 20, "distanceM": 7000 },
+      { "from": "A", "to": "H", "durationMin": 10, "distanceM": 3500 },
+      { "from": "H", "to": "X", "durationMin": 12, "distanceM": 4200 },
+      { "from": "Y", "to": "B", "durationMin": 20, "distanceM": 7000 },
+      { "from": "Y", "to": "H", "durationMin": 10, "distanceM": 3500 },
+      { "from": "H", "to": "B", "durationMin": 12, "distanceM": 4200 }
+    ]
+  },
+  "businesses": [
+    { "id": "biz-a", "name": "Business A", "nodeId": "A", "district": "Test" },
+    { "id": "biz-b", "name": "Business B", "nodeId": "B", "district": "Test" }
+  ],
+  "hubs": [{ "id": "hub-h", "name": "Hub H", "nodeId": "H" }],
+  "trips": [
+    { "id": "emp-1-eve", "employeeId": "emp-1", "direction": "evening", "originNodeId": "A", "destinationNodeId": "X", "departureMin": 1020, "maxExtraMin": 8 },
+    { "id": "emp-2-morn", "employeeId": "emp-2", "direction": "morning", "originNodeId": "Y", "destinationNodeId": "B", "departureMin": 1935, "maxExtraMin": 8 }
+  ],
+  "employees": [
+    { "id": "emp-1", "businessId": "biz-a" },
+    { "id": "emp-2", "businessId": "biz-b" }
+  ],
+  "shipment": {
+    "id": "shp-1", "originBusinessId": "biz-a", "destinationBusinessId": "biz-b",
+    "readyMin": 960, "deadlineMin": 1980
+  },
+  "expected": {
+    "kind": "relay",
+    "hubId": "hub-h",
+    "legs": [
+      {
+        "tripId": "emp-1-eve",
+        "stops": [
+          { "kind": "pickup", "nodeId": "A", "serviceStartMin": 1020, "serviceEndMin": 1022 },
+          { "kind": "hub_drop", "nodeId": "H", "arrivalMin": 1032, "serviceStartMin": 1032, "serviceEndMin": 1034 }
+        ],
+        "finishMin": 1046, "baselineFinishMin": 1040, "extraMin": 6, "extraDistanceM": 700, "rewardCents": 300
+      },
+      {
+        "tripId": "emp-2-morn",
+        "stops": [
+          { "kind": "hub_pickup", "nodeId": "H", "arrivalMin": 1945, "serviceStartMin": 1945, "serviceEndMin": 1947 },
+          { "kind": "delivery", "nodeId": "B", "arrivalMin": 1959, "serviceStartMin": 1959, "serviceEndMin": 1961 }
+        ],
+        "finishMin": 1961, "baselineFinishMin": 1955, "extraMin": 6, "extraDistanceM": 700, "rewardCents": 300
+      }
+    ],
+    "deliveryMin": 1961,
+    "totalRewardCents": 600,
+    "platformContributionCents": 300,
+    "customerSavingsCents": 400,
+    "withMaxExtraMin5": "unmatched"
+  }
+}
