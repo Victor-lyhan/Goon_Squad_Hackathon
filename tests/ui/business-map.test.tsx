@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import fixture from '../../fixtures/relayFixture.json';
@@ -71,7 +72,7 @@ describe('map rendering', () => {
   ] as const) {
     it(`TrackingDetail ${name}`, () => {
       const html = renderToStaticMarkup(
-        <TrackingDetail view={fix(v)} businesses={businesses} hubs={hubs} employees={employees} map={map} />);
+        <MemoryRouter><TrackingDetail view={fix(v)} businesses={businesses} hubs={hubs} employees={employees} map={map} /></MemoryRouter>);
       expect((html.match(/class="route-hi /g) ?? []).length).toBe(polylines);
       expect(/class="hub"[^>]*><title>/.test(html)).toBe(hub);
       expectClean(html);

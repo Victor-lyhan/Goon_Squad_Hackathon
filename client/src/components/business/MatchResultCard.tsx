@@ -1,6 +1,9 @@
 import type { ShipmentResponse } from '../../../../shared/api';
 import type { Business, Employee, Hub } from '../../../../shared/types';
+import { Link } from 'react-router-dom';
 import { Button, Card, formatCents, formatKg, formatMin } from '../../ui';
+import { carrierHref, simulatorHref } from './trackingModel';
+import { jobIdFor } from '../../../../shared/types';
 import './ShipmentForm.css';
 
 export type MatchResultCardProps = {
@@ -31,7 +34,7 @@ export function MatchResultCard({ response, businesses, hubs, employees, onViewT
   }
 
   const nameOf = (id: string) => employees.find((e) => e.id === id)?.name ?? 'Employee';
-  const carriers = plan.legs.map((l) => nameOf(l.employeeId));
+  const carriers = plan.legs.map((l, i) => ({ key: `${l.tripId}-${i}`, name: nameOf(l.employeeId), href: carrierHref(l.employeeId, jobIdFor(plan.id, i)) }));
   const hub = plan.kind === 'relay' ? hubs.find((h) => h.id === plan.hubId)?.name ?? 'Hub' : null;
   const collectionMin = plan.legs[0]?.stops[0]?.serviceStartMin;
 
@@ -45,7 +48,9 @@ export function MatchResultCard({ response, businesses, hubs, employees, onViewT
         <dt>Estimated arrival</dt><dd>{formatMin(plan.deliveryMin)}</dd>
         <dt>Requested deadline</dt><dd>{formatMin(shipment.deadlineMin)}</dd>
         <dt>Price</dt><dd>{formatCents(plan.customerPriceCents)}</dd>
-        <dt>{carriers.length > 1 ? 'Carriers' : 'Carrier'}</dt><dd>{carriers.join(' → ')}</dd>
+        <dt>{carriers.length > 1 ? 'Carriers' : 'Carrier'}</dt><dd>{carriers.map((c, i) => (
+          <span key={c.key}>{i > 0 && ' → '}<Link to={c.href}>{c.name}</Link></span>
+        ))}</dd>
         {hub && (<><dt>Hub</dt><dd>{hub}</dd></>)}
       </dl>
       <ol className="match-card__timeline">
@@ -55,6 +60,7 @@ export function MatchResultCard({ response, businesses, hubs, employees, onViewT
       </ol>
       <div className="match-card__actions">
         <Button onClick={onViewTracking}>View tracking</Button>
+        <Link to={simulatorHref(shipment.id)}>Watch in simulator</Link>
       </div>
     </Card>
   );

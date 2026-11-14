@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import fixture from '../../fixtures/relayFixture.json';
@@ -36,8 +37,8 @@ const directPlan: DeliveryPlan = { ...relayPlan, kind: 'direct', hubId: undefine
 const base = { jobIds: [], status: 'scheduled' as const, deliveredAtMin: null, unmatchedReason: null };
 const noop = () => {};
 const render = (response: ShipmentResponse) => renderToStaticMarkup(
-  <MatchResultCard response={response} businesses={businesses} hubs={hubs} employees={employees}
-    onViewTracking={noop} onEdit={noop} onRetry={noop} />,
+  <MemoryRouter><MatchResultCard response={response} businesses={businesses} hubs={hubs} employees={employees}
+    onViewTracking={noop} onEdit={noop} onRetry={noop} /></MemoryRouter>,
 );
 
 describe('MatchResultCard', () => {
@@ -51,7 +52,7 @@ describe('MatchResultCard', () => {
     expect(html).toContain('Estimated arrival');
     expect(html).toContain('Requested deadline');
     expect(html).not.toContain('Hub H');
-    expect(html).not.toContain('emp-1');
+    expect(html.replace(/<[^>]*>/g, ' ')).not.toContain('emp-1');
   });
 
   it('renders a matched relay with the hub and both carriers', () => {
