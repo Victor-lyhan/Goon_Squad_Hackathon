@@ -23,7 +23,9 @@ import { ApiRequestError, createShipment, getShipment, matchShipment, patchShipm
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/'/g, '&#x27;');
 
-describe('no-match -> Edit request -> Try again -> Duplicate (real pipeline)', () => {
+// Real server + real POSTs: ~0.9 s locally on the first test. Explicit 30 s (>3x, >=10 s) so a slow CI runner cannot hit the 5 s default (#307).
+const SLOW = 30_000;
+describe('no-match -> Edit request -> Try again -> Duplicate (real pipeline)', { timeout: SLOW }, () => {
   let server: Server;
   let store: ReturnType<typeof createStore>;
   const realFetch = globalThis.fetch;
@@ -35,11 +37,11 @@ describe('no-match -> Edit request -> Try again -> Duplicate (real pipeline)', (
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
       realFetch(typeof input === 'string' && input.startsWith('/') ? base + input : input, init)) as typeof fetch;
-  });
+  }, SLOW);
   afterEach(async () => {
     globalThis.fetch = realFetch;
     await new Promise((r) => server.close(r));
-  });
+  }, SLOW);
 
   const scenario = () => store.get().scenario;
   const origin = () => scenario().businesses[0]!;
