@@ -40,11 +40,17 @@
   margin-left: auto;
 }
 .shell-header .demo-account-slot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); max-width: 100%; }
-.shell-header .demo-account { display: inline-flex; align-items: center; gap: var(--space-2, 8px); font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.shell-header .demo-account {
+  display: inline-flex; align-items: center; gap: var(--space-2, 8px); min-width: 0; max-width: 100%;
+  font-size: var(--text-sm, 13px); color: var(--muted, #5B6472);
+}
+.shell-header .demo-account > span { flex: none; white-space: nowrap; }
+/* 20rem shows the longest "Name · Employer" of the NYC run in full; a longer one is cut with an ellipsis
+   and never widens the header. */
 .shell-header .demo-account select {
   padding: var(--space-1, 4px) var(--space-2, 8px); font: inherit; color: var(--text, #151B26);
   background: var(--panel, #FFFFFF); border: 1px solid var(--border, #D7DDE5); border-radius: var(--radius, 2px);
-  max-width: 16rem; min-width: 0;
+  max-width: 20rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .shell-header .demo-account-status { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .shell-help { color: var(--accent-dark, #1F4E70); text-decoration: none; font-size: var(--text-sm, 13px); padding: var(--space-1, 4px) 0; }

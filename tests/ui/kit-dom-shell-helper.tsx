@@ -1,7 +1,7 @@
 // Shared setup for tests/ui/kit-dom-shell-*.test.tsx (#529): the real AppShell in a MemoryRouter,
 // a fake fetch that answers the two /api/v2 lists, and a probe for the current location.
 // The test files mock the page modules with ./kit-dom-shell-pages before importing this.
-import { act } from 'react';
+import { act, type ComponentProps } from 'react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { vi } from 'vitest';
 import { AppShell } from '../../client/src/App';
@@ -19,14 +19,21 @@ export const V2_BUSINESSES = [
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-/** Fake fetch: the /api/v2 lists, a healthy /api/health, 404 for anything else (also the runId poll). Records every URL. */
-export function fakeApi() {
+/** What a list route of the fake API answers: the list, or a Response (or a pending one) of the test's own. */
+export type FakeList = readonly unknown[] | (() => Response | Promise<Response>);
+const answer = (key: string, list: FakeList) => (typeof list === 'function' ? list() : json(200, { [key]: list }));
+
+/**
+ * Fake fetch: the /api/v2 lists, a healthy /api/health, 404 for anything else (also the runId poll). Records
+ * every URL. `lists` replaces a list or its whole answer (#568).
+ */
+export function fakeApi(lists: { employees?: FakeList; businesses?: FakeList } = {}) {
   const calls: string[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
     calls.push(url);
-    if (url === '/api/v2/employees') return json(200, { employees: V2_EMPLOYEES });
-    if (url === '/api/v2/businesses') return json(200, { businesses: V2_BUSINESSES });
+    if (url === '/api/v2/employees') return answer('employees', lists.employees ?? V2_EMPLOYEES);
+    if (url === '/api/v2/businesses') return answer('businesses', lists.businesses ?? V2_BUSINESSES);
     if (url === '/api/health') return new Response(null, { status: 200 });
     return json(404, { error: 'Not found' });
   });
@@ -47,14 +54,14 @@ function Probe({ out, history }: { out: Where; history: { go?: (delta: number) =
 
 /**
  * Mounts the shell at `path` (after `before` in the history), lets the /api/v2 lists load, and returns the
- * live location and a Back action.
+ * live location and a Back action. `props` are passed to AppShell (lists given by the test, #568).
  */
-export async function renderShell(path: string, before: string[] = []) {
+export async function renderShell(path: string, before: string[] = [], props: ComponentProps<typeof AppShell> = {}) {
   const where: Where = { path: '', search: '' };
   const history: { go?: (delta: number) => void } = {};
   const m = mount(
     <MemoryRouter initialEntries={[...before, path]} initialIndex={before.length}>
-      <AppShell />
+      <AppShell {...props} />
       <Probe out={where} history={history} />
     </MemoryRouter>,
   );
