@@ -96,13 +96,13 @@ describe('planGenerate: random preset', () => {
     expect(other).not.toStrictEqual(first);
   });
 
-  it('fills in the defaults: seed 42, 60 employees, 24 packages, 8 extra minutes', () => {
+  it('fills in the defaults: seed 42, 60 employees, 24 packages, 12 extra minutes', () => {
     const scenario = scenarioOf({ preset: 'random' });
     expect(scenario.seed).toBe(42);
     expect(scenario.employees).toHaveLength(60);
     expect(scenario.shipments).toHaveLength(24);
-    expect(scenario.settings.defaultMaxExtraMin).toBe(8);
-    expect(scenario.employees.every((e) => e.maxExtraMin === 8)).toBe(true);
+    expect(scenario.settings.defaultMaxExtraMin).toBe(12);
+    expect(scenario.employees.every((e) => e.maxExtraMin === 12)).toBe(true);
   });
 
   it('can use the whole 120-home pool, and only pool homes', () => {

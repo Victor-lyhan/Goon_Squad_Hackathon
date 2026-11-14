@@ -44,6 +44,13 @@ export function deepFreeze<T>(value: T): T {
   return value;
 }
 
+/**
+ * Detour limit of the background commuters in this sweep. It is not the NYC default: on the made-up straight-line
+ * table almost every story package finds a direct carrier at 8 or more, and the sweep needs relays too. With the
+ * story retuned for real travel times (#492) the limits 4 to 7 give at least 2 relay plans; 5 gives the most.
+ */
+const DAY_MAX_EXTRA_MIN = 5;
+
 /** Build once per file (twice only for the independent-build determinism check). */
 export function buildDay() {
   const scenario = buildNycScenario({
@@ -51,7 +58,7 @@ export function buildDay() {
     neighborhoodsFile: fixture<NycNeighborhoodsFile>('neighborhoods'),
     storyFile: fixture<NycDemoStoryFile>('demoStory'),
     places: MADE_UP_BUSINESS_POINTS,
-    request: { preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 8 },
+    request: { preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: DAY_MAX_EXTRA_MIN },
   });
   const places = Object.fromEntries([...scenario.businesses, ...scenario.homes].map(
     ({ id, lat, lng }) => [id, { lat, lng }],
@@ -94,7 +101,8 @@ export function buildDay() {
   const direct = run.assignments.plans.filter(plan => plan.kind === 'direct').length;
   const relay = run.assignments.plans.filter(plan => plan.kind === 'relay').length;
   if (direct < 2 || relay < 2) {
-    throw new Error(`Day sweep requires at least 2 direct and 2 relay plans; got ${direct} direct, ${relay} relay`);
+    throw new Error(`Day sweep requires at least 2 direct and 2 relay plans; got ${direct} direct, ${relay} relay. `
+      + 'After a story change, pick another DAY_MAX_EXTRA_MIN.');
   }
   return { run, travel, places };
 }

@@ -38,7 +38,7 @@ export const GenerateScenarioRequest = z.object({
   seed: z.number().int().default(42),
   employees: z.number().int().min(10).max(120).default(60),
   packages: z.number().int().min(5).max(60).default(24),
-  maxExtraMin: z.number().int().min(0).max(30).default(8),
+  maxExtraMin: z.number().int().min(0).max(30).default(12),
 });
 export type GenerateScenarioRequest = z.infer<typeof GenerateScenarioRequest>;
 

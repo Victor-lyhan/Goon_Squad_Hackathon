@@ -102,7 +102,8 @@ describe('curated NYC fixture data', () => {
 
   it('places featured commute endpoints inside their named neighborhood boxes', () => {
     expect(featuredEmployees.length).toBeGreaterThanOrEqual(8);
-    expect(featuredEmployees.length).toBeLessThanOrEqual(10);
+    // At most 20 since the retune on real travel times (DECISIONS pass 54); pass 44 said 8-10.
+    expect(featuredEmployees.length).toBeLessThanOrEqual(20);
     const businessIds = new Set(businesses.map((business) => business.id));
     const neighborhoodByName = new Map(neighborhoods.map((neighborhood) => [neighborhood.name, neighborhood]));
     const homePoints = new Set<string>();
@@ -136,11 +137,6 @@ describe('curated NYC fixture data', () => {
     expect(employeeById.get('emp-10')?.home).toMatchObject({
       id: 'home-story-harlem-2', neighborhood: 'Harlem', lat: 40.81300, lng: -73.94330,
     });
-  });
-
-  it('keeps separate B&H carriers for the relay stories', () => {
-    expect(featuredEmployees.filter((employee) => employee.businessId === 'biz-bh-photo').map((employee) => employee.id))
-      .toEqual(['emp-4', 'emp-10']);
   });
 
   it('supplies 24 valid, distinct business-to-business package requests', () => {

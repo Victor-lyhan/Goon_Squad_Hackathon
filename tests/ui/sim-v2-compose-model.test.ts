@@ -90,7 +90,7 @@ describe('simPageView: network mode', () => {
     expect(v.controls).toEqual({
       clock: data.sim!.clock, nextEventMin: 1100, busy: true, ...SIM_WINDOW, scenario: DEFAULT_SCENARIO,
     });
-    expect(DEFAULT_SCENARIO).toEqual({ preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 8 });
+    expect(DEFAULT_SCENARIO).toEqual({ preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 12 });
   });
 
   it('focus options are names sorted by label', () => {

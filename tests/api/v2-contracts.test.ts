@@ -232,7 +232,7 @@ describe('MVP II contracts: request schemas', () => {
   });
 
   it('GenerateScenarioRequest applies defaults, has no hubs and caps employees at 120', () => {
-    expect(GenerateScenarioRequest.parse({ preset: 'demo' })).toEqual({ preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 8 });
+    expect(GenerateScenarioRequest.parse({ preset: 'demo' })).toEqual({ preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 12 });
     expect(GenerateScenarioRequest.parse({ preset: 'random', hubs: 6 })).not.toHaveProperty('hubs');
     expect(GenerateScenarioRequest.safeParse({ preset: 'random', employees: 120 }).success).toBe(true);
     expect(GenerateScenarioRequest.safeParse({ preset: 'random', employees: 121 }).success).toBe(false);
