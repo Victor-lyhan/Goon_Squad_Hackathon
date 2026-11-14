@@ -219,6 +219,17 @@ describe('the journey on the map: colors, widths, symbols, labels, badges and dr
     ]);
   });
 
+  it('each step carries the same symbol and short label as its map stop, also without coordinates (#683)', () => {
+    const j = relayAt(T.overnight, 'at_hub');
+    expect(j.steps.map((s) => [s.n, s.symbol, s.symbolLabel])).toEqual(j.stops.map((s) => [s.n, s.symbol, s.label]));
+    // A place missing from the map response has no map stop, but its step still has a symbol and a label.
+    const sparse = { ...map, businesses: map.businesses.filter((b) => b.id !== 'biz-roast') };
+    const k = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map: sparse }) as Journey;
+    expect(k.steps.map((s) => [s.symbol, s.symbolLabel])).toEqual([
+      ['sender', 'DUMBO Studio'], ['relay', 'Overnight'], ['swap', 'Handed to Ben Okafor'], ['recipient', 'To Etsy'],
+    ]);
+  });
+
   it('the flag says "Delivered <clock time>" once the snapshot has deliveredAtMin, never computed', () => {
     const sim = withDelivered(T.afterDelivery, { 'shp-2': 1979, 'shp-1': 1072 });
     const relay = journeyOf(buildJourney({ shipmentId: 'shp-2', sim, map }));

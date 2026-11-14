@@ -168,7 +168,7 @@ describe.each(real.moments)('every package selected at $name', (moment) => {
         expect(Number.isFinite(leg.rewardCents)).toBe(true);
         expect(Number.isFinite(leg.extraMin)).toBe(true);
         const t = text(legLines[i]);
-        expect(t).toContain(`Leg ${i + 1}`);
+        expect(t).toContain(`${j.carriers[i].letter} · `); // "A · <name>" / "B · <name>" (#683)
         expect(t).toContain(text(escaped(employees.get(leg.employeeId)!.name)));
         expect(t).toContain(text(escaped(`from ${j.carriers[i].homeNeighborhood}`)));
         expect(t).toContain(`+${Math.max(0, Math.round(leg.extraMin))} min extra`);

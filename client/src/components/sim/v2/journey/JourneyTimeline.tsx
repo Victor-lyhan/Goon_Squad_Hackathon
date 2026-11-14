@@ -1,10 +1,16 @@
-// Right panel of package journey mode: the numbered steps (same numbers as the map's stop markers),
-// each a button that seeks the simulation to that moment and pans the map to that place. Under the
-// header: the planned delivery time (and the delivered time once the snapshot has it) and one line
-// per leg with its carrier, home neighbourhood, extra minutes and reward. All read from the plan and
-// the snapshot by journeyModel.ts; nothing is computed here. The extra minutes are the leg's own
-// value with its sign, as in the employee inspector (DECISIONS pass 62): "-3 min extra" for a shorter route.
+// Right panel of package journey mode: the steps with the map's symbols (docs/mvp3.md P1 "Symbols
+// instead of numbered events"): filled square = sender, diamond = relay ("Overnight · <relay>"),
+// two-arrow swap = handoff ("Handed to <carrier B>"), flag = delivered, each with the map's short label.
+// Each step is a button that seeks the simulation to that moment and pans the map to that place; its
+// screen-reader name still starts "Step n:". Under the header: the planned delivery time (and the
+// delivered time once the snapshot has it) and one line per carrier, "A · <name>" / "B · <name>" with the
+// letter badge in the carrier's map colour (as JourneyLegend.tsx), home neighbourhood, extra minutes and
+// reward. All read from the plan and the snapshot by journeyModel.ts; nothing is computed here. The
+// extra minutes are the leg's own value with its sign (DECISIONS pass 62): "-3 min extra" for a shorter
+// route. Colours come only from map/layers.ts.
 import { formatCents, formatMin } from '../../../../ui/format';
+import { RELAY_INK, toneLabelColor } from '../../../map/layers';
+import type { RouteTone, StopSymbol } from '../../../map/types';
 import { formatExtraMin } from '../inspector/inspectorModel';
 import { SHIPMENT_STATUS_TEXT } from '../packages/statusText';
 import type { Journey, JourneyCarrier, JourneyResult, JourneyStep, StepState } from './journeyModel';
@@ -44,11 +50,57 @@ function Times({ journey }: { journey: Journey }) {
   );
 }
 
+/** The map's symbol ink (RELAY_INK) as CSS. */
+const INK = `rgb(${RELAY_INK[0]}, ${RELAY_INK[1]}, ${RELAY_INK[2]})`;
+
+/** Inline SVG of the map's stop symbols (layers.ts SYMBOL_GLYPH: ■ ◆ ⇄ ⚑), drawn in the map's ink. */
+export function StopSymbolIcon({ symbol }: { symbol: StopSymbol }) {
+  const common = { width: 20, height: 20, viewBox: '0 0 20 20', focusable: 'false' as const, 'aria-hidden': true };
+  switch (symbol) {
+    case 'sender':
+      return (
+        <svg {...common} className="jt-sym jt-sym--sender" data-symbol="sender">
+          <rect x="4" y="4" width="12" height="12" fill={INK} />
+        </svg>
+      );
+    case 'relay':
+      return (
+        <svg {...common} className="jt-sym jt-sym--relay" data-symbol="relay">
+          <polygon points="10,2 18,10 10,18 2,10" fill={INK} />
+        </svg>
+      );
+    case 'swap':
+      return (
+        <svg {...common} className="jt-sym jt-sym--swap" data-symbol="swap">
+          <path d="M3 7h12M12 4l3 3-3 3M17 13H5M8 10l-3 3 3 3" fill="none" stroke={INK} strokeWidth="2" strokeLinecap="square" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common} className="jt-sym jt-sym--recipient" data-symbol="recipient">
+          <path d="M5 2v16" stroke={INK} strokeWidth="2" />
+          <polygon points="6,3 16,6.5 6,10" fill={INK} />
+        </svg>
+      );
+  }
+}
+
+/** The carrier's letter badge in its map colour, as on its vehicle and in the journey legend. */
+function LetterBadge({ tone, letter }: { tone: RouteTone; letter: string }) {
+  return (
+    <span className={`jt-badge jt-badge--${tone}`} aria-hidden="true" style={{ background: toneLabelColor(tone) }}>
+      {letter}
+    </span>
+  );
+}
+
 function LegLine({ carrier }: { carrier: JourneyCarrier }) {
   return (
-    <li className={`jt-leg jt-leg--${carrier.tone}`}>
-      <span className="jt-leg__n">Leg {carrier.legIndex + 1}</span>
-      <span className="jt-leg__name">{carrier.name}</span>
+    <li className={`jt-leg jt-leg--${carrier.tone}`} style={{ borderLeftColor: toneLabelColor(carrier.tone) }}>
+      <LetterBadge tone={carrier.tone} letter={carrier.letter} />
+      <span className="jt-leg__name">
+        {carrier.letter} · {carrier.name}
+      </span>
       <span className="jt-leg__home">from {carrier.homeNeighborhood}</span>
       <span className="jt-leg__extra">{extraText(carrier.extraMin)}</span>
       <span className="jt-leg__reward">{rewardText(carrier.rewardCents)}</span>
@@ -56,8 +108,13 @@ function LegLine({ carrier }: { carrier: JourneyCarrier }) {
   );
 }
 
-function Step({ step, onSeek }: { step: JourneyStep; onSeek: JourneyTimelineProps['onSeek'] }) {
-  const tone = step.legIndex === 0 ? 'leg1' : 'leg2';
+type StepProps = { step: JourneyStep; next: JourneyStep | undefined; onSeek: JourneyTimelineProps['onSeek'] };
+
+function Step({ step, next, onSeek }: StepProps) {
+  const tone: RouteTone = step.legIndex === 0 ? 'leg1' : 'leg2';
+  // The rail to the next step is the carrier's colour while the same carrier has the package (the thick
+  // line on the map); between legs (overnight at the relay point) it stays a thin grey rail.
+  const carried = next !== undefined && next.legIndex === step.legIndex;
   return (
     <li className={`jt-step jt-step--${step.state}`}>
       <button
@@ -66,7 +123,12 @@ function Step({ step, onSeek }: { step: JourneyStep; onSeek: JourneyTimelineProp
         aria-current={step.state === 'current' ? 'step' : undefined}
         onClick={() => onSeek(step.timeMin, step.placeId)}
       >
-        <span className={`jt-step__n jt-step__n--${tone}`} aria-hidden="true">{step.n}</span>
+        {/* The map's symbol instead of a number. The step number stays in the DOM, visually hidden and
+            hidden from screen readers (they read "Step n:" from the label), for the order checks. */}
+        <span className={`jt-step__n jt-step__n--${tone} jt-step__n--${step.symbol}`} aria-hidden="true">
+          <StopSymbolIcon symbol={step.symbol} />
+          <span className="jt-sr">{step.n}</span>
+        </span>
         <span className="jt-step__body">
           <span className="jt-step__head">
             <span className="jt-step__label">
@@ -75,7 +137,10 @@ function Step({ step, onSeek }: { step: JourneyStep; onSeek: JourneyTimelineProp
             </span>
             <span className="jt-step__state">{STATE_TEXT[step.state]}</span>
           </span>
-          <span className="jt-step__place">{step.placeName}</span>
+          <span className="jt-step__short">{step.symbolLabel}</span>
+          {/* Shown only when the short label does not already name the place ("DUMBO Studio", "Overnight ·
+              Brooklyn Roasting"); then it is visually hidden but still read with the step. */}
+          <span className={`jt-step__place${step.symbolLabel.includes(step.placeName) ? ' jt-sr' : ''}`}>{step.placeName}</span>
           <span className="jt-step__meta">
             <span>{timeText(step.timeMin)}</span>
             <span>{step.carrierName}</span>
@@ -83,6 +148,13 @@ function Step({ step, onSeek }: { step: JourneyStep; onSeek: JourneyTimelineProp
           </span>
         </span>
       </button>
+      {next !== undefined && (
+        <span
+          className={`jt-step__rail${carried ? ' jt-step__rail--carried' : ''}`}
+          aria-hidden="true"
+          style={carried ? { background: toneLabelColor(tone) } : undefined}
+        />
+      )}
     </li>
   );
 }
@@ -117,8 +189,8 @@ export function JourneyTimeline({ journey, onSeek }: JourneyTimelineProps) {
         ))}
       </ul>
       <ol className="jt__steps">
-        {journey.steps.map((s) => (
-          <Step key={s.n} step={s} onSeek={onSeek} />
+        {journey.steps.map((s, i) => (
+          <Step key={s.n} step={s} next={journey.steps[i + 1]} onSeek={onSeek} />
         ))}
       </ol>
     </section>

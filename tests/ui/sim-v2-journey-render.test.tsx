@@ -18,12 +18,13 @@ function assertClean(html: string) {
 }
 
 describe('JourneyTimeline', () => {
-  it('shows the numbered relay steps, with aria-current="step" on the current one only', () => {
+  it('shows the relay steps, with aria-current="step" on the current one only', () => {
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight, { 'shp-2': 'at_hub' }), map }) as Journey;
     const html = renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />);
     const t = text(html);
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
-    expect(html).toMatch(/aria-current="step"[^>]*>\s*<span[^>]*aria-hidden="true">3<\/span>/);
+    // The current step (3) is the handoff: its symbol is the swap.
+    expect(html).toMatch(/aria-current="step"[^>]*>\s*<span class="jt-step__n [^"]*" aria-hidden="true"><svg[^>]*data-symbol="swap"/);
     for (const s of ['Step 1: Pickup at sender', 'Step 2: Drop at relay point', 'Step 3: Pickup at relay point', 'Step 4: Delivered to recipient']) {
       expect(t).toContain(s);
     }
@@ -64,6 +65,68 @@ describe('JourneyTimeline', () => {
       expect(text(html)).not.toMatch(/NaN|undefined|Infinity/);
       if (want.startsWith('-')) expect(text(html)).not.toContain('+0 min extra');
     }
+  });
+
+  it('the map\'s symbols and short labels instead of step numbers: square, diamond, swap, flag (relay)', () => {
+    const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight, { 'shp-2': 'at_hub' }), map }) as Journey;
+    const html = renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />);
+    const items = html.match(/<li class="jt-step [\s\S]*?<\/li>/g) ?? [];
+    expect(items).toHaveLength(4);
+    // One symbol per step, in the map's order, each an inline SVG in the map's ink (layers.ts RELAY_INK).
+    expect(items.map((li) => li.match(/data-symbol="(\w+)"/)?.[1])).toEqual(['sender', 'relay', 'swap', 'recipient']);
+    expect(html).toMatch(/jt-sym--sender[^>]*><rect [^>]*fill="rgb\(23, 28, 36\)"/);
+    expect(html).toMatch(/jt-sym--relay[^>]*><polygon points="10,2 18,10 10,18 2,10"/);
+    // The same short labels the map draws next to its symbols.
+    const shorts = items.map((li) => text(li.match(/<span class="jt-step__short">.*?<\/span>/)![0]));
+    expect(shorts).toEqual(j.stops.map((s) => s.label));
+    expect(shorts).toEqual(['DUMBO Studio', 'Overnight · Brooklyn Roasting', 'Handed to Ben Okafor', 'To Etsy']);
+    // The place line is shown only where the short label does not already name it.
+    const places = items.map((li) => li.match(/<span class="(jt-step__place[^"]*)">([^<]*)<\/span>/)!.slice(1));
+    expect(places).toEqual([
+      ['jt-step__place jt-sr', 'DUMBO Studio'], ['jt-step__place jt-sr', 'Brooklyn Roasting'],
+      ['jt-step__place', 'Brooklyn Roasting'], ['jt-step__place jt-sr', 'Etsy'],
+    ]);
+    // No visible step number: the number box holds only the symbol and a visually hidden copy of n.
+    for (const [i, li] of items.entries()) {
+      const box = li.match(/<span class="jt-step__n [^"]*" aria-hidden="true">([\s\S]*?)<\/span><span class="jt-step__body">/)![1];
+      expect(box.replace(/<svg[\s\S]*?<\/svg>/, '')).toBe(`<span class="jt-sr">${i + 1}</span>`);
+    }
+    // Screen readers still hear "Step n:" first.
+    for (const [i, li] of items.entries()) expect(li).toContain(`<span class="jt-sr">Step ${i + 1}: </span>`);
+    // Thick rail in the carrier's colour within a leg, thin grey overnight between the legs; none after the last.
+    const rails = items.map((li) => li.match(/<span class="jt-step__rail[^>]*>/)?.[0] ?? null);
+    expect(rails[0]).toContain('jt-step__rail--carried" aria-hidden="true" style="background:#1D5075"');
+    expect(rails[1]).toBe('<span class="jt-step__rail" aria-hidden="true">');
+    expect(rails[2]).toContain('jt-step__rail--carried" aria-hidden="true" style="background:#0F8A5F"');
+    expect(rails[3]).toBeNull();
+    // The carrier lines: A and B with their letter badges, never "Leg 1" / "Leg 2".
+    const t = text(html);
+    expect(t).toContain('A · Cy Lam');
+    expect(t).toContain('B · Ben Okafor');
+    expect(t).not.toMatch(/\bLeg \d/);
+    assertClean(html);
+  });
+
+  it('the flag says "Delivered <clock time>" once the snapshot has it, as on the map', () => {
+    const base = simAt(T.afterDelivery, { 'shp-2': 'delivered' });
+    const sim = { ...base, snapshot: { ...base.snapshot, deliveredAtMin: { 'shp-2': 1979 } } };
+    const j = buildJourney({ shipmentId: 'shp-2', sim, map }) as Journey;
+    const html = renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />);
+    const shorts = (html.match(/<span class="jt-step__short">.*?<\/span>/g) ?? []).map(text);
+    expect(shorts.at(-1)).toBe('Delivered 8:59 AM');
+    expect(shorts.at(-1)).toBe(j.stops.at(-1)!.label);
+  });
+
+  it('direct: a square and a flag, only carrier A', () => {
+    const j = buildJourney({ shipmentId: 'shp-1', sim: simAt(T.beforePickup), map }) as Journey;
+    const html = renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />);
+    expect([...html.matchAll(/data-symbol="(\w+)"/g)].map((m) => m[1])).toEqual(['sender', 'recipient']);
+    const t = text(html);
+    expect(t).toContain('A · Ana Ruiz');
+    expect(t).not.toMatch(/\bB · |\bLeg \d|Overnight|Handed to/);
+    expect(html).toContain('jt-badge--leg1" aria-hidden="true" style="background:#1D5075">A<');
+    expect(html).not.toContain('jt-badge--leg2');
+    assertClean(html);
   });
 
   it('after delivery: no step is current, still clean', () => {
@@ -108,7 +171,9 @@ describe('JourneyTimeline', () => {
     const items = (kids.find((k) => (k as El | null)?.type === 'ol') as El).props.children as El[];
     for (const item of items) {
       const rendered = (item.type as (p: unknown) => El)(item.props);
-      ((rendered.props.children as El).props.onClick as () => void)();
+      const children = [rendered.props.children].flat() as (El | false)[];
+      const button = children.find((c): c is El => !!c && c.type === 'button')!;
+      (button.props.onClick as () => void)();
     }
     expect(calls).toEqual([[1042, 'biz-dumbo'], [1062, 'biz-roast'], [1952, 'biz-roast'], [1977, 'biz-etsy']]);
   });

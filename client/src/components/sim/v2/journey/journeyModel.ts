@@ -39,6 +39,10 @@ export type JourneyStep = {
   /** Extra minutes of the leg this step belongs to. */
   extraMin: number;
   state: StepState;
+  /** The map's symbol for this stop (sender square, relay diamond, swap, flag), as on its map stop. */
+  symbol: StopSymbol;
+  /** The short text the map draws next to the symbol ("Overnight · Roastery", "Delivered 9:12 AM"). */
+  symbolLabel: string;
   /** null when the place has no coordinates in the map response. */
   lat: number | null;
   lng: number | null;
@@ -138,6 +142,30 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
 
   const carrierName = (employeeId: string) => employees.get(employeeId)?.name ?? UNKNOWN_CARRIER;
 
+  // ---- Stop symbols with short labels (times are clock times; the day/night badge gives the day) ----
+  // Shared by the map's stops and the timeline's steps, so both read the same.
+  const deliveredAt = sim.snapshot.deliveredAtMin?.[shipmentId];
+  const deliveredAtMin = typeof deliveredAt === 'number' && Number.isFinite(deliveredAt) ? deliveredAt : null;
+  const knownName = (id: string) => businesses.get(id)?.name?.trim() || '';
+  const carrierB = plan.legs[1] ? employees.get(plan.legs[1].employeeId)?.name?.trim() : undefined;
+  const symbolOf = (kind: StopKind, placeId: string): { symbol: StopSymbol; label: string } => {
+    switch (kind) {
+      case 'pickup':
+        return { symbol: 'sender', label: knownName(placeId) || 'Sender' };
+      case 'hub_drop':
+        return { symbol: 'relay', label: joinLabel('Overnight', knownName(placeId)) };
+      case 'hub_pickup':
+        return { symbol: 'swap', label: carrierB ? `Handed to ${carrierB}` : 'Handed to carrier B' };
+      default:
+        return {
+          symbol: 'recipient',
+          label: deliveredAtMin !== null
+            ? `Delivered ${formatClock(deliveredAtMin)}`
+            : knownName(placeId) ? `To ${knownName(placeId)}` : 'To recipient',
+        };
+    }
+  };
+
   // ---- Steps, numbered across legs; states from the events that already happened ----
   const occurred = new Set(
     sim.snapshot.occurredEvents
@@ -148,6 +176,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   plan.legs.forEach((leg, legIndex) => {
     for (const stop of leg.stops) {
       const b = businesses.get(stop.placeId);
+      const sym = symbolOf(stop.kind, stop.placeId);
       steps.push({
         n: steps.length + 1,
         kind: stop.kind,
@@ -160,6 +189,8 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
         carrierName: carrierName(leg.employeeId),
         extraMin: leg.extraMin,
         state: occurred.has(EVENT_OF[stop.kind]) ? 'done' : 'upcoming',
+        symbol: sym.symbol,
+        symbolLabel: sym.label,
         lat: b ? b.lat : null,
         lng: b ? b.lng : null,
       });
@@ -206,28 +237,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   // ---- Routes: per carrier, the whole commute (thin) and the part with the package (thick) ----
   const routes = buildRoutes(plan, shipmentId, map, (employeeId) => employees.get(employeeId)?.name);
 
-  // ---- Stop symbols with short labels (times are clock times; the day/night badge gives the day) ----
-  const deliveredAt = sim.snapshot.deliveredAtMin?.[shipmentId];
-  const deliveredAtMin = typeof deliveredAt === 'number' && Number.isFinite(deliveredAt) ? deliveredAt : null;
-  const knownName = (id: string) => businesses.get(id)?.name?.trim() || '';
-  const carrierB = carriers[1] ? employees.get(carriers[1].employeeId)?.name?.trim() : undefined;
-  const symbolOf = (s: JourneyStep): { symbol: StopSymbol; label: string } => {
-    switch (s.kind) {
-      case 'pickup':
-        return { symbol: 'sender', label: knownName(s.placeId) || 'Sender' };
-      case 'hub_drop':
-        return { symbol: 'relay', label: joinLabel('Overnight', knownName(s.placeId)) };
-      case 'hub_pickup':
-        return { symbol: 'swap', label: carrierB ? `Handed to ${carrierB}` : 'Handed to carrier B' };
-      default:
-        return {
-          symbol: 'recipient',
-          label: deliveredAtMin !== null
-            ? `Delivered ${formatClock(deliveredAtMin)}`
-            : knownName(s.placeId) ? `To ${knownName(s.placeId)}` : 'To recipient',
-        };
-    }
-  };
+  // ---- Map stops: each step's symbol and short label ----
   const stops: MapStop[] = steps
     .filter((s): s is JourneyStep & { lat: number; lng: number } => s.lat !== null && s.lng !== null)
     .map((s) => ({
@@ -235,7 +245,8 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
       n: s.n,
       lat: s.lat,
       lng: s.lng,
-      ...symbolOf(s),
+      symbol: s.symbol,
+      label: s.symbolLabel,
       detail: `${s.label} · ${s.placeName}`,
     }));
 
