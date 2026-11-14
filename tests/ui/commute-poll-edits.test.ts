@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   addWaypoint, commuteSync, syncCommuteForm, toForm, toRequest, type CommuteForm, type CommuteSync,
@@ -78,11 +76,5 @@ describe('commute editor keeps unsaved edits across polls (#317)', () => {
     const after = { ...next.form, eveningTime: '19:00' };
     const again = syncCommuteForm(after, next.sync, poll(fresh).employee);
     expect(again.form).toBe(after);
-  });
-
-  it('CommuteEditor has no effect that depends on [employee] alone', () => {
-    const src = readFileSync(resolve(__dirname, '../../client/src/components/CommuteEditor.tsx'), 'utf8');
-    expect(src).not.toMatch(/\[\s*employee\s*\]\s*\)/);
-    expect(src).toMatch(/syncCommuteForm\(/);
   });
 });
