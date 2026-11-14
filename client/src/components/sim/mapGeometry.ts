@@ -86,3 +86,55 @@ export function pointProjector(nodes: readonly XY[]): (p: Point) => Point {
   const k = MAP_UNIT / span;
   return (p) => ({ x: (p.x - minX) * k, y: (p.y - minY) * k });
 }
+
+export type LabelItem = { id: string; x: number; y: number; text: string };
+export type PlacedLabel = { id: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; moved: boolean };
+
+export const LABEL_FONT = 20;
+/** Rough text width in viewBox units (system-ui bold averages ~0.58em per character). */
+export const estimateTextWidth = (text: string, fontSize = LABEL_FONT): number => text.length * fontSize * 0.58;
+
+type Box = { x0: number; y0: number; x1: number; y1: number };
+const hit = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/**
+ * Pure: choose a text position for each label so labels do not overlap each other or any marker.
+ * Items are placed in order (earlier = higher priority). Each tries "below", "above", "right",
+ * "left", then farther below/above; the first free spot wins. If none is free the least-bad
+ * (first) candidate is used. `moved` is true when the label is not at its default (below) spot.
+ */
+export function placeLabels(
+  items: readonly LabelItem[],
+  opts: { fontSize?: number; markerRadius?: number; gap?: number } = {},
+): PlacedLabel[] {
+  const fs = opts.fontSize ?? LABEL_FONT;
+  const r = opts.markerRadius ?? 24;
+  const gap = opts.gap ?? 4;
+  const markers: Box[] = items.map((i) => ({ x0: i.x - r, y0: i.y - r, x1: i.x + r, y1: i.y + r }));
+  const placed: Box[] = [];
+  const out: PlacedLabel[] = [];
+  for (const it of items) {
+    const w = estimateTextWidth(it.text, fs);
+    const cands: { x: number; y: number; anchor: PlacedLabel['anchor'] }[] = [
+      { x: it.x, y: it.y + r + fs, anchor: 'middle' },
+      { x: it.x, y: it.y - r - 4, anchor: 'middle' },
+      { x: it.x + r + gap, y: it.y + fs / 3, anchor: 'start' },
+      { x: it.x - r - gap, y: it.y + fs / 3, anchor: 'end' },
+      { x: it.x, y: it.y + r + 2 * fs + gap, anchor: 'middle' },
+      { x: it.x, y: it.y - r - fs - 8, anchor: 'middle' },
+    ];
+    const boxOf = (c: (typeof cands)[number]): Box => {
+      const x0 = c.anchor === 'middle' ? c.x - w / 2 : c.anchor === 'start' ? c.x : c.x - w;
+      return { x0, x1: x0 + w, y0: c.y - fs, y1: c.y + fs * 0.25 };
+    };
+    let pick = 0;
+    for (let k = 0; k < cands.length; k++) {
+      const b = boxOf(cands[k]);
+      if (!placed.some((p) => hit(b, p)) && !markers.some((m) => hit(b, m))) { pick = k; break; }
+      if (k === cands.length - 1) pick = 0;
+    }
+    placed.push(boxOf(cands[pick]));
+    out.push({ id: it.id, x: cands[pick].x, y: cands[pick].y, anchor: cands[pick].anchor, moved: pick !== 0 });
+  }
+  return out;
+}
