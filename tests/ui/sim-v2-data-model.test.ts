@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { MapResponse, SimulatorResponse } from '../../shared/v2/api';
 import {
-  CONNECTION_LOST_MESSAGE, INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, mapKey, simDataReducer,
-  type SimDataAction, type SimDataState,
+  CONNECTION_LOST_MESSAGE, INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, mapKey, planLegsMissingLine,
+  sameJson, simDataReducer, type SimDataAction, type SimDataState,
 } from '../../client/src/components/sim/v2/live/simDataModel';
 import { abortError, httpError, mapOf, networkError, simAt, travel503 } from './sim-v2-data-fixtures';
 
@@ -145,6 +146,67 @@ describe('simDataReducer: connection errors', () => {
     const s = ready();
     expect(simDataReducer(s, { type: 'pollFailed', error: abortError() })).toBe(s);
     expect(simDataReducer(INITIAL_SIM_DATA, { type: 'pollFailed', error: abortError() })).toBe(INITIAL_SIM_DATA);
+  });
+});
+
+describe('planLegsMissingLine (#528)', () => {
+  const sim = (legs: string[][]) => ({ plans: [{ id: 'p', legs: legs.map((placeIds) => ({ placeIds })) }] }) as unknown as SimulatorResponse;
+  const lines = (...pairs: [string, string, string | null][]) =>
+    ({ polylines: pairs.map(([from, to, encoded]) => ({ from, to, encoded })) });
+
+  it('is false when every neighbouring pair of every leg has a line', () => {
+    expect(planLegsMissingLine(sim([['h', 'a', 'b'], ['b', 'c']]),
+      lines(['h', 'a', 'x'], ['a', 'b', 'y'], ['b', 'c', 'z']))).toBe(false);
+    expect(planLegsMissingLine({ plans: [] }, lines())).toBe(false);
+  });
+
+  it('is true for a pair with encoded: null or no entry, and pairs are ordered', () => {
+    expect(planLegsMissingLine(sim([['h', 'a', 'b']]), lines(['h', 'a', 'x'], ['a', 'b', null]))).toBe(true);
+    expect(planLegsMissingLine(sim([['h', 'a', 'b']]), lines(['h', 'a', 'x']))).toBe(true);
+    expect(planLegsMissingLine(sim([['h', 'a']]), lines(['a', 'h', 'x']))).toBe(true);
+  });
+
+  it('ignores plans without legs (the poller fixtures)', () => {
+    expect(planLegsMissingLine(simAt('run-a', 1, ['p-1']), lines())).toBe(false);
+  });
+});
+
+describe('sameJson', () => {
+  it('compares content, not identity or key order', () => {
+    expect(sameJson({ a: 1, b: [1, { c: null }] }, { b: [1, { c: null }], a: 1 })).toBe(true);
+    expect(sameJson({ a: 1 }, { a: 1, b: undefined })).toBe(false);
+    expect(sameJson([1, 2], [2, 1])).toBe(false);
+    expect(sameJson({ a: null }, { a: 0 })).toBe(false);
+    expect(sameJson([], {})).toBe(false);
+  });
+});
+
+describe('simDataReducer: map refetch keeps the same object (#528)', () => {
+  const full = (): MapResponse => ({
+    runId: 'run-a',
+    businesses: [],
+    homes: [{ id: 'home-1', neighborhood: 'Harlem', lat: 40.81, lng: -73.94 }],
+    employees: [{ id: 'emp-1', name: 'Ana', businessId: 'biz-a', homeId: 'home-1' }],
+    polylines: [{ from: 'home-1', to: 'biz-a', encoded: null }],
+  });
+  const loaded = () => run({ type: 'sim', sim: simAt('run-a', 5) }, { type: 'map', map: full() });
+
+  it('an equal map (a new object) leaves the state and its map untouched', () => {
+    const s = loaded();
+    expect(simDataReducer(s, { type: 'map', map: full() })).toBe(s);
+  });
+
+  it('a new line, a moved home or another employee list replaces the map', () => {
+    const s = loaded();
+    const withLine = { ...full(), polylines: [{ from: 'home-1', to: 'biz-a', encoded: 'abc' }] };
+    const moved = { ...full(), homes: [{ id: 'home-1', neighborhood: 'Harlem', lat: 40.813, lng: -73.9433 }] };
+    const staff = { ...full(), employees: [...full().employees, { id: 'emp-2', name: 'Bo', businessId: 'biz-a', homeId: 'home-1' }] };
+    for (const map of [withLine, moved, staff]) {
+      const next = simDataReducer(s, { type: 'map', map });
+      expect(next).not.toBe(s);
+      expect(next.map).toBe(map);
+      expect(next.sim).toBe(s.sim);
+    }
   });
 });
 
