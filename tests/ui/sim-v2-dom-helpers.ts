@@ -65,6 +65,12 @@ export const readyState = (timeMin = 1000, over: Partial<SimDataState> = {}): Si
  */
 export function emptyRunState(): SimDataState {
   const base = emptyRunAt('run-2', 1, []);
+  // A hybrid snapshot, in three layers (later wins):
+  //  1. runAt(1000).snapshot: the sample run's snapshot, for every field the page reads that the small
+  //     fixture lacks (the fixture's snapshot is only `{ runId, version, timeMin }`);
+  //  2. base.snapshot: the fixture's runId ('run-2'), version (1) and timeMin (1001) override those;
+  //  3. the four explicit fields: emptied so nothing from the sample run (markers, package positions,
+  //     events, shipment statuses) leaks into a run that has no packages.
   const sim = { ...base, snapshot: { ...runAt(1000).snapshot, ...base.snapshot, markers: [], packagePositions: {}, occurredEvents: [], shipmentStatus: {} } };
   return { ...INITIAL_SIM_DATA, view: 'ready', sim, map: mapOf('run-2') };
 }

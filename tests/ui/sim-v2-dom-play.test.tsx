@@ -130,18 +130,16 @@ describe('Play journey', () => {
     await advance(10 * STEP_MS);
     expect(server.seeks()).toEqual([1039, 1041]);
 
-    (document.activeElement as HTMLElement).blur(); // see the it.fails below for Esc with the focus kept
+    (document.activeElement as HTMLElement).blur(); // Esc from the page body; the next test keeps the focus
     press('Escape', document.body);
     expect(currentSearch(server)).toBe('');
     expect(journeySteps(c)).toHaveLength(0);
   }, T);
 
-  // BUG (#519), in client/src/components/sim/v2/page/simPageState.ts (attachSimKeys): after the
-  // first Esc stops the journey, the focus is still on the Play journey button, and the page's key map
-  // claims Esc from a focused button and does nothing, so the second Esc never leaves the journey
-  // (same cause as the it.fails in sim-v2-dom-keys). Left as it.fails: #511 edits sim/v2/page/ and is
-  // not merged (DECISIONS pass 9, pass 56).
-  it.fails('BUG: the second Esc, with the focus still on the Play journey button, goes back to the network', async () => {
+  // After the first Esc stops the journey, the focus is still on the Play journey button. The page's
+  // key map used to claim Esc from a focused button, so this second Esc did nothing; #511 (PR #537)
+  // fixed it in page/keyMap.ts (isTextTarget) and page/simPageState.ts.
+  it('the second Esc, with the focus still on the Play journey button, goes back to the network', async () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountPage(server, '?package=shp-2');
     click(playButton(c));

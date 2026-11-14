@@ -92,14 +92,11 @@ describe('Esc', () => {
     expect(server.searches).toEqual(['?business=biz-roast', '']);
   }, T);
 
-  // BUG (#519), in client/src/components/sim/v2/page/simPageState.ts (attachSimKeys) with
-  // page/keyMap.ts (simKeyAction): the page's capture listener claims Esc from a focused <button>
-  // and does nothing, and its preventDefault also stops SimWorkspace's own Esc handler (which alone
-  // would exit, see sim-v2-dom-select). A mouse click focuses the button it hits, so after clicking a
-  // package row (or a journey step) Esc does nothing on the real page. Left as it.fails because #511
-  // edits sim/v2/page/ and is not merged (DECISIONS pass 9, pass 56). Fix: let Esc through from a
-  // button (only Space and Enter belong to the button), keeping Esc in text fields for the field.
-  it.fails('BUG: Esc right after a click on a package row (focus still on the row) leaves the journey', () => {
+  // A mouse click focuses the button it hits, so after clicking a package row the focus is still on
+  // that row. The page's key map used to claim Esc from a focused <button> and do nothing; #511
+  // (PR #537) fixed it in page/keyMap.ts (isTextTarget: only text fields keep Esc) and
+  // page/simPageState.ts. This guards that fix on the real page.
+  it('Esc right after a click on a package row (focus still on the row) leaves the journey', () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountPage(server);
     click(packageRow(c, 'Coffee samples'));
