@@ -13,6 +13,32 @@ LOG="$REPO_ROOT/logs/worker-$AGENT.log"
 LABEL="agent:$AGENT"
 FAST_FAIL=90   # a run shorter than this that produced nothing = probably a usage limit / outage
 
+# Work stealing inside a pool of workers (POOL=victor- means every agent:victor-* label).
+# Takes the newest ready issue from the pool worker with the most ready issues, but only if
+# that worker has 2 or more waiting (it keeps its oldest one). Prints the issue number, or nothing.
+steal_issue() {
+  local q pick n victim labels first
+  q="[.[] | {n: .number, a: ([.labels[].name | select(startswith(\"agent:\"))][0])} | select(.a != null and (.a | startswith(\"agent:$POOL\")) and .a != \"$LABEL\")] | group_by(.a) | map(select(length >= 2)) | sort_by(-length) | (.[0] // []) | sort_by(.n) | last | if . == null then empty else \"\\(.n) \\(.a)\" end"
+  pick=$(gh issue list --state open --label ready --limit 200 --json number,labels --jq "$q" 2>/dev/null)
+  [ -z "$pick" ] && return 0
+  n=${pick%% *}; victim=${pick#* }
+  gh issue edit "$n" --remove-label "$victim" --add-label "$LABEL" >/dev/null 2>&1 || return 0
+  sleep 3
+  labels=$(gh issue view "$n" --json labels --jq '[.labels[].name] | join(" ")')
+  case " $labels " in
+    *" ready "*) ;;
+    *) # the owner started it in the same moment: give it back
+       gh issue edit "$n" --remove-label "$LABEL" --add-label "$victim" >/dev/null 2>&1; return 0 ;;
+  esac
+  first=$(gh issue view "$n" --json labels --jq '[.labels[].name | select(startswith("agent:"))] | sort | .[0]')
+  if [ "$first" != "$LABEL" ]; then
+    gh issue edit "$n" --remove-label "$LABEL" >/dev/null 2>&1; return 0
+  fi
+  gh issue comment "$n" --body "Taken over by $AGENT from ${victim#agent:} to balance the queue." >/dev/null 2>&1
+  log "took #$n from ${victim#agent:} (queue balancing)"
+  echo "$n"
+}
+
 log "worker $AGENT starting ($ENGINE ${MODEL:-default model}, effort ${EFFORT:-default})"
 
 while ! halted; do
@@ -52,6 +78,11 @@ main has just been merged into this branch. If 'git status' shows conflicts, res
   # ---------- 2) my next ready issue ----------
   N=$(gh issue list --state open --label ready --label "$LABEL" --json number \
        --jq 'sort_by(.number) | .[0].number // empty')
+
+  # ---------- 2b) nothing of my own: help a busier worker of my pool (POOL=victor-) ----------
+  if [ -z "$N" ] && [ -n "${POOL:-}" ]; then
+    N=$(steal_issue)
+  fi
   if [ -z "$N" ]; then sleep 60; continue; fi
 
   gh issue edit "$N" --remove-label ready --add-label in-progress >/dev/null
