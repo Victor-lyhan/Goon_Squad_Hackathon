@@ -8,7 +8,10 @@ export const ERROR_FALLBACK_TEXT = 'Something went wrong while showing this page
 
 export type ErrorBoundaryProps = {
   children: ReactNode;
-  /** When this changes (the app shell passes the pathname) a shown fallback is cleared and the children render again. */
+  /**
+   * When this changes a shown fallback is cleared and the children render again. The app shell passes the
+   * pathname plus the query string, not the hash (#705).
+   */
   resetKey: string;
   /** The homepage link in the fallback (/nyc on a preview path, / elsewhere). */
   homeHref: string;
@@ -31,7 +34,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
   }
 
   static getDerivedStateFromProps(props: ErrorBoundaryProps, state: State): Partial<State> | null {
-    // A new path: forget the old failure, so the next page renders.
+    // A new key (path or query string in the app shell): forget the old failure, so the next page renders.
     return props.resetKey !== state.key ? { failed: false, key: props.resetKey } : null;
   }
 
