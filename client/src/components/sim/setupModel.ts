@@ -95,3 +95,31 @@ export const errorMessage = (e: unknown): string => (e instanceof Error ? e.mess
 
 /** Local-time-free filename for the export download. */
 export const EXPORT_FILENAME = 'relay-scenario.json';
+
+export const LOCKED_RECOMPUTE_TEXT = 'Playback has started. Start a new planning cycle to recompute.';
+
+export type RecomputeButtonState = { disabled: boolean; loading: boolean; hint: string | null };
+
+/** Button state for "Recompute matches". Locked or any pending action disables it. */
+export function recomputeButtonState(phase: 'planning' | 'locked' | undefined, pending: boolean): RecomputeButtonState {
+  const locked = phase === 'locked';
+  return { disabled: locked || pending, loading: pending, hint: locked ? LOCKED_RECOMPUTE_TEXT : null };
+}
+
+/** Toast text from the API response only (plans = matched, unmatched = unmatched). */
+export function recomputeToast(r: { plans: readonly unknown[]; unmatched: readonly unknown[] }): string {
+  const m = r.plans.length;
+  const u = r.unmatched.length;
+  return `Matches recomputed: ${m} matched, ${u} unmatched.`;
+}
+
+/** Employee to link from the demo hint: first one with a job, else the first employee. */
+export function hintEmployeeId(jobs: readonly { employeeId: string }[] | undefined, employees: readonly { id: string }[]): string | undefined {
+  return jobs?.[0]?.employeeId ?? employees[0]?.id;
+}
+
+export const TRADEOFF_STEPS = [
+  'Start new planning cycle',
+  'Lower an employee’s added-time limit in the employee portal',
+  'Recompute matches',
+] as const;
