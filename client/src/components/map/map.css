@@ -89,3 +89,25 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Google rejected the browser key (gm_authFailure): hide Google's own error box under an opaque
+   overlay that keeps the map area's size; the alert scrolls if the map is short. */
+.map-v2__canvas--hidden {
+  visibility: hidden;
+}
+
+.map-v2__overlay--solid {
+  align-items: safe center;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--bg, #F7F8FA);
+}
+
+.map-v2__checks {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.map-v2__checks li + li {
+  margin-top: 4px;
+}

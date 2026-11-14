@@ -5,23 +5,26 @@
 //
 // deck.gl is imported dynamically inside the load effect, so this file can be statically rendered
 // in Node tests (no WebGL) and the heavy deck bundle loads only when a key is present.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 import type { GoogleMapsOverlay } from '@deck.gl/google-maps';
 import type { PickingInfo } from '@deck.gl/core';
 import { Button, Spinner } from '../../ui';
 import { buildLayerSpecs, type LayerSpec, type PathDatum, type ScatterDatum, type TextDatum } from './layers';
 import {
+  AUTH_ERROR_TEXT,
   KEY_MISSING_TEXT,
   LOAD_ERROR_TEXT,
   fitKey,
   initialStatus,
   mapOptions,
+  nextMapStatus,
   panDecision,
   readBrowserKey,
   resolveFit,
   selectedItemText,
-  type MapStatus,
+  watchAuthFailure,
+  type AuthFailureTarget,
 } from './mapModel';
 import type {
   LatLngBounds,
@@ -56,6 +59,10 @@ type Hover = { x: number; y: number; item: MapItem };
 const NO_SELECTION: readonly string[] = [];
 const NO_STOPS: MapStop[] = [];
 const FIT_PADDING_PX = 48;
+
+// Google calls gm_authFailure once per page; Google will not accept the key again until a reload, so
+// a map mounted later (another page, the Employee commute preview) starts in auth-error.
+let authFailedThisPage = false;
 
 // setOptions must run once per page: a second call makes the loader log its options (with the key).
 let optionsSet = false;
@@ -126,6 +133,34 @@ export function MapLoadError({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+/**
+ * Google rejected the browser key (gm_authFailure). An alert, like the no-key message, with what to
+ * check. Never shows the key, the script URL or Google's error text; only this page's origin.
+ */
+export function MapAuthError({ origin }: { origin: string }) {
+  return (
+    <div className="map-v2__panel" role="alert">
+      <strong>{AUTH_ERROR_TEXT}</strong>
+      <p>In the Google Cloud project that owns the key, check:</p>
+      <ul className="map-v2__checks">
+        <li>The Maps JavaScript API is enabled in the key's project.</li>
+        <li>
+          The key's website restriction allows this page's origin: <code>{origin || 'this page'}</code>
+        </li>
+        <li>Billing is active on the project.</li>
+      </ul>
+      <p>
+        The key is read from <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code>. Reload the page after the fix (restart{' '}
+        <code>npm run dev</code> first if you changed <code>.env</code>).
+      </p>
+    </div>
+  );
+}
+
+function pageOrigin(): string {
+  return typeof window === 'undefined' ? '' : window.location.origin;
+}
+
 /** The hover tooltip's text for the selected item, for keyboard and screen-reader users. */
 function SelectedAnnouncement({ text }: { text: string }) {
   return (
@@ -153,7 +188,7 @@ export function GoogleBaseMap({
   panTo,
 }: GoogleBaseMapProps) {
   const apiKey = readBrowserKey(import.meta.env);
-  const [status, setStatus] = useState<MapStatus>(() => initialStatus(apiKey));
+  const [status, dispatch] = useReducer(nextMapStatus, apiKey, (k) => initialStatus(k, authFailedThisPage));
   const [attempt, setAttempt] = useState(0);
   const [hover, setHover] = useState<Hover | null>(null);
 
@@ -170,11 +205,21 @@ export function GoogleBaseMap({
     latest.current = { onHover, onSelect, fitTo, places, panTo };
   });
 
+  // Watch for Google rejecting the key. Declared before the load effect, so it is installed before
+  // the loader starts; removed (the old handler put back) on unmount.
+  useEffect(() => {
+    if (!apiKey) return;
+    return watchAuthFailure(window as unknown as AuthFailureTarget, () => {
+      authFailedThisPage = true;
+      dispatch('auth-failed');
+    });
+  }, [apiKey]);
+
   // Load the Maps JS API and create the map + overlay once (again only after a failed load + Retry).
   useEffect(() => {
-    if (!apiKey) return; // no key: no network request at all
+    if (!apiKey || authFailedThisPage) return; // no key, or a key Google already rejected: no request
     let cancelled = false;
-    setStatus('loading');
+    dispatch('load-start');
     (async () => {
       try {
         ensureLoaderOptions(apiKey);
@@ -183,7 +228,8 @@ export function GoogleBaseMap({
           import('@deck.gl/google-maps'),
           import('@deck.gl/layers'),
         ]);
-        if (cancelled || !containerRef.current) return;
+        // Google rejected the key while the loader ran: create no map and no overlay.
+        if (cancelled || authFailedThisPage || !containerRef.current) return;
         const map = new Map(containerRef.current, mapOptions());
         const overlay = new gm.GoogleMapsOverlay({
           layers: [],
@@ -204,10 +250,10 @@ export function GoogleBaseMap({
         mapRef.current = map;
         overlayRef.current = overlay;
         layersModRef.current = layersMod;
-        setStatus('ready');
+        dispatch('loaded'); // stays auth-error if Google already rejected the key
       } catch {
         // Never surface the error text: it can include the script URL (and so the key).
-        if (!cancelled) setStatus('error');
+        if (!cancelled) dispatch('load-failed');
       }
     })();
     return () => {
@@ -221,6 +267,18 @@ export function GoogleBaseMap({
       mapRef.current = null;
     };
   }, [apiKey, attempt]);
+
+  // After Google rejects the key, detach the deck.gl overlay: it gets no more layer updates or picks.
+  useEffect(() => {
+    if (status !== 'auth-error') return;
+    const overlay = overlayRef.current;
+    if (overlay) {
+      overlay.setMap(null);
+      overlay.finalize();
+    }
+    overlayRef.current = null;
+    setHover(null);
+  }, [status]);
 
   const hoveredId = hover?.item.id ?? null;
   const specs = useMemo(
@@ -277,7 +335,10 @@ export function GoogleBaseMap({
         }
       }}
     >
-      <div ref={containerRef} className="map-v2__canvas" />
+      <div
+        ref={containerRef}
+        className={status === 'auth-error' ? 'map-v2__canvas map-v2__canvas--hidden' : 'map-v2__canvas'}
+      />
       {status === 'loading' && (
         <div className="map-v2__overlay">
           <Spinner label="Loading map" />
@@ -286,6 +347,11 @@ export function GoogleBaseMap({
       {status === 'error' && (
         <div className="map-v2__overlay">
           <MapLoadError onRetry={() => setAttempt((a) => a + 1)} />
+        </div>
+      )}
+      {status === 'auth-error' && (
+        <div className="map-v2__overlay map-v2__overlay--solid">
+          <MapAuthError origin={pageOrigin()} />
         </div>
       )}
       {status === 'ready' && hover && (
