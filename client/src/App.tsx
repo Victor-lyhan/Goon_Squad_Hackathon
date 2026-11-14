@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Link, matchPath, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { Business, Employee } from '../../shared/types';
 import {
-  portalPaths, readIdentity, resolveIdentity, useDirectory, writeIdentity,
+  portalPaths, readIdentity, resolveIdentity, writeIdentity,
   type Directory,
 } from './demoIdentity';
+import { getBusinesses, getEmployees, getSimulator } from './api';
+import { RUN_POLL_MS, reconcileSelection, runChanged, staleNote } from './ui/shellModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
 import NotFoundPage from './ui/NotFoundPage';
 import { switchIdentityPath } from './ui/shell';
@@ -20,6 +22,37 @@ export const BADGE_TEXT = 'Synthetic city · simulated deliveries';
 export { readIdentity, writeIdentity, resolveIdentity };
 
 export type DirectoryData = { businesses: Business[]; employees: Employee[] };
+
+/** Loads the directory and reloads it whenever the polled runId changes. `initial` skips all loading (tests). */
+function useLiveDirectory(initial?: DirectoryData): Directory {
+  const [dir, setDir] = useState<Directory>(initial ? { status: 'ready', ...initial } : { status: 'loading' });
+  const runId = useRef<string | null>(null);
+  useEffect(() => {
+    if (initial) return;
+    let alive = true;
+    const load = () =>
+      Promise.all([getBusinesses(), getEmployees()])
+        .then(([b, e]) => { if (alive) setDir({ status: 'ready', businesses: b.businesses, employees: e.employees }); })
+        .catch((err: unknown) => {
+          if (alive) setDir((d) => (d.status === 'ready' ? d : { status: 'error', message: err instanceof Error ? err.message : 'Could not load accounts' }));
+        });
+    void load();
+    const tick = async () => {
+      try {
+        const { runId: next } = await getSimulator();
+        if (!alive) return;
+        const changed = runChanged(runId.current, next);
+        runId.current = next;
+        if (changed) await load();
+      } catch { /* server unreachable: the connection banner covers it; keep the last list */ }
+    };
+    void tick();
+    const id = setInterval(() => void tick(), RUN_POLL_MS);
+    return () => { alive = false; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return dir;
+}
 
 function DemoAccountSelector({ dir }: { dir: Directory }) {
   const { pathname } = useLocation();
@@ -40,34 +73,36 @@ function DemoAccountSelector({ dir }: { dir: Directory }) {
     navigate(next.path); // path only: drops ?shipment=/?job= and hash
   };
 
-  if (bizMatch) {
-    return (
+  const urlId = (bizMatch ?? empMatch)?.params.id;
+  const kind = bizMatch ? 'business' : 'employee';
+  const bizName = (id: string) => dir.businesses.find((b) => b.id === id)?.name ?? id;
+  const options = bizMatch
+    ? dir.businesses.map((b) => ({ id: b.id, text: b.name }))
+    : dir.employees.map((x) => ({ id: x.id, text: `${x.name} (${bizName(x.businessId)})` }));
+  const sel = reconcileSelection(urlId, options.map((o) => o.id));
+  const fallback = options.find((o) => o.id === sel.id);
+  const fallbackPath = fallback ? switchIdentityPath(pathname, fallback.id)?.path : undefined;
+  return (
+    <>
       <label className="demo-account">
         <span>Demo account</span>
-        <select value={bizMatch.params.id ?? ''} onChange={(e) => choose(e.target.value)}>
-          {!dir.businesses.some((b) => b.id === bizMatch.params.id) && <option value="">Choose a business</option>}
-          {dir.businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        <select value={sel.id} onChange={(e) => choose(e.target.value)}>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
         </select>
       </label>
-    );
-  }
-  const bizName = (id: string) => dir.businesses.find((b) => b.id === id)?.name ?? id;
-  return (
-    <label className="demo-account">
-      <span>Demo account</span>
-      <select value={empMatch?.params.id ?? ''} onChange={(e) => choose(e.target.value)}>
-        {!dir.employees.some((x) => x.id === empMatch?.params.id) && <option value="">Choose an employee</option>}
-        {dir.employees.map((x) => (
-          <option key={x.id} value={x.id}>{x.name} ({bizName(x.businessId)})</option>
-        ))}
-      </select>
-    </label>
+      {sel.stale && (
+        <span className="demo-account-status" role="status">
+          {staleNote(kind, fallback?.text ?? null)}{' '}
+          {fallbackPath && <Link to={fallbackPath} onClick={() => choose(sel.id)}>Switch</Link>}
+        </span>
+      )}
+    </>
   );
 }
 
 /** `initial` skips the API load (used by tests). */
 export function Header({ initial }: { initial?: DirectoryData } = {}) {
-  const dir = useDirectory(initial);
+  const dir = useLiveDirectory(initial);
   // Re-read after route changes so a fresh choice is reflected in the portal links.
   const { pathname } = useLocation();
   const [stored, setStored] = useState(readIdentity);
