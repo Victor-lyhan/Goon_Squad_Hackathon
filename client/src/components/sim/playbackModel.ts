@@ -1,4 +1,5 @@
 import type { Clock, Settings } from '../../../../shared/types';
+import type { SimControlRequest } from '../../../../shared/schemas';
 import { formatMin } from '../../ui/format';
 
 export type Speed = Clock['speed'];
@@ -48,4 +49,57 @@ export function clampScrub(
 ): number {
   if (!Number.isFinite(raw)) return settings.simStartMin;
   return Math.min(settings.simEndMin, Math.max(settings.simStartMin, Math.round(raw)));
+}
+
+export type KeyEventLike = {
+  key: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+  repeat?: boolean;
+  target?: { tagName?: string; isContentEditable?: boolean } | null;
+};
+
+export type KeyState = {
+  clock: Clock;
+  nextEventMin: number | null;
+  settings: Pick<Settings, 'simStartMin' | 'simEndMin'>;
+  /** A control request is in flight. */
+  busy: boolean;
+};
+
+const TYPING_TAGS = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
+
+export function isTypingTarget(target: KeyEventLike['target']): boolean {
+  if (!target) return false;
+  return TYPING_TAGS.has((target.tagName ?? '').toUpperCase()) || target.isContentEditable === true;
+}
+
+/**
+ * Map a key press to the same SimControlRequest the matching button sends, or
+ * null when the key is not a shortcut, is ignored (typing target, modifier,
+ * pending request) or the matching button would be disabled.
+ * Space on a focused button/link is left to the browser so it is not sent twice.
+ */
+export function keyToControl(event: KeyEventLike, state: KeyState): SimControlRequest | null {
+  if (state.busy || event.repeat) return null;
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return null;
+  if (isTypingTarget(event.target)) return null;
+  const m = toPlaybackModel(state.clock, state.nextEventMin, state.settings, state.busy);
+  switch (event.key) {
+    case ' ': {
+      const tag = (event.target?.tagName ?? '').toUpperCase();
+      if (tag === 'BUTTON' || tag === 'A') return null;
+      return m.disabled.play ? null : { action: state.clock.playing ? 'pause' : 'play' };
+    }
+    case 'n': case 'N': return m.disabled.nextEvent ? null : { action: 'next_event' };
+    case 'm': case 'M': return m.disabled.jumpToMorning ? null : { action: 'jump_to_morning' };
+    case 'f': case 'F': return m.disabled.finish ? null : { action: 'finish' };
+    case 'r': case 'R': return m.disabled.reset ? null : { action: 'reset_playback' };
+    case '1': return m.disabled.speed ? null : { action: 'speed', speed: 30 };
+    case '2': return m.disabled.speed ? null : { action: 'speed', speed: 120 };
+    case '3': return m.disabled.speed ? null : { action: 'speed', speed: 600 };
+    default: return null;
+  }
 }
