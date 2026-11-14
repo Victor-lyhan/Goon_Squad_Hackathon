@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { BusinessDashboard } from '../../../../shared/api';
 import type { Business, Employee, Hub } from '../../../../shared/types';
-import { getBusinessDashboard, getBusinesses, getEmployees, getMap } from '../../api';
+import { getBusinessDashboard, getBusinesses, getEmployees, getMap, isAbortError } from '../../api';
 import { POLL_MS } from './businessPortalModel';
 import {
   bizReducer, bizView, createPollGuard, friendlyError, initialBizState, isReconnecting, runDidChange, statusOf,
@@ -37,48 +37,59 @@ export function useBusinessDashboard(businessId: string): DashboardState {
   const runIdRef = useRef<string | null>(null);
   const lastVersion = useRef<number | null>(null);
   const listsLoading = useRef(false);
+  /** Aborts the dashboard requests of the current business / run. */
+  const ctl = useRef(new AbortController());
+  const listsCtl = useRef<AbortController | null>(null);
 
   const loadLists = useCallback(async () => {
     if (listsLoading.current) return;
     listsLoading.current = true;
+    const mine = new AbortController();
+    listsCtl.current = mine;
     try {
-      const [b, e] = await Promise.all([getBusinesses(), getEmployees()]);
-      if (!alive.current) return;
+      const [b, e] = await Promise.all([getBusinesses({ signal: mine.signal }), getEmployees({ signal: mine.signal })]);
+      if (mine.signal.aborted) return;
       setLists({ businesses: b.businesses, hubs: b.hubs, employees: e.employees });
       setListsReady(true);
     } catch (e) {
-      if (alive.current) dispatch({ type: 'failure', message: msg(e), status: statusOf(e) });
+      if (!mine.signal.aborted && !isAbortError(e)) dispatch({ type: 'failure', message: msg(e), status: statusOf(e) });
     } finally {
-      listsLoading.current = false;
+      if (listsCtl.current === mine) { listsLoading.current = false; listsCtl.current = null; }
     }
   }, []);
 
   const load = useCallback(async (rerun: boolean): Promise<void> => {
-    const id = current.current;
+    const { signal } = ctl.current;
     try {
-      const d = await getBusinessDashboard(id);
-      if (!alive.current || current.current !== id) return;
+      const d = await getBusinessDashboard(current.current, { signal });
+      if (signal.aborted) return;
       // Versions only ever go up (even for a new city), so check the run id once per version change.
       if (lastVersion.current === null || d.version !== lastVersion.current) {
         try {
-          const m = await getMap();
-          if (!alive.current || current.current !== id) return;
+          const m = await getMap({ signal });
+          if (signal.aborted) return;
           const changed = runDidChange(runIdRef.current, m.runId);
           runIdRef.current = m.runId;
           if (changed && !rerun) {
-            // Stale data from the old run: drop it and start again from scratch.
+            // Stale data from the old run: abort anything still in flight, drop it and start again from scratch.
+            ctl.current.abort();
+            ctl.current = new AbortController();
             lastVersion.current = null;
             dispatch({ type: 'runChanged', runId: m.runId });
             void loadLists();
             await load(true);
             return;
           }
-        } catch { /* keep the old run id; the next version change retries */ }
+        } catch (e) {
+          if (signal.aborted || isAbortError(e)) return;
+          /* keep the old run id; the next version change retries */
+        }
       }
       lastVersion.current = d.version;
       dispatch({ type: 'success', dashboard: d, runId: runIdRef.current });
     } catch (e) {
-      if (alive.current && current.current === id) dispatch({ type: 'failure', message: msg(e), status: statusOf(e) });
+      if (signal.aborted || isAbortError(e)) return; // silent: no message, no Reconnecting
+      dispatch({ type: 'failure', message: msg(e), status: statusOf(e) });
     }
   }, [loadLists]);
 
@@ -87,6 +98,7 @@ export function useBusinessDashboard(businessId: string): DashboardState {
 
   useEffect(() => {
     alive.current = true;
+    ctl.current = new AbortController();
     lastVersion.current = null;
     runIdRef.current = null;
     guard.current.release();
@@ -98,7 +110,7 @@ export function useBusinessDashboard(businessId: string): DashboardState {
       if (alive.current) timer = setTimeout(() => { void tick(); }, POLL_MS);
     };
     void tick();
-    return () => { alive.current = false; if (timer) clearTimeout(timer); };
+    return () => { alive.current = false; ctl.current.abort(); if (timer) clearTimeout(timer); };
   }, [businessId, refetch]);
 
   // Load the directories; retry while they are missing, and reload when the business is reported gone
@@ -107,6 +119,11 @@ export function useBusinessDashboard(businessId: string): DashboardState {
   useEffect(() => {
     void loadLists();
   }, [gone, loadLists]);
+  useEffect(() => () => {
+    listsCtl.current?.abort();
+    listsCtl.current = null;
+    listsLoading.current = false;
+  }, []);
   useEffect(() => {
     if (!listsReady && state.dashboard) void loadLists();
   }, [listsReady, state.dashboard, loadLists]);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { getBusinesses, getEmployees, getSimulator } from '../api';
+import { getBusinesses, getEmployees, getSimulator, isAbortError } from '../api';
 import { portalPaths, readIdentity, resolveIdentity, useDirectory } from '../demoIdentity';
 import { Spinner } from '../ui';
 import '../styles/landing.css';
@@ -88,10 +88,11 @@ export function CityStrip({ facts }: { facts: GuideFacts }) {
 function useGuideFacts(): GuideFacts {
   const [facts, setFacts] = useState<GuideFacts>({ status: 'loading' });
   useEffect(() => {
-    let cancelled = false;
-    Promise.all([getBusinesses(), getEmployees(), getSimulator()])
+    const ctl = new AbortController();
+    const opts = { signal: ctl.signal };
+    Promise.all([getBusinesses(opts), getEmployees(opts), getSimulator(opts)])
       .then(([b, e, sim]) => {
-        if (cancelled) return;
+        if (ctl.signal.aborted) return;
         setFacts({
           status: 'ready',
           businesses: b.businesses.length,
@@ -101,8 +102,8 @@ function useGuideFacts(): GuideFacts {
           requested: sim.snapshot.metrics.requested,
         });
       })
-      .catch(() => { if (!cancelled) setFacts({ status: 'error' }); });
-    return () => { cancelled = true; };
+      .catch((e) => { if (!ctl.signal.aborted && !isAbortError(e)) setFacts({ status: 'error' }); });
+    return () => ctl.abort();
   }, []);
   return facts;
 }
