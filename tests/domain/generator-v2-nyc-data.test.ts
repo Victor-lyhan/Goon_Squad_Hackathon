@@ -127,6 +127,21 @@ describe('curated NYC fixture data', () => {
     }
   });
 
+  it('uses reviewed residential story homes and separate B&H carriers for the relay stories', () => {
+    const employeeById = new Map(featuredEmployees.map((employee) => [employee.id, employee]));
+    expect(employeeById.get('emp-5')?.home).toMatchObject({
+      neighborhood: 'Washington Heights', lat: 40.84520, lng: -73.93650,
+    });
+    expect(employeeById.get('emp-8')?.home).toMatchObject({
+      neighborhood: 'Park Slope', lat: 40.67380, lng: -73.97900,
+    });
+    expect(employeeById.get('emp-9')?.home).toMatchObject({
+      neighborhood: 'Park Slope', lat: 40.67020, lng: -73.98120,
+    });
+    expect(featuredEmployees.filter((employee) => employee.businessId === 'biz-bh-photo').map((employee) => employee.id))
+      .toEqual(['emp-4', 'emp-10']);
+  });
+
   it('supplies 24 valid, distinct business-to-business package requests', () => {
     expect(shipments).toHaveLength(24);
     expect(unique(shipments.map((shipment) => shipment.label))).toBe(true);
