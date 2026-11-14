@@ -4,10 +4,11 @@
 // - after two saves that both ran into the deadline, the cache files are byte for byte as before, both homes
 //   are gone, and the next save has its whole budget again;
 // - a backoff that would cross the deadline is not slept: the call fails at once with Google's last error;
-// - a call whose deadline passes while it waits for an earlier call sends nothing and rejects with the
-//   client's own GoogleApiError (CALL_DEADLINE), never with a guessed answer;
-// - the route lines of a new delivery (`ensureLegPolylines`) stop asking after 10 s, so they never hold the
-//   queue longer than a pair fetch may.
+// - a call whose deadline passes while it waits for an earlier call of its kind sends nothing and rejects with
+//   the client's own GoogleApiError (CALL_DEADLINE), never with a guessed answer. Since #601 each kind of call
+//   has its own queue, so the earlier call is another save's two lines, and the wait ends at the deadline;
+// - the route lines of a new delivery (`ensureLegPolylines`) stop asking after 10 s, so they never hold their
+//   queue longer than that. (What the kinds do side by side: travel-service-slow-priority.test.ts.)
 // Time is virtual (tests/geo/travel-service-slow-helper.ts): nothing here waits in real time or has a
 // wall-clock limit. Sample cache in a temp folder, a fake Google, a fake key: no network, no .env.
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -214,48 +215,54 @@ describe('a backoff that would cross the deadline', () => {
   });
 });
 
-describe('a call whose deadline passes while it waits for an earlier call', () => {
-  let pairs: Step;
-  let lines: Step;
-  let requests: number;
+describe('a call whose deadline passes while it waits for an earlier call of its kind', () => {
+  let first: Step;
+  let second: Step;
+  let attempts: AttemptLog[];
   let linesAfter: number;
+  let earlier: PlacePair[];
   let wanted: PlacePair[];
   beforeAll(async () => {
-    // Two route lines between businesses that the sample cache has no line for.
-    const [a, b] = businessIds();
-    wanted = [{ from: a, to: b }, { from: b, to: a }];
+    // Route lines between businesses that the sample cache has no line for: two for each call.
+    const [a, b, c] = businessIds();
+    earlier = [{ from: a, to: b }, { from: b, to: a }];
+    wanted = [{ from: a, to: c }, { from: c, to: a }];
     await replay({ script: () => never }, async (bench) => {
-      bench.service.addPlaces({ [HOME]: HOME_POINT });
-      const pairFetch = bench.step(() => bench.service.ensurePairs(neededForHome().matrix)); // 10 s, holds the queue for 8.5 s
-      const lineFetch = bench.step(() => bench.service.ensurePolylines(wanted)); // 5 s, waits behind it
-      pairs = await pairFetch;
-      lines = await lineFetch;
-      requests = bench.attempts.length;
-      linesAfter = wanted.filter(({ from, to }) => Object.hasOwn(bench.service.files.polylines.polylines, pairKey(from, to))).length;
+      const firstFetch = bench.step(() => bench.service.ensurePolylines(earlier)); // 5 s, and it has the lines' queue for all of them
+      const secondFetch = bench.step(() => bench.service.ensurePolylines(wanted)); // 5 s, waits behind it
+      first = await firstFetch;
+      second = await secondFetch;
+      attempts = [...bench.attempts];
+      const lines = bench.service.files.polylines.polylines;
+      linesAfter = [...earlier, ...wanted].filter(({ from, to }) => Object.hasOwn(lines, pairKey(from, to))).length;
     });
-    suite.errors.push(pairs.error, lines.error);
+    suite.errors.push(first.error, second.error);
   });
 
-  it('starts from a cache without those two lines', () => {
-    for (const { from, to } of wanted) expect(Object.hasOwn(sampleCache().polylines.polylines, pairKey(from, to))).toBe(false);
+  it('starts from a cache without those four lines', () => {
+    for (const { from, to } of [...earlier, ...wanted]) expect(Object.hasOwn(sampleCache().polylines.polylines, pairKey(from, to))).toBe(false);
   });
 
-  it('sends nothing: only the two attempts of the pair fetch reach Google', () => {
-    expect(pairs).toMatchObject({ ms: 8500, settled: 'rejected' });
-    expect(requests).toBe(2);
+  it('the earlier call uses its whole 5 s: an attempt of 4 s, the backoff, and an attempt cut to the 0.5 s it has left', () => {
+    expect(first).toMatchObject({ ms: LIVE_LINES_DEADLINE_MS, settled: 'rejected', fetched: null });
+    expectNoResponse(first.error, ROUTES_URL);
+    expect(starts(attempts)).toEqual([[0, 4000], [4500, 500]]);
   });
 
-  it('settles when the earlier call ends (8.5 s), not at its own 5 s: the one case that is later than the deadline', () => {
-    expect(lines).toMatchObject({ ms: 8500, settled: 'rejected', fetched: null });
-    expect(lines.ms).toBeGreaterThan(LIVE_LINES_DEADLINE_MS);
-    expect(lines.ms).toBeLessThanOrEqual(LIVE_PAIRS_DEADLINE_MS); // never later than the longest deadline ahead of it
+  it('sends nothing: only the two attempts of the earlier call reach Google', () => {
+    expect(attempts).toHaveLength(2);
+    expect(traceOf({ attempts })).toEqual(['line 1 try 1: no answer for 4000 ms', 'line 1 try 2: no answer for 500 ms']);
+  });
+
+  it('settles at its own 5 s, not later: the call ahead of it has the same limit and was made no later', () => {
+    expect(second).toMatchObject({ ms: LIVE_LINES_DEADLINE_MS, settled: 'rejected', fetched: null });
   });
 
   it('rejects with a GoogleApiError that says so (status 0, CALL_DEADLINE), and makes up no line', () => {
-    expect((lines.error as Error).constructor).toBe(GoogleApiError);
-    expect(lines.error).toMatchObject({ name: 'GoogleApiError', status: 0, googleStatus: CALL_DEADLINE_STATUS, endpoint: ROUTES_URL });
-    expect((lines.error as GoogleApiError).message).toContain('time limit');
-    expectNoText(lines.error, KEY_FORMS);
+    expect((second.error as Error).constructor).toBe(GoogleApiError);
+    expect(second.error).toMatchObject({ name: 'GoogleApiError', status: 0, googleStatus: CALL_DEADLINE_STATUS, endpoint: ROUTES_URL });
+    expect((second.error as GoogleApiError).message).toContain('time limit');
+    expectNoText(second.error, KEY_FORMS);
     expect(linesAfter).toBe(0);
   });
 });

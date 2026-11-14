@@ -11,7 +11,7 @@ import { pairKey } from '../../shared/v2/types';
 import type { LatLng } from '../../shared/v2/types';
 import { MATRIX_FILE, POLYLINES_FILE, readTravelFiles } from '../../server/geo/cache';
 import type { TravelFiles } from '../../server/geo/cache';
-import { GoogleApiError, GoogleKeyMissingError } from '../../server/geo/googleClient';
+import { GoogleApiError, GoogleKeyMissingError, ROUTE_MATRIX_URL } from '../../server/geo/googleClient';
 import type { PlacePair } from '../../server/geo/googleProvider';
 import { createTravelService } from '../../server/geo/travelService';
 import type { TravelService } from '../../server/geo/travelService';
@@ -218,7 +218,7 @@ describe('overlapping saves', () => {
   it('two new homes, the first one failing: only the failed one is removed', async () => {
     const { persisted, service } = start(KEY, failing(NEW_HOME));
 
-    // Both are registered and both wait in the one queue before the first request is answered.
+    // Both are registered and both wait in the pairs' queue before the first request is answered.
     const first = save(service, NEW_HOME, NEW_HOME_POINT);
     const second = save(service, OTHER_HOME, OTHER_HOME_POINT);
     const [failed, worked] = await Promise.allSettled([first, second]);
@@ -293,7 +293,7 @@ describe('overlapping saves', () => {
   it('a route-line fetch that is written while a new home waits for its pairs does not write the home', async () => {
     const { persisted, service } = start(KEY, failing(NEW_HOME));
 
-    const lines = service.ensureLegPolylines([{ placeIds: ['biz-b', 'biz-c', 'home-001'] }]); // first in the queue
+    const lines = service.ensureLegPolylines([{ placeIds: ['biz-b', 'biz-c', 'home-001'] }]); // its own queue: side by side with the save
     const refused = suite.thrownBy(() => save(service, NEW_HOME, NEW_HOME_POINT));
     expect(await lines).toEqual({ fetched: 2, failed: 0 });
     expect(await refused).toBeInstanceOf(GoogleApiError);
@@ -305,11 +305,26 @@ describe('overlapping saves', () => {
   });
 
   it('a place that is held back from one write reaches the disk with its pairs', async () => {
-    const { persisted, service } = start(KEY);
+    // The leg lines have their own queue (#601), so they are written while the pair fetch is still open.
+    // Google answers the pair requests only after that write, so the order does not depend on timing.
+    const dir = dirs.seeded();
+    const google = fakeGoogle();
+    const persisted: TravelFiles[] = [];
+    let answerPairs = () => {};
+    const linesWritten = new Promise<void>((resolve) => { answerPairs = resolve; });
+    const service = createTravelService({
+      dir, key: KEY, sleep: noSleep, persist: (files) => void persisted.push(structuredClone(files)),
+      fetch: async (url, init) => {
+        if (url === ROUTE_MATRIX_URL) await linesWritten;
+        return google.fetch(url, init);
+      },
+    });
 
     const lines = service.ensureLegPolylines([{ placeIds: ['biz-b', 'biz-c', 'home-001'] }]);
     const saved = save(service, NEW_HOME, NEW_HOME_POINT);
-    await lines;
+    expect(await lines).toEqual({ fetched: 2, failed: 0 });
+    expect(persisted).toHaveLength(1);
+    answerPairs();
     expect(await saved).toEqual({ fetched: 6 });
 
     expect(persisted).toHaveLength(2);

@@ -96,6 +96,7 @@ export interface GoogleTravel {
 
 export function createGoogleTravel({ files, client, persist }: GoogleTravelOptions): GoogleTravel {
   // One fetch at a time: a second call waits, then finds the first call's pairs in the cache instead of buying them again.
+  // The queue belongs to this object. Two GoogleTravel objects over the same `files` do not wait for each other.
   let queue: Promise<unknown> = Promise.resolve();
   const inTurn = <T>(task: () => Promise<T>): Promise<T> => {
     const run = queue.then(task, task);
@@ -185,6 +186,9 @@ export function createGoogleTravel({ files, client, persist }: GoogleTravelOptio
       if (missing.length === 0) return { fetched: 0 };
       return run('polyline', missing.length, async (state) => {
         for (const { from, to } of missing) {
+          // Another queue over the same `files` may have fetched this line since this call's turn began (the
+          // travel service has one queue per kind of call). Then it is not bought again.
+          if (Object.hasOwn(files.polylines.polylines, pairKey(from, to))) continue;
           try {
             const route = await via.computeRoutePolyline(pointOf(from), pointOf(to));
             if (typeof route.encoded !== 'string' || route.encoded === '') {
