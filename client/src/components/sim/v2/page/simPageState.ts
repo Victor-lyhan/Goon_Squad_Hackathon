@@ -12,7 +12,7 @@ import { SIM_WINDOW } from '../compose/simPageView';
 import { playbackRequest, toPlaybackView } from '../controls/controlsModel';
 import type { SimDataState } from '../live/simDataModel';
 import type { Selection } from '../network/selectionModel';
-import { isControlTarget, simKeyAction, type SimKeyEvent, type SimKeyState } from './keyMap';
+import { isTextTarget, simKeyAction, type SimKeyEvent, type SimKeyState } from './keyMap';
 import { parseSimUrl, simUrlFor } from './urlState';
 
 // ---------- URL <-> selection ----------
@@ -110,8 +110,7 @@ export type SimKeyHandlers = {
 const isEscape = (key: string) => key === 'Escape' || key === 'Esc';
 
 /** A control that keeps Esc for itself (typing, choosing); a button is not one. */
-const isTextField = (target: SimKeyEvent['target']) =>
-  isControlTarget(target) && (target?.tagName ?? '').toUpperCase() !== 'BUTTON';
+const isTextField = isTextTarget;
 
 /**
  * Attaches the page's keydown listener to `target` (the window) and returns the function that
@@ -121,8 +120,10 @@ const isTextField = (target: SimKeyEvent['target']) =>
  * window Esc listener from before the key map, which skips an event whose default is prevented.
  * So this listener runs in the capture phase (before that bubble listener) and prevents the default
  * of every key it handles: Esc changes the URL once, not twice, and Space does not scroll the page.
- * Esc on a focused button is claimed the same way without an action, so it does nothing (a button
- * has no Esc default to lose); Esc in an input, select or textarea is left alone.
+ * Esc on a focused button works like Esc anywhere else (#511: after a click on a package row the
+ * focus is on that row, and Esc must still leave the journey); when it has nothing to do there it is
+ * still claimed, so the workspace listener does not act on it. Esc in an input, select or textarea
+ * is left alone.
  */
 export function attachSimKeys(target: SimKeyTarget, h: SimKeyHandlers): () => void {
   const listener = (e: SimKeyboardEvent) => {

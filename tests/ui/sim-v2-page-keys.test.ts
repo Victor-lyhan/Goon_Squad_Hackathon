@@ -41,13 +41,24 @@ describe('simKeyAction', () => {
     expect(simKeyAction(ev(' ', { target: { tagName: 'canvas' } }), network())).toBe('toggle_play');
   });
 
-  it('does nothing from form controls, buttons or editable text, in either mode', () => {
+  it('does nothing from form controls, buttons or editable text, in either mode (except Esc from a button)', () => {
     const tags = ['INPUT', 'input', 'SELECT', 'select', 'TEXTAREA', 'textarea', 'BUTTON', 'button'];
     for (const mode of [journey(), network()]) {
       for (const key of ['Escape', ' ', '.']) {
-        for (const tagName of tags) expect(simKeyAction(ev(key, { target: { tagName } }), mode)).toBeNull();
+        for (const tagName of tags) {
+          if (key === 'Escape' && tagName.toUpperCase() === 'BUTTON') continue;
+          expect(simKeyAction(ev(key, { target: { tagName } }), mode)).toBeNull();
+        }
         expect(simKeyAction(ev(key, { target: { tagName: 'DIV', isContentEditable: true } }), mode)).toBeNull();
       }
+    }
+  });
+
+  it('Esc from a focused button still leaves the journey or clears the selection (#511, doc §1)', () => {
+    for (const tagName of ['BUTTON', 'button']) {
+      expect(simKeyAction(ev('Escape', { target: { tagName } }), journey())).toBe('exit_journey');
+      expect(simKeyAction(ev('Esc', { target: { tagName } }), network())).toBe('clear_selection');
+      expect(simKeyAction(ev('Escape', { target: { tagName } }), network({ hasSelection: false }))).toBeNull();
     }
   });
 

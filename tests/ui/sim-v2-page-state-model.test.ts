@@ -152,11 +152,15 @@ describe('simKeyEffect', () => {
     expect(simKeyEffect(key(' '), ctx(null, simWith({}, { playing: true, timeMin: 2160 })))).toEqual({ kind: 'control', request: { action: 'pause' } });
   });
 
-  it('nothing fires while the focus is in an input, select, textarea or button', () => {
+  it('nothing fires while the focus is in an input, select, textarea or button (Esc from a button does, #511)', () => {
     for (const tagName of ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'input', 'button']) {
+      const button = tagName.toUpperCase() === 'BUTTON';
       for (const k of ['Escape', ' ', '.']) {
-        expect(simKeyEffect(key(k, { tagName }), ctx(pkg))).toBeNull();
-        expect(simKeyEffect(key(k, { tagName }), ctx(emp))).toBeNull();
+        const fires = button && k === 'Escape';
+        for (const sel of [pkg, emp]) {
+          if (fires) expect(simKeyEffect(key(k, { tagName }), ctx(sel))).toEqual({ kind: 'select', selection: null });
+          else expect(simKeyEffect(key(k, { tagName }), ctx(sel))).toBeNull();
+        }
       }
     }
     expect(simKeyEffect(key(' ', { tagName: 'DIV', isContentEditable: true }), ctx(null))).toBeNull();
@@ -211,10 +215,10 @@ describe('attachSimKeys', () => {
     expect(select).toHaveBeenCalledTimes(1);
     expect(workspaceEsc).not.toHaveBeenCalled();
 
-    // Esc on a focused button: claimed, nothing fires (no page action, no workspace exit).
+    // Esc on a focused button (#511): the page leaves the journey once; the workspace does not act too.
     const onButton = win.press('Escape', { tagName: 'BUTTON' });
     expect(onButton.preventDefault).toHaveBeenCalled();
-    expect(select).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(2);
     expect(workspaceEsc).not.toHaveBeenCalled();
 
     // Esc in a text field keeps its own default (clearing a search box).
@@ -258,7 +262,9 @@ describe('attachSimKeys', () => {
       for (const k of [' ', '.']) expect(win.press(k, { tagName }).preventDefault).not.toHaveBeenCalled();
       win.press('Escape', { tagName });
     }
-    expect(select).not.toHaveBeenCalled();
+    // Only the Esc from the button leaves the journey (#511); the text fields keep theirs.
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledWith(null);
     expect(control).not.toHaveBeenCalled();
   });
 });
