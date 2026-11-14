@@ -12,7 +12,8 @@ export const clampAlpha = (a: number): number => (Number.isFinite(a) ? Math.min(
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const blend = (p: Pos, n: Pos, t: number): Pos => ({ x: lerp(p.x, n.x, t), y: lerp(p.y, n.y, t) });
 
-export function tweenMarkers(prev: MarkerPosition[], next: MarkerPosition[], alpha: number): MarkerPosition[] {
+export function tweenMarkers(prev: MarkerPosition[], next: MarkerPosition[], alpha: number, reducedMotion = false): MarkerPosition[] {
+  if (reducedMotion) return next.map((m) => ({ ...m }));
   const t = clampAlpha(alpha);
   const before = new Map(prev.map((m) => [m.employeeId, m]));
   return next.map((m) => {
@@ -21,12 +22,12 @@ export function tweenMarkers(prev: MarkerPosition[], next: MarkerPosition[], alp
   });
 }
 
-export function tweenPackages(prev: PackagePositions, next: PackagePositions, alpha: number): PackagePositions {
-  const t = clampAlpha(alpha);
+export function tweenPackages(prev: PackagePositions, next: PackagePositions, alpha: number, reducedMotion = false): PackagePositions {
+  const t = reducedMotion ? 1 : clampAlpha(alpha);
   const out: PackagePositions = {};
   for (const id of Object.keys(next)) {
     const p = prev[id];
-    out[id] = p ? blend(p, next[id], t) : { x: next[id].x, y: next[id].y };
+    out[id] = p && !reducedMotion ? blend(p, next[id], t) : { x: next[id].x, y: next[id].y };
   }
   return out;
 }
