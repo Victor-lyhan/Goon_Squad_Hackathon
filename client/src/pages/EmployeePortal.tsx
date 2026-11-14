@@ -30,6 +30,8 @@ export default function EmployeePortal() {
 
   // One toast per newly arrived job (first poll for an employee only seeds the baseline).
   useEffect(() => { setNotice(null); setSaved(null); setFieldErrors(undefined); }, [id]);
+  // A new city (runId change) invalidates the saved confirmation and its trips: never draw old-city routes.
+  useEffect(() => { setSaved(null); }, [data.runId]);
   useEffect(() => {
     for (const a of data.arrived) push(toastText(a.packageName), 'info');
   }, [data.arrived, push]);
