@@ -1,44 +1,44 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14, 18:35 (Sat), planner pass 68 (started 18:19)_
+_Last update: 2026-11-14, 18:45 (Sat), planner pass 69 (started 18:29)_
 
 ## Current milestone: MVP III (docs/mvp3.md), feature freeze 9:30 p.m.
-Goal: a judge understands Relay in 30 seconds by watching one package move. Order P1 simulator readability, P2 removals, P3 story retune, P4 restyle. **P1 and P3 are merged except the legend (#699). The rest is cleanup and restyle.**
+Goal: a judge understands Relay in 30 seconds by watching one package move. **P1 and P3 are merged except the legend (PR #708). P2 has one sweep left (#711). P4 is down to the simulator CSS (#701) and a browser QA pass (#714).**
 
 ## HUMAN TO-DO
-1. **Open `/simulator` with the browser key now.** Play/Pause (#648), day/night (#649), the journey map (#659) and the timeline symbols (#683) are all merged. Nobody has seen the map yet. Or press **Watch a package** on `/`.
-2. **Run the fetch for #650:** QUESTIONS.md "NEEDS FETCH" line (25 route lines): `npm run fetch:routes`, then `npm run fetch:routes -- --drop-entered`, commit `fixtures/nyc/`. Until then some relay legs move on straight lines (Navy Yard is fine).
+1. **Open `/simulator` with the browser key now**, or press **Watch a package** on `/`. Play/Pause, day/night, the journey map and the timeline symbols are all on main. Nobody has seen the map yet. Write what looks wrong in QUESTIONS.md; it goes first.
+2. **Run the fetch for #650:** QUESTIONS.md "NEEDS FETCH" line (25 route lines): `npm run fetch:routes`, then `npm run fetch:routes -- --drop-entered`, commit `fixtures/nyc/`. Navy Yard is fine without it.
 3. **GitHub Actions still not running (billing).** Fix in GitHub Settings, Billing & plans. Reviewers run `bash scripts/test.sh` locally.
-4. Overrule the calls of passes 63 to 68 in QUESTIONS.md if you disagree.
+4. Overrule the calls of passes 63 to 69 in QUESTIONS.md if you disagree.
 5. Still open from pass 62: four config lines (Node `engines`, Vite proxy port, chunk limit, `.env.example`).
 
-## Main health: two real local test failures, fix in review
-- CI red = billing (DECISIONS pass 61). But local `bash scripts/test.sh` on main has 2 red tests: `kit-v2-index-html` (theme colour) and `employee-v2-map-refresh`. Fix issue #690 exists, PR #696 (victor-10) in review. No new fix issue.
+## Main health
+- CI red = billing (DECISIONS pass 61); the last three runs on main (#700, #702, status commit) are that. The two local red tests were fixed by PR #696 (#690). No fix issue. (This pass could not run the suite itself.)
 
 ## Stuck
 - Nothing labeled `stuck`.
 
-## Queued this pass (7 new)
-- P1+P4 #699 legend shows the journey symbols, no "Leg 1/2"; map's last old colours (victor-2).
-- P2 #700 hook/view cleanup (generate, recompute, resetPlanning, nextEventMin, scenario) + delete `sim/playbackModel.ts` and 4 tests (victor-8).
-- P4 #701 simulator CSS restyle (victor-7). P2 #702 delete `client/src/api/client.ts` shim (victor-1).
-- P2+P4 #703 "Find a delivery match" label + README to MVP III, no `/help` (victor-5).
-- #704 UI test of the 30-second demo path (victor-9). #705 error fallback resets on query change (victor-3).
-- Fewer than 4 each: every other step shares files with these or with PRs #696 to #698. victor-4 (engine) and victor-6 (Employee, #690 is in its files) got nothing.
+## Queued this pass (3 new)
+- P2 #711 delete the MVP 1 engine (`server/domain/{routing,matching,simulation,metrics,generator}.ts`), `server/api/{initialRun,views,pipeline}.ts` and their ~30 tests; compare fixture to v2 `computeMetrics` (victor-4).
+- #712 Employee page keeps its loading view until the business list arrives: no "Unknown place" flash (victor-6).
+- P4 #714 headless Chrome QA of `/`, `/business`, `/employee` at 1440 and 390 px, CSS fixes only (victor-10).
+- Only 3: every other open step edits files of #699/#701/#703/#704/#705. Everyone else is busy or has no MVP III work in its module.
 
-## In review
-- PR #696 (#690 red tests on main, victor-10), PR #697 (#691 Business `trackingModel` out, victor-5), PR #698 (#692 `markerTween` out, victor-1).
+## In progress / in review
+- PR #708 (#699 legend with journey symbols, map's last old colours, victor-2), PR #709 (#705 error fallback resets on query change, victor-3).
+- #701 simulator CSS restyle (victor-7), #703 "Find a delivery match" + README to MVP III (victor-5), #704 UI test of the 30-second demo path (victor-9).
 
-## Merged since pass 67 (18:10)
-- PR #680 (#648) one Play/Pause, Overnight card, `?play=1`; speed, scrubber, next event, Scenario, Layers, key hints deleted.
-- PR #682 (#650) story retune: 24 of 24 matched, at least 12 relays, 2 directs (NEEDS FETCH for 25 lines).
-- PR #694 (#683) journey timeline with map symbols and A/B lines. PR #693 (#684) Business restyle. PR #695 (#685) Employee restyle.
-- PR #689 (#686) unused UI kit components deleted. PR #688 (#660) Business `?play=1`. PR #687 (#677) MVP 1 store out of the server. PR #681 (#678) `createRng` in `server/domain/v2/rng.ts`.
+## Merged since pass 68 (18:19)
+- PR #707 (#700) simulator setup and MVP 1 playback code out; `sim/playbackModel.ts` deleted.
+- PR #706 (#702) `client/src/api/client.ts` shim deleted. PR #698 (#692) `markerTween.ts` out. PR #697 (#691) Business `trackingModel.ts` out.
+- PR #696 (#690) the two red local tests fixed.
+- Earlier MVP III: #680 Play/Pause, #682 story retune, #679 journey map, #694 timeline symbols, #693/#695 Business/Employee restyle, #689, #688, #687, #681.
 
 ## Next up (each needs the issues in brackets merged first)
-- P2 MVP 1 server sweep, second half: `server/api/{initialRun,views,pipeline}.ts`, `server/domain/{routing,matching,simulation,metrics,generator}.ts`, `tests/api/views.test.ts`, the MVP 1 `tests/domain/*` files; `tests/ui/sim-v2-compare-fixture.ts` still imports MVP 1 `computeMetrics` [#691, #692, #700].
-- Employee "Unknown place" flash before the business list arrives [#690].
-- After #699 to #701: a final visual QA pass of `/simulator` once a human has looked at the real map.
+- Simulator visual QA in headless Chrome (layout, fonts, overflow; the map itself needs the key) [#699, #701].
+- Markup faults #714 lists under "Needs markup" [#714].
+- After freeze (9:30 p.m.): bug fixes, copy and demo polish only.
 
 ## Known bugs / gaps
 - `PORT` does not work with `npm run dev` (needs your config change; README says `npm start` only).
+- 25 relay stretches move on straight lines until the NEEDS FETCH is run.
