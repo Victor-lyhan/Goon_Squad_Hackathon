@@ -119,8 +119,8 @@ describe('unmatched package via the API', () => {
     server = createApp(store).listen(0);
     await new Promise((r) => server.once('listening', r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  });
-  afterAll(() => new Promise((r) => server.close(r)));
+  }, 30_000);
+  afterAll(() => new Promise((r) => server.close(r)), 30_000);
 
   it('says No matching commute yet, shows the reason, Edit request and Try again', async () => {
     const { businesses, hubs, employees, settings } = store.get().scenario;
@@ -152,5 +152,5 @@ describe('unmatched package via the API', () => {
     clean(t, 'unmatched tracking');
     expect(t).toContain(esc(res!.unmatchedReason!));
     expect(t).toContain('Requested deadline');
-  }, 60000);
+  }, 60_000);
 });

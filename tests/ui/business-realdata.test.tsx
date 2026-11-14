@@ -48,7 +48,9 @@ describe('business portal views with real Demo-city data', () => {
   }
 });
 
-describe('MatchResultCard with real POST /api/shipments responses', () => {
+// Real server + real POSTs: ~0.9 s locally on the first test. Explicit 30 s (>3x, >=10 s) so a slow CI runner cannot hit the 5 s default (#307).
+const SLOW = 30_000;
+describe('MatchResultCard with real POST /api/shipments responses', { timeout: SLOW }, () => {
   let server: Server;
   let base: string;
   let store: ReturnType<typeof createStore>;
@@ -58,8 +60,8 @@ describe('MatchResultCard with real POST /api/shipments responses', () => {
     server = createApp(store).listen(0);
     await new Promise((r) => server.once('listening', r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  });
-  afterEach(() => new Promise((r) => server.close(r)));
+  }, SLOW);
+  afterEach(() => new Promise((r) => server.close(r)), SLOW);
 
   async function find(wantMatched: boolean, wantRelay?: boolean) {
     const { businesses, settings } = store.get().scenario;
