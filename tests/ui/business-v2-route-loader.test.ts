@@ -7,7 +7,7 @@ import {
   ROUTE_MAP_FAILED_TEXT, ROUTE_MAP_LOADING_TEXT, createDeliveryMapLoader, deliveryMapReducer, deliveryMapSlot,
   initialDeliveryMapState, type DeliveryMapAction, type DeliveryMapState,
 } from '../../client/src/components/business/v2/route/deliveryMapLoader';
-import { ApiRequestError } from '../../client/src/api/client';
+import { ApiRequestError } from '../../client/src/api/http';
 import { MAP, RECIPIENT, SENDER, directPlan, relayPlan } from './business-v2-route-sample';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));

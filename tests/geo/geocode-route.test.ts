@@ -386,7 +386,7 @@ describe('GET /api/v2/geocode', () => {
   });
 });
 
-// #602, DECISIONS pass 61: the page gives up at 8 s (client/src/api/client.ts), so the route answers within 7 s.
+// #602, DECISIONS pass 61: the page gives up at 8 s (client/src/api/http.ts), so the route answers within 7 s.
 // Time is virtual: the route's clock and the client's backoff sleep are the test's, and an attempt that gets no
 // answer is charged the number the client gave `AbortSignal.timeout` for it. Nothing here waits in real time.
 describe('the deadline of the whole search', () => {
