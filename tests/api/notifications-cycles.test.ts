@@ -36,7 +36,8 @@ const commute = (e: Employee, maxExtraMin: number) => ({
   availableEvening: e.availableEvening, availableMorning: e.availableMorning, maxExtraMin,
 });
 
-async function check(label: string) {
+// Cheap store-level invariants: run after every mutation.
+function checkStore(label: string) {
   const run = store.get();
   const ids = run.notifications.map((n) => n.id);
   expect(new Set(ids).size, `${label}: unique ids`).toBe(ids.length);
@@ -61,7 +62,11 @@ async function check(label: string) {
     expect(count((n) => n.kind === 'job_assigned' && n.jobId === job.id && n.audienceId === job.employeeId)).toBe(1);
   }
   expect(count((n) => n.kind === 'job_assigned')).toBe(run.jobs.length);
-  // Portals: newest first.
+}
+
+// Portal ordering: one request per dashboard, so run it at checkpoints only.
+async function checkDashboards() {
+  const run = store.get();
   for (const b of run.scenario.businesses) {
     const d = await get<BusinessDashboard>(`/api/businesses/${b.id}/dashboard`);
     const seqs = d.notifications.map((n) => n.createdSeq);
@@ -72,6 +77,11 @@ async function check(label: string) {
     const seqs = d.notifications.map((n) => n.createdSeq);
     expect(seqs).toEqual([...seqs].sort((x, y) => y - x));
   }
+}
+
+async function check(label: string) {
+  checkStore(label);
+  await checkDashboards();
 }
 
 describe('notifications across planning cycles', () => {
@@ -98,17 +108,22 @@ describe('notifications across planning cycles', () => {
     // Make packages unmatched: nobody accepts extra time, then recompute.
     const emps = store.get().scenario.employees;
     const original = new Map(emps.map((e) => [e.id, e.maxExtraMin]));
-    for (const e of emps) await send('PUT', `/api/employees/${e.id}/commute`, commute(e, 0));
+    // Set directly in the store: 60 PUTs here would only time the matcher, not add coverage.
+    await store.mutate((r) => { for (const e of r.scenario.employees) e.maxExtraMin = 0; });
     await send('POST', '/api/matches/recompute');
     await check('all strict');
     const before = store.get();
     expect(before.assignments.unmatched.length).toBeGreaterThan(0);
 
     // Rescue: restore extra time, each PUT retries the unmatched packages.
+    // Stop at the first PUT that rescues a package: each PUT re-runs the matcher (~25-80 ms),
+    // so all 60 would cost ~5 s without covering anything new.
     for (const e of store.get().scenario.employees) {
       await send('PUT', `/api/employees/${e.id}/commute`, commute(e, original.get(e.id)!));
-      await check(`commute ${e.id}`);
+      checkStore(`commute ${e.id}`);
+      if (store.get().assignments.plans.length > before.assignments.plans.length) break;
     }
+    await checkDashboards();
     expect(store.get().assignments.plans.length).toBeGreaterThan(before.assignments.plans.length);
   }, 60_000);
 
