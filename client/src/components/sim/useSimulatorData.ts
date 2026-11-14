@@ -3,7 +3,7 @@ import type { Employee } from '../../../../shared/types';
 import type { MapResponse, SimulatorResponse } from '../../../../shared/api';
 import type { SimControlRequest } from '../../../../shared/schemas';
 import { getEmployees, getMap, getSimulator, simulatorControl } from '../../api';
-import { needsMapFetch } from './simPageModel';
+import { mapForRun, needsMapFetch } from './simPageModel';
 
 export const POLL_MS = 1000;
 
@@ -22,7 +22,7 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : 'Request failed');
 
 export function useSimulatorData(): SimulatorData {
   const [sim, setSim] = useState<SimulatorResponse | null>(null);
-  const [map, setMap] = useState<MapResponse | null>(null);
+  const [mapState, setMapState] = useState<{ runId: string; map: MapResponse } | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,9 +34,14 @@ export function useSimulatorData(): SimulatorData {
     setError(null);
     if (needsMapFetch(staticRunId.current, next.runId)) {
       staticRunId.current = next.runId;
+      const runId = next.runId;
       Promise.all([getMap(), getEmployees()])
-        .then(([m, e]) => { setMap(m); setEmployees(e.employees); })
-        .catch((e) => { staticRunId.current = null; setError(msg(e)); });
+        .then(([m, e]) => {
+          if (staticRunId.current !== runId) return; // a newer run superseded this fetch
+          setMapState({ runId, map: m });
+          setEmployees(e.employees);
+        })
+        .catch((e) => { if (staticRunId.current === runId) { staticRunId.current = null; setError(msg(e)); } });
     }
   }, []);
 
@@ -78,5 +83,6 @@ export function useSimulatorData(): SimulatorData {
     }
   }, [accept]);
 
+  const map = mapForRun(mapState?.map ?? null, mapState?.runId ?? null, sim?.runId);
   return { sim, map, employees, error, busy, control, refresh };
 }
