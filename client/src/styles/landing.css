@@ -1,38 +1,114 @@
-/* Landing: guided "Run the demo" strip */
-.demo-guide { margin-top: 1rem; }
-.demo-guide h2 { margin: 0 0 .25rem; font-size: 1.25rem; }
-.demo-guide-intro { margin: 0 0 1rem; color: var(--muted); }
-.guide-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; grid-template-columns: 1fr; }
-.guide-step {
-  display: grid; grid-template-columns: auto 1fr; column-gap: .75rem; row-gap: .5rem; align-items: start;
-  padding: .75rem; border: 1px solid var(--border); border-radius: 10px;
-}
-.guide-step .step-num { margin: 0; }
-.guide-step p { margin: 0; }
-.guide-step .btn { grid-column: 2; justify-self: start; padding: .45rem .9rem; }
-.guide-facts {
-  display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: 1rem 0 0; padding: .75rem 0 0;
-  border-top: 1px solid var(--border); list-style: none; color: var(--muted);
-}
-.guide-facts strong { color: var(--navy); }
-.guide-facts-note { margin: 1rem 0 0; padding-top: .75rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
-.guide-step .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-@media (min-width: 700px) {
-  .guide-steps { grid-template-columns: repeat(2, 1fr); }
+/* Homepage (MVP II): intro, operational summary, three workspace entries, footer.
+   Tokens are read with fallbacks so the page works before/after the token issue lands. */
+.landing {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--text, #151B26);
+  font-family: var(--font-sans, inherit);
 }
 
-/* Landing: "Current city" strip */
-.city-strip { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; margin-bottom: 1rem; padding: .75rem 1.25rem; }
-.city-strip-label { font-weight: 700; color: var(--navy); }
-.city-strip-facts { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; margin: 0; padding: 0; list-style: none; color: var(--muted); }
-.city-strip-facts strong { color: var(--navy); }
-.city-strip-loading { color: var(--muted); }
-.landing a:focus-visible, .landing .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.landing { max-width: 100%; overflow-wrap: anywhere; }
+/* 1. Introduction */
+.landing-intro { padding: var(--space-6, 32px) 0 var(--space-4, 16px); }
+.landing-intro h1 {
+  margin: 0 0 var(--space-2, 8px);
+  font-size: var(--text-xl, 28px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text, #151B26);
+}
+.landing-intro p { margin: 0; max-width: 60ch; color: var(--muted, #5B6472); }
+
+/* 2. Operational summary: one understated row */
+.op-summary {
+  padding: var(--space-3, 12px) 0;
+  border-top: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #D7DDE5);
+  margin-bottom: var(--space-5, 24px);
+}
+.op-summary-list { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px) var(--space-6, 32px); margin: 0; }
+.op-summary-item { display: flex; align-items: baseline; gap: var(--space-2, 8px); }
+.op-summary-item dt {
+  font-size: var(--text-xs, 12px);
+  color: var(--muted, #5B6472);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.op-summary-item dd { margin: 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 14px; color: var(--text, #151B26); }
+.op-summary-value.is-placeholder { color: var(--muted, #5B6472); }
+.op-summary-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+
+/* 3. Workspace entries: three equal columns, whole surface is the link */
+.workspaces {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4, 16px);
+}
+.workspaces > li { display: flex; }
+.workspace-entry {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  min-height: 200px;
+  padding: var(--space-5, 24px);
+  background: var(--panel, #FFFFFF);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  color: var(--text, #151B26);
+  text-decoration: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.workspace-id {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-xs, 12px);
+  letter-spacing: 0.06em;
+  color: var(--muted, #5B6472);
+}
+.workspace-title { margin: var(--space-2, 8px) 0 0; font-size: var(--text-xl, 28px); line-height: 1.15; font-weight: 600; }
+.workspace-text { margin: 0; flex: 1; color: var(--muted, #5B6472); }
+.workspace-action {
+  margin-top: var(--space-3, 12px);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent, #28618A);
+}
+a.workspace-entry:hover { border-color: var(--accent, #28618A); background: var(--bg, #F7F8FA); }
+a.workspace-entry:hover .workspace-action { text-decoration: underline; text-underline-offset: 3px; }
+a.workspace-entry:focus-visible {
+  outline: 2px solid var(--accent, #28618A);
+  outline-offset: 2px;
+  border-radius: var(--radius, 2px);
+}
+.workspace-entry.is-disabled { cursor: progress; }
+.workspace-entry.is-disabled .workspace-action { color: var(--muted, #5B6472); }
+
+.landing-status { margin: var(--space-3, 12px) 0 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+
+/* 4. Footer */
+.landing-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2, 8px) var(--space-4, 16px);
+  margin-top: var(--space-8, 64px);
+  padding: var(--space-4, 16px) 0;
+  border-top: 1px solid var(--border, #D7DDE5);
+  font-size: var(--text-xs, 12px);
+  color: var(--muted, #5B6472);
+}
+.landing-footer a { color: var(--accent, #28618A); }
+.landing-footer a:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
+
+@media (max-width: 860px) {
+  .workspaces { grid-template-columns: 1fr; }
+  .workspace-entry { min-height: 0; }
+}
 @media (max-width: 480px) {
-  .city-strip, .hero, .demo-guide { padding-left: .9rem; padding-right: .9rem; }
-  .guide-step { grid-template-columns: 1fr; }
-  .guide-step .step-num, .guide-step .btn { grid-column: 1; }
-  .guide-step .btn { justify-self: stretch; text-align: center; }
-  .city-strip-facts { flex-direction: column; }
+  .landing-intro { padding-top: var(--space-4, 16px); }
+  .workspace-entry { padding: var(--space-4, 16px); }
+  .op-summary-list { gap: var(--space-2, 8px) var(--space-4, 16px); }
 }

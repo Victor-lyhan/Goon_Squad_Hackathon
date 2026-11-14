@@ -1,23 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
-import { BrowserRouter, Link, matchPath, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Link, matchPath, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { Business, Employee } from '../../shared/types';
 import {
   portalPaths, readIdentity, resolveIdentity, writeIdentity,
   type Directory,
 } from './demoIdentity';
 import { getBusinesses, getEmployees, getSimulator } from './api';
-import { RUN_POLL_MS, reconcileSelection, runChanged, staleNote } from './ui/shellModel';
+import {
+  activeDestination, DESTINATIONS, ENV_INDICATOR_TEXT, RUN_POLL_MS, reconcileSelection, runChanged, staleNote,
+} from './ui/shellModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
 import NotFoundPage from './ui/NotFoundPage';
 import { switchIdentityPath } from './ui/shell';
-import './ui/shell.css';
 import './styles/global.css';
+import './ui/shell.css';
 import Landing, { SIMULATOR_PATH } from './pages/Landing';
 import BusinessPortal from './pages/BusinessPortal';
 import EmployeePortal from './pages/EmployeePortal';
 import Simulator from './pages/Simulator';
+import Help from './pages/Help';
 
-export const BADGE_TEXT = 'Synthetic city · simulated deliveries';
+/** Header environment indicator (kept for existing imports; the source is ENV_INDICATOR_TEXT). */
+export const BADGE_TEXT = ENV_INDICATOR_TEXT;
 
 export { readIdentity, writeIdentity, resolveIdentity };
 
@@ -114,17 +118,30 @@ export function Header({ initial }: { initial?: DirectoryData } = {}) {
   const paths = portalPaths(
     dir.status === 'ready' ? resolveIdentity(stored, dir.businesses, dir.employees) : null,
   );
+  const active = activeDestination(pathname);
+  const hrefs = { business: paths.business, employee: paths.employee, simulator: SIMULATOR_PATH };
   return (
-    <header className="app-header">
-      <Link to="/" className="wordmark">Relay</Link>
-      <nav aria-label="Portals" className="portal-switch">
-        {paths.business ? <NavLink to={paths.business}>Business</NavLink> : <span className="nav-pending">Business</span>}
-        {paths.employee ? <NavLink to={paths.employee}>Employee</NavLink> : <span className="nav-pending">Employee</span>}
-        <NavLink to={SIMULATOR_PATH}>Simulator</NavLink>
+    <header className="shell-header">
+      <Link to="/" className="shell-wordmark">Relay</Link>
+      <nav aria-label="Workspaces" className="shell-nav">
+        {DESTINATIONS.map(({ key, label }) => {
+          const to = hrefs[key];
+          const on = active === key;
+          return to ? (
+            <Link key={key} to={to} className={on ? 'shell-nav-link active' : 'shell-nav-link'} aria-current={on ? 'page' : undefined}>
+              {label}
+            </Link>
+          ) : (
+            <span key={key} className="shell-nav-link nav-pending" aria-disabled="true">{label}</span>
+          );
+        })}
       </nav>
-      <span className="badge">{BADGE_TEXT}</span>
-      <div className="demo-account-slot" data-slot="demo-account-selector">
-        <DemoAccountSelector dir={dir} />
+      <div className="shell-tools">
+        <div className="demo-account-slot" data-slot="demo-account-selector">
+          <DemoAccountSelector dir={dir} />
+        </div>
+        <Link to="/help" className={pathname === '/help' ? 'shell-help active' : 'shell-help'} aria-current={pathname === '/help' ? 'page' : undefined}>Help</Link>
+        <span className="shell-env">{ENV_INDICATOR_TEXT}</span>
       </div>
     </header>
   );
@@ -143,6 +160,7 @@ export function AppShell({ initial }: { initial?: DirectoryData } = {}) {
           <Route path="/business/:id" element={<BusinessPortal />} />
           <Route path="/employee/:id" element={<EmployeePortal />} />
           <Route path="/simulator" element={<Simulator />} />
+          <Route path="/help" element={<Help initial={initial} />} />
           <Route path="*" element={<NotFoundPage initial={initial} />} />
         </Routes>
       </main>

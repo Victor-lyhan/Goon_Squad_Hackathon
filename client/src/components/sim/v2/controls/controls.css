@@ -1,0 +1,124 @@
+/* MVP II simulator left-panel controls: playback, scenario, planning cycle.
+   Built for the 320px left column: everything shrinks to the column, nothing scrolls sideways.
+   Square corners (2px), 1px borders, no shadows except a 1px focus ring, no gradients. */
+
+.ctl-block {
+  display: grid;
+  gap: var(--space-2, 8px);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
+}
+.ctl-block *, .ctl-block *::before, .ctl-block *::after { box-sizing: border-box; }
+
+.ctl-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-variant-numeric: tabular-nums; }
+
+.ctl-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); min-width: 0; }
+.ctl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1, 4px); }
+
+/* ---------- Buttons ---------- */
+.ctl-btn {
+  min-height: 30px;
+  min-width: 0;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font: inherit;
+  font-size: var(--text-sm, 13px);
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.ctl-btn:hover:not(:disabled) { border-color: var(--accent, #28618A); color: var(--accent, #28618A); }
+.ctl-btn:disabled { color: var(--muted, #5B6472); background: var(--bg, #F7F8FA); cursor: not-allowed; }
+.ctl-primary { min-width: 72px; background: var(--accent, #28618A); border-color: var(--accent, #28618A); color: var(--panel, #FFFFFF); font-weight: 600; }
+.ctl-primary:hover:not(:disabled) { background: var(--panel, #FFFFFF); }
+.ctl-danger { border-color: var(--danger, #A4312A); color: var(--danger, #A4312A); font-weight: 600; }
+.ctl-danger:hover:not(:disabled) { border-color: var(--danger, #A4312A); color: var(--panel, #FFFFFF); background: var(--danger, #A4312A); }
+.ctl-wide { width: 100%; }
+
+/* Segmented speed selector */
+.ctl-seg { display: flex; flex: 1 1 auto; min-width: 0; }
+.ctl-seg-btn { flex: 1 1 0; border-radius: 0; font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); }
+.ctl-seg-btn + .ctl-seg-btn { margin-left: -1px; }
+.ctl-seg-btn:first-child { border-radius: var(--radius, 2px) 0 0 var(--radius, 2px); }
+.ctl-seg-btn:last-child { border-radius: 0 var(--radius, 2px) var(--radius, 2px) 0; }
+.ctl-seg-btn[aria-pressed="true"] {
+  position: relative;
+  border-color: var(--accent, #28618A);
+  background: var(--accent-soft, #E8F0F6);
+  color: var(--accent, #28618A);
+  font-weight: 600;
+}
+
+/* ---------- Fields ---------- */
+.ctl-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2, 8px); }
+.ctl-field { display: grid; gap: 2px; min-width: 0; }
+.ctl-field label, .ctl-label-row label { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.ctl-label-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2, 8px); min-width: 0; }
+.ctl-label-row output { font-size: var(--text-sm, 13px); color: var(--text, #151B26); white-space: nowrap; }
+
+.ctl-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 var(--space-2, 8px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font-size: var(--text-sm, 13px);
+}
+select.ctl-input { font-family: inherit; }
+.ctl-input[aria-invalid="true"] { border-color: var(--danger, #A4312A); }
+.ctl-input:disabled { background: var(--bg, #F7F8FA); color: var(--muted, #5B6472); }
+
+.ctl-range { width: 100%; min-width: 0; margin: var(--space-1, 4px) 0 0; accent-color: var(--accent, #28618A); }
+.ctl-range-ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted, #5B6472); }
+
+.ctl-hint { margin: 0; font-size: 11px; color: var(--muted, #5B6472); }
+.ctl-error { font-size: var(--text-xs, 12px); color: var(--danger, #A4312A); overflow-wrap: anywhere; }
+
+/* ---------- Notes, confirm, phase ---------- */
+.ctl-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.ctl-notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+
+.ctl-confirm {
+  display: grid;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px);
+  border: 1px solid var(--danger, #A4312A);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+}
+.ctl-confirm p { margin: 0; }
+
+.ctl-phase { margin: 0; display: flex; align-items: center; gap: var(--space-2, 8px); font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.ctl-phase-tag {
+  padding: 0 var(--space-1, 4px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text, #151B26);
+}
+.ctl-phase-tag.is-locked { border-color: var(--accent, #28618A); color: var(--accent, #28618A); }
+
+/* ---------- Keyboard focus: 2px outline plus a 1px ring ---------- */
+.ctl-btn:focus-visible,
+.ctl-input:focus-visible,
+.ctl-range:focus-visible {
+  outline: 2px solid var(--accent, #28618A);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctl-block *, .ctl-block *::before, .ctl-block *::after { transition: none; animation: none; }
+}

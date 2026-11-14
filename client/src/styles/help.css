@@ -1,0 +1,24 @@
+/* /help Guided demo page. Tokens with fallbacks (the tokens file lands separately). */
+.help { max-width: 760px; color: var(--text, #151B26); font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif); }
+.help h1 { font-size: 24px; font-weight: 600; margin: var(--space-2, 8px) 0 var(--space-1, 4px); }
+.help-lead { color: var(--muted, #5B6472); font-size: var(--text-sm, 13px); margin: 0 0 var(--space-4, 16px); }
+.help-steps {
+  list-style: none; margin: 0 0 var(--space-4, 16px); padding: 0;
+  background: var(--panel, #FFFFFF); border: 1px solid var(--border, #D7DDE5); border-radius: var(--radius, 2px);
+}
+.help-step {
+  display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto; align-items: start; gap: var(--space-3, 12px);
+  padding: var(--space-3, 12px) var(--space-4, 16px); border-top: 1px solid var(--border, #D7DDE5);
+}
+.help-step:first-child { border-top: 0; }
+.help-step-num { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); padding-top: 2px; }
+.help-step h2 { font-size: 14px; font-weight: 600; margin: 0 0 var(--space-1, 4px); }
+.help-step p { margin: 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.help-step-link { font-size: var(--text-sm, 13px); color: var(--accent-dark, #1F4E70); white-space: nowrap; padding: 2px 0; }
+.help-step-link:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; border-radius: var(--radius, 2px); }
+.help-about h2 { font-size: 14px; font-weight: 600; margin: 0 0 var(--space-1, 4px); }
+.help-about p { margin: 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); max-width: 65ch; }
+@media (max-width: 480px) {
+  .help-step { grid-template-columns: 2rem minmax(0, 1fr); }
+  .help-step-link { grid-column: 2; white-space: normal; }
+}

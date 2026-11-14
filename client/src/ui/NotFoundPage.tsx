@@ -19,6 +19,7 @@ export default function NotFoundPage({ initial }: { initial?: { businesses: Busi
         <li>{paths.business ? <Link to={paths.business}>Business portal</Link> : <span className="nav-pending">Business portal</span>}</li>
         <li>{paths.employee ? <Link to={paths.employee}>Employee portal</Link> : <span className="nav-pending">Employee portal</span>}</li>
         <li><Link to={SIMULATOR_HREF}>Simulator</Link></li>
+        <li><Link to="/help">Guided demo</Link></li>
       </ul>
     </div>
   );

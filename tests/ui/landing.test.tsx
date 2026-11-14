@@ -13,16 +13,14 @@ const render = (path: string) =>
 describe('landing page', () => {
   const html = render('/');
 
-  it('links to the three surfaces', () => {
-    expect(html).toContain('Business portal');
+  it('shows the three workspace entries', () => {
+    for (const t of ['01 / BUSINESS', '02 / EMPLOYEE', '03 / SIMULATOR']) expect(html).toContain(t);
     expect(html).toContain('href="/simulator"');
-    expect(html).toContain('Business portal');
-    expect(html).toContain('Employee portal');
   });
 
-  it('shows the badge and three how-it-works steps', () => {
+  it('shows the badge and no how-it-works step cards', () => {
     expect(html).toContain(BADGE_TEXT);
-    expect(html.match(/class="panel step"/g)).toHaveLength(3);
+    expect(html).not.toContain('class="panel step"');
   });
 });
 
