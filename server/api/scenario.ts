@@ -28,6 +28,34 @@ function importErrors(body: unknown): Record<string, string> {
   if (!Array.isArray(body.trips)) errs.trips = 'Required array';
   if (!isObj(body.assignments) || !Array.isArray(body.assignments.plans)) errs.assignments = 'Required object with plans';
   if (!isObj(body.clock)) errs.clock = 'Required object';
+  else {
+    const c = body.clock;
+    if (c.phase !== 'planning' && c.phase !== 'locked') errs['clock.phase'] = 'Must be planning or locked';
+    if (typeof c.timeMin !== 'number' || !Number.isFinite(c.timeMin)) errs['clock.timeMin'] = 'Must be a number';
+    if (c.speed !== 30 && c.speed !== 120 && c.speed !== 600) errs['clock.speed'] = 'Must be 30, 120 or 600';
+  }
+  for (const k of ['jobs', 'events', 'notifications']) {
+    if (!Array.isArray(body[k])) errs[k] = 'Required array';
+  }
+  if (scenario) {
+    if (!Array.isArray(scenario.hubs)) errs['scenario.hubs'] = 'Required array';
+    const s = scenario.settings;
+    const numeric = ['handlingMin', 'priceCents', 'legRewardCents', 'hubCostCents', 'platformVariableCostCents',
+      'courierPriceCents', 'simStartMin', 'simEndMin'];
+    if (!isObj(s)) errs['scenario.settings'] = 'Required object';
+    else for (const k of numeric) {
+      if (typeof s[k] !== 'number' || !Number.isFinite(s[k])) errs[`scenario.settings.${k}`] = 'Must be a number';
+    }
+    // Entries must be objects, so later code never dereferences a number or null.
+    const lists: [string, unknown][] = [
+      ['scenario.graph.nodes', graph?.nodes], ['scenario.businesses', scenario.businesses],
+      ['scenario.employees', scenario.employees], ['scenario.shipments', scenario.shipments],
+      ['scenario.hubs', scenario.hubs], ['trips', body.trips], ['jobs', body.jobs], ['events', body.events],
+    ];
+    for (const [k, v] of lists) {
+      if (Array.isArray(v) && !v.every(isObj)) errs[k] ??= 'Entries must be objects';
+    }
+  }
   return errs;
 }
 

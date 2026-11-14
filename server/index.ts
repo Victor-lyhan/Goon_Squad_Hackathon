@@ -61,6 +61,22 @@ export function createApp(store: Store, opts: { clientDist?: string } = {}) {
       res.sendFile(path.join(dist, 'index.html'));
     });
   }
+
+  // Body-parser failures (malformed JSON, oversize) and anything uncaught: always a JSON body, never HTML.
+  app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent) return next(err);
+    const e = err as { status?: number; statusCode?: number; type?: string };
+    const status = e.status ?? e.statusCode ?? 500;
+    if (status >= 400 && status < 500) {
+      const message =
+        e.type === 'entity.parse.failed' ? 'Request body is not valid JSON'
+        : e.type === 'entity.too.large' ? 'Request body is too large'
+        : 'Bad request';
+      res.status(status).json({ error: message });
+      return;
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  });
   return app;
 }
 
