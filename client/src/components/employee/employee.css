@@ -1,0 +1,9 @@
+.job-card { width: 100%; max-width: 390px; box-sizing: border-box; }
+.job-card__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.job-card__title { margin: 0; font-size: 1rem; }
+.job-card__tag { display: inline-block; margin: 0 0 8px; font-weight: 600; font-size: 0.85rem; }
+.job-card__row { margin: 6px 0; overflow-wrap: anywhere; }
+.job-card__label { display: block; font-size: 0.75rem; opacity: 0.7; }
+.job-card__context { margin: 6px 0; font-size: 0.85rem; opacity: 0.85; }
+.job-card__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.job-card__reward { font-weight: 700; }
