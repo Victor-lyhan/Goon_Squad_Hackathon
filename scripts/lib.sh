@@ -41,7 +41,7 @@ prep_worktree() {
 run_agent() {
   local engine=$1 model=$2 dir=$3 prompt=$4
   if [ "$engine" = claude ]; then
-    (cd "$dir" && claude -p "$prompt" ${model:+--model "$model"} ${EFFORT:+--effort "$EFFORT"} \
+    (cd "$dir" && claude -p "$prompt" --permission-mode acceptEdits ${model:+--model "$model"} ${EFFORT:+--effort "$EFFORT"} \
         --max-turns "${MAX_TURNS:-60}" \
         --allowedTools "${TOOLS:-Read,Edit,Write,Glob,Grep,Bash}") >>"$LOG" 2>&1
   else
