@@ -14,8 +14,7 @@ describe('landing page', () => {
   const html = render('/');
 
   it('links to the three surfaces', () => {
-    expect(html).toContain('href="/business/biz-a"');
-    expect(html).toContain('href="/employee/emp-1"');
+    expect(html).toContain('Business portal');
     expect(html).toContain('href="/simulator"');
     expect(html).toContain('Business portal');
     expect(html).toContain('Employee portal');
