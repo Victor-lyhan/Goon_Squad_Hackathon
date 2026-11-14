@@ -1,12 +1,17 @@
 // Google HTTP client (server/geo/googleClient.ts) against a fake fetch only: no network, no real key, no .env.
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { inspect } from 'node:util';
 import {
   BACKOFF_BASE_MS,
+  CALL_DEADLINE_STATUS,
+  DEFAULT_TIMEOUT_MS,
+  GEOCODE_URL,
   GoogleApiError,
   GoogleKeyMissingError,
   MAX_MATRIX_ELEMENTS,
   MAX_RETRIES,
+  ROUTES_URL,
+  ROUTE_MATRIX_URL,
   computeRouteMatrix,
   computeRoutePolyline,
   geocodeAddress,
@@ -478,5 +483,113 @@ describe('missing key', () => {
       }
       expect(calls).toHaveLength(0);
     }
+  });
+});
+
+// #555: what a live action sets (server/geo/travelService.ts). The fetch command sets none of these.
+describe('the limits a caller can set: maxRetries and the deadline of its call (msLeft)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const unavailable = { status: 503, body: { error: { code: 503, message: `Backend unavailable for ${KEY}.`, status: 'UNAVAILABLE' } } };
+  const route = { status: 200, body: { routes: [{ duration: '734s', distanceMeters: 6120, polyline: { encodedPolyline: 'abc' } }] } };
+  /** Records the number each attempt gives `AbortSignal.timeout`. */
+  const timeouts = () => {
+    const asked: number[] = [];
+    const real = AbortSignal.timeout.bind(AbortSignal);
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      asked.push(ms);
+      return real(ms);
+    });
+    return asked;
+  };
+
+  it('maxRetries replaces the 3 retries: 1 means two attempts and one backoff, 0 means one attempt', async () => {
+    for (const [maxRetries, waited] of [[1, [500]], [0, []]] as const) {
+      const { calls, fetchImpl } = fakeFetch(() => unavailable);
+      const { waits, sleep } = sleepSpy();
+      const err = await thrownBy(() => computeRouteMatrix([EMPIRE], [DUMBO], { apiKey: KEY, fetchImpl, sleep, maxRetries }));
+      expect(err).toMatchObject({ status: 503, googleStatus: 'UNAVAILABLE' });
+      expect(calls).toHaveLength(1 + maxRetries);
+      expect(waits).toEqual(waited);
+    }
+  });
+
+  it('without msLeft an attempt gets timeoutMs (15 s by default); with it, the whole milliseconds that are left when that is less', async () => {
+    const asked = timeouts();
+    const { fetchImpl } = fakeFetch(() => route);
+    await computeRoutePolyline(EMPIRE, DUMBO, { apiKey: KEY, fetchImpl });
+    await computeRoutePolyline(EMPIRE, DUMBO, { apiKey: KEY, fetchImpl, timeoutMs: 4000 });
+    await computeRoutePolyline(EMPIRE, DUMBO, { apiKey: KEY, fetchImpl, timeoutMs: 4000, msLeft: () => 9000 });
+    await computeRoutePolyline(EMPIRE, DUMBO, { apiKey: KEY, fetchImpl, timeoutMs: 4000, msLeft: () => 1500.7 });
+    await computeRoutePolyline(EMPIRE, DUMBO, { apiKey: KEY, fetchImpl, msLeft: () => 1 });
+    expect(asked).toEqual([DEFAULT_TIMEOUT_MS, 4000, 4000, 1500, 1]);
+  });
+
+  it('a backoff that would not end before the deadline is not slept: the request fails at once with its own error', async () => {
+    for (const left of [BACKOFF_BASE_MS, BACKOFF_BASE_MS - 1, 1]) {
+      const { calls, fetchImpl } = fakeFetch(() => unavailable);
+      const { waits, sleep } = sleepSpy();
+      const err = await thrownBy(() => computeRouteMatrix([EMPIRE], [DUMBO], { apiKey: KEY, fetchImpl, sleep, msLeft: () => left }));
+      expect(err).toMatchObject({ status: 503, googleStatus: 'UNAVAILABLE' });
+      expect(calls).toHaveLength(1);
+      expect(waits).toEqual([]);
+      expectNoKey(err);
+    }
+  });
+
+  it('with more left than the backoff it retries as usual', async () => {
+    const { calls, fetchImpl } = fakeFetch((_call, i) => (i === 0 ? unavailable : route));
+    const { waits, sleep } = sleepSpy();
+    const result = await computeRoutePolyline(EMPIRE, DUMBO, { apiKey: KEY, fetchImpl, sleep, msLeft: () => BACKOFF_BASE_MS + 1 });
+    expect(result).toEqual({ encoded: 'abc', durationS: 734, distanceM: 6120 });
+    expect(calls).toHaveLength(2);
+    expect(waits).toEqual([500]);
+  });
+
+  it('a backoff that ran late ends the request with the error of the attempt before it, and no attempt is sent after the deadline', async () => {
+    let left = 5000;
+    const { calls, fetchImpl } = fakeFetch(() => unavailable);
+    const waits: number[] = [];
+    const sleep = async (ms: number) => {
+      waits.push(ms);
+      left = 0.4; // the sleep took far longer than asked
+    };
+    const err = await thrownBy(() => computeRoutePolyline(EMPIRE, DUMBO, { apiKey: KEY, fetchImpl, sleep, msLeft: () => left }));
+    expect(err).toMatchObject({ status: 503, googleStatus: 'UNAVAILABLE' });
+    expect(calls).toHaveLength(1);
+    expect(waits).toEqual([500]);
+  });
+
+  it('with nothing left no request is sent: GoogleApiError with status 0 and CALL_DEADLINE, for every call', async () => {
+    const runs: [string, (o: { apiKey: string; fetchImpl: FetchLike; msLeft: () => number }) => Promise<unknown>][] = [
+      [GEOCODE_URL, (o) => geocodeAddress('350 5th Ave, New York', o)],
+      [ROUTE_MATRIX_URL, (o) => computeRouteMatrix([EMPIRE], [DUMBO], o)],
+      [ROUTES_URL, (o) => computeRoutePolyline(EMPIRE, DUMBO, o)],
+    ];
+    for (const left of [0, 0.9, -250]) {
+      for (const [endpoint, run] of runs) {
+        const { calls, fetchImpl } = fakeFetch(() => route);
+        const err = await thrownBy(() => run({ apiKey: KEY, fetchImpl, msLeft: () => left }));
+        expect((err as Error).constructor).toBe(GoogleApiError);
+        expect(err).toMatchObject({ name: 'GoogleApiError', status: 0, googleStatus: CALL_DEADLINE_STATUS, endpoint });
+        expect((err as Error).message).toContain('the time limit of this call ran out before the request was sent');
+        expect(calls).toHaveLength(0);
+        expectNoKey(err);
+      }
+    }
+  });
+
+  it('a matrix of two requests whose deadline passes after the first one rejects: no partial result is returned', async () => {
+    let left = 5000;
+    const origins = Array.from({ length: 30 }, (_, i) => ({ lat: 40.7 + i * 0.001, lng: -73.98 })); // 30 x 30 = 2 requests
+    const { calls, fetchImpl } = fakeFetch(() => {
+      left = 0;
+      return { status: 200, body: [] };
+    });
+    const err = await thrownBy(() => computeRouteMatrix(origins, origins, { apiKey: KEY, fetchImpl, msLeft: () => left }));
+    expect(err).toMatchObject({ status: 0, googleStatus: CALL_DEADLINE_STATUS, endpoint: ROUTE_MATRIX_URL });
+    expect(calls).toHaveLength(1);
   });
 });

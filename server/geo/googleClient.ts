@@ -12,10 +12,13 @@ export const ROUTE_MATRIX_FIELD_MASK = 'originIndex,destinationIndex,duration,di
 export const ROUTES_FIELD_MASK = 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline';
 /** Routes API limit: origins x destinations per computeRouteMatrix request. */
 export const MAX_MATRIX_ELEMENTS = 625;
-/** Retries after the first attempt, for 429, 5xx and network failures. */
+/** Retries after the first attempt, for 429, 5xx and network failures. The default: the fetch command's bulk limit. */
 export const MAX_RETRIES = 3;
 export const BACKOFF_BASE_MS = 500;
+/** Per-attempt timeout. The default: the fetch command's bulk limit. */
 export const DEFAULT_TIMEOUT_MS = 15_000;
+/** `googleStatus` of the error for a request that was not sent because its call's deadline had passed (`msLeft`). Local, with status 0. */
+export const CALL_DEADLINE_STATUS = 'CALL_DEADLINE';
 
 const TRAVEL_MODE = 'DRIVE';
 const ROUTING_PREFERENCE = 'TRAFFIC_UNAWARE';
@@ -46,8 +49,20 @@ export interface GoogleClientOptions {
   fetchImpl?: FetchLike;
   /** Backoff sleep between retries. Tests pass a no-op. */
   sleep?: (ms: number) => Promise<void>;
-  /** Per-attempt timeout. A timeout counts as a network failure and is retried. */
+  /** Per-attempt timeout. A timeout counts as a network failure and is retried. Defaults to DEFAULT_TIMEOUT_MS. */
   timeoutMs?: number;
+  /** Retries after the first attempt. Defaults to MAX_RETRIES. */
+  maxRetries?: number;
+  /**
+   * The deadline of the whole call these requests belong to (a live action that must answer in time): the
+   * milliseconds left of it, asked before every attempt and every backoff. With it,
+   * - an attempt's timeout is cut to what is left;
+   * - a backoff that would not end before the deadline is not slept: the request fails at once with the
+   *   error of its last attempt;
+   * - a request with nothing left is not sent: GoogleApiError with status 0 and CALL_DEADLINE_STATUS.
+   * A deadline is always a failure, never a guessed answer. Not set: no deadline (the fetch command).
+   */
+  msLeft?: () => number;
 }
 
 export interface GeocodeResult {
@@ -95,7 +110,7 @@ export class GoogleKeyMissingError extends Error {
 export class GoogleApiError extends Error {
   /** HTTP status. 0 means no HTTP response at all (network failure or timeout). */
   readonly status: number;
-  /** Google's status string (PERMISSION_DENIED, REQUEST_DENIED, ...) or a local one (NETWORK_ERROR, INVALID_RESPONSE, NO_ROUTE). */
+  /** Google's status string (PERMISSION_DENIED, REQUEST_DENIED, ...) or a local one (NETWORK_ERROR, INVALID_RESPONSE, NO_ROUTE, CALL_DEADLINE). */
   readonly googleStatus: string | null;
   /** The endpoint called, without its query string, so it can never hold the key. */
   readonly endpoint: string;
@@ -115,6 +130,8 @@ interface Ctx {
   fetchImpl: FetchLike;
   sleep: (ms: number) => Promise<void>;
   timeoutMs: number;
+  maxRetries: number;
+  msLeft: () => number;
 }
 
 function context(opts: GoogleClientOptions): Ctx {
@@ -125,6 +142,8 @@ function context(opts: GoogleClientOptions): Ctx {
     fetchImpl: opts.fetchImpl ?? fetch,
     sleep: opts.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
     timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    maxRetries: opts.maxRetries ?? MAX_RETRIES,
+    msLeft: opts.msLeft ?? (() => Infinity),
   };
 }
 
@@ -173,7 +192,9 @@ async function sendJson(ctx: Ctx, endpoint: string, url: string, init: FetchInit
   let status: number;
   let text: string;
   try {
-    const res = await ctx.fetchImpl(url, { ...init, signal: AbortSignal.timeout(ctx.timeoutMs) });
+    // Whole milliseconds, at least 1: `withRetry` sends nothing when less than that is left of the deadline.
+    const timeoutMs = Math.max(1, Math.min(ctx.timeoutMs, Math.floor(ctx.msLeft())));
+    const res = await ctx.fetchImpl(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     status = res.status;
     text = await res.text();
   } catch (err) {
@@ -204,14 +225,26 @@ function isRetriable(err: unknown): boolean {
   return err.googleStatus !== null && RETRIABLE_BODY_STATUS.has(err.googleStatus);
 }
 
-/** Runs one request up to 1 + MAX_RETRIES times, sleeping 0.5 s, 1 s, 2 s between attempts. */
-async function withRetry<T>(ctx: Ctx, attempt: () => Promise<T>): Promise<T> {
+/**
+ * Runs one request up to 1 + `maxRetries` times, sleeping 0.5 s, 1 s, 2 s between attempts, and never past the
+ * call's deadline (`msLeft`): see GoogleClientOptions.
+ */
+async function withRetry<T>(ctx: Ctx, endpoint: string, attempt: () => Promise<T>): Promise<T> {
+  let last: unknown;
   for (let retry = 0; ; retry++) {
+    if (ctx.msLeft() < 1) {
+      // After a backoff that ran late: the error of the attempt before it. Else this request was never sent.
+      if (retry > 0) throw last;
+      throw fail(ctx, endpoint, 0, CALL_DEADLINE_STATUS, 'the time limit of this call ran out before the request was sent');
+    }
     try {
       return await attempt();
     } catch (err) {
-      if (retry >= MAX_RETRIES || !isRetriable(err)) throw err;
-      await ctx.sleep(BACKOFF_BASE_MS * 2 ** retry);
+      if (retry >= ctx.maxRetries || !isRetriable(err)) throw err;
+      const backoffMs = BACKOFF_BASE_MS * 2 ** retry;
+      if (ctx.msLeft() <= backoffMs) throw err; // no retry could start before the deadline
+      last = err;
+      await ctx.sleep(backoffMs);
     }
   }
 }
@@ -245,7 +278,7 @@ export async function geocodeAddress(address: string, opts: GoogleClientOptions)
   const ctx = context(opts);
   if (address.trim() === '') return [];
   const url = `${GEOCODE_URL}?${new URLSearchParams({ address, key: ctx.apiKey }).toString()}`;
-  return withRetry(ctx, async () => {
+  return withRetry(ctx, GEOCODE_URL, async () => {
     const json = await sendJson(ctx, GEOCODE_URL, url, { method: 'GET' });
     const status = isRecord(json) ? str(json.status) : null;
     if (status === 'ZERO_RESULTS') return [];
@@ -336,7 +369,7 @@ export async function computeRouteMatrix(origins: LatLng[], destinations: LatLng
       routingPreference: ROUTING_PREFERENCE,
     });
 
-    const part = await withRetry(ctx, async () => {
+    const part = await withRetry(ctx, ROUTE_MATRIX_URL, async () => {
       const json = await sendJson(ctx, ROUTE_MATRIX_URL, ROUTE_MATRIX_URL, {
         method: 'POST',
         headers: routesHeaders(ctx, ROUTE_MATRIX_FIELD_MASK),
@@ -416,7 +449,7 @@ export async function computeRoutePolyline(origin: LatLng, destination: LatLng, 
     travelMode: TRAVEL_MODE,
     routingPreference: ROUTING_PREFERENCE,
   });
-  return withRetry(ctx, async () => {
+  return withRetry(ctx, ROUTES_URL, async () => {
     const json = await sendJson(ctx, ROUTES_URL, ROUTES_URL, { method: 'POST', headers: routesHeaders(ctx, ROUTES_FIELD_MASK), body });
     if (!isRecord(json)) throw fail(ctx, ROUTES_URL, 200, 'INVALID_RESPONSE', 'expected a JSON object');
     const route = Array.isArray(json.routes) ? json.routes[0] : undefined;

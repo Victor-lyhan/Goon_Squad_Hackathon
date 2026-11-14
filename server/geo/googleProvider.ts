@@ -19,7 +19,7 @@ export interface GoogleTravelClient {
   computeRoutePolyline(origin: LatLng, destination: LatLng): Promise<RoutePolyline>;
 }
 
-/** Binds the two Routes calls of googleClient.ts to one set of options (key, fetch, sleep, timeout). */
+/** Binds the two Routes calls of googleClient.ts to one set of options (key, fetch, sleep, timeout, retries, deadline). */
 export function bindGoogleClient(options: GoogleClientOptions): GoogleTravelClient {
   return {
     computeRouteMatrix: (origins, destinations) => computeRouteMatrix(origins, destinations, options),
@@ -87,10 +87,11 @@ export interface GoogleTravel {
    * Rejects with TravelPlaceMissingError (before any request) when a place has no coordinates, with
    * TravelRouteError when Google has no route for a pair, or with the client's own error. Pairs that did get
    * an answer are kept and persisted even when the call rejects; a failed pair is never written.
+   * `via` replaces the client for this one call: the travel service passes one bound to the call's deadline.
    */
-  ensurePairs(pairs: PlacePair[]): Promise<{ fetched: number }>;
+  ensurePairs(pairs: PlacePair[], via?: GoogleTravelClient): Promise<{ fetched: number }>;
   /** The same for encoded route lines in `files.polylines.polylines` (one Google request per missing pair). */
-  ensurePolylines(pairs: PlacePair[]): Promise<{ fetched: number }>;
+  ensurePolylines(pairs: PlacePair[], via?: GoogleTravelClient): Promise<{ fetched: number }>;
 }
 
 export function createGoogleTravel({ files, client, persist }: GoogleTravelOptions): GoogleTravel {
@@ -138,13 +139,13 @@ export function createGoogleTravel({ files, client, persist }: GoogleTravelOptio
     return { fetched: state.fetched };
   };
 
-  const ensurePairs = (pairs: PlacePair[]) =>
+  const ensurePairs = (pairs: PlacePair[], via: GoogleTravelClient = client) =>
     inTurn(async () => {
       const missing = missingPairs(pairs, files.matrix.pairs);
       if (missing.length === 0) return { fetched: 0 };
       return run('matrix', missing.length, async (state) => {
         for (const { origins, destinations } of matrixRequests(missing)) {
-          const result = await client.computeRouteMatrix(origins.map(pointOf), destinations.map(pointOf));
+          const result = await via.computeRouteMatrix(origins.map(pointOf), destinations.map(pointOf));
           const open = new Set<string>();
           for (const from of origins) for (const to of destinations) open.add(pairKey(from, to));
           const take = (originIndex: number, destinationIndex: number): PlacePair | null => {
@@ -178,14 +179,14 @@ export function createGoogleTravel({ files, client, persist }: GoogleTravelOptio
       });
     });
 
-  const ensurePolylines = (pairs: PlacePair[]) =>
+  const ensurePolylines = (pairs: PlacePair[], via: GoogleTravelClient = client) =>
     inTurn(async () => {
       const missing = missingPairs(pairs, files.polylines.polylines);
       if (missing.length === 0) return { fetched: 0 };
       return run('polyline', missing.length, async (state) => {
         for (const { from, to } of missing) {
           try {
-            const route = await client.computeRoutePolyline(pointOf(from), pointOf(to));
+            const route = await via.computeRoutePolyline(pointOf(from), pointOf(to));
             if (typeof route.encoded !== 'string' || route.encoded === '') {
               state.failures.push({ from, to, what: 'polyline', reason: 'Google sent an empty route line' });
               continue;
