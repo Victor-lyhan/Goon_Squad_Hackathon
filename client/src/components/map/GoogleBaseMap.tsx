@@ -13,6 +13,7 @@ import { Button, Spinner } from '../../ui';
 import { buildLayerSpecs, type LayerSpec, type PathDatum, type ScatterDatum, type TextDatum } from './layers';
 import {
   AUTH_ERROR_TEXT,
+  FIT_PADDING_PX,
   KEY_MISSING_TEXT,
   LOAD_ERROR_TEXT,
   fitKey,
@@ -51,6 +52,10 @@ export type GoogleBaseMapProps = {
   stops?: MapStop[];
   /** Pan (no zoom change) to this point whenever `key` changes. */
   panTo?: MapPanTarget;
+  /** Name the businesses that are not dimmed, as many as fit at the current zoom without overlapping. */
+  labelBusinesses?: boolean;
+  /** Places that are always named (a journey's sender, recipient and relay business). */
+  alwaysLabelIds?: readonly string[];
 };
 
 type DeckLayersModule = typeof import('@deck.gl/layers');
@@ -58,7 +63,7 @@ type Hover = { x: number; y: number; item: MapItem };
 
 const NO_SELECTION: readonly string[] = [];
 const NO_STOPS: MapStop[] = [];
-const FIT_PADDING_PX = 48;
+const NO_IDS: readonly string[] = [];
 
 // Google calls gm_authFailure once per page; Google will not accept the key again until a reload, so
 // a map mounted later (another page, the Employee commute preview) starts in auth-error.
@@ -105,6 +110,7 @@ function toDeckLayer(spec: LayerSpec, mod: DeckLayersModule) {
         getPosition: (d) => d.position,
         getText: (d) => d.text,
         getColor: (d) => d.color,
+        getPixelOffset: (d) => d.offset ?? [0, 0],
         ...props,
       });
   }
@@ -186,11 +192,15 @@ export function GoogleBaseMap({
   fitTo,
   stops = NO_STOPS,
   panTo,
+  labelBusinesses = false,
+  alwaysLabelIds = NO_IDS,
 }: GoogleBaseMapProps) {
   const apiKey = readBrowserKey(import.meta.env);
   const [status, dispatch] = useReducer(nextMapStatus, apiKey, (k) => initialStatus(k, authFailedThisPage));
   const [attempt, setAttempt] = useState(0);
   const [hover, setHover] = useState<Hover | null>(null);
+  // The map's zoom, so the layer builder can keep business names apart (null until the map exists).
+  const [zoom, setZoom] = useState<number | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -247,6 +257,14 @@ export function GoogleBaseMap({
           },
         });
         overlay.setMap(map);
+        // Names follow the zoom. Optional calls: tracking the zoom must never fail the map's load
+        // (without it the names are placed at NYC_ZOOM).
+        const readZoom = () => {
+          const z = map.getZoom?.();
+          if (typeof z === 'number' && Number.isFinite(z)) setZoom(z);
+        };
+        map.addListener?.('zoom_changed', readZoom);
+        readZoom();
         mapRef.current = map;
         overlayRef.current = overlay;
         layersModRef.current = layersMod;
@@ -282,8 +300,12 @@ export function GoogleBaseMap({
 
   const hoveredId = hover?.item.id ?? null;
   const specs = useMemo(
-    () => buildLayerSpecs({ places, routes, movers, visible, selectedIds, hoveredId, stops }),
-    [places, routes, movers, visible, selectedIds, hoveredId, stops],
+    () =>
+      buildLayerSpecs({
+        places, routes, movers, visible, selectedIds, hoveredId, stops, labelBusinesses, alwaysLabelIds,
+        zoom: zoom ?? undefined,
+      }),
+    [places, routes, movers, visible, selectedIds, hoveredId, stops, labelBusinesses, alwaysLabelIds, zoom],
   );
 
   // Push layers to the existing overlay whenever the specs change. Never re-creates the map.

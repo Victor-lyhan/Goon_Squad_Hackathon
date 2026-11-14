@@ -70,7 +70,9 @@ describe('simPageView: network mode', () => {
     const nv = buildNetworkView({ map: data.map!, sim: data.sim! });
     expect(v.mode).toBe('network');
     expect(v.journeyTitle).toBeNull();
-    expect(v.map).toEqual({ ...nv, visible: DEFAULT_LAYERS, stops: [], fitTo: 'places' });
+    expect(v.map).toEqual({
+      ...nv, visible: DEFAULT_LAYERS, stops: [], fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [],
+    });
     expect(v.right).toEqual({ kind: 'summary', metrics: data.sim!.snapshot.metrics });
     expect(v.right.kind === 'summary' && v.right.metrics).toBe(data.sim!.snapshot.metrics);
   });
