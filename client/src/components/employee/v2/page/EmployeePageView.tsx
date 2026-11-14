@@ -32,7 +32,7 @@ export type EmployeePageViewProps = {
   search: SearchFn;
   /** Link to another employee's workspace on this same route (for the not-found state). */
   employeeHref: (employeeId: string) => string;
-  /** Shown below the commute; empty until the route preview (PR #428) is wired in. */
+  /** The commute route preview (#463): below the commute, and below the open job with its stops numbered. */
   routePreview?: ReactNode;
   /** Starting UI state, for static renders of each screen. */
   initialEditing?: boolean;
@@ -201,6 +201,7 @@ export function EmployeePageView({
       body = (
         <div className="ep-job">
           <JobDetailV2 job={state.job!} businesses={businesses} homeNeighborhood={homeNeighborhood} onBack={onCloseJob} />
+          {routePreview}
         </div>
       );
       break;

@@ -70,6 +70,9 @@
 .ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #28618A); text-decoration: underline; }
 
 .ep-job { padding: var(--space-4, 16px); }
+.ep-route { margin-top: var(--space-4, 16px); min-width: 0; }
+.ep-route-note { margin: var(--space-3, 12px) 0 0; font-size: var(--text-sm, 14px); color: var(--muted, #5B6574); }
+.ep-route-note.ep-problem { color: var(--danger, #B42318); }
 
 @media (max-width: 390px) {
   .ep-state { margin: var(--space-2, 8px); padding: var(--space-3, 12px); }
