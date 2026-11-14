@@ -275,10 +275,10 @@ describe('runFetchScript --check-key: the command line', () => {
   });
 
   it('parseArgs: --check-key alone is the check, and may be repeated', () => {
-    const checkOnly = { ok: true, options: { dryRun: false, help: false, refetch: [], checkKey: true } };
+    const checkOnly = { ok: true, options: { dryRun: false, help: false, refetch: [], checkKey: true, dropEntered: false } };
     expect(parseArgs(['--check-key'])).toEqual(checkOnly);
     expect(parseArgs(['--check-key', '--check-key'])).toEqual(checkOnly);
-    expect(parseArgs([])).toEqual({ ok: true, options: { dryRun: false, help: false, refetch: [], checkKey: false } });
+    expect(parseArgs([])).toEqual({ ok: true, options: { dryRun: false, help: false, refetch: [], checkKey: false, dropEntered: false } });
   });
 
   it('the usage text documents the flag, its three billable calls, that it writes nothing and its exit codes', () => {

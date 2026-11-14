@@ -77,3 +77,42 @@ export function deepFreeze<T>(value: T): T {
   }
   return value;
 }
+
+// ---------- homes entered in the commute editor ----------
+
+/**
+ * Two homes as the commute editor names them: `home-c-<lat>_<lng>`, 5 decimals (shared/v2/types.ts).
+ * Made-up points on round numbers; neither is anybody's address.
+ */
+export const ENTERED_HOMES = [
+  { id: 'home-c-40.70000_-73.90000', lat: 40.7, lng: -73.9 },
+  { id: 'home-c-40.80000_-73.95000', lat: 40.8, lng: -73.95 },
+];
+export const ENTERED_HOME_IDS = ENTERED_HOMES.map((home) => home.id);
+
+/** Anything that looks like the coordinates inside an entered-home ID, or the ID itself. A printed line must not match. */
+export const ENTERED_ID_PATTERN = /home-c-\d|\d{2}\.\d{5}/;
+
+/**
+ * A copy of `files` after a live commute save for each home (server/api/v2 `commuteRoutes.ts`): the place, its
+ * pairs with every business in both directions, and the two route lines of its commute to `employerId`.
+ * Per home that is 1 place, `2 x businessIds.length` pairs and 2 route lines.
+ */
+export function withEnteredHomes(
+  files: TravelFiles,
+  businessIds: readonly string[],
+  employerId: string = businessIds[0],
+  homes: readonly { id: string; lat: number; lng: number }[] = ENTERED_HOMES,
+): TravelFiles {
+  const out = structuredClone(files);
+  homes.forEach((home, h) => {
+    out.matrix.places[home.id] = { lat: home.lat, lng: home.lng };
+    businessIds.forEach((business, b) => {
+      out.matrix.pairs[pairKey(home.id, business)] = { durationS: 900 + 60 * h + b, distanceM: 7000 + 100 * h + b };
+      out.matrix.pairs[pairKey(business, home.id)] = { durationS: 960 + 60 * h + b, distanceM: 7100 + 100 * h + b };
+    });
+    out.polylines.polylines[pairKey(home.id, employerId)] = `line:entered-${h}>work`;
+    out.polylines.polylines[pairKey(employerId, home.id)] = `line:work>entered-${h}`;
+  });
+  return out;
+}

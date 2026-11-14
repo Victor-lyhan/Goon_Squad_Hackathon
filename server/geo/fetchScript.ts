@@ -13,6 +13,9 @@
 // - the plan check and the cache report only report: no number is changed, estimated or filled in;
 // - `--check-key` is the three calls of server/geo/keyCheck.ts and nothing else: no cache file is read or written.
 //   A run points at it when Google refuses the first request to an API, and stops there (DECISIONS pass 51 and 52);
+// - a home typed into the commute editor has its coordinates as its ID (`home-c-<lat>_<lng>`), and the live server
+//   writes it into the cache, which is a committed file. `--drop-entered` removes those homes with all their pairs
+//   and route lines: no key, no `.env`, no Google call, and no line it prints holds an ID (SPEC "MVP II" rule 6);
 // - exit 0 means "complete and no error flagged", so a human can commit `fixtures/nyc/` after reading the reports.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,7 +27,7 @@ import { checkPlans, checkStory, formatCheckReport } from '../domain/v2/planChec
 import type { StoryExpectation } from '../domain/v2/planCheck';
 import { MATRIX_FILE, POLYLINES_FILE, emptyTravelFiles, readTravelFiles, writeTravelFiles } from './cache';
 import type { TravelFiles } from './cache';
-import { dropPlaces, formatCacheEdit, movedHomes } from './cacheEdit';
+import { dropEnteredHomes, dropPlaces, enteredHomes, formatCacheEdit, formatEnteredDrop, hideEnteredIds, movedHomes } from './cacheEdit';
 import type { CacheEditResult, MovedHome } from './cacheEdit';
 import { coverage, formatCacheReport, sanity } from './cacheReport';
 import { DEFAULT_ENV_PATH, SERVER_KEY_NAME, loadDotEnv, serverKey } from './env';
@@ -62,6 +65,15 @@ export const RESUME_WITHOUT_REFETCH_LINE =
 /** The last line of a run that Google refused. The check tells all three APIs apart; the run saw only one call. */
 export const CHECK_KEY_LINE = 'Run `npm run fetch:routes -- --check-key` to see which setting is wrong.';
 
+/** The free command that removes the homes typed into the commute editor. Also named by the guard test on the committed cache. */
+export const DROP_ENTERED_COMMAND = 'npm run fetch:routes -- --drop-entered';
+
+/**
+ * What the drop means for a saved run: the server keeps a saved NYC run only when every place of it is in the
+ * cache; otherwise it sets the state file aside (it is never deleted) and builds the default run (DECISIONS pass 49).
+ */
+export const DROP_ENTERED_RUN_NOTE = 'A saved NYC run that uses one of them starts fresh after the drop (the server sets its state file aside, it does not delete it).';
+
 /**
  * The two points of the check's 1x1 matrix and route line: Midtown Manhattan (near 5th Avenue and 34th Street)
  * and Downtown Brooklyn (near Borough Hall). They are only asked about. Nothing Google says about them is cached
@@ -77,6 +89,7 @@ export const KEY_CHECK_HEADER =
 export const USAGE: readonly string[] = [
   'Usage: npm run fetch:routes -- [--dry-run] [--refetch <placeId>]... [--help]',
   '       npm run fetch:routes -- --check-key',
+  '       npm run fetch:routes -- --drop-entered [--dry-run]',
   '',
   'Fills fixtures/nyc/matrix.json and fixtures/nyc/polylines.json from Google, in four steps:',
   '  1. geocodes the businesses of businesses.json;',
@@ -88,6 +101,7 @@ export const USAGE: readonly string[] = [
   'Flags:',
   '  --dry-run   Show how many Google requests a run would make, and list the homes that moved since their travel',
   '              times were fetched, with the command that fixes it. Calls nothing, writes nothing, needs no key.',
+  '              Also says how many entered homes the cache holds (see --drop-entered), when there is one.',
   '  --refetch <placeId>',
   '              For a home that moved or a business whose address was corrected after the fetch. Drops the place',
   '              from the cache with all its pairs and route lines, saves that, then runs the normal fetch, which',
@@ -100,6 +114,15 @@ export const USAGE: readonly string[] = [
   '              Prints one row per API: ok, or what is wrong and the Google Cloud setting to change. Costs three',
   '              billable calls. Reads no cache file, writes nothing and fetches nothing else. Used alone, without',
   '              --dry-run or --refetch. Exits 0 when all three calls worked, 1 when one did not or no key is set.',
+  '  --drop-entered',
+  '              Removes every home that was typed into the commute editor (place IDs that start with home-c-) from',
+  '              the cache, with all its pairs and route lines. Such an ID holds the coordinates of the address, so',
+  '              it must not be committed: run this before you commit fixtures/nyc. Free: needs no key, reads no',
+  '              .env and makes no Google call. Prints how many places, pairs and route lines it removed, never an',
+  '              ID. A saved NYC run that uses one of these homes starts fresh afterwards. Stop the server first: a',
+  '              running one still holds them in memory and writes them back with its next live answer. With',
+  '              --dry-run: shows the counts and writes nothing. Not with --refetch or --check-key. Exits 0, also',
+  '              when there is nothing to drop, and 1 when the cache cannot be read or saved.',
   '  --help      Show this text.',
   '',
   `The key is read from ${SERVER_KEY_NAME}, in the environment or in .env at the repo root. It is never printed.`,
@@ -123,6 +146,8 @@ export interface FetchScriptOptions {
   refetch: string[];
   /** `--check-key`: only the three-call Google access check. Never together with `dryRun` or `refetch`. */
   checkKey: boolean;
+  /** `--drop-entered`: only the drop of the commute-editor homes. Never together with `refetch` or `checkKey`. */
+  dropEntered: boolean;
 }
 
 export type ParsedArgs = { ok: true; options: FetchScriptOptions } | { ok: false; problem: string };
@@ -131,6 +156,7 @@ export type ParsedArgs = { ok: true; options: FetchScriptOptions } | { ok: false
 const FLAGS: Record<string, { takesValue: boolean; set: (options: FetchScriptOptions, value: string) => boolean }> = {
   '--dry-run': { takesValue: false, set: (options) => (options.dryRun = true) },
   '--check-key': { takesValue: false, set: (options) => (options.checkKey = true) },
+  '--drop-entered': { takesValue: false, set: (options) => (options.dropEntered = true) },
   '--help': { takesValue: false, set: (options) => (options.help = true) },
   '-h': { takesValue: false, set: (options) => (options.help = true) },
   // `--refetch a --refetch b` and `--refetch=a,b` mean the same. An empty ID between commas is a typing mistake.
@@ -150,7 +176,7 @@ const FLAGS: Record<string, { takesValue: boolean; set: (options: FetchScriptOpt
  * A wrong argument is echoed only when it looks like a flag name: a key pasted on the command line is not repeated.
  */
 export function parseArgs(argv: readonly string[]): ParsedArgs {
-  const options: FetchScriptOptions = { dryRun: false, help: false, refetch: [], checkKey: false };
+  const options: FetchScriptOptions = { dryRun: false, help: false, refetch: [], checkKey: false, dropEntered: false };
   const shown = (name: string) => (/^--?[a-z][a-z-]{0,30}$/.test(name) ? ` ${name}` : '');
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -175,6 +201,15 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   }
   if (options.checkKey && options.refetch.length > 0) {
     return { ok: false, problem: '--check-key cannot be used with --refetch: the check writes nothing, and --refetch changes the cache.' };
+  }
+  if (options.dropEntered && options.checkKey) {
+    return { ok: false, problem: '--drop-entered cannot be used with --check-key: the drop makes no Google call, and the check is three of them.' };
+  }
+  if (options.dropEntered && options.refetch.length > 0) {
+    return {
+      ok: false,
+      problem: '--drop-entered cannot be used with --refetch: the drop makes no Google call, and --refetch fetches from Google. Run them one after the other.',
+    };
   }
   return { ok: true, options };
 }
@@ -331,6 +366,73 @@ function movedHomeLines(moved: readonly MovedHome[], alsoRefetch: readonly strin
     `To drop ${moved.length === 1 ? 'it' : 'them'} and fetch only what is then missing, run:`,
     `  ${refetchCommand([...alsoRefetch, ...moved.map((home) => home.id)])}`,
   ];
+}
+
+// ---------- homes entered in the commute editor ----------
+
+/** The one line a dry run adds when the cache holds entered homes. A count and the command: never an ID. */
+function enteredHomesLine(entered: number): string {
+  return (
+    `Entered homes: ${entered} (${entered === 1 ? 'an address' : 'addresses'} typed into the commute editor; ` +
+    `${entered === 1 ? 'its ID holds its' : 'their IDs hold their'} coordinates, so do not commit the cache with ${entered === 1 ? 'it' : 'them'}). ` +
+    `Free to remove: ${DROP_ENTERED_COMMAND}. ${DROP_ENTERED_RUN_NOTE}`
+  );
+}
+
+/**
+ * `--drop-entered`, the whole command: read the two cache files, drop the entered homes, save. It reads no
+ * fixture file, no `.env` and no key, and builds no client, so a broken story file or a missing key does not
+ * stand in the way of taking addresses out of the cache.
+ * Every line goes through `hideEnteredIds`, because a reader error quotes the entry it could not read.
+ * Exit 0: dropped and saved, or nothing to drop (then nothing is written). Exit 1: the cache could not be read or saved.
+ */
+function runDropEntered(dir: string, dryRun: boolean, print: (line: string) => void): number {
+  const say = (line: string) => print(hideEnteredIds(line));
+  const untouched = 'Nothing was dropped or written.';
+
+  let cached: TravelFiles | null;
+  try {
+    cached = readTravelFiles(dir);
+  } catch (err) {
+    say(`Cannot start: ${messageOf(err)} ${untouched}`);
+    return EXIT_INCOMPLETE;
+  }
+  if (cached === null) {
+    // Route lines without a matrix cannot be read through the cache reader, so "none" would be a guess.
+    if (fs.existsSync(path.join(dir, POLYLINES_FILE))) {
+      say(
+        `Cannot start: ${shownPath(path.join(dir, POLYLINES_FILE))} exists but ${MATRIX_FILE} does not, so its route lines cannot be checked. ` +
+          `Restore ${MATRIX_FILE} or delete ${POLYLINES_FILE}, then run again. ${untouched}`,
+      );
+      return EXIT_INCOMPLETE;
+    }
+    say(`Entered homes: none. There is no travel cache in ${shownPath(dir)}. ${untouched}`);
+    return EXIT_OK;
+  }
+
+  const edit = dropEnteredHomes(cached);
+  if (edit.dropped.length === 0) {
+    say(`Entered homes: none in the travel cache (${shownPath(dir)}). ${untouched}`);
+    return EXIT_OK;
+  }
+  if (dryRun) {
+    say(formatEnteredDrop(edit, 'Would drop'));
+    say(`${DROP_ENTERED_RUN_NOTE} Nothing was written. Cache folder: ${shownPath(dir)}`);
+    return EXIT_OK;
+  }
+  try {
+    // The existing atomic save: polylines.json first, matrix.json last, so a save that fails half way leaves
+    // the homes in the matrix and the same command drops them again.
+    writeTravelFiles(dir, edit.files);
+  } catch (err) {
+    say(`Stopped: ${messageOf(err)}`);
+    say('The drop may be half saved: fix the problem above, then run the same command again.');
+    return EXIT_INCOMPLETE;
+  }
+  say(formatEnteredDrop(edit));
+  say(`The drop is saved in ${shownPath(dir)}. No Google call was made, and nothing has to be fetched again.`);
+  say(`${DROP_ENTERED_RUN_NOTE} If the server is running, restart it: it still holds these homes in memory and writes them back with its next live answer.`);
+  return EXIT_OK;
 }
 
 // ---------- a run that Google refuses ----------
@@ -518,6 +620,8 @@ export interface FetchScriptArgs {
  * With `--refetch` the order is: drop in memory, save, print, and only then the first Google call.
  * `--check-key` is its own command: exactly the three calls of `checkGoogleAccess`, 0 when all three rows are ok,
  * 1 when one is not or there is no key (then no call is made). It reads `.env` and businesses.json and writes nothing.
+ * `--drop-entered` is its own command too (`runDropEntered`): it reads only the two cache files, never `.env`, a
+ * key or a fixture file, builds no client, and exits 0 when the entered homes are gone or there were none.
  */
 export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
   const env = args.env ?? process.env;
@@ -546,7 +650,10 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       for (const line of USAGE) print(line);
       return EXIT_OK;
     }
-    const { dryRun, refetch, checkKey } = parsed.options;
+    const { dryRun, refetch, checkKey, dropEntered } = parsed.options;
+
+    // --drop-entered: before `.env` is even looked at, so it cannot need a key.
+    if (dropEntered) return runDropEntered(dir, dryRun, print);
 
     loadDotEnv(args.envPath ?? DEFAULT_ENV_PATH, env);
     const key = serverKey(env);
@@ -644,6 +751,8 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       }
       for (const line of formatEstimate(estimate)) print(line);
       for (const line of movedHomeLines(moved, refetch)) print(line);
+      const entered = enteredHomes(input.files).length;
+      if (entered > 0) print(enteredHomesLine(entered));
       if (orphanLines) print(`A run would stop: ${orphanProblem}`);
       print(
         key === null
