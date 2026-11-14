@@ -6,10 +6,15 @@
 // motion the steps snap (no animation frame is asked for).
 // The map runs in its no-key state: the Google loader is replaced by a recorder that must stay unused.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SimulatorResponse } from '../../shared/v2/api';
+import type { SimControlRequest } from '../../shared/v2/schemas';
+import { BUSY_REASON } from '../../client/src/components/sim/v2/controls/controlsModel';
+import { simDataReducer, type SimDataState } from '../../client/src/components/sim/v2/live/simDataModel';
+import { createSimActions } from '../../client/src/components/sim/v2/live/useSimulatorV2';
 import { button, buttons, click, press, textOf } from './kitDom';
 import {
-  FakeSimServer, T, advance, currentSearch, journeySteps, mountBody, mountPage, playStatus, readyState, settle,
-  stubMatchMedia,
+  FakeSimServer, T, advance, currentSearch, journeySteps, leftBody, mountBody, mountPage, playStatus, readyState,
+  runAt, settle, stubMatchMedia,
 } from './sim-v2-dom-helpers';
 
 const google = vi.hoisted(() => ({ loads: 0 }));
@@ -200,5 +205,84 @@ describe('Play journey and motion', () => {
     expect(server.seeks()).toEqual(PLANNED);
     expect(rafCalls).toBe(0);
     expect(textOf(playStatus(c)!)).toBe('Journey complete: Delivered to recipient at Etsy.');
+  }, T);
+});
+
+/** Control answers arrive this long after the request, like a slow connection. */
+const DELAY_MS = 300;
+
+/**
+ * A fake server whose controls go through the real `createSimActions` (#594), so `busy` is set the way
+ * the page's hook sets it, and whose control answers arrive DELAY_MS late. Each answer carries a higher
+ * version and keeps a next event ahead, so "Next event" has no reason of its own to be disabled.
+ */
+class SlowControlServer extends FakeSimServer {
+  private version = 100;
+  private readonly actions = createSimActions({
+    simulatorControl: (req) => {
+      const answer = this.answer(req);
+      return new Promise<SimulatorResponse>((res) => { setTimeout(() => res(answer), DELAY_MS); });
+    },
+    generateScenario: () => Promise.reject(new Error('unused')),
+    resetPlanning: () => Promise.reject(new Error('unused')),
+    recomputeMatches: () => Promise.reject(new Error('unused')),
+    compareMatches: () => Promise.reject(new Error('unused')),
+  }, (a) => this.set(simDataReducer(this.state, a)), () => {});
+
+  constructor(state: SimDataState) { super(state); }
+
+  private answer(req: SimControlRequest): SimulatorResponse {
+    const cur = this.state.sim!;
+    const base = req.action === 'seek' ? runAt(req.timeMin, { runId: cur.runId }) : cur;
+    const playing = req.action === 'play' ? true : req.action === 'pause' ? false : base.clock.playing;
+    this.version += 1;
+    return { ...base, version: this.version, nextEventMin: 2100, clock: { ...base.clock, playing } };
+  }
+
+  override control(req: SimControlRequest): Promise<SimulatorResponse | null> {
+    this.calls.push({ name: 'control', req });
+    return this.actions.control(req);
+  }
+}
+
+describe('Play journey keeps the left panel still (#594)', () => {
+  const nextEvent = (c: ParentNode) => button(leftBody(c), 'Next event');
+
+  it('with slow answers, no busy text and no disabled Next event while it plays; Play and Pause still show busy', async () => {
+    const server = new SlowControlServer(readyState(1000));
+    const { container: c } = mountPage(server, '?package=shp-2');
+    expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+
+    click(playButton(c));
+    let checks = 0;
+    // 100 ms at a time through the whole journey (each step waits for its slow answer).
+    for (let t = 0; t < 60 * STEP_MS && buttons(c, 'Play journey').length === 0; t += 100) {
+      await advance(100);
+      expect(server.state.busy).toBe(false);
+      expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+      expect(leftBody(c).querySelector(`[title="${BUSY_REASON}"]`)).toBeNull();
+      expect(nextEvent(c).disabled).toBe(false);
+      checks += 1;
+    }
+    expect(checks).toBeGreaterThan(30);
+    expect(server.seeks()).toEqual(PLANNED);
+    expect(textOf(playStatus(c)!)).toBe('Journey complete: Delivered to recipient at Etsy.');
+    expect(server.state.sim?.clock.timeMin).toBe(1977); // the last seek's answer is what is shown
+
+    // Every other control is busy as before: Play, then Pause.
+    click(button(leftBody(c), 'Play'));
+    await settle();
+    expect(textOf(leftBody(c))).toContain(BUSY_REASON);
+    expect(nextEvent(c).disabled).toBe(true);
+    await advance(DELAY_MS);
+    expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+
+    click(button(leftBody(c), 'Pause'));
+    await settle();
+    expect(textOf(leftBody(c))).toContain(BUSY_REASON);
+    expect(nextEvent(c).disabled).toBe(true);
+    await advance(DELAY_MS);
+    expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+    expect(nextEvent(c).disabled).toBe(false);
   }, T);
 });

@@ -43,6 +43,7 @@ const h = vi.hoisted(() => {
 vi.mock('react', () => h.react);
 
 import type { CompareResponse, SimulatorResponse } from '../../shared/v2/api';
+import type { SimControlRequest } from '../../shared/v2/schemas';
 import type { RequestOptions } from '../../client/src/api/v2';
 import { INITIAL_SIM_DATA, simDataReducer, type SimDataAction } from '../../client/src/components/sim/v2/live/simDataModel';
 import {
@@ -139,6 +140,102 @@ describe('createSimActions', () => {
     t.control.resolve(simAt('run-a', 6));
     await a;
     expect(t.state.busy).toBe(false);
+  });
+
+  describe('a seek is quiet and its answers apply in the order sent (#594)', () => {
+    /** Like setup(), but every control answer is its own deferred and every action is recorded. */
+    function seekSetup() {
+      let state = simDataReducer(INITIAL_SIM_DATA, { type: 'sim', sim: simAt('run-a', 5, ['plan-1'], 1000) });
+      const actions: SimDataAction[] = [];
+      const dispatch = (a: SimDataAction) => { actions.push(a); state = simDataReducer(state, a); };
+      const afterWrite = vi.fn();
+      const answers: Array<ReturnType<typeof deferred<SimulatorResponse>>> = [];
+      const api = {
+        simulatorControl: vi.fn(() => { const d = deferred<SimulatorResponse>(); answers.push(d); return d.promise; }),
+        generateScenario: vi.fn(async () => simAt('run-b', 1)),
+        resetPlanning: vi.fn(async () => simAt('run-a', 6, [])),
+        recomputeMatches: vi.fn(async () => simAt('run-a', 6)),
+        compareMatches: vi.fn(async () => ({}) as CompareResponse),
+      };
+      const sim = createSimActions(api, dispatch, afterWrite);
+      return { get state() { return state; }, actions, answers, afterWrite, sim };
+    }
+    const busyActions = (a: SimDataAction[]) => a.filter((x) => x.type === 'busy');
+
+    it('a seek dispatches no busy action and applies its answer', async () => {
+      const t = seekSetup();
+      const p = t.sim.control({ action: 'seek', timeMin: 1040 });
+      expect(t.state.busy).toBe(false);
+      t.answers[0].resolve(simAt('run-a', 6, ['plan-1'], 1040));
+      expect((await p)?.clock.timeMin).toBe(1040);
+      expect(t.state.sim?.clock.timeMin).toBe(1040);
+      expect(busyActions(t.actions)).toEqual([]);
+      expect(t.afterWrite).toHaveBeenCalledTimes(1);
+    });
+
+    it('two seeks answered in reverse order leave the later one\'s state', async () => {
+      const t = seekSetup();
+      const first = t.sim.control({ action: 'seek', timeMin: 1040 });
+      const second = t.sim.control({ action: 'seek', timeMin: 1042 });
+      // The same version on both, so only the order of sending can tell them apart.
+      t.answers[1].resolve(simAt('run-a', 7, ['plan-1'], 1042));
+      await second;
+      t.answers[0].resolve(simAt('run-b', 9, ['plan-1'], 1040));
+      // The dropped answer still resolves to the response, so Play journey does not read it as refused.
+      expect((await first)?.clock.timeMin).toBe(1040);
+      expect(t.state.sim?.clock.timeMin).toBe(1042);
+      expect(t.state.sim?.runId).toBe('run-a');
+      expect(t.afterWrite).toHaveBeenCalledTimes(1);
+      expect(busyActions(t.actions)).toEqual([]);
+    });
+
+    it('a seek answered after a later play is dropped; the play still sets busy', async () => {
+      const t = seekSetup();
+      const seek = t.sim.control({ action: 'seek', timeMin: 1040 });
+      const play = t.sim.control({ action: 'play' });
+      expect(t.state.busy).toBe(true);
+      t.answers[1].resolve(simAt('run-a', 7, ['plan-1'], 1050));
+      await play;
+      expect(t.state.busy).toBe(false);
+      t.answers[0].resolve(simAt('run-b', 9, ['plan-1'], 1040));
+      await seek;
+      expect(t.state.sim?.clock.timeMin).toBe(1050);
+      expect(busyActions(t.actions)).toEqual([{ type: 'busy', busy: true }, { type: 'busy', busy: false }]);
+    });
+
+    it('a failed seek sets actionError and resolves to null, still without busy', async () => {
+      const t = seekSetup();
+      const p = t.sim.control({ action: 'seek', timeMin: 1040 });
+      t.answers[0].reject(httpError(409, 'Seek refused'));
+      expect(await p).toBeNull();
+      expect(t.state.actionError).toBe('Seek refused');
+      expect(t.state.sim?.clock.timeMin).toBe(1000);
+      expect(busyActions(t.actions)).toEqual([]);
+    });
+
+    it('every other control and the scenario writes still set busy', async () => {
+      const t = seekSetup();
+      const reqs: SimControlRequest[] = [
+        { action: 'play' }, { action: 'pause' }, { action: 'speed', speed: 600 }, { action: 'next_event' },
+        { action: 'jump_to_morning' }, { action: 'finish' }, { action: 'reset_playback' },
+      ];
+      for (const req of reqs) {
+        const before = busyActions(t.actions).length;
+        const p = t.sim.control(req);
+        expect(t.state.busy).toBe(true);
+        t.answers[t.answers.length - 1].resolve(simAt('run-a', 10 + t.answers.length));
+        await p;
+        expect(t.state.busy).toBe(false);
+        expect(busyActions(t.actions).length).toBe(before + 2);
+      }
+      for (const call of [() => t.sim.generate({ preset: 'demo' }), () => t.sim.resetPlanning(), () => t.sim.recompute()]) {
+        const before = busyActions(t.actions).length;
+        const p = call();
+        expect(t.state.busy).toBe(true);
+        await p;
+        expect(busyActions(t.actions).length).toBe(before + 2);
+      }
+    });
   });
 
   it('after dispose nothing is dispatched', async () => {

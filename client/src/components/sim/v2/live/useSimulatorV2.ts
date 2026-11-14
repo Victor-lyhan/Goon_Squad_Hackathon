@@ -49,19 +49,28 @@ export const SIMULATOR_V2_API: SimulatorV2Api = {
 };
 
 /**
- * The actions without React. `busy` is true while any action is open. A write applies its
- * SimulatorResponse at once, then calls `afterWrite` (the poller's refetchNow, which drops a poll that
- * may predate the write and fetches the map if the plans changed). Errors go to `actionError` only.
+ * The actions without React. `busy` is true while any action other than a `seek` is open. A write
+ * applies its SimulatorResponse at once, then calls `afterWrite` (the poller's refetchNow, which drops a
+ * poll that may predate the write and fetches the map if the plans changed). Errors go to `actionError`.
+ *
+ * A `seek` (Play journey every 500 ms, the scrubber, a journey step) is quiet (#594, DECISIONS pass 61):
+ * it never sets `busy`, so the playback buttons and the Scenario form stay as they are. Its answer is
+ * applied only when no write sent after it has already been applied, so a slow answer never steps the
+ * clock back. A dropped answer still resolves to the response (the server accepted the seek); only a
+ * failure resolves to null and sets `actionError`.
  */
 export function createSimActions(
   api: SimActionsApi, dispatch: (a: SimDataAction) => void, afterWrite: () => void,
 ): SimActions & { dispose: () => void } {
   let open = 0;
   let disposed = false;
+  /** Order of the writes: each gets the next number when sent; `applied` is the newest one applied. */
+  let sent = 0;
+  let applied = 0;
 
-  async function run<T>(call: () => Promise<T>, apply: ((r: T) => void) | null): Promise<T | null> {
+  async function run<T>(call: () => Promise<T>, apply: ((r: T) => void) | null, quiet = false): Promise<T | null> {
     if (disposed) return null;
-    if (open++ === 0) dispatch({ type: 'busy', busy: true });
+    if (!quiet && open++ === 0) dispatch({ type: 'busy', busy: true });
     try {
       const res = await call();
       if (!disposed && apply) apply(res);
@@ -70,15 +79,23 @@ export function createSimActions(
       if (!disposed && !isAbortError(e)) dispatch({ type: 'actionFailed', message: errorMessage(e) });
       return null;
     } finally {
-      if (--open === 0 && !disposed) dispatch({ type: 'busy', busy: false });
+      if (!quiet && --open === 0 && !disposed) dispatch({ type: 'busy', busy: false });
     }
   }
 
-  const write = (call: () => Promise<SimulatorResponse>) =>
-    run(call, (sim) => { dispatch({ type: 'sim', sim }); afterWrite(); });
+  const write = (call: () => Promise<SimulatorResponse>, quiet = false) => {
+    const seq = ++sent;
+    return run(call, (sim) => {
+      // Only a seek waits its turn; every other write applies as it always did.
+      if (quiet && seq < applied) return;
+      applied = Math.max(applied, seq);
+      dispatch({ type: 'sim', sim });
+      afterWrite();
+    }, quiet);
+  };
 
   return {
-    control: (req) => write(() => api.simulatorControl(req)),
+    control: (req) => write(() => api.simulatorControl(req), req.action === 'seek'),
     generate: (req) => write(() => api.generateScenario(req)),
     resetPlanning: () => write(() => api.resetPlanning()),
     recompute: () => write(() => api.recomputeMatches()),
