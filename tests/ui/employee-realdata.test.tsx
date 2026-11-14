@@ -23,7 +23,7 @@ function renderAll(timeMin: number) {
   for (const e of employees) {
     const d = employeeDashboard(run, snap, e.id)!;
     earnings.push({
-      html: renderToStaticMarkup(<EarningsSummary earnedCents={d.earnedCents} projectedCents={d.projectedCents} />),
+      html: renderToStaticMarkup(<EarningsSummary earnedCents={d.earnedCents} assigned={d.assigned} completed={d.completed} />),
       earned: d.earnedCents, carrier: d.assigned.length + d.completed.length > 0,
     });
     for (const v of [...d.assigned, ...d.completed]) {

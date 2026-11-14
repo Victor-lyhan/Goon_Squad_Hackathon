@@ -22,10 +22,10 @@ describe('EmployeePortalView', () => {
   it('renders earnings, feed, history and commute', () => {
     const html = render(dash());
     expect(html).toContain('Welcome, Ann');
-    expect(html).toContain('Earned');
+    expect(html).toContain('Earned so far');
     expect(html).toContain('$3.00');
-    expect(html).toContain('Projected');
-    expect(html).toContain('$9.00');
+    expect(html).toContain('Scheduled');
+    expect(html).toContain('Completed jobs');
     expect(html).toContain('History');
     expect(html).toContain('View job');
     expect(html).toContain('My commute');
