@@ -1,0 +1,94 @@
+import type { EmployeeDashboard, JobResponse, MapResponse } from '../../../../shared/api';
+import type { PutCommuteRequest } from '../../../../shared/schemas';
+import type { Business, Hub } from '../../../../shared/types';
+import { Button, Drawer, EmptyState, Spinner } from '../../ui';
+import { CommuteEditor } from '../CommuteEditor';
+import { JobCard } from '../JobCard';
+import { EarningsSummary } from './EarningsSummary';
+import { JobDetail } from './JobDetail';
+import { portalView, welcomeTitle } from './employeePortalModel';
+import './EmployeePortal.css';
+
+export type EmployeePortalViewProps = {
+  dash: EmployeeDashboard | null;
+  map: MapResponse | null;
+  businesses: Business[];
+  hubs: Hub[];
+  error: string | null;
+  saving?: boolean;
+  fieldErrors?: Record<string, string>;
+  saveNotice?: { kind: 'success' | 'error'; text: string } | null;
+  job?: JobResponse | null;
+  jobError?: string | null;
+  onSave: (req: PutCommuteRequest) => void;
+  onViewJob: (jobId: string) => void;
+  onCloseJob: () => void;
+  onRetry?: () => void;
+};
+
+export function EmployeePortalView(p: EmployeePortalViewProps) {
+  const view = portalView(p.dash, p.error);
+  if (view === 'loading') return <div className="emp-portal"><Spinner label="Loading your portal" /></div>;
+  if (view === 'error' || !p.dash) {
+    return (
+      <div className="emp-portal">
+        <EmptyState
+          title="Could not load your portal"
+          description={p.error}
+          action={p.onRetry && <Button onClick={p.onRetry}>Try again</Button>}
+        />
+      </div>
+    );
+  }
+  const { dash } = p;
+  const jobOpen = Boolean(p.job || p.jobError);
+  return (
+    <div className="emp-portal">
+      <h1 className="emp-portal__title">{welcomeTitle(dash.employee.name)}</h1>
+      <EarningsSummary earnedCents={dash.earnedCents} projectedCents={dash.projectedCents} />
+      <div className="emp-portal__cols">
+        <section className="emp-portal__feed" aria-label="Jobs">
+          <h2>Assigned jobs</h2>
+          {view === 'empty' && (
+            <EmptyState title="No jobs yet. Save your commute to get matched." />
+          )}
+          {view === 'ready' && dash.assigned.length === 0 && <p>No active jobs right now.</p>}
+          {dash.assigned.map((v) => (
+            <JobCard key={v.job.id} view={v} businesses={p.businesses} hubs={p.hubs} onView={p.onViewJob} />
+          ))}
+          {dash.completed.length > 0 && (
+            <>
+              <h2>History</h2>
+              {dash.completed.map((v) => (
+                <JobCard key={v.job.id} view={v} businesses={p.businesses} hubs={p.hubs} onView={p.onViewJob} />
+              ))}
+            </>
+          )}
+        </section>
+        <section className="emp-portal__commute" aria-label="My commute">
+          {p.saveNotice && (
+            <p className={`emp-portal__msg${p.saveNotice.kind === 'error' ? ' emp-portal__msg--error' : ''}`} role="status">
+              {p.saveNotice.text}
+            </p>
+          )}
+          {p.map && (
+            <CommuteEditor
+              employee={dash.employee}
+              trips={dash.trips}
+              map={p.map}
+              businesses={p.businesses}
+              locked={dash.phase === 'locked'}
+              saving={p.saving}
+              fieldErrors={p.fieldErrors}
+              onSave={p.onSave}
+            />
+          )}
+        </section>
+      </div>
+      <Drawer open={jobOpen} onClose={p.onCloseJob} title="Job detail">
+        {p.job && p.map && <JobDetail job={p.job} map={p.map} businesses={p.businesses} hubs={p.hubs} />}
+        {p.jobError && <p role="alert">{p.jobError}</p>}
+      </Drawer>
+    </div>
+  );
+}

@@ -1,0 +1,17 @@
+.emp-portal { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 1100px; margin: 0 auto; box-sizing: border-box; }
+.emp-portal__title { margin: 0; font-size: 1.3rem; }
+.emp-portal__cols { display: flex; flex-direction: column; gap: 16px; }
+.emp-portal__feed, .emp-portal__commute { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.emp-portal h2 { margin: 0; font-size: 1.1rem; }
+.emp-portal__msg { margin: 0; padding: 8px 10px; border-radius: 8px; background: #e6f6ea; color: #14532d; }
+.emp-portal__msg--error { background: #fde8e8; color: #7f1d1d; }
+.earnings { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.earnings__item { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; }
+.earnings__label { font-size: 0.8rem; opacity: 0.7; }
+.earnings__value { font-size: 1.3rem; }
+.emp-portal .job-card, .emp-portal .commute-editor, .emp-portal .job-detail { max-width: none; }
+@media (min-width: 900px) {
+  .emp-portal__cols { flex-direction: row; align-items: flex-start; }
+  .emp-portal__feed { flex: 1; }
+  .emp-portal__commute { flex: 1.2; }
+}
