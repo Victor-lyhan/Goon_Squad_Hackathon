@@ -6,6 +6,7 @@ import type {
   TravelProvider,
 } from '../../../shared/v2/types.js';
 import { computeMetrics } from './metrics.js';
+import { markersAt, packagePositionsAt } from './movement.js';
 import { progressAt } from './timeline.js';
 
 /**
@@ -49,6 +50,8 @@ export function createSnapshotAt(movement: Movement) {
     };
   };
 }
+
+export const snapshotAt = createSnapshotAt({ markersAt, packagePositionsAt });
 
 /** Returns the earliest stored event strictly after the requested simulation minute. */
 export function nextEventMin(run: Run, timeMin: number): number | null {
