@@ -2,6 +2,7 @@
 // every screen without the data hook. Local UI state: the table's search, filters and sort, whether the
 // New delivery form is open, and the retry-match status. All data comes from the hook state, and the
 // page changes only `?shipment=` (through onOpenShipment / onCloseShipment).
+// The shell has the only <main> (#581, DECISIONS pass 60), so the page's root is a <div>.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ShipmentResponse } from '../../../../../../shared/v2/api';
 import type { CreateShipmentRequest } from '../../../../../../shared/v2/schemas';
@@ -14,8 +15,9 @@ import { ShipmentsTable } from '../ShipmentsTable';
 import { ShipmentsToolbar } from '../ShipmentsToolbar';
 import { NO_FILTERS, nextSort } from '../shipmentsTableModel';
 import {
-  DELIVERY_MISSING_TEXT, DELIVERY_MISSING_TITLE, ERROR_TITLE, INITIAL_TABLE, LOADING_TEXT, NOT_FOUND_TEXT,
-  NOT_FOUND_TITLE, NO_BUSINESSES_TEXT, UNAVAILABLE_TITLE, matchErrorText, pageScreen, simulatorHref, tableModel,
+  DELIVERY_FAILED_TEXT, DELIVERY_LOADING_TITLE, DELIVERY_MISSING_TEXT, DELIVERY_MISSING_TITLE, ERROR_TITLE,
+  INITIAL_TABLE, LOADING_TEXT, NOT_FOUND_TEXT, NOT_FOUND_TITLE, NO_BUSINESSES_TEXT, UNAVAILABLE_TITLE,
+  heldHereText, isHeldHere, matchErrorText, newDeliveryClosedText, pageScreen, simulatorHref, tableModel,
   type TableState,
 } from './businessPageModel';
 import './businessPage.css';
@@ -72,11 +74,11 @@ export function BusinessPageView({
   );
 
   if (screen.kind === 'loading') {
-    return <main className="bp"><p className="bp-state" role="status">{LOADING_TEXT}</p></main>;
+    return <div className="bp"><p className="bp-state" role="status">{LOADING_TEXT}</p></div>;
   }
   if (screen.kind === 'not_found') {
     return (
-      <main className="bp">
+      <div className="bp">
         <section className="bp-state" role="status">
           <h1>{NOT_FOUND_TITLE}</h1>
           <p>{screen.fallbackBusinessId ? NOT_FOUND_TEXT : NO_BUSINESSES_TEXT}</p>
@@ -87,27 +89,32 @@ export function BusinessPageView({
             <a href="/">Back to the start page</a>
           </p>
         </section>
-      </main>
+      </div>
     );
   }
   if (screen.kind === 'unavailable' || screen.kind === 'error') {
     return (
-      <main className="bp">
+      <div className="bp">
         <section className="bp-state bp-problem" role="alert">
           <h1>{screen.kind === 'unavailable' ? UNAVAILABLE_TITLE : ERROR_TITLE}</h1>
           <p>{screen.text}</p>
           <button type="button" className="bp-btn" onClick={() => { void refetchNow(); }}>Retry</button>
         </section>
-      </main>
+      </div>
     );
   }
 
   const d = dashboard!;
   const m = model!;
+  // The last package read as held here gives its notification a time; it stays after the panel is closed.
+  const heldView = state.held?.view && isHeldHere(state.held.view, d.business.id) ? state.held.view : null;
+  /** Set while the run is locked: New delivery is closed and this line says why. */
+  const closedText = newDeliveryClosedText(d.phase);
   const setFilters = (f: Partial<TableState['filters']>) => setTable((t) => ({ ...t, filters: { ...t.filters, ...f } }));
   // Both New delivery buttons pass their click event through. Its currentTarget is the button even where a
   // click does not focus it (Safari); a keyboard user has it focused anyway.
   const openNew = (e?: unknown) => {
+    if (closedText) return;
     const target = (e as { currentTarget?: unknown } | undefined)?.currentTarget;
     const active = document.activeElement;
     newOpener.current = target instanceof HTMLElement ? target
@@ -138,6 +145,7 @@ export function BusinessPageView({
         {matchError && matchError.shipmentId === id && (
           <p className="bp-notice bp-problem" role="alert">{matchError.text}</p>
         )}
+        {screen.heldHere && <p className="bp-notice bp-held">{heldHereText(d.business.name)}</p>}
         {deliveryRoute}
         <DeliveryDetails
           key={id}
@@ -151,6 +159,17 @@ export function BusinessPageView({
           onClose={onCloseShipment}
         />
       </>
+    );
+  } else if (screen.kind === 'delivery_loading') {
+    side = (
+      <section className="bp-missing" role="status" aria-labelledby="bp-loading-title">
+        <h2 id="bp-loading-title">{DELIVERY_LOADING_TITLE}</h2>
+        {screen.failed && <p>{DELIVERY_FAILED_TEXT}</p>}
+        <p className="bp-mono">{screen.shipmentId}</p>
+        <p className="bp-links">
+          <button type="button" className="bp-btn" onClick={onCloseShipment}>Back to deliveries</button>
+        </p>
+      </section>
     );
   } else if (screen.kind === 'delivery_missing') {
     side = (
@@ -167,7 +186,7 @@ export function BusinessPageView({
   }
 
   return (
-    <main className="bp">
+    <div className="bp">
       <BusinessHeader dashboard={d} />
       <div className="bp-notices">
         {state.reconnecting && (
@@ -195,7 +214,10 @@ export function BusinessPageView({
             counts={m.counts}
             total={m.all.length}
             onNewDelivery={openNew}
+            newDeliveryDisabled={closedText !== null}
           />
+          {/* The open form says the same itself, so the line shows only while the form is closed. */}
+          {closedText && !newOpen && <p className="bp-notice bp-closed">{closedText}</p>}
           {newOpen && (
             <div className="bp-new">
               <NewDeliveryForm
@@ -216,14 +238,20 @@ export function BusinessPageView({
             selectedId={shipmentId}
             onSelect={onOpenShipment}
             onNewDelivery={openNew}
+            newDeliveryDisabled={closedText !== null}
             onClearFilters={clearFilters}
           />
         </section>
         <aside className="bp-side" aria-label="Delivery details and notifications">
           {side && <div className="bp-details">{side}</div>}
-          <NotificationsPanel dashboard={d} businesses={businesses} onOpenShipment={onOpenShipment} />
+          <NotificationsPanel
+            dashboard={d}
+            businesses={businesses}
+            onOpenShipment={onOpenShipment}
+            held={heldView}
+          />
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

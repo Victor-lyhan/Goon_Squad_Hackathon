@@ -2,7 +2,7 @@
 // Rules: a poll with the same version returns the same state object (DECISIONS pass 43), a stale
 // business ID shows a friendly state with a link to a valid one (pass 9), and errors after the
 // first success keep the data and only set `reconnecting`.
-import type { BusinessDashboard } from '../../../../../../shared/v2/api';
+import type { BusinessDashboard, ShipmentView } from '../../../../../../shared/v2/api';
 import type { Employee, NetworkBusiness } from '../../../../../../shared/v2/types';
 import { ApiRequestError, isTravelUnavailable, type TravelUnavailableCode } from '../../../../api/v2';
 
@@ -12,6 +12,18 @@ export const RUN_CHANGED_NOTE = 'The city changed, so your workspace was reloade
 
 export type BusinessWorkspaceView = 'loading' | 'ready' | 'not_found' | 'unavailable' | 'error';
 export type DirectoryEmployee = Pick<Employee, 'id' | 'name'>;
+
+/**
+ * The open delivery when the dashboard does not list it (#581): a package this business holds overnight as
+ * the relay point is in neither `outgoing` nor `incoming`, so it is read with GET /api/v2/shipments/:id.
+ */
+export type HeldDelivery = {
+  shipmentId: string;
+  /** The server's view. Null when the server has no such shipment, or no answer came yet. */
+  view: ShipmentView | null;
+  /** `missing` = the server answered 404; `failed` = no answer yet (the poll tries again). */
+  status: 'ready' | 'missing' | 'failed';
+};
 
 export type BusinessWorkspaceState = {
   dashboard: BusinessDashboard | null;
@@ -28,6 +40,8 @@ export type BusinessWorkspaceState = {
   fallbackBusinessId: string | null;
   /** Run the dashboard belongs to (from the map), null until known. */
   runId: string | null;
+  /** The last delivery read outside the dashboard's lists; null until one was asked for. */
+  held: HeldDelivery | null;
 };
 
 export type BusinessWorkspaceAction =
@@ -36,11 +50,14 @@ export type BusinessWorkspaceAction =
   | { type: 'dashboardFailed'; error: unknown }
   | { type: 'notFound'; fallbackBusinessId: string | null }
   | { type: 'directories'; businesses: NetworkBusiness[]; employees: DirectoryEmployee[] }
+  | { type: 'held'; shipmentId: string; view: ShipmentView }
+  | { type: 'heldMissing'; shipmentId: string }
+  | { type: 'heldFailed'; shipmentId: string }
   | { type: 'dismissRunChanged' };
 
 export const initialBusinessWorkspaceState: BusinessWorkspaceState = {
   dashboard: null, businesses: [], employees: [], view: 'loading', unavailable: null,
-  reconnecting: false, runChanged: false, error: null, fallbackBusinessId: null, runId: null,
+  reconnecting: false, runChanged: false, error: null, fallbackBusinessId: null, runId: null, held: null,
 };
 
 /** The text a TravelUnavailable 503 shows: fixed copy for missing travel data, the server's text otherwise. */
@@ -81,6 +98,8 @@ function onDashboard(s: BusinessWorkspaceState, d: BusinessDashboard, runId: str
     fallbackBusinessId: null,
     runChanged: s.runChanged || runChange,
     runId: nextRunId,
+    // IDs are numbered per run: a delivery read in the old run is not the same package in the new one.
+    held: runChange ? null : s.held,
   };
 }
 
@@ -131,6 +150,17 @@ export function businessWorkspaceReducer(s: BusinessWorkspaceState, a: BusinessW
       if (s.view === 'not_found' && s.fallbackBusinessId === null) next.fallbackBusinessId = a.businesses[0]?.id ?? null;
       return next;
     }
+    case 'held':
+      // Equal poll: same object (the shipment answer has no version, so the content is compared).
+      if (s.held?.shipmentId === a.shipmentId && s.held.status === 'ready' && sameJson(s.held.view, a.view)) return s;
+      return { ...s, held: { shipmentId: a.shipmentId, view: a.view, status: 'ready' } };
+    case 'heldMissing':
+      if (s.held?.shipmentId === a.shipmentId && s.held.status === 'missing') return s;
+      return { ...s, held: { shipmentId: a.shipmentId, view: null, status: 'missing' } };
+    case 'heldFailed':
+      // A failed refresh keeps what is shown (like `reconnecting`); only a first read reports the failure.
+      if (s.held?.shipmentId === a.shipmentId) return s;
+      return { ...s, held: { shipmentId: a.shipmentId, view: null, status: 'failed' } };
     case 'dismissRunChanged':
       return s.runChanged ? { ...s, runChanged: false } : s;
   }

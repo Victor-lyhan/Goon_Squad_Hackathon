@@ -1,6 +1,11 @@
 /* MVP II Business page (#461): page states, notices and the two-column layout around the merged pieces.
    Square corners (2px), 1px borders, no shadows. Fluid widths only: works at 390 px. */
 
+/* The shell's column is 960 px for every page. This page was laid out for 1320 px, so it widens the shell's
+   <main> only while a Business page is inside it (#581, DECISIONS pass 60). The rule is local on purpose:
+   the shell files stay unchanged and the Employee page and the homepage keep 960 px. */
+.app-main:has(.bp) { max-width: 1320px; }
+
 .bp {
   max-width: 1320px;
   margin: 0 auto;
@@ -39,6 +44,9 @@
   background: var(--panel, #FFFFFF);
 }
 .bp-problem { border-left-color: var(--danger, #A4322A); }
+/* Held here as the relay point; New delivery closed while the run is locked. */
+.bp-held { border-left-color: var(--warn, #8A5A00); }
+.bp-closed { margin: 0; border-left-color: var(--muted, #5B6472); color: var(--muted, #5B6472); }
 .bp-state.bp-problem { border-left: 2px solid var(--danger, #A4322A); }
 
 .bp-layout {
@@ -67,8 +75,9 @@
 .bp-btn:focus-visible, .bp-links a:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
 .bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #28618A); text-decoration: underline; }
 
-/* One column: the open delivery comes first, then the table, then the notifications. */
-@media (max-width: 900px) {
+/* One column: the open delivery comes first, then the table, then the notifications.
+   Up to 1160 px the 440 px details column would leave the table under about 640 px, so the page stacks. */
+@media (max-width: 1160px) {
   .bp-layout, .bp-layout--open { display: flex; flex-direction: column; }
   .bp-side { display: contents; }
   .bp-details { order: -1; }

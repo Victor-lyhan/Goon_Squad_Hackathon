@@ -1,7 +1,7 @@
 // Pure model for the MVP II Business workspace header and activity (notifications) section.
 // It only formats what the API returned: every number comes from `dashboard.totals` and every
 // message is the server's text, unchanged (DECISIONS pass 50; frontend computes no metrics).
-import type { BusinessDashboard } from '../../../../../../shared/v2/api';
+import type { BusinessDashboard, ShipmentView } from '../../../../../../shared/v2/api';
 import type { NetworkBusiness, Notification } from '../../../../../../shared/v2/types';
 import { formatCents, formatClock } from '../../../../ui/format';
 
@@ -62,7 +62,10 @@ export type NotificationRole = 'sender' | 'recipient' | 'relay' | 'other';
 
 export type NotificationRow = {
   id: string;
-  /** Clock time ("5:00 PM") of the package's ready time when the dashboard has the shipment; else "—". */
+  /**
+   * Clock time ("5:00 PM") of the package's ready time when the dashboard has the shipment, or when it is
+   * the open package held here as the relay point (`held`, #581); else "—".
+   */
   time: string;
   message: string;
   role: NotificationRole;
@@ -78,14 +81,16 @@ export type NotificationRow = {
  * a business notification addressed to this business whose shipment this business neither sends
  * nor receives is about a package held here as a relay point. The message text is never parsed.
  * `businesses` is accepted for the page's call signature; names already come in the server text.
+ * `held` is the open delivery the page read with GET /shipments/:id because the dashboard does not list it.
  */
 export function notificationRows(
   dashboard: BusinessDashboard,
   _businesses: NetworkBusiness[] = [],
   seenIds: ReadonlySet<string> = new Set(),
+  held: ShipmentView | null = null,
 ): NotificationRow[] {
   const me = dashboard.business.id;
-  const views = new Map([...dashboard.outgoing, ...dashboard.incoming].map((v) => [v.shipment.id, v]));
+  const views = new Map([...(held ? [held] : []), ...dashboard.outgoing, ...dashboard.incoming].map((v) => [v.shipment.id, v]));
   return [...dashboard.notifications]
     .filter((n) => n.audience === 'business' && n.audienceId === me)
     .sort((a, b) => b.createdSeq - a.createdSeq || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))

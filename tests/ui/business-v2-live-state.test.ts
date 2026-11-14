@@ -6,7 +6,7 @@ import {
   RUN_CHANGED_NOTE, TRAVEL_DATA_MISSING_TEXT, businessWorkspaceReducer as reduce, initialBusinessWorkspaceState as init,
   toDirectoryEmployees, type BusinessWorkspaceState,
 } from '../../client/src/components/business/v2/live/businessWorkspaceState';
-import { BUSINESSES, DASHBOARD, ME } from './business-v2-table-sample';
+import { BUSINESSES, DASHBOARD, ME, plan, relayOut, shipment, view } from './business-v2-table-sample';
 
 const dash = (version: number, over: Partial<BusinessDashboard> = {}): BusinessDashboard =>
   ({ ...DASHBOARD, ...over, version });
@@ -152,6 +152,56 @@ describe('business v2 workspace reducer', () => {
     const s = reduce(r, { type: 'dashboard', dashboard: dash(3), runId: 'run-1' });
     expect(s.runChanged).toBe(false);
     expect(s.runId).toBe('run-1');
+  });
+
+  // #581: the open delivery the dashboard does not list (read with GET /shipments/:id).
+  describe('held delivery', () => {
+    const v = view(
+      shipment('shp-9', { originBusinessId: 'biz-print', destinationBusinessId: 'biz-cafe' }),
+      plan('shp-9', { kind: 'relay', relayBusinessId: ME.id }), 'at_hub',
+    );
+
+    it('starts empty, stores the answer and keeps identity on an equal one', () => {
+      expect(init.held).toBeNull();
+      const s = reduce(ready(), { type: 'held', shipmentId: 'shp-9', view: v });
+      expect(s.held).toEqual({ shipmentId: 'shp-9', view: v, status: 'ready' });
+      expect(reduce(s, { type: 'held', shipmentId: 'shp-9', view: JSON.parse(JSON.stringify(v)) })).toBe(s);
+      const moved = reduce(s, { type: 'held', shipmentId: 'shp-9', view: { ...v, status: 'out_for_delivery' } });
+      expect(moved).not.toBe(s);
+      expect(moved.held?.view?.status).toBe('out_for_delivery');
+      // The dashboard and the rest of the state are untouched.
+      expect(moved.dashboard).toBe(s.dashboard);
+    });
+
+    it('404 → missing; a failure before any answer → failed; a failed refresh keeps what is shown', () => {
+      const missing = reduce(ready(), { type: 'heldMissing', shipmentId: 'shp-404' });
+      expect(missing.held).toEqual({ shipmentId: 'shp-404', view: null, status: 'missing' });
+      expect(reduce(missing, { type: 'heldMissing', shipmentId: 'shp-404' })).toBe(missing);
+      expect(reduce(missing, { type: 'heldFailed', shipmentId: 'shp-404' })).toBe(missing);
+
+      const failed = reduce(missing, { type: 'heldFailed', shipmentId: 'shp-9' });
+      expect(failed.held).toEqual({ shipmentId: 'shp-9', view: null, status: 'failed' });
+      expect(reduce(failed, { type: 'heldFailed', shipmentId: 'shp-9' })).toBe(failed);
+      const ok = reduce(failed, { type: 'held', shipmentId: 'shp-9', view: v });
+      expect(reduce(ok, { type: 'heldFailed', shipmentId: 'shp-9' })).toBe(ok);
+      // The package is gone from the server (re-matched away or a new city): the view goes too.
+      expect(reduce(ok, { type: 'heldMissing', shipmentId: 'shp-9' }).held?.view).toBeNull();
+    });
+
+    it('another delivery replaces it', () => {
+      const s = reduce(reduce(ready(), { type: 'held', shipmentId: 'shp-9', view: v }), { type: 'held', shipmentId: 'shp-2', view: relayOut });
+      expect(s.held).toEqual({ shipmentId: 'shp-2', view: relayOut, status: 'ready' });
+    });
+
+    it('is dropped on a run change, a stale business and a reset; kept on an ordinary new version', () => {
+      const s = reduce(ready(3), { type: 'held', shipmentId: 'shp-9', view: v });
+      expect(reduce(s, { type: 'dashboard', dashboard: dash(4), runId: 'run-1' }).held).toBe(s.held);
+      expect(reduce(s, { type: 'dashboardFailed', error: network() }).held).toBe(s.held);
+      expect(reduce(s, { type: 'dashboard', dashboard: dash(4), runId: 'run-2' }).held).toBeNull();
+      expect(reduce(s, { type: 'dashboard', dashboard: dash(1), runId: 'run-1' }).held).toBeNull();
+      expect(reduce(s, { type: 'notFound', fallbackBusinessId: null }).held).toBeNull();
+      expect(reduce(s, { type: 'reset' }).held).toBeNull();
+    });
   });
 
   it('directories: stored, trimmed to id + name, equal ones keep identity', () => {

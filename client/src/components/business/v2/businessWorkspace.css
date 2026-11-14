@@ -77,7 +77,9 @@
 .bw-btn:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
 
 /* ---------- Table ---------- */
-.bw-table-wrap { width: 100%; }
+/* The table's box is a size container: above 640 px its least important columns drop as the box (not the
+   window) gets narrower (#581, see "Columns that drop" below). */
+.bw-table-wrap { width: 100%; container: bw-table / inline-size; }
 .bw-table {
   width: 100%;
   border-collapse: collapse;
@@ -194,6 +196,24 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ---------- Above 640 px the table never widens the page (#581) ----------
+   Columns drop when the table's box is narrow: Ready and Deadline first, then Shipment ID, then Direction.
+   Each stays in the delivery details, and the search and the filters still use them. Ten columns need
+   about 1120 px. What still does not fit scrolls inside the box, never the page. At 640 px and below the
+   rows stack instead (end of this file). */
+@media (min-width: 641px) {
+  .bw-table-wrap { overflow-x: auto; }
+  @container bw-table (max-width: 1119px) {
+    .bw-table .bw-col--drop1 { display: none; }
+  }
+  @container bw-table (max-width: 899px) {
+    .bw-table .bw-col--drop2 { display: none; }
+  }
+  @container bw-table (max-width: 759px) {
+    .bw-table .bw-col--drop3 { display: none; }
+  }
 }
 
 /* ---------- Medium widths: let long cells wrap ---------- */

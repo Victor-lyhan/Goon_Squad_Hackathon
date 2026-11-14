@@ -2,9 +2,10 @@
 // `?shipment=` names, and the table rows for the current filters. It only reads API responses; it
 // computes no status, price, ETA or count of its own.
 import type { BusinessDashboard, ShipmentView } from '../../../../../../shared/v2/api';
-import type { NetworkBusiness } from '../../../../../../shared/v2/types';
+import type { NetworkBusiness, Phase } from '../../../../../../shared/v2/types';
 import type { BusinessWorkspaceState } from '../live/businessWorkspaceState';
 import { TRAVEL_DATA_MISSING_TEXT } from '../live/businessWorkspaceState';
+import { RESULT_COPY } from '../newDeliveryModel';
 import {
   NO_FILTERS, buildRows, filterRows, sortRows, statusCounts,
   type RowFilters, type ShipmentRow, type SortDir, type SortKey, type StatusCount,
@@ -18,9 +19,14 @@ export type PageScreen =
   | { kind: 'unavailable'; text: string }
   | { kind: 'error'; text: string }
   | { kind: 'workspace' }
-  /** `?shipment=` names one of this business's deliveries. */
-  | { kind: 'delivery'; view: ShipmentView }
-  /** `?shipment=` names a delivery that is not in this business's lists. */
+  /**
+   * `?shipment=` names one of this business's deliveries, or (`heldHere`) a package of two other businesses
+   * that this business holds overnight as the relay point (#581).
+   */
+  | { kind: 'delivery'; view: ShipmentView; heldHere?: true }
+  /** `?shipment=` is not in the dashboard's lists and the server's answer for it is not here yet. */
+  | { kind: 'delivery_loading'; shipmentId: string; failed: boolean }
+  /** `?shipment=` names a delivery this business has no part in, or one the server does not know. */
   | { kind: 'delivery_missing'; shipmentId: string };
 
 export const LOADING_TEXT = 'Loading your workspace…';
@@ -33,8 +39,16 @@ export const DELIVERY_MISSING_TITLE = 'This delivery is not in the current city'
 export const DELIVERY_MISSING_TEXT =
   'It is not one of this business’s deliveries. The city may have changed, or the link belongs to another business.';
 export const MATCH_FAILED_TEXT = 'The delivery could not be matched. Try again.';
+export const DELIVERY_LOADING_TITLE = 'Loading this delivery…';
+export const DELIVERY_FAILED_TEXT = 'The delivery could not be loaded. Trying again…';
+/** The one line above the details of a package this business neither sends nor receives. */
+export const heldHereText = (businessName: string) =>
+  `Held here overnight: ${businessName} is the relay point for this package.`;
+/** Why New delivery is closed while the run is locked: the form's own text for the same state. */
+export const NEW_DELIVERY_CLOSED_TEXT = RESULT_COPY.locked;
 
-type ScreenInput = Pick<BusinessWorkspaceState, 'view' | 'dashboard' | 'unavailable' | 'error' | 'fallbackBusinessId'>;
+type ScreenInput = Pick<BusinessWorkspaceState, 'view' | 'dashboard' | 'unavailable' | 'error' | 'fallbackBusinessId'>
+  & Partial<Pick<BusinessWorkspaceState, 'held'>>;
 
 /** Outgoing first, then incoming (a business is never both sender and recipient of one shipment). */
 export function findDelivery(dashboard: BusinessDashboard, shipmentId: string): ShipmentView | null {
@@ -54,7 +68,23 @@ export function pageScreen(s: ScreenInput, shipmentId: string | null): PageScree
   if (!s.dashboard) return { kind: 'loading' };
   if (!shipmentId) return { kind: 'workspace' };
   const view = findDelivery(s.dashboard, shipmentId);
-  return view ? { kind: 'delivery', view } : { kind: 'delivery_missing', shipmentId };
+  if (view) return { kind: 'delivery', view };
+  // Not sent or received here: the hook reads it with GET /shipments/:id (`held`).
+  const held = s.held && s.held.shipmentId === shipmentId ? s.held : null;
+  if (!held || held.status === 'failed') return { kind: 'delivery_loading', shipmentId, failed: held !== null };
+  // Only the relay point of the plan may see it; any other delivery keeps the "another business" message.
+  if (held.view && isHeldHere(held.view, s.dashboard.business.id)) return { kind: 'delivery', view: held.view, heldHere: true };
+  return { kind: 'delivery_missing', shipmentId };
+}
+
+/** True when the plan's relay point is this business (the server's field; nothing is derived). */
+export function isHeldHere(view: ShipmentView, businessId: string): boolean {
+  return view.plan?.relayBusinessId === businessId;
+}
+
+/** The reason New delivery is closed for this phase, null while requests are open. */
+export function newDeliveryClosedText(phase: Phase): string | null {
+  return phase === 'planning' ? null : NEW_DELIVERY_CLOSED_TEXT;
 }
 
 // ---------- Links ----------

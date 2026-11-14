@@ -99,13 +99,21 @@ describe('business v2 CSS QA (#497)', () => {
     'activity/activity.css': 'ba-', 'page/businessPage.css': 'bp', 'route/deliveryRoute.css': 'bdr',
   };
   const short = (f: string) => f.replace(/^.*business\/v2\//, '');
+  const SHELL_WIDTH_SELECTOR = '.app-main:has(.bp)';
 
   it('every class in a stylesheet belongs to its family', () => {
     for (const [file, rules] of parsed) {
       const prefix = PREFIX[short(file)];
       expect(prefix, file).toBeTruthy();
-      for (const r of rules) for (const [, cls] of r.selector.matchAll(/\.([a-zA-Z][\w-]*)/g)) {
-        expect(cls.startsWith(prefix), `${file}: .${cls} is outside ${prefix}`).toBe(true);
+      for (const r of rules) {
+        // The one rule about the shell: the Business page widens the shell's <main> around itself (#581).
+        if (short(file) === 'page/businessPage.css' && r.selector === SHELL_WIDTH_SELECTOR) {
+          expect(r.decls).toEqual([{ prop: 'max-width', value: '1320px' }]);
+          continue;
+        }
+        for (const [, cls] of r.selector.matchAll(/\.([a-zA-Z][\w-]*)/g)) {
+          expect(cls.startsWith(prefix), `${file}: .${cls} is outside ${prefix}`).toBe(true);
+        }
       }
     }
   });
@@ -143,8 +151,10 @@ describe('business v2 CSS QA (#497)', () => {
     expect(has('.bw-table thead', 'clip', /rect/)).toBe(true);
     expect(has('.bw-table thead:focus-within', 'clip', /^auto$/)).toBe(true);
     expect(has('.bw-table thead:focus-within', 'position', /^static$/)).toBe(true);
-    // No overflow-x: auto/scroll anywhere: the table stacks, it does not scroll sideways.
+    // No overflow-x: auto/scroll at the stacked width: the table stacks, it does not scroll sideways.
+    // Above it (inside a min-width query) the table's own box may scroll, so the page never does (#581).
     for (const [file, rs] of parsed) for (const r of rs) for (const d of r.decls) {
+      if (r.media.some((m) => /min-width/.test(m))) continue;
       if (d.prop === 'overflow-x' || d.prop === 'overflow') expect(d.value, where(file, r, d)).not.toMatch(/auto|scroll/);
     }
   });

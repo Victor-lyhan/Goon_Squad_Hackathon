@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { BusinessDashboard } from '../../../../../../shared/v2/api';
+import type { BusinessDashboard, ShipmentView } from '../../../../../../shared/v2/api';
 import type { NetworkBusiness } from '../../../../../../shared/v2/types';
 import { EMPTY_TEXT, notificationRows, visibleRows, type NotificationRow } from './activityModel';
 import './activity.css';
@@ -8,6 +8,8 @@ type Props = {
   dashboard: BusinessDashboard;
   businesses?: NetworkBusiness[];
   onOpenShipment: (shipmentId: string) => void;
+  /** The open package this business holds as the relay point (not in the dashboard's lists), for its row's time. */
+  held?: ShipmentView | null;
 };
 
 /**
@@ -15,7 +17,7 @@ type Props = {
  * the first render and a change of business flag nothing; a notification that arrives later is
  * "New" until its row is opened.
  */
-export function NotificationsPanel({ dashboard, businesses = [], onOpenShipment }: Props) {
+export function NotificationsPanel({ dashboard, businesses = [], onOpenShipment, held = null }: Props) {
   const ids = () => new Set(dashboard.notifications.map((n) => n.id));
   const [seen, setSeen] = useState<{ businessId: string; ids: Set<string> }>(() => ({
     businessId: dashboard.business.id, ids: ids(),
@@ -26,7 +28,7 @@ export function NotificationsPanel({ dashboard, businesses = [], onOpenShipment 
     setSeen({ businessId: dashboard.business.id, ids: ids() });
     setShowAll(false);
   }
-  const rows = notificationRows(dashboard, businesses, seen.ids);
+  const rows = notificationRows(dashboard, businesses, seen.ids, held);
   const open = (row: NotificationRow) => {
     if (!row.shipmentId) return;
     if (row.isNew) setSeen((s) => ({ ...s, ids: new Set([...s.ids, row.id]) }));

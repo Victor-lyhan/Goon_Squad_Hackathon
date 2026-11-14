@@ -20,8 +20,9 @@ export type PartyText = { name: string; neighborhood: string | null };
 export type DetailsHeader = {
   label: string;
   shipmentId: string;
-  direction: 'outgoing' | 'incoming';
-  directionLabel: 'Outgoing' | 'Incoming';
+  /** `relay` = the viewer neither sends nor receives it but is the plan's relay point (#581). */
+  direction: 'outgoing' | 'incoming' | 'relay';
+  directionLabel: 'Outgoing' | 'Incoming' | 'Relay point';
   sender: PartyText;
   recipient: PartyText;
 };
@@ -186,12 +187,14 @@ function matchResult(view: ShipmentView, outgoing: boolean, businesses: DetailsL
 export function deliveryDetails(view: ShipmentView, lookups: DetailsLookups): DeliveryDetailsModel {
   const s = view.shipment;
   const outgoing = s.originBusinessId === lookups.viewerBusinessId;
+  const relay = !outgoing && s.destinationBusinessId !== lookups.viewerBusinessId
+    && view.plan?.relayBusinessId === lookups.viewerBusinessId;
   return {
     header: {
       label: nonEmpty(s.label) ?? 'Package',
       shipmentId: s.id,
-      direction: outgoing ? 'outgoing' : 'incoming',
-      directionLabel: outgoing ? 'Outgoing' : 'Incoming',
+      direction: outgoing ? 'outgoing' : relay ? 'relay' : 'incoming',
+      directionLabel: outgoing ? 'Outgoing' : relay ? 'Relay point' : 'Incoming',
       sender: party(s.originBusinessId, lookups.businesses),
       recipient: party(s.destinationBusinessId, lookups.businesses),
     },

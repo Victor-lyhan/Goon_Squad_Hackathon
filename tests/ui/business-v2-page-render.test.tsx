@@ -9,8 +9,10 @@ import {
 import { NewDeliveryFormView } from '../../client/src/components/business/v2/NewDeliveryForm';
 import { emptyDraft, statusForError } from '../../client/src/components/business/v2/newDeliveryModel';
 import { BusinessPageView, type BusinessPageViewProps } from '../../client/src/components/business/v2/page/BusinessPageView';
-import { INITIAL_TABLE } from '../../client/src/components/business/v2/page/businessPageModel';
-import { ACME, BUSINESSES, DASHBOARD, DIRECT, UNMATCHED_REASON, ready } from './business-v2-page-sample';
+import { INITIAL_TABLE, NEW_DELIVERY_CLOSED_TEXT, heldHereText } from '../../client/src/components/business/v2/page/businessPageModel';
+import {
+  ACME, ATLAS, ATLAS_DASHBOARD, BUSINESSES, DASHBOARD, DIRECT, RELAY, UNMATCHED_REASON, ready, withHeld,
+} from './business-v2-page-sample';
 
 const text = (html: string) =>
   html.replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ');
@@ -165,7 +167,7 @@ describe('?shipment= details', () => {
   });
 
   it('a delivery that is not this business\'s shows a message with a way back, never a blank panel', () => {
-    const h = render(ready(), { shipmentId: 'shp-404' });
+    const h = render(withHeld(ready(), 'shp-404', null), { shipmentId: 'shp-404' });
     const t = text(h);
     expect(t).toContain('This delivery is not in the current city');
     expect(t).toContain('shp-404');
@@ -209,5 +211,70 @@ describe('a same-version poll', () => {
       type: 'dashboard', dashboard: { ...DASHBOARD, outgoing: [delivered, ...DASHBOARD.outgoing.slice(1)], version: 8 }, runId: 'run-1',
     });
     expect(text(render(s, { shipmentId: 'shp-7' }))).toMatch(/Delivered/);
+  });
+});
+
+// #581
+describe('relay point, locked run and the single <main>', () => {
+  const atlas = () => ready(ATLAS_DASHBOARD);
+
+  it('renders no <main> in any state: the shell has the only one', () => {
+    const states: [BusinessWorkspaceState, Partial<BusinessPageViewProps>][] = [
+      [initialBusinessWorkspaceState, {}],
+      [{ ...initialBusinessWorkspaceState, view: 'not_found', fallbackBusinessId: 'biz-x' }, {}],
+      [{ ...initialBusinessWorkspaceState, view: 'error', error: 'E' }, {}],
+      [{ ...initialBusinessWorkspaceState, view: 'unavailable', unavailable: { code: 'travel_data_missing', message: 'M' } }, {}],
+      [ready(), {}],
+      [ready(), { shipmentId: 'shp-7' }],
+      [withHeld(ready(), 'shp-404', null), { shipmentId: 'shp-404' }],
+      [withHeld(atlas(), 'shp-8', RELAY), { shipmentId: 'shp-8' }],
+    ];
+    for (const [state, props] of states) {
+      const h = render(state, props);
+      expect(h).not.toMatch(/<main\b/);
+      expect(h).toMatch(/^<div class="bp">/);
+    }
+  });
+
+  it('a package held here opens with the relay line above the normal details', () => {
+    const h = render(withHeld(atlas(), 'shp-8', RELAY), { shipmentId: 'shp-8' });
+    const t = text(h);
+    expect(h).toContain(`<p class="bp-notice bp-held">${heldHereText(ATLAS.name)}</p>`);
+    expect(h.indexOf('bp-held')).toBeLessThan(h.indexOf('class="bd-panel"'));
+    expect(t).toContain('Fabric rolls');
+    expect(t).toContain('Acme Studio');
+    expect(t).toContain('Bakery Row');
+    expect(t).toContain('Maya Chen');
+    expect(t).toContain('Luis Ortega');
+    expect(h).toContain('<span class="bd-eyebrow">Relay point</span>');
+    expect(h).toMatch(/<span class="ba-note__time">5:00 PM<\/span>/);
+    expect(t).not.toContain('This delivery is not in the current city');
+    expectClean(h);
+    // One of its own deliveries has no such line.
+    expect(render(ready(), { shipmentId: 'shp-8' })).not.toContain('bp-held');
+  });
+
+  it('while the package is being read the panel says so, with a way back', () => {
+    const h = render(atlas(), { shipmentId: 'shp-8' });
+    const t = text(h);
+    expect(t).toContain('Loading this delivery');
+    expect(t).not.toContain('This delivery is not in the current city');
+    expect(h).toMatch(/<button[^>]*>Back to deliveries<\/button>/);
+    expect(h).not.toContain('class="bd-panel"');
+    expect(h).toMatch(/<span class="ba-note__time">—<\/span>/);
+    const failed = businessWorkspaceReducer(atlas(), { type: 'heldFailed', shipmentId: 'shp-8' });
+    expect(text(render(failed, { shipmentId: 'shp-8' }))).toContain('The delivery could not be loaded. Trying again');
+  });
+
+  it('a locked run disables New delivery and says why; planning does neither', () => {
+    const locked = render(ready({ ...DASHBOARD, phase: 'locked' }));
+    expect(locked).toMatch(/<button[^>]*class="bw-btn bw-btn--primary bw-toolbar__new"[^>]*disabled=""[^>]*>New delivery<\/button>/);
+    expect(locked).toContain(`<p class="bp-notice bp-closed">${NEW_DELIVERY_CLOSED_TEXT.replace(/'/g, '&#x27;')}</p>`);
+    const open = render(ready());
+    expect(open).not.toMatch(/<button[^>]*disabled/);
+    expect(open).not.toContain('bp-closed');
+    // The empty table's button follows the toolbar's.
+    const empty = render(ready({ ...DASHBOARD, outgoing: [], incoming: [], phase: 'locked' }));
+    expect(empty.match(/<button[^>]*disabled=""[^>]*>New delivery<\/button>/g)).toHaveLength(2);
   });
 });
