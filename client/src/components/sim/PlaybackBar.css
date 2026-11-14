@@ -11,3 +11,5 @@
 .playback-bar .pb-scrub { flex: 1 1 200px; min-width: 160px; accent-color: var(--accent, #f97316); }
 .playback-bar .pb-scrub:focus-visible { outline: 3px solid var(--accent, #f97316); outline-offset: 2px; }
 .playback-bar .pb-scrub:disabled { opacity: .45; cursor: not-allowed; }
+.playback-bar .pb-hint { flex-basis: 100%; font: 12px system-ui, sans-serif; color: #475569; }
+@media (max-width: 599px) { .playback-bar .pb-hint { display: none; } }
