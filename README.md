@@ -9,7 +9,7 @@ You need no key to run the app or the demo. Two optional Google keys add the map
 
 | You have | What works |
 | --- | --- |
-| **No key** (a fresh clone) | Everything in the 2-minute demo, from the committed cache: the homepage, the Business, Employee and Simulator workspaces, Help, matching a new delivery, playback, earnings, and a commute save that keeps the home. The server calls nothing outside your machine. Where a map would be, the page says "Google Maps key missing." and the rest of the page works. |
+| **No key** (a fresh clone) | Everything in the 2-minute demo, from the committed cache: the homepage and its **Watch a package** button, the Business, Employee and Simulator workspaces, matching a new delivery, journey playback, earnings, and a commute save that keeps the home. The server calls nothing outside your machine. Where a map would be, the page says "Google Maps key missing." and the rest of the page works. |
 | **Browser key** (`VITE_GOOGLE_MAPS_BROWSER_KEY`) | Adds the Google map: the network on the Simulator with route lines, moving vehicles and packages, the commute on the Employee page and a delivery's route on the Business page. |
 | **Server key** (`GOOGLE_MAPS_SERVER_KEY`) | Adds the live Google calls: the address search and a commute save with a new address (its travel times are fetched and added to the cache), the route lines of a new delivery (without the key its legs have no route line and the vehicle moves straight from stop to stop), and the fetch command `npm run fetch:routes`. |
 
@@ -25,7 +25,7 @@ No API key or environment variable is needed. `PORT` is optional and applies to 
 npm install
 npm run dev
 ```
-`npm run dev` starts the API on **http://localhost:3001** and Vite on **http://localhost:5173**; Vite proxies `/api` to the API. Open http://localhost:5173.
+`npm run dev` starts the API on **http://localhost:3001** and Vite on **http://localhost:5173**; Vite proxies `/api` to the API. Open http://localhost:5173 and choose **Watch a package** ([30-second demo](#30-second-demo)).
 
 `npm run dev` needs ports 3001 and 5173 free. Do not set `PORT` for it, in the shell or in `.env`: Vite sends `/api` to port 3001 whatever `PORT` says, so with another port every API call of the page fails. If the server says a port is already in use, stop the other server.
 
@@ -33,11 +33,10 @@ The main paths:
 
 | Path | Page |
 | --- | --- |
-| `/` | Homepage: what Relay is, the numbers of the current run, and the three workspaces. |
+| `/` | Homepage: one sentence on what Relay does, the **Watch a package** button (it opens the simulator on an example package and plays it), the Business and Employee entries, and one line with the numbers of the current run. |
 | `/business/<id>` | Business workspace, for example `/business/biz-brooklyn-roasting`: the deliveries table, **New delivery**, delivery details. |
 | `/employee/<id>` | Employee workspace, for example `/employee/emp-7`: the saved commute, assigned deliveries, earnings. |
 | `/simulator` | Simulator: the whole network, the package list, playback, and the journey of one package. |
-| `/help` | Guided demo: the six demo steps, each with a link to its workspace. |
 
 ## Production build
 ```bash
@@ -65,6 +64,20 @@ In the Simulator, **Play** with no package picked runs the whole network and loc
 ## Demo accounts
 On the Business and Employee pages the header's **Demo account** selector lists the businesses and employees of the run. The chosen account is the only thing stored in the browser; all delivery data lives on the server.
 
+## 30-second demo
+Open `/` and choose **Watch a package**. The simulator opens on the package "Navy Yard grinder burrs" and plays its journey by itself, in about 10 seconds. Nothing else to press:
+
+- ■ Sender: a square marks Blue Bottle Coffee. Carrier **A** (blue) picks the package up on the evening commute home. It is evening, so the map is dark and the badge at the top shows a moon and the time.
+- ◆ Overnight: a diamond marks the relay point, Etsy, where carrier A leaves the package. An "Overnight at Etsy" card stands in for the night for about a second.
+- ⇄ Handoff: in the morning the swap symbol at the relay point names carrier **B** (green), who collects the package on the commute to work. The map is light and the badge shows a sun.
+- ⚑ Delivered: a flag marks the delivery at Brooklyn Roasting Company, with the time.
+
+Each carrier's whole commute is a thin line in the carrier's color; the part with the package on board is thick. The package is the orange marker. The panel on the right lists the same four steps with the same symbols, and both carriers with their extra minutes and reward.
+
+- **Without the browser key** the map area says "Google Maps key missing." The playback, the moon and sun badge, the Overnight card and the panel on the right work the same, so the journey can still be followed there. The map itself needs the key ([Google setup](#google-setup-keys-and-travel-data)).
+- **Pause** stops the journey where it is, **Play** goes on from there, and **Back to start** rewinds.
+- Playing one package's journey does not lock the run, so the 2-minute demo below can follow at once, without a reset.
+
 ## 2-minute demo
 Known-good request for the default run, on a fresh clone with no key. `tests/api/v2-readme-demo.test.ts` reads the block below and runs it over HTTP: it matches as a relay, and the package stays at the relay point overnight.
 
@@ -90,10 +103,10 @@ price: $10.00
 The times are the defaults of the **New delivery** form, so leave them as they are. Use a fresh run: the request is planned on commutes that are still free, so after an earlier try, reset first ([State file and reset](#state-file-and-reset)). If the Simulator's **Play** was pressed earlier with no package picked, the run is locked and the form is closed: reset first.
 
 1. **Employee** (`/employee/emp-7`, or choose **Elena Rossi** as the **Demo account**): show the **Saved commute** between the Upper East Side and Brooklyn Roasting Company, the two departure times and the **Detour limit**.
-2. **Business** (`/business/biz-brooklyn-roasting`, Brooklyn Roasting Company): choose **New delivery**, pick **Blue Bottle Coffee** as the recipient, enter the package from the block above and choose **Send request**. This is the "Find a delivery match" step: the backend looks for a matching commute.
+2. **Business** (`/business/biz-brooklyn-roasting`, Brooklyn Roasting Company): choose **New delivery**, pick **Blue Bottle Coffee** as the recipient, enter the package from the block above and choose **Find a delivery match**: the backend looks for a matching commute.
 3. The form answers **Delivery arranged** with the shipment ID. **View delivery** opens the details: plan **Relay via Etsy (relay point)**, the ETA, price **$10.00**, and the carriers Elena Rossi (evening commute, Day 1) and Reese Green (morning commute, Day 2).
 4. Back in **Employee** as Elena Rossi, without refreshing: the new job is under **Assigned deliveries**, with its pickup, drop-off, extra time and reward.
-5. **Simulator**: on the new delivery choose **Watch in simulator** (or **View journey** in the Business delivery details; both open `/simulator?package=<shipment ID>`), then **Play**. The package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (an "Overnight at Etsy" card stands in for the wait), and is delivered to Blue Bottle Coffee in the morning. **Pause** stops it where it is, **Play** goes on from there, and **Back to start** rewinds.
+5. **Simulator**: on the new delivery choose **Watch in simulator** (or **View journey** in the Business delivery details). Both open `/simulator?package=<shipment ID>&play=1`, and the journey starts playing by itself. The package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (an "Overnight at Etsy" card stands in for the wait), and is delivered to Blue Bottle Coffee in the morning. **Pause** stops it where it is, **Play** goes on from there, and **Back to start** rewinds.
 6. The same run is in every workspace: the delivery reads **Delivered** for the sender (`/business/biz-brooklyn-roasting`) and for the recipient (`/business/biz-blue-bottle-wall`), and **Earnings** on the pages of Elena Rossi and Reese Green show the reward as **Earned**.
 
 Message: Relay turns existing commutes into a coordinated delivery network. This prototype calculates the matches on real NYC travel times and simulates the complete delivery cycle.
@@ -115,7 +128,7 @@ Message: Relay turns existing commutes into a coordinated delivery network. This
 - `fixtures/nyc/` the NYC data: `businesses.json`, `neighborhoods.json` and `demoStory.json` (written by hand), `matrix.json` and `polylines.json` (the travel cache from Google)
 - `scripts/fetch-routes.ts` the fetch command behind `npm run fetch:routes`
 - `tests/` Vitest suites (`api/`, `domain/`, `geo/`, `ui/`)
-- `docs/` the product spec (`relay-spec.md`) and the UI design (`mvp2-ui-redesign.md`); `SPEC.md`, `DECISIONS.md` and `AGENTS.md` hold the project rules
+- `docs/` the product spec (`relay-spec.md`), the UI design (`mvp2-ui-redesign.md`) and the 30-second demo plan that overrides it where they differ (`mvp3.md`); `SPEC.md`, `DECISIONS.md` and `AGENTS.md` hold the project rules
 
 ## Google setup: keys and travel data
 You need this section for three things: the map (browser key), a commute with a new address (server key), and fetching the travel data again after the businesses or the story changed (server key). The travel data of the default run is already committed, so a fresh clone needs none of it.
@@ -232,7 +245,7 @@ After the drop the two files hold the coordinates of the businesses and of the m
   - `/simulator`: the network businesses, the route lines of the commutes and plans, and the vehicles and packages moving along them. Selecting a package shows its journey only.
   - `/employee/<id>`, for example `/employee/emp-7`: the employee's commute and the stops of their deliveries.
   - `/business/<id>`, for example `/business/biz-brooklyn-roasting`: a delivery's route next to its details, with the sender, the relay point and the recipient.
-  - `/` and `/help` have no map and look the same with and without a key.
+  - `/` has no map and looks the same with and without a key.
 - **Without the browser key** each map area says "Google Maps key missing." and the lists, forms and panels around it work as before. If the key is there but wrong, the map area says "Google rejected the browser key."; check its restrictions (step 2) and reload the page.
 - **With the server key**, **Edit commute** on the Employee page finds a new address and saves it. That home is written into `fixtures/nyc/matrix.json`: remove it before you commit the cache (step 5). Without it the search says "Address search needs the Google key on the server. Your saved home is unchanged.", and a save that keeps the home still works.
 - **If the cache is missing** from your checkout (`fixtures/nyc/matrix.json`), every `/api/v2` request answers `503` with the code `travel_data_missing`, and the pages show "NYC travel data is not loaded on this server yet." The server prints the reason when it starts.

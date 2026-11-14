@@ -6,12 +6,16 @@
 // With the story test this is the only test that may pin a story name (pass 54): every name, URL and
 // price asserted here is read from the README, so a story retune changes the README and nothing in here.
 // The tests run in order on one server; each continues from the state the one before left.
+// #703: the README's 30-second demo ("Watch a package") runs first on the same server, so the 2-minute
+// demo is proven to work after it without a reset.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { deliveryDetails } from '../../client/src/components/business/v2/deliveryDetailsModel';
 import { emptyDraft, RESULT_COPY, toRequest, validate } from '../../client/src/components/business/v2/newDeliveryModel';
+import { dayNightAt } from '../../client/src/components/map/dayNight';
 import { PLAY_LABEL } from '../../client/src/components/sim/v2/compose/journeyPlay';
+import { WATCH_PACKAGE_LABEL, watchPackageHref, watchPackageId } from '../../client/src/pages/landingModel';
 import { formatCents, formatMin } from '../../client/src/ui/format';
 import type { BusinessDashboard, EmployeeDashboard, ShipmentResponse, SimulatorResponse } from '../../shared/v2/api';
 import type { DeliveryPlan, Employee, NetworkBusiness } from '../../shared/v2/types';
@@ -45,6 +49,9 @@ const demoStart = readme.indexOf('\n## 2-minute demo\n');
 const demoEnd = readme.indexOf('\n## ', demoStart + 1);
 const demoSection = demoStart === -1 ? '' : readme.slice(demoStart, demoEnd === -1 ? undefined : demoEnd);
 const steps = demoSection.split('\n').filter((line) => /^\d+\. /.test(line));
+/** The "30-second demo" section (#703), up to the next `## ` heading. */
+const watchStart = readme.indexOf('\n## 30-second demo\n');
+const watchSection = watchStart === -1 ? '' : readme.slice(watchStart, readme.indexOf('\n## ', watchStart + 1));
 const step = (n: number) => steps[n - 1] ?? '';
 
 const source = (file: string) => fs.readFileSync(path.join(REPO_ROOT, file), 'utf8');
@@ -158,6 +165,50 @@ describe('README demo request on the default NYC run, no key', () => {
     for (const text of [demo.sender_url, demo.recipient_url, demo.evening_carrier, demo.morning_carrier]) expect(step(6)).toContain(text);
   }, T);
 
+  it('30-second demo: Watch a package opens the package the README names, a relay through the businesses it names, and playing it does not lock the run', async () => {
+    // The README's section comes before the 2-minute demo and names the package by its label, never by an ID (pass 63).
+    expect(watchStart).toBeGreaterThan(0);
+    expect(watchStart).toBeLessThan(demoStart);
+    expect(watchSection).toContain(`"${WATCH_PACKAGE_LABEL}"`);
+    expect(watchSection).not.toMatch(/\bshp-\d+/);
+
+    // The homepage's link, built by the page's own model from the simulator answer.
+    const sim = await api.simulator();
+    const id = watchPackageId(sim);
+    const shipment = sim.shipments.find((s) => s.id === id);
+    expect(shipment?.label).toBe(WATCH_PACKAGE_LABEL);
+    const href = watchPackageHref({
+      status: 'ready', businesses: 0, commuters: 0, matched: 0, requested: 0, businessIds: [], employeeIds: [], watchPackageId: id,
+    });
+    expect(href).toBe(`/simulator?package=${id}&play=1`);
+
+    // What the section says the journey shows: sender, the night at the relay point, recipient, two carriers.
+    const watched = sim.plans.find((p) => p.shipmentId === id);
+    expect(watched?.kind).toBe('relay');
+    if (!watched || !shipment) return;
+    const name = (businessId: string | null | undefined) => city.business.get(businessId ?? '')?.name ?? `no business ${businessId}`;
+    const relayName = name(watched.relayBusinessId);
+    expect(watchSection).toContain(`a square marks ${name(shipment.originBusinessId)}`);
+    expect(watchSection).toContain(`the relay point, ${relayName},`);
+    expect(watchSection).toContain(`"Overnight at ${relayName}" card`);
+    expect(watchSection).toContain(`the delivery at ${name(shipment.destinationBusinessId)}`);
+    expect(watched.legs).toHaveLength(2);
+    expect(new Set(watched.legs.map((leg) => leg.employeeId)).size).toBe(2); // carrier A and carrier B
+    // "the map is dark" for the evening leg, "the map is light" for the morning leg (pass 63).
+    expect(watched.legs[0].finishMin).toBeLessThan(DAY_2_MIN);
+    for (const stop of watched.legs[0].stops) expect(dayNightAt(stop.serviceStartMin)).toBe('night');
+    for (const stop of watched.legs[1].stops) expect(dayNightAt(stop.serviceStartMin)).toBe('day');
+
+    // The journey plays with seeks (journeyPlay.ts): the run stays in planning, so the 2-minute demo
+    // below follows on the same run, as the section says.
+    expect(watchSection).toMatch(/does not lock the run, so the 2-minute demo below can follow at once, without a reset/);
+    const evening = await api.control({ action: 'seek', timeMin: watched.legs[0].finishMin });
+    expect(evening.snapshot.shipmentStatus[shipment.id]).toBe('at_hub');
+    const end = await api.control({ action: 'seek', timeMin: watched.deliveryMin });
+    expect(end.snapshot.shipmentStatus[shipment.id]).toBe('delivered');
+    expect(end.clock).toMatchObject({ phase: 'planning', playing: false });
+  }, T);
+
   it('step 1: the employee page has the saved commute the README describes', async () => {
     const dash = await employeeDashboard(employee.id);
     expect(dash.trips).toHaveLength(2);
@@ -225,8 +276,8 @@ describe('README demo request on the default NYC run, no key', () => {
     // Step 5's link is the one the details show (the Employee page builds the same path).
     expect(card.journeyLabel).toBe('View journey');
     expect(card.journeyHref).toBe(`/simulator?package=${created.shipment.id}&play=1`); // the page's link also plays (#660)
-    expect(step(5)).toContain('`/simulator?package=<shipment ID>`');
-    expect(source('client/src/components/employee/v2/jobDetailV2Model.ts')).toContain('`/simulator?package=${');
+    expect(step(5)).toContain('`/simulator?package=<shipment ID>&play=1`');
+    expect(source('client/src/components/employee/v2/jobDetailV2Model.ts')).toContain('`/simulator?package=${encodeURIComponent(shipmentId)}&play=1`');
   }, T);
 
   it('step 4: the employee page lists the new job at once, on the same server', async () => {
@@ -330,7 +381,7 @@ const PAGE_WORDS: [label: string, file: string][] = [
   ['Saved commute', 'client/src/components/employee/v2/CommuteSummary.tsx'],
   ['Detour limit', 'client/src/components/employee/v2/CommuteSummary.tsx'],
   ['New delivery', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
-  ['Send request', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
+  ['Find a delivery match', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
   ['Delivery arranged', 'client/src/components/business/v2/deliveryDetailsModel.ts'],
   ['View delivery', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
   ['Assigned deliveries', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
@@ -347,18 +398,21 @@ const PAGE_WORDS: [label: string, file: string][] = [
 ];
 
 describe('README demo steps, in the words of the pages', () => {
-  it('follows SPEC\'s six steps: New delivery, Find a delivery match, Delivery arranged, relay point, Play (which skips the night)', () => {
+  it('follows SPEC\'s six steps: New delivery, Find a delivery match, Delivery arranged, relay point, a journey that plays by itself and skips the night', () => {
     expect(step(1)).toMatch(/^1\. \*\*Employee\*\*/);
     expect(step(2)).toMatch(/^2\. \*\*Business\*\*/);
     expect(step(2)).toContain('**New delivery**');
-    expect(step(2)).toContain('Find a delivery match');
+    expect(step(2)).toContain('choose **Find a delivery match**'); // the button's own label (#703)
     expect(step(3)).toContain('**Delivery arranged**');
     expect(step(3)).toContain('relay point');
     expect(step(4)).toMatch(/^4\. Back in \*\*Employee\*\*/);
     expect(step(4)).toMatch(/without refreshing/);
     expect(step(5)).toMatch(/^5\. \*\*Simulator\*\*/);
+    // #660, #703: the Watch links carry `play=1`, so nobody presses Play to start; Play resumes after Pause.
+    expect(step(5)).toMatch(/starts playing by itself/);
+    expect(step(5)).not.toMatch(/, then \*\*Play\*\*/);
     expect(PLAY_LABEL).toBe('Play');
-    expect(step(5)).toContain(`then **${PLAY_LABEL}**`);
+    expect(step(5)).toContain(`**${PLAY_LABEL}** goes on from there`);
     expect(step(5)).toMatch(/relay point .*overnight/);
     expect(step(5)).toContain('"Overnight at Etsy" card'); // the relay point of the demo request
     for (const gone of ['Play journey', 'Jump to morning', 'Finish', 'Start new planning cycle']) {
@@ -383,11 +437,39 @@ describe('README demo steps, in the words of the pages', () => {
     }
   });
 
-  // SPEC demo step 2 and docs/relay-spec.md name the button "Find a delivery match". The MVP II form in
-  // client/src/components/business/v2/NewDeliveryForm.tsx labels it "Send request", and so does /help
-  // (client/src/pages/Help.tsx), so the README names the button that is on the page. When the label
-  // changes, this test starts to pass: remove `.fails` and put the new label in step 2 and in PAGE_WORDS.
-  it.fails('the New delivery form\'s submit button reads "Find a delivery match" (client/src/components/business/v2/NewDeliveryForm.tsx)', () => {
-    expect(source('client/src/components/business/v2/NewDeliveryForm.tsx')).toContain('Find a delivery match');
+  // SPEC demo step 2 and docs/relay-spec.md name the button "Find a delivery match", and since #703 the
+  // New delivery form does too (DECISIONS pass 62 and 67). The old label is spelled in two parts here, so
+  // a search of client/, tests/ and README.md for it finds nothing.
+  it('the New delivery form\'s submit button reads "Find a delivery match", and the README names neither the old label nor Help', () => {
+    const oldLabel = ['Send', 'request'].join(' ');
+    const form = source('client/src/components/business/v2/NewDeliveryForm.tsx');
+    expect(form).toContain("'Find a delivery match'");
+    expect(form).not.toContain(oldLabel);
+    expect(source('SPEC.md')).toContain('**Find a delivery match**');
+    expect(readme).not.toContain(oldLabel);
+    // The Help page is deleted (#623): no `/help` path and no Help workspace in the README.
+    expect(readme).not.toMatch(/\/help\b|Help page|, Help,|Guided demo/);
+  });
+
+  it('30-second demo: the button and the controls are named in the words of the pages', () => {
+    expect(watchSection).toMatch(/^\n## 30-second demo\nOpen `\/` and choose \*\*Watch a package\*\*\./);
+    expect(source('client/src/pages/Landing.tsx')).toContain("WATCH_LABEL = 'Watch a package'");
+    const controls = source('client/src/components/sim/v2/controls/controlsModel.ts');
+    for (const label of ['Pause', 'Play', 'Back to start']) {
+      expect(watchSection).toContain(`**${label}**`);
+      expect(controls).toContain(`'${label}'`);
+    }
+    // Carrier letters and colours as the map draws them (docs/mvp3.md P4): A blue, B green.
+    expect(watchSection).toMatch(/Carrier \*\*A\*\* \(blue\)/);
+    expect(watchSection).toMatch(/carrier \*\*B\*\* \(green\)/);
+    // The four symbols of the map and the journey panel (map/layers.ts SYMBOL_GLYPH), in journey order.
+    const glyphs = ['\u25A0', '\u25C6', '\u21C4', '\u2691'].map((glyph) => watchSection.indexOf(glyph));
+    expect(glyphs.every((index) => index > 0)).toBe(true);
+    expect(glyphs).toStrictEqual([...glyphs].sort((a, b) => a - b));
+    // With no browser key the section says what still works; the sentence is the page's.
+    const keyMissing = /KEY_MISSING_TEXT = '([^']+)'/.exec(source('client/src/components/map/mapModel.ts'))?.[1];
+    expect(keyMissing).toBeTruthy();
+    expect(watchSection).toContain(`"${keyMissing}"`);
+    expect(watchSection).not.toMatch(/\bhubs?\b/i);
   });
 });

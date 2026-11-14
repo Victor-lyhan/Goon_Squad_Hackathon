@@ -135,7 +135,7 @@ describe('New delivery on the real server', () => {
     typeInto(byLabel(c, 'Weight (kg)'), '0.8');
     typeInto(byLabel(c, 'Contents'), 'Three proof prints in a sleeve');
     const before = api.requests.length;
-    click(button(c, 'Send request'));
+    click(button(c, 'Find a delivery match'));
     for (let i = 0; i < 200 && answers.length === 0; i++) await flush();
     await flush();
 
@@ -205,7 +205,7 @@ describe('New delivery on the real server', () => {
     select(byLabel(form(), 'Deliver by: day'), 'Day 1');
     typeInto(byLabel(form(), 'Deliver by: time'), '16:05');
     const start = api.requests.length;
-    click(button(form(), 'Send request'));
+    click(button(form(), 'Find a delivery match'));
     await answered(1);
     expect(posts()).toEqual(['POST /api/v2/shipments']);
     const rush = await mine('Rush folder 582');
@@ -235,7 +235,7 @@ describe('New delivery on the real server', () => {
       select(byLabel(form(), 'Recipient'), optionLabel(to));
       typeInto(byLabel(form(), 'Package name'), label);
       typeInto(byLabel(form(), 'Contents'), 'One tray');
-      click(button(form(), 'Send request'));
+      click(button(form(), 'Find a delivery match'));
       await answered(sent + 1);
       expect(posts().slice(sent)).toEqual(['POST /api/v2/shipments']);
       const tray = await mine(label);

@@ -289,7 +289,7 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
 
       <div className="nd-actions">
         <button type="submit" className="nd-btn nd-btn--primary" disabled={submitting || locked}>
-          {retrying ? 'Matching…' : submitting ? 'Sending…' : p.retry ? 'Try matching again' : 'Send request'}
+          {retrying ? 'Matching…' : submitting ? 'Sending…' : p.retry ? 'Try matching again' : 'Find a delivery match'}
         </button>
         <button type="button" className="nd-btn" onClick={p.onCancel}>Cancel</button>
       </div>

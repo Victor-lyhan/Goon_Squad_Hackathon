@@ -28,7 +28,7 @@ function sectionOf(heading: string): string {
   return readme.slice(start, next === -1 ? undefined : next);
 }
 const BROWSER_KEY_NAME = 'VITE_GOOGLE_MAPS_BROWSER_KEY';
-// `/help` is no longer a route (#623). The README still has its row until a README issue removes it.
+// `/help` is no longer a route (#623) and the README no longer has its row (#703).
 const MAIN_PATHS = ['/', '/business/<id>', '/employee/<id>', '/simulator'];
 
 describe('README', () => {
@@ -172,7 +172,7 @@ describe('README after the cutover', () => {
       ['`map/`', 'client/src/components/map'], ['`api/v2/`', 'server/api/v2'], ['`domain/v2/`', 'server/domain/v2'],
       ['`geo/`', 'server/geo'], ['`shared/v2/`', 'shared/v2'], ['`api/`', 'tests/api'], ['`domain/`', 'tests/domain'],
       ['`geo/`', 'tests/geo'], ['`ui/`', 'tests/ui'], ['`relay-spec.md`', 'docs/relay-spec.md'],
-      ['`mvp2-ui-redesign.md`', 'docs/mvp2-ui-redesign.md'], ['`SPEC.md`', 'SPEC.md'], ['`DECISIONS.md`', 'DECISIONS.md'],
+      ['`mvp2-ui-redesign.md`', 'docs/mvp2-ui-redesign.md'], ['`mvp3.md`', 'docs/mvp3.md'], ['`SPEC.md`', 'SPEC.md'], ['`DECISIONS.md`', 'DECISIONS.md'],
       ['`AGENTS.md`', 'AGENTS.md'],
       ...['businesses.json', 'neighborhoods.json', 'demoStory.json', 'matrix.json', 'polylines.json']
         .map((file): [string, string] => [`\`${file}\``, `fixtures/nyc/${file}`]),
