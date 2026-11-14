@@ -14,7 +14,7 @@ log "planner starting (model $MODEL, effort $EFFORT, every ${INTERVAL} min)"
 
 while ! halted; do
   git -C "$REPO_ROOT" checkout -q main
-  git -C "$REPO_ROOT" pull -q --rebase origin main || { log "pull failed"; backoff 120; continue; }
+  git -C "$REPO_ROOT" pull -q --rebase origin main || { git -C "$REPO_ROOT" rebase --abort 2>/dev/null; git -C "$REPO_ROOT" fetch -q origin main && git -C "$REPO_ROOT" reset -q --hard origin/main; log "pull failed; reset to origin/main"; backoff 30; continue; }
 
   CTX="## Open issues (number [labels] title)
 $(gh issue list --state open --limit 100 --json number,title,labels --jq '.[] | "#\(.number) [\([.labels[].name] | join(","))] \(.title)"')
@@ -44,7 +44,7 @@ $CTX"
   git -C "$REPO_ROOT" add STATUS.md DECISIONS.md QUESTIONS.md 2>/dev/null
   if ! git -C "$REPO_ROOT" diff --cached --quiet; then
     git -C "$REPO_ROOT" commit -q -m "planner: update status ($(date '+%H:%M'))"
-    git -C "$REPO_ROOT" pull -q --rebase origin main && git -C "$REPO_ROOT" push -q origin main \
+    { git -C "$REPO_ROOT" pull -q --rebase origin main || { git -C "$REPO_ROOT" rebase --abort 2>/dev/null; git -C "$REPO_ROOT" reset -q --hard origin/main; false; }; } && git -C "$REPO_ROOT" push -q origin main \
       && log "pushed STATUS/DECISIONS/QUESTIONS" || log "push failed; will retry next pass"
   fi
   git -C "$REPO_ROOT" reset -q --hard HEAD
