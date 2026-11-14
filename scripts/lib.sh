@@ -47,7 +47,7 @@ run_agent() {
   else
     # --full-auto = sandboxed, writes limited to the worktree. If package installs fail
     # inside Codex, install dependencies in the worktree yourself before bed (see README).
-    (cd "$dir" && codex exec --full-auto ${model:+-m "$model"} ${EFFORT:+-c model_reasoning_effort="$EFFORT"} "$prompt") >>"$LOG" 2>&1
+    (cd "$dir" && codex exec --sandbox workspace-write ${model:+-m "$model"} ${EFFORT:+-c model_reasoning_effort="$EFFORT"} "$prompt") >>"$LOG" 2>&1
   fi
 }
 
