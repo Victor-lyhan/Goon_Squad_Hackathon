@@ -6,7 +6,7 @@ import { generateScenario } from '../../server/domain/generator';
 import { DEFAULT_SETTINGS } from '../../server/domain/pricing';
 import { buildTrips, createRouter } from '../../server/domain/routing';
 
-const noCommute = 'No commute can carry this package within its times and added-time limits';
+const noCommute = 'No available commute route can visit the required pickup and drop-off stops';
 const occupied = 'Every matching commute is already carrying a package';
 function inputs() {
   const employees: Employee[] = fixture.employees.map((employee, i) => ({
@@ -131,7 +131,9 @@ describe('assignShipments', () => {
     if (kind === 'unknown-origin') shipment.originBusinessId = 'missing';
     if (kind === 'unknown-destination') shipment.destinationBusinessId = 'missing';
     if (kind === 'deadline') shipment.deadlineMin = 1960;
-    const reason = kind === 'deadline' ? 'No commute can arrive before the deadline' : noCommute;
+    const reason = kind === 'deadline' ? 'No commute can arrive before the deadline'
+      : kind === 'same' ? 'Sender and recipient must be different businesses'
+      : 'Sender or recipient business is missing';
     expect(assignShipments([shipment], ctx)).toEqual({ plans: [], unmatched: [{ shipmentId: shipment.id, reason }], computeMs: 0 });
   });
 
