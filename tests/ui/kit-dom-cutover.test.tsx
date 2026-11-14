@@ -77,7 +77,7 @@ const PAGES = () => [
   { path: '/', marker: '.landing.landing-nyc', ready: '.op-summary-list', full: false },
   { path: '/help', marker: '.help.help-nyc', ready: 'a.help-step-link[href^="/business/"]', full: false },
   { path: `/business/${bizId}`, marker: 'main.bp', ready: 'main.bp .bp-notices', full: false },
-  { path: `/employee/${empId}`, marker: 'main.ep', ready: 'main.ep h1', full: false },
+  { path: `/employee/${empId}`, marker: 'div.ep', ready: 'div.ep h1', full: false }, // the shell has the only <main> (#584)
   { path: '/simulator', marker: '.sim-v2', ready: '.sim-v2 .sw-left', full: true },
 ];
 

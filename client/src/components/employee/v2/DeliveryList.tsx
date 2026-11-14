@@ -1,4 +1,5 @@
 import { EMPTY_TEXT, type DeliveryRow } from './employeeWorkspaceModel';
+import { PageLink } from './page/PageLink';
 
 export type DeliveryListProps = {
   id: string;
@@ -54,8 +55,9 @@ export function DeliveryList({ id, title, rows, newJobIds, emptyText = EMPTY_TEX
                 </div>
               </dl>
               <div className="ew-row-links">
-                <a href={r.jobHref} data-row-focus="">View job</a>
-                <a href={r.simulatorHref}>Watch in simulator</a>
+                {/* Router links (#584): the job opens on this page, the simulator without a new document. */}
+                <PageLink to={r.jobHref} data-row-focus="">View job</PageLink>
+                <PageLink to={r.simulatorHref}>Watch in simulator</PageLink>
               </div>
             </li>
           ))}

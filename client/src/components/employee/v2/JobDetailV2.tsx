@@ -5,6 +5,7 @@ import type { JobResponse } from '../../../../../shared/v2/api';
 import type { NetworkBusiness } from '../../../../../shared/v2/types';
 import { JOB_MISSING_TITLE, JOB_OTHER_TITLE } from '../jobDetailModel';
 import { jobDetail } from './jobDetailV2Model';
+import { PageLink } from './page/PageLink';
 import './JobDetailV2.css';
 
 export type JobDetailV2Props = {
@@ -68,7 +69,7 @@ export function JobDetailV2({ job, businesses, homeNeighborhood, onBack }: JobDe
       </section>
 
       <nav className="job-v2__actions" aria-label="Job links">
-        <a className="job-v2__link" href={m.watchHref}>Watch this package</a>
+        <PageLink className="job-v2__link" to={m.watchHref}>Watch this package</PageLink>
         <button type="button" className="job-v2__button" onClick={onBack}>Back to deliveries</button>
       </nav>
     </article>
@@ -97,7 +98,7 @@ export function JobV2Other({ href, onBack }: { href: string; onBack(): void }) {
       <h2 className="job-v2__title" tabIndex={-1} ref={heading}>{JOB_OTHER_TITLE}</h2>
       <p className="job-v2__text">You can only see details for your own deliveries here.</p>
       <div className="job-v2__actions">
-        <a className="job-v2__link" href={href}>Open it on the right employee page</a>
+        <PageLink className="job-v2__link" to={href}>Open it on the right employee page</PageLink>
         <button type="button" className="job-v2__button" onClick={onBack}>Back to deliveries</button>
       </div>
     </article>

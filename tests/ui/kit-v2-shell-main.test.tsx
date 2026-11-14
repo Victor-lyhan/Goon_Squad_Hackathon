@@ -42,7 +42,7 @@ const hrefOf = (html: string, label: string) =>
 describe('route table', () => {
   const table: [string, RegExp][] = [
     ['/simulator', /class="spc-state/], // SimulatorV2 (loading state)
-    ['/employee/emp-01', /<main class="ep">/], // EmployeeV2
+    ['/employee/emp-01', /<div class="ep">/], // EmployeeV2 (no <main> of its own, #584)
     ['/business/biz-01', /<main class="bp">/], // BusinessV2 (loading state)
     ['/', /class="landing landing-nyc"/],
     ['/help', /class="help help-nyc"/],
@@ -112,7 +112,7 @@ describe('header on /employee/:id', () => {
     const html = render('/employee/emp-01', v2Down);
     expect(header(html)).not.toContain('Demo account');
     expect(header(html)).not.toContain('role="alert"');
-    expect(main(html)[2]).toContain('<main class="ep">');
+    expect(main(html)[2]).toContain('<div class="ep">');
   });
   it('a non-503 failure shows the accounts error, not a crash', () => {
     expect(header(render('/employee/emp-01', { status: 'error', message: 'boom' }))).toContain('Accounts unavailable');

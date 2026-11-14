@@ -17,6 +17,7 @@ import {
   ERROR_TITLE, JOB_LOADING_TEXT, LOADING_TEXT, NOT_FOUND_TEXT, NOT_FOUND_TITLE, NO_EMPLOYEES_TEXT,
   jobHref, outcomeFromError, outcomeFromResponse, pageScreen, saveNotice, showRunNote, type SaveOutcome,
 } from './employeePageModel';
+import { PageLink } from './PageLink';
 import './employeePage.css';
 
 export type EmployeePageViewProps = {
@@ -49,15 +50,24 @@ export function EmployeePageView({
   const [dismissedRun, setDismissedRun] = useState<string | null | undefined>(undefined);
   const screen = pageScreen(state, jobId);
 
+  // A job opened from the list (#584): the list stays on screen until the job's detail arrives, so there
+  // is no loading text in between and the clicked link keeps focus until the job heading takes it.
+  // A page that starts on `?job=`, or moves from one job to another, shows the loading text as before.
+  const [listShown, setListShown] = useState(false);
+  const jobOpening = screen.kind === 'job_loading' && listShown;
+  const showsList = screen.kind === 'workspace' || jobOpening;
+  if (showsList !== listShown) setListShown(showsList);
+
   useEffect(() => { if (jobId) markSeen(jobId); }, [jobId, markSeen]);
 
   // Focus after the editor or a job closes (#550). The element to focus only exists after the re-render,
   // so the close handlers set a flag and a layout effect moves focus once the DOM is in place.
-  const mainRef = useRef<HTMLElement>(null);
+  // The shell has the only main landmark (#584), so this root is a div.
+  const rootRef = useRef<HTMLDivElement>(null);
   const focusEdit = useRef(false);
   const lastJob = useRef(jobId);
   useLayoutEffect(() => {
-    const root = mainRef.current;
+    const root = rootRef.current;
     if (focusEdit.current && !editing) {
       focusEdit.current = false;
       root?.querySelector<HTMLButtonElement>('.ew-commute .ew-btn')?.focus(); // CommuteSummary's Edit commute
@@ -71,44 +81,44 @@ export function EmployeePageView({
   });
 
   if (screen.kind === 'loading') {
-    return <main className="ep"><p className="ep-state" role="status">{LOADING_TEXT}</p></main>;
+    return <div className="ep"><p className="ep-state" role="status">{LOADING_TEXT}</p></div>;
   }
   if (screen.kind === 'not_found') {
     return (
-      <main className="ep">
+      <div className="ep">
         <section className="ep-state" role="status">
           <h1>{NOT_FOUND_TITLE}</h1>
           <p>{screen.fallbackEmployeeId ? NOT_FOUND_TEXT : NO_EMPLOYEES_TEXT}</p>
           <p className="ep-links">
             {screen.fallbackEmployeeId && (
-              <a href={employeeHref(screen.fallbackEmployeeId)}>Open an employee in the current city</a>
+              <PageLink to={employeeHref(screen.fallbackEmployeeId)}>Open an employee in the current city</PageLink>
             )}
-            <a href="/">Back to the start page</a>
+            <PageLink to="/">Back to the start page</PageLink>
           </p>
         </section>
-      </main>
+      </div>
     );
   }
   if (screen.kind === 'unavailable') {
     return (
-      <main className="ep">
+      <div className="ep">
         <section className="ep-state ep-problem" role="alert">
           <h1>Travel data unavailable</h1>
           <p>{screen.text}</p>
           <button type="button" className="ep-btn" onClick={() => { void refetchNow(); }}>Retry</button>
         </section>
-      </main>
+      </div>
     );
   }
   if (screen.kind === 'error') {
     return (
-      <main className="ep">
+      <div className="ep">
         <section className="ep-state ep-problem" role="alert">
           <h1>{ERROR_TITLE}</h1>
           <p>{screen.text}</p>
           <button type="button" className="ep-btn" onClick={() => { void refetchNow(); }}>Retry</button>
         </section>
-      </main>
+      </div>
     );
   }
 
@@ -218,10 +228,20 @@ export function EmployeePageView({
     </div>
   );
 
+  const workspace = (
+    <EmployeeWorkspace
+      dashboard={dashboard}
+      businesses={businesses}
+      newJobIds={state.newJobIds}
+      editor={<>{commuteBlock}{routePreview}</>}
+    />
+  );
+
   let body: ReactNode;
   const homeNeighborhood = dashboard.home.neighborhood;
   switch (screen.kind) {
     case 'job_loading':
+      if (jobOpening) { body = workspace; break; }
       body = <p className="ep-state" role="status">{JOB_LOADING_TEXT}</p>;
       break;
     case 'job_missing':
@@ -239,20 +259,13 @@ export function EmployeePageView({
       );
       break;
     default:
-      body = (
-        <EmployeeWorkspace
-          dashboard={dashboard}
-          businesses={businesses}
-          newJobIds={state.newJobIds}
-          editor={<>{commuteBlock}{routePreview}</>}
-        />
-      );
+      body = workspace;
   }
 
   return (
-    <main className="ep" ref={mainRef}>
+    <div className="ep" ref={rootRef} aria-busy={jobOpening || undefined}>
       {notices}
       {body}
-    </main>
+    </div>
   );
 }
