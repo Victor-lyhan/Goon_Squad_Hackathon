@@ -6,7 +6,10 @@ import {
 } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
 import { dash, jobResponse } from './employeeV2DataSample';
 
-const run = (actions: WorkspaceAction[], from: EmployeeWorkspaceState = init) => actions.reduce(reduce, from);
+// The business list has arrived (#712): a dashboard shows at once. The order of the two is tested in
+// employee-v2-businesses-first.test.ts.
+const listed = reduce(init, { type: 'businesses', businesses: [] });
+const run = (actions: WorkspaceAction[], from: EmployeeWorkspaceState = listed) => actions.reduce(reduce, from);
 const ok = (version: number, ids: string[], runId: string | null = 'run-1', emp = 'emp-01'): WorkspaceAction =>
   ({ type: 'dashboard', dashboard: dash(version, ids, emp), runId });
 const fail = (error: unknown): WorkspaceAction => ({ type: 'dashboardFailed', error });
@@ -64,7 +67,7 @@ describe('employee workspace state: failures', () => {
   });
 
   it('travel_data_missing shows the fixed text, the other codes the server text, and recovers', () => {
-    const missing = reduce(init, fail(travel('travel_data_missing', 'no cache')));
+    const missing = reduce(listed, fail(travel('travel_data_missing', 'no cache')));
     expect(missing.view).toBe('unavailable');
     expect(missing.unavailable).toEqual({ code: 'travel_data_missing', message: TRAVEL_DATA_MISSING_TEXT });
     expect(TRAVEL_DATA_MISSING_TEXT).toBe('NYC travel data is not loaded on this server yet.');
@@ -91,7 +94,7 @@ describe('employee workspace state: failures', () => {
   });
 
   it('a network error before the first success is an error view; polling on recovers', () => {
-    const s = reduce(init, fail(network()));
+    const s = reduce(listed, fail(network()));
     expect(s.view).toBe('error');
     expect(s.error).toBe('Failed to fetch');
     expect(reduce(s, fail(network()))).toBe(s);
