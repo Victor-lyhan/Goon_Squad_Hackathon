@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const css = readFileSync('client/src/components/business/v2/page/businessPage.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -38,5 +38,59 @@ describe('businessPage.css at 390 px', () => {
     }
     expect(css).not.toMatch(/box-shadow|gradient/i);
     expect(css).not.toMatch(/var\(--[a-z-]+\)/);
+  });
+});
+
+// #581: the page uses up to 1320 px although the shell's column is 960 px, and the table never makes the
+// page scroll sideways between 641 px and the full width.
+describe('desktop width (#581)', () => {
+  const shell = readFileSync('client/src/styles/global.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('widens the shell\'s <main> to 1320 px only around a Business page', () => {
+    expect(base).toMatch(/(^|\})\s*\.app-main:has\(\.bp\) \{ max-width: 1320px; \}/);
+    expect(base).toMatch(/\.bp \{[^}]*max-width: 1320px/);
+    // The only selector of this file that names the shell.
+    expect(css.match(/\.app-[\w-]+/g)).toEqual(['.app-main']);
+  });
+
+  it('leaves the shell at 960 px for every other page', () => {
+    expect(shell).toMatch(/\.app-main \{ max-width: 960px;/);
+    expect(shell).not.toMatch(/\.bp\b|1320/);
+    // The simulator's full-width rule aside, no other stylesheet changes the shell's column.
+    const widths = [...shell.matchAll(/\.app-main[^{]*\{[^}]*max-width:\s*([^;}]+)/g)].map((x) => x[1].trim());
+    expect(widths).toEqual(['960px', 'none']);
+    const others = readdirSync('client/src', { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('.css') && !f.endsWith('styles/global.css') && !f.endsWith('page/businessPage.css'));
+    expect(others.length).toBeGreaterThan(5);
+    for (const f of others) expect(readFileSync(`client/src/${f}`, 'utf8'), f).not.toMatch(/\.app-main\b[^{]*\{[^}]*max-width/);
+  });
+
+  it('keeps the side column only while the table has room, then stacks', () => {
+    const m = css.match(/@media \(max-width: (\d+)px\) \{([\s\S]*?)\n\}/)!;
+    // 1320 px shell: about 880 px for the table beside the 360 px side column (800 px with a delivery open).
+    // The 440 px details column, the gap and both paddings leave the table 640 px only above 1160 px.
+    expect(Number(m[1])).toBeGreaterThanOrEqual(640 + 440 + 16 + 4 * 16);
+    expect(base).toMatch(/\.bp-layout \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 360px\)/);
+    expect(base).toMatch(/\.bp-layout--open \{ grid-template-columns: minmax\(0, 1fr\) minmax\(0, 440px\); \}/);
+  });
+
+  it('the table drops its least important columns by its own box width and scrolls inside its box', () => {
+    // The box is a size container, so the rule follows the box (with or without an open delivery), not the window.
+    expect(table).toMatch(/\.bw-table-wrap \{[^}]*container: bw-table \/ inline-size/);
+    const wide = table.match(/@media \(min-width: 641px\) \{([\s\S]*?)\n\}/);
+    expect(wide).not.toBeNull();
+    expect(wide![1]).toMatch(/\.bw-table-wrap \{ overflow-x: auto; \}/);
+    const steps = [...wide![1].matchAll(/@container bw-table \(max-width: (\d+)px\) \{\s*\.bw-table \.(bw-col--drop\d) \{ display: none; \}/g)]
+      .map((x) => [x[2], Number(x[1])]);
+    expect(steps.map((x) => x[0])).toEqual(['bw-col--drop1', 'bw-col--drop2', 'bw-col--drop3']);
+    // Wider boxes drop fewer columns; every step is above the 640 px stacked rows.
+    const widths = steps.map((x) => x[1] as number);
+    expect([...widths].sort((a, b) => b - a)).toEqual(widths);
+    for (const w of widths) expect(w).toBeGreaterThan(640);
+    // The columns are hidden nowhere else, so the 390 px stacked rows keep every cell.
+    expect(table.match(/bw-col--drop/g)).toHaveLength(3);
+    const stacked = table.match(/@media \(max-width: 640px\) \{([\s\S]*)\}\s*$/)![1];
+    expect(stacked).toMatch(/\.bw-table-wrap \{ overflow-x: hidden; \}/);
+    expect(stacked).not.toMatch(/display: none/);
   });
 });

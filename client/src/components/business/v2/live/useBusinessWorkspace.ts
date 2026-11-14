@@ -5,7 +5,7 @@ import type { z } from 'zod';
 import type { ShipmentResponse } from '../../../../../../shared/v2/api';
 import type { CreateShipmentRequest, PatchShipmentRequest } from '../../../../../../shared/v2/schemas';
 import {
-  createShipment as apiCreateShipment, getBusinessDashboard, getBusinesses, getEmployees, getMap,
+  createShipment as apiCreateShipment, getBusinessDashboard, getBusinesses, getEmployees, getMap, getShipment,
   matchShipment as apiMatchShipment, patchShipment as apiPatchShipment, type RequestOptions,
 } from '../../../../api/v2';
 import { createBusinessPoller, type BusinessPoller, type BusinessWorkspaceApi } from './businessPoller';
@@ -23,7 +23,7 @@ export type BusinessWorkspaceDeps = BusinessWorkspaceApi & {
 };
 
 export const defaultBusinessWorkspaceDeps: BusinessWorkspaceDeps = {
-  getBusinessDashboard, getBusinesses, getEmployees, getMap,
+  getBusinessDashboard, getBusinesses, getEmployees, getMap, getShipment,
   createShipment: apiCreateShipment, patchShipment: apiPatchShipment, matchShipment: apiMatchShipment,
 };
 
@@ -66,21 +66,31 @@ export type BusinessWorkspace = BusinessWorkspaceState & ShipmentActions & {
   dismissRunChanged: () => void;
 };
 
+/**
+ * `openShipmentId` is the page's `?shipment=`. A delivery the dashboard does not list (a package this business
+ * holds as the relay point) is read into `held` and refreshed with the poll while it is open (#581).
+ */
 export function useBusinessWorkspace(
   businessId: string,
   deps: BusinessWorkspaceDeps = defaultBusinessWorkspaceDeps,
+  openShipmentId: string | null = null,
 ): BusinessWorkspace {
   const [owned, send] = useReducer(ownedBusinessReducer, { owner: businessId, state: initialBusinessWorkspaceState });
   const poller = useRef<BusinessPoller | null>(null);
+  const open = useRef(openShipmentId);
+  open.current = openShipmentId;
 
   useEffect(() => {
     const p = createBusinessPoller(businessId, deps, {
       dispatch: (action) => send({ owner: businessId, action }),
     });
     poller.current = p;
+    p.watch(open.current);
     p.start();
     return () => { p.stop(); if (poller.current === p) poller.current = null; };
   }, [businessId, deps]);
+
+  useEffect(() => { poller.current?.watch(openShipmentId); }, [openShipmentId]);
 
   const refetchNow = useCallback(async () => { await poller.current?.refetchNow(); }, []);
   const createShipment = useCallback(

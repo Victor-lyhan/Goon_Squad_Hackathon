@@ -76,7 +76,7 @@ function shownText(root: HTMLElement): string {
 const PAGES = () => [
   { path: '/', marker: '.landing.landing-nyc', ready: '.op-summary-list', full: false },
   { path: '/help', marker: '.help.help-nyc', ready: 'a.help-step-link[href^="/business/"]', full: false },
-  { path: `/business/${bizId}`, marker: 'main.bp', ready: 'main.bp .bp-notices', full: false },
+  { path: `/business/${bizId}`, marker: 'div.bp', ready: 'div.bp .bp-notices', full: false }, // no <main> of its own (#581)
   { path: `/employee/${empId}`, marker: 'div.ep', ready: 'div.ep h1', full: false }, // the shell has the only <main> (#584)
   { path: '/simulator', marker: '.sim-v2', ready: '.sim-v2 .sw-left', full: true },
 ];
@@ -136,7 +136,7 @@ describe('the five main paths show the MVP II pages on the real NYC run', () => 
     expect(s.where.path).toBe(`/business/${bizIds[1]}`);
     expect(readIdentity()).toEqual({ businessId: bizIds[1], employeeId: 'emp-001' });
     expect(link(s.header(), 'Business').getAttribute('href')).toBe(`/business/${bizIds[1]}`);
-    await s.until(() => !!s.main().querySelector('main.bp h1'), 'the chosen business page');
+    await s.until(() => !!s.main().querySelector('div.bp h1'), 'the chosen business page');
   }, T);
 
   it('the employee selector names each employer, in the API\'s order (#568)', async () => {

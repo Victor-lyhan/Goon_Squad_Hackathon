@@ -3,13 +3,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, type RequestOptions } from '../../client/src/api/v2';
-import type { BusinessDashboard, ShipmentResponse } from '../../shared/v2/api';
+import type { BusinessDashboard, ShipmentResponse, ShipmentView } from '../../shared/v2/api';
 import { createBusinessPoller, type BusinessWorkspaceApi } from '../../client/src/components/business/v2/live/businessPoller';
 import {
   businessWorkspaceReducer, initialBusinessWorkspaceState, type BusinessWorkspaceAction, type BusinessWorkspaceState,
 } from '../../client/src/components/business/v2/live/businessWorkspaceState';
 import { ownedBusinessReducer, shipmentActionsWith } from '../../client/src/components/business/v2/live/useBusinessWorkspace';
-import { BUSINESSES, DASHBOARD, directOut } from './business-v2-table-sample';
+import { BUSINESSES, DASHBOARD, directOut, plan, shipment, view } from './business-v2-table-sample';
 
 const abortable = <T>(opts: RequestOptions | undefined, ms: number, value: () => T | Promise<T>) =>
   new Promise<T>((resolve, reject) => {
@@ -35,15 +35,28 @@ type Fake = {
   signals: AbortSignal[];
   runId: string;
   setDash: (id: string, d: BusinessDashboard | Error) => void;
+  /** What GET /shipments/:id answers; an unknown ID is a 404. */
+  setShipment: (id: string, v: ShipmentView | Error) => void;
 };
 
 function fakeApi(): Fake {
   const dashes = new Map<string, BusinessDashboard | Error>();
+  const shipments = new Map<string, ShipmentView | Error>();
   let active = 0;
   const f: Fake = {
     calls: [], maxConcurrent: 0, delayMs: 10, listDelayMs: 1, mapDelayMs: 1, failLists: 0, signals: [], runId: 'run-1',
     setDash: (id, d) => { dashes.set(id, d); },
+    setShipment: (id, v) => { shipments.set(id, v); },
     api: {
+      getShipment: (id, opts) => {
+        f.calls.push(`shipment:${id}`);
+        return abortable(opts, 5, () => {
+          const v = shipments.get(id);
+          if (!v) throw new ApiRequestError(404, 'Unknown shipment');
+          if (v instanceof Error) throw v;
+          return v;
+        });
+      },
       getBusinessDashboard: (id, opts) => {
         f.calls.push(`dash:${id}`);
         if (opts?.signal) f.signals.push(opts.signal);
@@ -423,6 +436,159 @@ describe('business v2 poller', () => {
     await vi.advanceTimersByTimeAsync(20);
     expect(count(f, `dash:${ID}`)).toBe(before + 1);
     expect(s.get().dashboard?.outgoing).toHaveLength(1);
+    p.stop();
+  });
+});
+
+// #581: a package this business holds as the relay point is in neither list of the dashboard.
+describe('the open delivery outside the dashboard (watch)', () => {
+  // shp-9 goes from the print shop to the cafe and is held overnight at this business.
+  const held = (status: ShipmentView['status'] = 'at_hub'): ShipmentView => view(
+    shipment('shp-9', { label: 'Prints', originBusinessId: 'biz-print', destinationBusinessId: 'biz-cafe' }),
+    plan('shp-9', { kind: 'relay', relayBusinessId: ID }), status,
+  );
+  const heldActions = (s: ReturnType<typeof sinkState>) => s.actions.filter((a) => a.type.startsWith('held'));
+
+  it('reads it with getShipment at once when opened, then on every poll, and stops when it is closed', async () => {
+    const f = fakeApi();
+    f.setDash(ID, dash(1));
+    f.setShipment('shp-9', held());
+    const s = sinkState();
+    const p = createBusinessPoller(ID, f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(count(f, 'shipment:shp-9')).toBe(0);
+    expect(s.get().held).toBeNull();
+
+    p.watch('shp-9'); // the click: not the next tick, now
+    await vi.advanceTimersByTimeAsync(50);
+    expect(count(f, 'shipment:shp-9')).toBe(1);
+    expect(s.get().held).toEqual({ shipmentId: 'shp-9', view: held(), status: 'ready' });
+    const first = s.get();
+
+    // Equal answers keep the state object; a changed status (the clock moved) arrives with the next poll.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(count(f, 'shipment:shp-9')).toBe(3);
+    expect(s.get()).toBe(first);
+    f.setShipment('shp-9', held('out_for_delivery'));
+    await vi.advanceTimersByTimeAsync(1100); // one more poll (1 s wait + the two requests)
+    expect(s.get().held?.view?.status).toBe('out_for_delivery');
+    expect(f.maxConcurrent).toBe(1);
+
+    p.watch(null);
+    const n = count(f, 'shipment:shp-9');
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(count(f, 'shipment:shp-9')).toBe(n);
+    expect(s.get().held?.shipmentId).toBe('shp-9'); // kept for its notification's time
+    p.stop();
+  });
+
+  it('never asks for a delivery the dashboard lists', async () => {
+    const f = fakeApi();
+    f.setDash(ID, dash(1));
+    const s = sinkState();
+    const p = createBusinessPoller(ID, f.api, s.sink);
+    p.watch(directOut.shipment.id);
+    p.start();
+    await vi.advanceTimersByTimeAsync(2100);
+    p.watch(DASHBOARD.incoming[0].shipment.id);
+    await vi.advanceTimersByTimeAsync(2100);
+    expect(f.calls.filter((c) => c.startsWith('shipment:'))).toEqual([]);
+    expect(heldActions(s)).toEqual([]);
+    p.stop();
+  });
+
+  it('a delivery named before the first poll (?shipment= in the link) is read with that poll', async () => {
+    const f = fakeApi();
+    f.setDash(ID, dash(1));
+    f.setShipment('shp-9', held());
+    const s = sinkState();
+    const p = createBusinessPoller(ID, f.api, s.sink);
+    p.watch('shp-9');
+    p.start();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(count(f, `dash:${ID}`)).toBe(1);
+    expect(count(f, 'shipment:shp-9')).toBe(1);
+    expect(s.get().held?.status).toBe('ready');
+    p.stop();
+  });
+
+  it('a 404 is "missing", another failure is "failed" and is tried again; a failed refresh keeps the view', async () => {
+    const f = fakeApi();
+    f.setDash(ID, dash(1));
+    const s = sinkState();
+    const p = createBusinessPoller(ID, f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(50);
+    p.watch('shp-404');
+    await vi.advanceTimersByTimeAsync(50);
+    expect(s.get().held).toEqual({ shipmentId: 'shp-404', view: null, status: 'missing' });
+
+    f.setShipment('shp-9', new ApiRequestError(500, 'boom'));
+    p.watch('shp-9');
+    await vi.advanceTimersByTimeAsync(50);
+    expect(s.get().held).toEqual({ shipmentId: 'shp-9', view: null, status: 'failed' });
+    f.setShipment('shp-9', held());
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(s.get().held?.status).toBe('ready');
+    f.setShipment('shp-9', new ApiRequestError(0, 'Failed to fetch', undefined, 'network'));
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(s.get().held).toEqual({ shipmentId: 'shp-9', view: held(), status: 'ready' });
+    p.stop();
+  });
+
+  it('drops the answer for a delivery that was closed while the request was in flight, and nothing after stop()', async () => {
+    const f = fakeApi();
+    f.setDash(ID, dash(1));
+    f.setShipment('shp-9', held());
+    const s = sinkState();
+    const p = createBusinessPoller(ID, f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(50);
+    p.watch('shp-9');
+    await vi.advanceTimersByTimeAsync(12); // the dashboard answered, the shipment request is in flight
+    expect(count(f, 'shipment:shp-9')).toBe(1);
+    p.watch(null);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(heldActions(s)).toEqual([]);
+
+    p.watch('shp-9');
+    await vi.advanceTimersByTimeAsync(12);
+    p.stop();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(heldActions(s)).toEqual([]);
+  });
+
+  it('a new run forgets the held delivery and reads the same ID again', async () => {
+    const f = fakeApi();
+    f.setDash(ID, dash(5));
+    f.setShipment('shp-9', held());
+    const s = sinkState();
+    const p = createBusinessPoller(ID, f.api, s.sink);
+    p.watch('shp-9');
+    p.start();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(s.get().held?.status).toBe('ready');
+    // New city: in that run shp-9 is another package, which this business does not hold.
+    f.runId = 'run-2';
+    f.setDash(ID, dash(6));
+    const other = view(shipment('shp-9', { label: 'Other', originBusinessId: 'biz-print', destinationBusinessId: 'biz-cafe' }), null, 'unmatched');
+    f.setShipment('shp-9', other);
+    // The run is checked again 5 s after the first check (#599); until then the old run's ID stays.
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(s.get().runChanged).toBe(false);
+    expect(s.get().held).toEqual({ shipmentId: 'shp-9', view: other, status: 'ready' });
+    const before = s.actions.length;
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(s.get().runChanged).toBe(true);
+    expect(s.get().runId).toBe('run-2');
+    // The run change dropped the held delivery, and it was read again right away, not at the next poll.
+    const after = s.actions.slice(before);
+    const runAt = after.findIndex((a) => a.type === 'dashboard' && a.runId === 'run-2');
+    expect(runAt).toBeGreaterThanOrEqual(0);
+    expect(s.states[before + runAt].held).toBeNull();
+    expect(after.slice(runAt + 1).find((a) => a.type === 'dashboard' || a.type === 'held')?.type).toBe('held');
+    expect(s.get().held).toEqual({ shipmentId: 'shp-9', view: other, status: 'ready' });
     p.stop();
   });
 });

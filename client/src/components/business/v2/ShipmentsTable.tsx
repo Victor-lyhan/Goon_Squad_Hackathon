@@ -13,23 +13,33 @@ export type ShipmentsTableProps = {
   selectedId: string | null;
   onSelect: (shipmentId: string) => void;
   onNewDelivery: () => void;
+  /** Disable the empty state's New delivery button (the run is locked), like the toolbar's. */
+  newDeliveryDisabled?: boolean;
   onClearFilters: () => void;
 };
 
-type Column = { key: SortKey | null; label: string; mono?: boolean; numeric?: boolean };
+/** `drop`: the column is hidden when the table's box is narrow, 1 first (businessWorkspace.css, #581). */
+type Column = { key: SortKey | null; label: string; mono?: boolean; numeric?: boolean; drop?: 1 | 2 | 3 };
 
 const COLUMNS: Column[] = [
   { key: 'label', label: 'Package' },
-  { key: 'id', label: 'Shipment ID', mono: true },
-  { key: null, label: 'Direction' },
+  { key: 'id', label: 'Shipment ID', mono: true, drop: 2 },
+  { key: null, label: 'Direction', drop: 3 },
   { key: 'counterpart', label: 'Business' },
   { key: 'status', label: 'Status' },
   { key: 'plan', label: 'Plan' },
-  { key: 'ready', label: 'Ready', mono: true },
-  { key: 'deadline', label: 'Deadline', mono: true },
+  { key: 'ready', label: 'Ready', mono: true, drop: 1 },
+  { key: 'deadline', label: 'Deadline', mono: true, drop: 1 },
   { key: 'delivery', label: 'Delivery', mono: true },
   { key: 'price', label: 'Price', mono: true, numeric: true },
 ];
+
+/** Class of a column's header and body cells: `bw-col--drop1` … for a column that drops, else nothing. */
+const dropClass = (label: string) => {
+  const drop = COLUMNS.find((c) => c.label === label)?.drop;
+  return drop ? `bw-col--drop${drop}` : '';
+};
+const cls = (...names: (string | false | undefined)[]) => names.filter(Boolean).join(' ') || undefined;
 
 const ariaSort = (dir: SortDir) => (dir === 'asc' ? 'ascending' : 'descending');
 
@@ -39,7 +49,9 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
       <div className="bw-empty" role="status">
         <p className="bw-empty__title">No shipments yet</p>
         <p className="bw-empty__text">Create a delivery request and Relay matches it to an employee commute.</p>
-        <button type="button" className="bw-btn bw-btn--primary" onClick={props.onNewDelivery}>New delivery</button>
+        <button type="button" className="bw-btn bw-btn--primary" onClick={props.onNewDelivery} disabled={props.newDeliveryDisabled}>
+          New delivery
+        </button>
       </div>
     );
   }
@@ -80,7 +92,7 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                 <th
                   key={c.label}
                   scope="col"
-                  className={c.numeric ? 'bw-num' : undefined}
+                  className={cls(c.numeric && 'bw-num', dropClass(c.label))}
                   aria-sort={sorted ? ariaSort(props.sort.dir) : undefined}
                 >
                   {c.key === null ? c.label : (
@@ -109,8 +121,8 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                 onKeyDown={(e) => onRowKey(e, r.id)}
               >
                 <td data-label="Package" className="bw-cell--primary">{r.label}</td>
-                <td data-label="Shipment ID" className="bw-mono">{r.id}</td>
-                <td data-label="Direction">{r.directionLabel}</td>
+                <td data-label="Shipment ID" className={cls('bw-mono', dropClass('Shipment ID'))}>{r.id}</td>
+                <td data-label="Direction" className={cls(dropClass('Direction'))}>{r.directionLabel}</td>
                 <td data-label="Business">{r.counterpart}</td>
                 <td data-label="Status">
                   <span className={`bw-status bw-status--${r.statusTone}`}>{r.statusLabel}</span>
@@ -121,8 +133,8 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                     : r.planLabel}
                   {r.unmatchedReason && <span className="bw-reason">{r.unmatchedReason}</span>}
                 </td>
-                <td data-label="Ready" className="bw-mono">{r.readyText}</td>
-                <td data-label="Deadline" className="bw-mono">{r.deadlineText}</td>
+                <td data-label="Ready" className={cls('bw-mono', dropClass('Ready'))}>{r.readyText}</td>
+                <td data-label="Deadline" className={cls('bw-mono', dropClass('Deadline'))}>{r.deadlineText}</td>
                 <td data-label="Delivery" className="bw-mono">{r.deliveryText}</td>
                 <td data-label="Price" className="bw-mono bw-num">{r.priceText}</td>
               </tr>

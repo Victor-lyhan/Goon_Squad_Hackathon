@@ -4,7 +4,7 @@ import {
   deliveryDetails, detailSteps, requestActions, tripText, LOCKED_NOTE,
 } from '../../client/src/components/business/v2/deliveryDetailsModel';
 import {
-  ACME, BAKERY, BUSINESSES, EMPLOYEES, UNMATCHED_REASON, directPlan, relayPlan, unmatchedView, view,
+  ACME, ATLAS, BAKERY, BUSINESSES, EMPLOYEES, UNMATCHED_REASON, directPlan, relayPlan, unmatchedView, view,
 } from './business-v2-details-sample';
 
 const asSender = { businesses: BUSINESSES, employees: EMPLOYEES, viewerBusinessId: ACME.id };
@@ -136,5 +136,33 @@ describe('tripText', () => {
   it('falls back to the commute direction when there are no stops', () => {
     expect(tripText({ tripId: 'emp-1-morn', stops: [] })).toBe('Morning commute, Day 2');
     expect(tripText({ tripId: 'odd', stops: [] })).toBe('Commute');
+  });
+});
+
+// #581: the relay business opens a package it neither sends nor receives.
+describe('deliveryDetails: the viewer is the plan\'s relay point', () => {
+  const asRelay = { ...asSender, viewerBusinessId: ATLAS.id };
+
+  it('is labelled Relay point, shows both parties and carriers, and never the sender\'s price or actions', () => {
+    const m = deliveryDetails(view(relayPlan, 'at_hub'), asRelay);
+    expect(m.header).toMatchObject({
+      direction: 'relay', directionLabel: 'Relay point',
+      sender: { name: 'Acme Studio', neighborhood: 'Chelsea' },
+      recipient: { name: 'Bakery Row', neighborhood: 'Williamsburg' },
+    });
+    expect(m.legs.map((l) => l.carrierName)).toEqual(['Maya Chen', 'Luis Ortega']);
+    expect(m.result).toMatchObject({ kind: 'matched', planText: 'Relay via Atlas Books (relay point)', priceText: null });
+    expect(requestActions(m, 'planning')).toEqual({ show: false, lockedNote: null });
+  });
+
+  it('only the plan\'s own relay point gets the label; sender and recipient keep theirs', () => {
+    // A third business that is not the relay point of this plan (the page does not open it; the label stays as before).
+    expect(deliveryDetails(view(directPlan, 'scheduled'), asRelay).header.directionLabel).toBe('Incoming');
+    expect(deliveryDetails(view(null, 'unmatched'), asRelay).header.directionLabel).toBe('Incoming');
+    expect(deliveryDetails(view(relayPlan, 'at_hub'), asSender).header.directionLabel).toBe('Outgoing');
+    expect(deliveryDetails(view(relayPlan, 'at_hub'), asRecipient).header.directionLabel).toBe('Incoming');
+    // A relay through the recipient's own ID never happens (R is neither A nor B), and would stay Incoming.
+    const odd = view({ ...relayPlan, relayBusinessId: BAKERY.id }, 'at_hub');
+    expect(deliveryDetails(odd, asRecipient).header.directionLabel).toBe('Incoming');
   });
 });

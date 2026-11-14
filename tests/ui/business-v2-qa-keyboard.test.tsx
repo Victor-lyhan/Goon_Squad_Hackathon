@@ -18,7 +18,7 @@ import {
   accessibleName, all, byId, focusVisibleSelectors, matchesSelector, parseCss, parseHtml, tabOrder, textOf, v2CssFiles,
   type El,
 } from './employee-v2-qa-helpers';
-import { ACME, BUSINESSES, DASHBOARD, DIRECT, UNMATCHED_REASON, ready } from './business-v2-page-sample';
+import { ACME, BUSINESSES, DASHBOARD, DIRECT, UNMATCHED_REASON, ready, withHeld } from './business-v2-page-sample';
 
 const BUSINESS_DIR = 'client/src/components/business/v2';
 const focusSelectors = v2CssFiles(BUSINESS_DIR).flatMap((f) => focusVisibleSelectors(parseCss(readFileSync(f, 'utf8'))));
@@ -136,7 +136,8 @@ describe('keyboard walk (#497)', () => {
     expect(walkTabs(page({ ...ready(), view: 'unavailable', unavailable: { code: 'travel_data_missing', message: TRAVEL_DATA_MISSING_TEXT } })))
       .toEqual(['Retry']);
     expect(walkTabs(page({ ...ready(), runChanged: true }))[0]).toBe('Dismiss');
-    const missing = walkTabs(page(ready(), { shipmentId: 'shp-404' }));
+    const missing = walkTabs(page(withHeld(ready(), 'shp-404', null), { shipmentId: 'shp-404' }));
+    expect(walkTabs(page(ready(), { shipmentId: 'shp-404' }))).toContain('Back to deliveries'); // still loading
     expect(missing).toContain('Back to deliveries');
     expect(missing).toContain('Look for it in the simulator');
   });

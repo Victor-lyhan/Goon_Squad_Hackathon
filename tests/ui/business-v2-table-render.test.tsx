@@ -49,12 +49,31 @@ describe('ShipmentsTable', () => {
 
   it('puts IDs, times and money in mono cells and labels every cell for stacked rows', () => {
     const html = table();
-    expect(html).toMatch(/<td data-label="Shipment ID" class="bw-mono">shp-1<\/td>/);
-    expect(html).toMatch(/<td data-label="Deadline" class="bw-mono">Day 2, 1:00 AM<\/td>/);
+    expect(html).toMatch(/<td data-label="Shipment ID" class="bw-mono bw-col--drop2">shp-1<\/td>/);
+    expect(html).toMatch(/<td data-label="Deadline" class="bw-mono bw-col--drop1">Day 2, 1:00 AM<\/td>/);
     expect(html).toMatch(/<td data-label="Price" class="bw-mono bw-num">\$18.00<\/td>/);
     const cells = html.match(/<td /g)!.length;
     expect(html.match(/<td data-label="/g)!.length).toBe(cells);
     expect(html).toMatch(/class="bw-status bw-status--warn">At relay point/);
+  });
+
+  it('marks the columns that drop in a narrow box, header and cells alike (#581)', () => {
+    const html = table();
+    const drop = (label: string) => {
+      const th = new RegExp(`<th scope="col"(?: class="([^"]*)")?[^>]*>(?:<button[^>]*>)?${label}<`).exec(html);
+      expect(th, label).not.toBeNull();
+      const tds = [...html.matchAll(new RegExp(`<td data-label="${label}"(?: class="([^"]*)")?>`, 'g'))];
+      expect(tds).toHaveLength(4);
+      const cls = (c: string | undefined) => (c ?? '').split(' ').filter((x) => x.startsWith('bw-col--drop')).join(' ');
+      for (const td of tds) expect(cls(td[1]), label).toBe(cls(th![1]));
+      return cls(th![1]);
+    };
+    // Ready and Deadline go first, then the ID, then the direction; the rest always stay.
+    expect(drop('Ready')).toBe('bw-col--drop1');
+    expect(drop('Deadline')).toBe('bw-col--drop1');
+    expect(drop('Shipment ID')).toBe('bw-col--drop2');
+    expect(drop('Direction')).toBe('bw-col--drop3');
+    for (const keep of ['Package', 'Business', 'Status', 'Plan', 'Delivery', 'Price']) expect(drop(keep), keep).toBe('');
   });
 
   it('descending sort is reflected in aria-sort', () => {
@@ -70,6 +89,9 @@ describe('ShipmentsTable', () => {
     expect(html).toContain('No shipments yet');
     expect(html).toContain('New delivery');
     expect(html).not.toContain('<table');
+    expect(html).not.toContain('disabled');
+    // Locked run: the page disables this button like the toolbar's (#581).
+    expect(table({ rows: [], totalCount: 0, newDeliveryDisabled: true })).toMatch(/<button[^>]*disabled=""[^>]*>New delivery</);
     expectClean(html);
   });
 

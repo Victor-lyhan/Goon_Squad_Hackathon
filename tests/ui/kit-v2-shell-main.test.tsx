@@ -43,7 +43,7 @@ describe('route table', () => {
   const table: [string, RegExp][] = [
     ['/simulator', /class="spc-state/], // SimulatorV2 (loading state)
     ['/employee/emp-01', /<div class="ep">/], // EmployeeV2 (no <main> of its own, #584)
-    ['/business/biz-01', /<main class="bp">/], // BusinessV2 (loading state)
+    ['/business/biz-01', /<div class="bp">/], // BusinessV2 (loading state; no <main> of its own, #581)
     ['/', /class="landing landing-nyc"/],
     ['/help', /class="help help-nyc"/],
   ];

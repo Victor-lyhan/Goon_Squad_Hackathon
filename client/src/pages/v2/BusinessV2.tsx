@@ -16,7 +16,8 @@ export default function BusinessV2() {
   const { pathname } = useLocation();
   const [params, setParams] = useSearchParams();
   const shipmentId = params.get('shipment') || null;
-  const ws = useBusinessWorkspace(id);
+  // The open delivery goes to the hook: one the dashboard does not list (held here as the relay point) is read there (#581).
+  const ws = useBusinessWorkspace(id, undefined, shipmentId);
 
   const screen = pageScreen(ws, shipmentId);
   const openView = screen.kind === 'delivery' ? screen.view : null;

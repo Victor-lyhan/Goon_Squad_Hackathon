@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   headerModel, notificationRows, visibleRows, RELAY_TAG, ROLE_LINE, VISIBLE_ROWS,
 } from '../../client/src/components/business/v2/activity/activityModel';
-import { BUSINESSES, DASHBOARD } from './business-v2-table-sample';
+import { BUSINESSES, DASHBOARD, ME, plan, shipment, view } from './business-v2-table-sample';
 import { many, note, RECIPIENT, RELAY, SENDER, withNotes } from './business-v2-activity-sample';
 
 describe('headerModel', () => {
@@ -77,6 +77,24 @@ describe('notificationRows', () => {
     const rows = notificationRows(withNotes([SENDER, RELAY]), BUSINESSES, new Set());
     expect(rows.find((r) => r.id === SENDER.id)!.time).toBe('5:00 PM'); // readyMin 1020
     expect(rows.find((r) => r.id === RELAY.id)!.time).toBe('—');
+  });
+
+  it('a relay notification shows the held package\'s time once the page has read it (#581)', () => {
+    // shp-9 is in neither list; the page read it with GET /shipments/:id because it is open.
+    const held = view(
+      shipment('shp-9', { originBusinessId: 'biz-print', destinationBusinessId: 'biz-bakery', readyMin: 1035 }),
+      plan('shp-9', { kind: 'relay', relayBusinessId: ME.id }), 'at_hub',
+    );
+    const rows = notificationRows(withNotes([SENDER, RELAY]), BUSINESSES, new Set(), held);
+    const relay = rows.find((r) => r.id === RELAY.id)!;
+    expect(relay.time).toBe('5:15 PM');
+    expect(relay).toMatchObject({ role: 'relay', tag: RELAY_TAG, shipmentId: 'shp-9' });
+    expect(rows.find((r) => r.id === SENDER.id)).toMatchObject({ time: '5:00 PM', role: 'sender' });
+    // A held view never overrides one of the dashboard's own deliveries.
+    const own = view(shipment('shp-1', { readyMin: 1 }), null, 'unmatched');
+    expect(notificationRows(withNotes([SENDER]), BUSINESSES, new Set(), own)[0].time).toBe('5:00 PM');
+    // Without it (closed, or not read yet) the row is unchanged.
+    expect(notificationRows(withNotes([RELAY]), BUSINESSES, new Set(), null)[0].time).toBe('—');
   });
 
   it('keeps only this business\'s notifications', () => {

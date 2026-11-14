@@ -1,11 +1,15 @@
 // Polls one business's v2 dashboard every second (#386), plus the business and employee directories.
+// The open delivery (`watch`) is read with the same poll when the dashboard does not list it (#581): a
+// package held here as the relay point is in neither `outgoing` nor `incoming`.
 // API functions are injected, so tests run in Node with fake timers. A poller belongs to one business:
 // `stop()` aborts what is in flight and nothing reaches the sink afterwards (the hook stops it and makes
 // a new poller when the business ID changes, so a late answer for the old ID is dropped).
 //
 // The dashboard has no run ID, so the run is read from the map (#599, DECISIONS pass 61). That request is
 // large, so it runs beside the poll, at most once every 5 s, and the dashboard never waits for it.
-import type { BusinessDashboard, BusinessesResponse, EmployeesResponse } from '../../../../../../shared/v2/api';
+import type {
+  BusinessDashboard, BusinessesResponse, EmployeesResponse, ShipmentView,
+} from '../../../../../../shared/v2/api';
 import { ApiRequestError, isAbortError, type RequestOptions } from '../../../../api/v2';
 import { toDirectoryEmployees, type BusinessWorkspaceAction } from './businessWorkspaceState';
 
@@ -20,6 +24,8 @@ export type BusinessWorkspaceApi = {
   getEmployees: (opts?: RequestOptions) => Promise<EmployeesResponse>;
   /** Only `runId` is read: the dashboard has none, so version changes are checked against the map's run. */
   getMap: (opts?: RequestOptions) => Promise<{ runId: string }>;
+  /** GET /api/v2/shipments/:id, for the open delivery the dashboard does not list. */
+  getShipment: (id: string, opts?: RequestOptions) => Promise<ShipmentView>;
 };
 
 export type BusinessPollerSink = { dispatch: (a: BusinessWorkspaceAction) => void };
@@ -29,6 +35,11 @@ export type BusinessPoller = {
   stop: () => void;
   /** Polls now (or right after the poll in flight) and resolves when that poll is done. */
   refetchNow: () => Promise<void>;
+  /**
+   * Names the open delivery (`?shipment=`), null when none is open. One the dashboard does not list is read
+   * with `getShipment` on every poll while it is open, and at once when it is opened.
+   */
+  watch: (shipmentId: string | null) => void;
 };
 
 const is404 = (e: unknown) => e instanceof ApiRequestError && e.status === 404;
@@ -55,6 +66,9 @@ export function createBusinessPoller(
   let firstBusinessId: string | null = null;
   /** True while the dashboard answers 404: the directories are reloaded once, not every second. */
   let gone = false;
+  let watched: string | null = null;
+  /** IDs of the last dashboard's own deliveries; null until a dashboard arrived. */
+  let ownIds: Set<string> | null = null;
   let dirLoad: Promise<void> | null = null;
   let dirStale = false;
   /** Run check: wanted, in flight, and the 5 s wait that starts with each check. */
@@ -94,8 +108,12 @@ export function createBusinessPoller(
     try {
       if (shownDash) dispatch({ type: 'dashboard', dashboard: shownDash, runId });
     } catch { /* sink errors must not stop the reload */ }
+    if (prev === null) return;
     // Another run has other businesses and employees. Until the reload works, every poll retries it.
-    if (prev !== null) { haveDirectories = false; void loadDirectories(true); }
+    haveDirectories = false;
+    void loadDirectories(true);
+    // The state forgot the open held delivery with the old run: read it again now, not at the next poll.
+    void loadHeld().catch(() => { /* sink errors; the next poll reads it again */ });
   }
 
   /**
@@ -113,6 +131,19 @@ export function createBusinessPoller(
       .finally(() => { runChecking = false; checkRun(); });
   }
 
+  /** The open delivery, when it is not one of the dashboard's own. An answer for a delivery closed meanwhile is dropped. */
+  async function loadHeld(): Promise<void> {
+    const id = watched;
+    if (!id || !ownIds || ownIds.has(id)) return;
+    try {
+      const view = await api.getShipment(id, { signal });
+      if (live() && watched === id) dispatch({ type: 'held', shipmentId: id, view });
+    } catch (e) {
+      if (!live() || isAbortError(e) || watched !== id) return;
+      dispatch({ type: is404(e) ? 'heldMissing' : 'heldFailed', shipmentId: id });
+    }
+  }
+
   async function poll(): Promise<void> {
     // Missing directories load together with the dashboard, so the first render has the names.
     const lists = haveDirectories ? null : loadDirectories();
@@ -125,6 +156,7 @@ export function createBusinessPoller(
       if (is404(e)) {
         // A stale ID usually means a new city: reload the directories to link to a valid business.
         lastVersion = null;
+        ownIds = null;
         if (lists) await lists; else if (!gone) await loadDirectories(true);
         gone = true;
         dispatch({ type: 'notFound', fallbackBusinessId: firstBusinessId });
@@ -141,12 +173,15 @@ export function createBusinessPoller(
     if (!shown && lists) await lists;
     if (!live()) return;
     shown = true;
+    ownIds = new Set([...dash.outgoing, ...dash.incoming].map((v) => v.shipment.id));
     shownDash = dash;
     try {
       dispatch({ type: 'dashboard', dashboard: dash, runId });
     } finally {
       if (lists) await lists;
     }
+    // After the dashboard is on screen, so a held package never delays it.
+    if (live()) await loadHeld();
   }
 
   function schedule(delay: number) {
@@ -186,5 +221,11 @@ export function createBusinessPoller(
       const all = waiters; waiters = []; all.forEach((r) => r());
     },
     refetchNow,
+    watch: (shipmentId) => {
+      if (shipmentId === watched) return;
+      watched = shipmentId;
+      // Before the first dashboard the running poll reads it; afterwards a click must not wait for the next tick.
+      if (shipmentId && started && ownIds && !ownIds.has(shipmentId)) void refetchNow();
+    },
   };
 }
