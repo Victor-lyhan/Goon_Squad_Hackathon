@@ -32,13 +32,23 @@ export function isControlTarget(target: SimKeyEvent['target']): boolean {
   return CONTROL_TAGS.has((target.tagName ?? '').toUpperCase()) || target.isContentEditable === true;
 }
 
+/** A control that keeps Esc for itself (typing, choosing); a button has no Esc of its own. */
+export function isTextTarget(target: SimKeyEvent['target']): boolean {
+  return isControlTarget(target) && (target?.tagName ?? '').toUpperCase() !== 'BUTTON';
+}
+
+const isEscapeKey = (key: string) => key === 'Escape' || key === 'Esc';
+
 /**
- * The page action for a key press, or null. Nothing fires from a form control or a button
- * (so a focused button's Space click is not doubled) or with Ctrl, Cmd or Alt held.
+ * The page action for a key press, or null. Nothing fires with Ctrl, Cmd or Alt held. Space and `.`
+ * never fire from a form control or a button (so a focused button's Space click is not doubled).
+ * Esc fires from a focused button too (#511, doc §1 "A clear exit (Back to network / Esc)"): after a
+ * click on a package row or a timeline step the focus is on that button, and Esc must still leave.
+ * Esc in an input, select or textarea stays with that control.
  */
 export function simKeyAction(event: SimKeyEvent, state: SimKeyState): SimKeyAction | null {
   if (event.ctrlKey || event.metaKey || event.altKey) return null;
-  if (isControlTarget(event.target)) return null;
+  if (isEscapeKey(event.key) ? isTextTarget(event.target) : isControlTarget(event.target)) return null;
   switch (event.key) {
     case 'Escape':
     case 'Esc':
