@@ -49,7 +49,7 @@
   margin: 0;
   padding: var(--space-1, 4px) var(--space-3, 12px);
   background: var(--panel, #FFFFFF);
-  border: 1px solid var(--warn, #9A6700);
+  border: 1px solid var(--warn, #8A5A00);
   border-radius: var(--radius, 2px);
   color: var(--text, #151B26);
   font-size: var(--text-xs, 12px);
@@ -75,12 +75,12 @@
   justify-items: start;
   margin-bottom: var(--space-3, 12px);
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--danger, #B42318);
+  border: 1px solid var(--danger, #A4322A);
   border-left-width: 3px;
   border-radius: var(--radius, 2px);
   background: var(--panel, #FFFFFF);
 }
-.spc-action-error p { margin: 0; color: var(--danger, #B42318); }
+.spc-action-error p { margin: 0; color: var(--danger, #A4322A); }
 
 /* ---------- Right panel ---------- */
 .spc-message {
@@ -116,7 +116,7 @@
 }
 .spc-play__note { color: var(--muted, #5B6472); }
 /* The status line stays in the page when empty (never display: none), so its next text is announced. */
-.spc-play__error { color: var(--danger, #B42318); }
+.spc-play__error { color: var(--danger, #A4322A); }
 
 /* While Play journey runs, the step the package is heading for is marked more strongly. */
 .spc-journey--playing .jt-step__button[aria-current='step'] {

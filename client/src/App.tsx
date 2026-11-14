@@ -9,12 +9,13 @@ import { getBusinesses, getEmployees, getSimulator } from './api';
 import { getBusinesses as getV2Businesses, getEmployees as getV2Employees, isTravelUnavailable } from './api/v2';
 import {
   activeDestination, DESTINATIONS, ENV_INDICATOR_TEXT, RUN_POLL_MS, reconcileSelection, runChanged, staleNote,
-  envIndicatorFor, helpPathFor, homePathFor, isFullWidthPath, isPreviewPath, previewDestination, previewHrefs,
+  envIndicatorFor, helpPathFor, homePathFor, isHelpPath, isFullWidthPath, isPreviewPath, previewDestination, previewHrefs,
   PREVIEW_HELP_PATH, PREVIEW_HOME_PATH,
 } from './ui/shellModel';
 import type { NycSummary } from './pages/landingModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
 import NotFoundPage from './ui/NotFoundPage';
+import { ErrorBoundary } from './ui/ErrorBoundary';
 import {
   startV2BusinessDirectory, startV2Directory, switchIdentityPath, switchPreviewBusinessPath, switchPreviewEmployeePath,
   type V2BusinessDirectory, type V2Directory,
@@ -189,7 +190,8 @@ function DemoAccountSelector({ dir }: { dir: Directory }) {
       {sel.stale && (
         <span className="demo-account-status" role="status">
           {staleNote(kind, fallback?.text ?? null)}{' '}
-          {fallbackPath && <Link to={fallbackPath} onClick={() => choose(sel.id)}>Switch</Link>}
+          {/* choose() stores the identity and navigates, so the Link must not push the path a second time (#529). */}
+          {fallbackPath && <Link to={fallbackPath} onClick={(e) => { e.preventDefault(); choose(sel.id); }}>Switch</Link>}
         </span>
       )}
     </>
@@ -227,6 +229,7 @@ export function Header({ initial, initialV2, initialV2Businesses }: ShellProps =
     )
     : { business: paths.business, employee: paths.employee, simulator: SIMULATOR_PATH };
   const helpPath = helpPathFor(pathname);
+  const onHelp = isHelpPath(pathname);
   return (
     <header className="shell-header">
       <Link to={homePathFor(pathname)} className="shell-wordmark">Relay</Link>
@@ -247,7 +250,7 @@ export function Header({ initial, initialV2, initialV2Businesses }: ShellProps =
         <div className="demo-account-slot" data-slot="demo-account-selector">
           {preview ? <PreviewAccountSelector employees={v2dir} businesses={v2biz} /> : <DemoAccountSelector dir={dir} />}
         </div>
-        <Link to={helpPath} className={pathname === helpPath ? 'shell-help active' : 'shell-help'} aria-current={pathname === helpPath ? 'page' : undefined}>Help</Link>
+        <Link to={helpPath} className={onHelp ? 'shell-help active' : 'shell-help'} aria-current={onHelp ? 'page' : undefined}>Help</Link>
         <span className="shell-env">{envIndicatorFor(pathname)}</span>
       </div>
     </header>
@@ -263,6 +266,7 @@ export function AppShell({ initial, initialV2, initialV2Businesses, initialNycSu
       <ConnectionMonitor />
       <Header initial={initial} initialV2={initialV2} initialV2Businesses={initialV2Businesses} />
       <main className={isFullWidthPath(pathname) ? 'app-main app-main--full' : 'app-main'} id="main-content" tabIndex={-1}>
+        <ErrorBoundary resetKey={pathname} homeHref={homePathFor(pathname)}>
         <Routes>
           <Route path="/" element={<Landing initial={initial} />} />
           <Route path="/business/:id" element={<BusinessPortal />} />
@@ -277,6 +281,7 @@ export function AppShell({ initial, initialV2, initialV2Businesses, initialNycSu
           <Route path="/nyc/employee/:id" element={<EmployeeV2 />} />
           <Route path="*" element={<NotFoundPage initial={initial} />} />
         </Routes>
+        </ErrorBoundary>
       </main>
     </>
   );
