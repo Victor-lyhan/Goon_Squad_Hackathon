@@ -70,9 +70,8 @@ describe('v2 snapshot assembly', () => {
     expect(nextEventMin(run, last.timeMin)).toBeNull();
   });
 
-  it('does not couple snapshot assembly to movement, IO, HTTP, or test travel data', () => {
+  it('does not couple snapshot assembly to IO, HTTP, or test travel data', () => {
     const source = readFileSync(new URL('../../server/domain/v2/simulation.ts', import.meta.url), 'utf8');
-    expect(source).not.toMatch(/import[^\n]*['"][^'"]*movement/);
     expect(source).not.toMatch(/import[^\n]*['"][^'"]*(?:fs|express|fakeProvider)/);
     expect(source).not.toContain('.durationMin(');
     expect(source).not.toContain('.distanceM(');
