@@ -47,7 +47,10 @@ function windowKeyTarget(): SimKeyTarget | null {
  * selection and poll through a ref, and is removed on unmount. Play, pause and next event go to
  * the data hook's `control`; the server decides the result.
  */
-export function useSimKeys(sim: SimulatorV2, page: SimPageState): void {
+/** The body's Esc hook (#496): stops a running Play journey and says whether it did. */
+export type EscapeRef = { current: (() => boolean) | null };
+
+export function useSimKeys(sim: SimulatorV2, page: SimPageState, escapeRef?: EscapeRef): void {
   const latest = useRef<{ ctx: SimKeyContext; page: SimPageState; control: SimulatorV2['control'] }>({
     ctx: { selection: page.selection, data: sim }, page, control: sim.control,
   });
@@ -60,14 +63,16 @@ export function useSimKeys(sim: SimulatorV2, page: SimPageState): void {
       context: () => latest.current.ctx,
       select: (s) => latest.current.page.setSelection(s),
       control: (req) => void latest.current.control(req),
+      escape: () => escapeRef?.current?.() ?? false,
     });
+    // The ref object is the page's own and never changes.
   }, []);
 }
 
 /** URL selection plus the keyboard map: everything the page needs around `SimPageBody`. */
-export function useSimPageState(sim: SimulatorV2): SimPageState {
+export function useSimPageState(sim: SimulatorV2, escapeRef?: EscapeRef): SimPageState {
   const page = useUrlSelection();
-  useSimKeys(sim, page);
+  useSimKeys(sim, page, escapeRef);
   return page;
 }
 

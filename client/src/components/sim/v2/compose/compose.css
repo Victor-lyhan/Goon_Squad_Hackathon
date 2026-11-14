@@ -93,3 +93,32 @@
 
 .spc-journey { display: grid; gap: var(--space-3, 12px); }
 .spc-journey__foot { padding: 0 var(--space-4, 16px) var(--space-3, 12px); }
+
+/* ---------- Right panel: Play journey (#496) ---------- */
+.spc-play {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-2, 8px) var(--space-3, 12px);
+  padding: 0 var(--space-4, 16px);
+}
+.spc-play__hint {
+  color: var(--muted, #5B6472);
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: var(--text-xs, 12px);
+}
+.spc-play__note,
+.spc-play__status,
+.spc-play__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-sm, 13px);
+}
+.spc-play__note { color: var(--muted, #5B6472); }
+/* The status line stays in the page when empty (never display: none), so its next text is announced. */
+.spc-play__error { color: var(--danger, #B42318); }
+
+/* While Play journey runs, the step the package is heading for is marked more strongly. */
+.spc-journey--playing .jt-step__button[aria-current='step'] {
+  border-left-width: 4px;
+}
