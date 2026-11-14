@@ -31,3 +31,24 @@ export type NavKey = (typeof NAV_ITEMS)[number]['key'];
 
 /** Poll interval for the dashboard (ms). */
 export const POLL_MS = 1000;
+
+/**
+ * Spec §3A doesn't fix a list order, so we pick one: newest first (highest `createdSeq`),
+ * ties broken by shipment id so the order is stable across polls. Does not mutate the input.
+ */
+export function sortShipmentViews<T extends { shipment: { id: string; createdSeq: number } }>(views: T[]): T[] {
+  return [...views].sort((a, b) => b.shipment.createdSeq - a.shipment.createdSeq || (a.shipment.id < b.shipment.id ? -1 : 1));
+}
+
+/** "Direct" or "Relay via <hub name>" (hub falls back to a generic word, never a raw id). */
+export function modeText(plan: { kind: 'direct' | 'relay'; hubId?: string } | null, hubs: { id: string; name: string }[]): string {
+  if (!plan) return '';
+  if (plan.kind === 'direct') return 'Direct';
+  const hub = hubs.find((h) => h.id === plan.hubId)?.name;
+  return hub ? `Relay via ${hub}` : 'Relay via a hub';
+}
+
+/** Count line that always matches the rows shown, e.g. "3 packages". */
+export function countText(n: number): string {
+  return `${n} ${n === 1 ? 'package' : 'packages'}`;
+}
