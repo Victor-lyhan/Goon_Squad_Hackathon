@@ -26,3 +26,37 @@ export function selectedRoutes(
   if (!plan) return empty;
   return { legs: plan.legs.map((l) => l.routeNodeIds), baselines: [] };
 }
+
+export const PACKAGE_PARAM = 'package';
+
+/** Resolves the `?package=` deep link against the loaded run. Nothing is resolved until the run has loaded. */
+export function resolveDeepLink(
+  param: string | null | undefined,
+  shipments: Pick<Shipment, 'id'>[] | null | undefined,
+): { selectedId: string | undefined; notFound: boolean } {
+  if (!param || !shipments) return { selectedId: undefined, notFound: false };
+  const selectedId = resolveSelection(param, shipments);
+  return { selectedId, notFound: selectedId === undefined };
+}
+
+/** Returns new search params with `package` set (or removed when id is empty). Other params are kept. */
+export function withPackageParam(params: URLSearchParams, id: string | null | undefined): URLSearchParams {
+  const next = new URLSearchParams(params);
+  if (id) next.set(PACKAGE_PARAM, id); else next.delete(PACKAGE_PARAM);
+  return next;
+}
+
+/**
+ * What to do when a poll reports a runId. The first run seen (prev null) only fetches the map;
+ * a later change refetches the map once and clears a selection that no longer exists.
+ */
+export function handleRunIdChange(
+  prevRunId: string | null | undefined,
+  nextRunId: string,
+  selectedId: string | null | undefined,
+  shipments: Pick<Shipment, 'id'>[],
+): { refetchMap: boolean; clearSelection: boolean } {
+  const refetchMap = needsMapFetch(prevRunId, nextRunId);
+  const changed = refetchMap && !!prevRunId;
+  return { refetchMap, clearSelection: changed && !!selectedId && resolveSelection(selectedId, shipments) === undefined };
+}

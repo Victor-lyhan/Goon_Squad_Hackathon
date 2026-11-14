@@ -14,7 +14,7 @@ export type SetupDrawerProps = {
   open: boolean;
   onClose: () => void;
   /** Called after an action that changed the run, so the page refetches. */
-  onChanged: () => void;
+  onChanged: (message?: string) => void;
 };
 
 type Action = 'compare' | 'generate' | 'export' | 'import' | 'reset';
@@ -35,7 +35,7 @@ export function SetupDrawer({ open, onClose, onChanged }: SetupDrawerProps) {
     try {
       const msg = await fn();
       if (msg) setNotice(msg);
-      if (changes) { setCompare(null); onChanged(); }
+      if (changes) { setCompare(null); onChanged(msg || undefined); }
     } catch (e) {
       setError(errorMessage(e));
     } finally {

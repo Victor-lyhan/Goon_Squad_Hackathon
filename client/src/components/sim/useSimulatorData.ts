@@ -14,6 +14,8 @@ export type SimulatorData = {
   error: string | null;
   busy: boolean;
   control: (req: SimControlRequest) => Promise<void>;
+  /** Polls now (used after Generate/Import/reset so the new runId shows without waiting for the next tick). */
+  refresh: () => Promise<void>;
 };
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : 'Request failed');
@@ -68,5 +70,13 @@ export function useSimulatorData(): SimulatorData {
     }
   }, [accept]);
 
-  return { sim, map, employees, error, busy, control };
+  const refresh = useCallback(async () => {
+    try {
+      accept(await getSimulator());
+    } catch (e) {
+      setError(msg(e));
+    }
+  }, [accept]);
+
+  return { sim, map, employees, error, busy, control, refresh };
 }
