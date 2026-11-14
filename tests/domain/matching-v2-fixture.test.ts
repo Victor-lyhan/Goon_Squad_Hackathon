@@ -1,25 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import fixture from '../../fixtures/relayFixture.json';
-import { createRouter } from '../../server/domain/routing';
 import { buildTrips } from '../../server/domain/v2/trips';
 import { assignShipments, type MatchContext } from '../../server/domain/v2/matching';
 import { DEFAULT_SETTINGS } from '../../server/domain/pricing';
-import { pairKey } from '../../shared/v2/types';
-import { business, employee, shipment, TableTravel } from './matching-v2-helpers';
+import { business, employee, shipment } from './matching-v2-helpers';
+import { relayFixtureTravel } from './matching-v2-grid-helper';
 
-const router = createRouter(fixture.graph);
-const places = { 'biz-a': 'A', 'biz-b': 'B', 'biz-h': 'H', 'home-x': 'X', 'home-y': 'Y' };
-const travel = new TableTravel();
-for (const [from, nodeFrom] of Object.entries(places)) {
-  for (const [to, nodeTo] of Object.entries(places)) {
-    const route = router.shortestPath(nodeFrom, nodeTo);
-    // The fixture explicitly has no other roads. Infinity is the known shortest
-    // path distance for unreachable pairs, not missing/estimated travel data.
-    travel.pairs[pairKey(from, to)] = {
-      durationMin: route?.durationMin ?? Infinity, distanceM: route?.distanceM ?? Infinity,
-    };
-  }
-}
+// Shortest paths on the fixture's one-way roads. The fixture explicitly has no
+// other roads: Infinity is the known shortest path distance for unreachable
+// pairs, not missing/estimated travel data.
+const travel = relayFixtureTravel();
 const employees = [
   employee('emp-1', 'biz-a', { homeId: 'home-x', availableMorning: false }),
   employee('emp-2', 'biz-b', { homeId: 'home-y', availableEvening: false }),

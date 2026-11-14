@@ -1,12 +1,11 @@
 import { expect, it } from 'vitest';
-import fixture from '../../fixtures/relayFixture.json';
-import { createRouter } from '../../server/domain/routing';
 import { createRng } from '../../server/domain/generator';
 import { assignShipments } from '../../server/domain/v2/matching';
 import { buildTrips } from '../../server/domain/v2/trips';
 import { checkPlans, checkStory, formatCheckReport, type PlanCheckInput, type PlanIssueCode } from '../../server/domain/v2/planCheck';
 import { pairKey, TravelDataMissingError } from '../../shared/v2/types';
 import { business, context, employee, relayContext, shipment, TableTravel } from './matching-v2-helpers';
+import { relayFixtureTravel } from './matching-v2-grid-helper';
 
 function valid(relay = false): PlanCheckInput {
   const ctx = relay ? relayContext() : context([employee('emp-1', 'biz-a')],
@@ -81,13 +80,7 @@ it('re-derives times from changed travel and propagates missing pairs', () => {
   expect(() => checkPlans(input)).toThrow(TravelDataMissingError);
 });
 it('accepts the §9 fixture', () => {
-  const router = createRouter(fixture.graph);
-  const places = { 'biz-a': 'A', 'biz-b': 'B', 'biz-h': 'H', 'home-x': 'X', 'home-y': 'Y' };
-  const travel = new TableTravel();
-  for (const [a, from] of Object.entries(places)) for (const [b, to] of Object.entries(places)) {
-    const route = router.shortestPath(from, to);
-    travel.pairs[pairKey(a, b)] = { durationMin: route?.durationMin ?? Infinity, distanceM: route?.distanceM ?? Infinity };
-  }
+  const travel = relayFixtureTravel();
   const employees = [employee('emp-1', 'biz-a', { homeId: 'home-x', availableMorning: false }),
     employee('emp-2', 'biz-b', { homeId: 'home-y', availableEvening: false })];
   const ctx = { travel, employees, trips: employees.flatMap(e => buildTrips(e, travel)),
