@@ -1,13 +1,15 @@
-/* Commute route preview (#419). Square corners, 1px borders, no shadows, no gradients.
-   Tokens are read as var(--name, fallback). The map block has a fixed height: 320px on desktop,
+/* Commute route preview (#419), MVP III look (docs/mvp3.md P4, #685): hairline borders, the token
+   radius, flat. Tokens are read as var(--name, fallback); every fallback is the value in
+   client/src/styles/tokens.css. The line colours come from map/layers.ts as inline styles, never from
+   this file. The map block has a fixed height: 320px on desktop,
    240px on narrow screens (390 px wide). No rule sets a width wider than the screen. */
 
 .ecr {
   width: 100%;
   max-width: 100%;
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: var(--text-sm, 14px);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -17,9 +19,9 @@
   width: 100%;
   height: 320px;
   overflow: hidden;
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
-  background: var(--bg, #F7F8FA);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  background: var(--bg, #F7F7F4);
 }
 
 /* The shared map has its own min-height; inside this block it fills the fixed height. */
@@ -74,17 +76,20 @@
 .ecr__stops li {
   padding: 2px 0;
 }
-/* A caption for the two commute lines: one wrapping row, quieter than the commute card above. */
+/* A caption for the two commute lines: one wrapping row, quieter than the commute card above.
+   "Evening: leaves 5:30 PM, 34 min, 9.8 km" is times and a distance, so it is mono. */
 .ecr__summary {
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--space-4, 16px);
   color: var(--muted, #5B6472);
+  font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
+  font-variant-numeric: tabular-nums;
 }
 .ecr__stops {
   padding-top: var(--space-2, 8px);
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
 }
 
 @media (max-width: 600px) {

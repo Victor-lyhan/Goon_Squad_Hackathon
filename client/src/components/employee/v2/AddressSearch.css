@@ -1,5 +1,6 @@
-/* MVP II home address search (#331). Square corners, 1px borders, no shadows except the 1px focus ring.
-   Tokens are read as var(--name, fallback) until the design tokens land everywhere. */
+/* Home address search (#331), MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius,
+   no shadow except the 1px focus ring. Tokens are read as var(--name, fallback); every fallback is
+   the value in client/src/styles/tokens.css. No time, distance or reward here, so no mono. */
 
 .addr-search {
   position: relative;
@@ -7,15 +8,15 @@
   flex-direction: column;
   gap: var(--space-2, 8px);
   max-width: 560px;
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: 14px;
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: var(--text-md, 14px);
   line-height: 1.45;
 }
 
 .addr-search__label {
   font-weight: 600;
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
 }
 
 .addr-search__field {
@@ -28,22 +29,22 @@
   min-width: 0;
   min-height: 40px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
 }
 
 .addr-search__input:focus-visible,
 .addr-search__btn:focus-visible {
   outline: none;
-  border-color: var(--accent, #28618A);
-  box-shadow: 0 0 0 1px var(--accent, #28618A);
+  border-color: var(--accent, #1D5075);
+  box-shadow: 0 0 0 1px var(--accent, #1D5075);
 }
 
 .addr-search__input[readonly] {
-  background: var(--accent-soft, #E8F0F6);
+  background: var(--accent-soft, #E8EEF1);
   color: var(--muted, #5B6472);
   cursor: not-allowed;
 }
@@ -52,8 +53,8 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   max-height: 280px;
   overflow-y: auto;
@@ -69,7 +70,7 @@
   justify-content: center;
   min-height: 40px;
   padding: var(--space-1, 4px) var(--space-3, 12px);
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
   cursor: pointer;
 }
 
@@ -79,18 +80,17 @@
 
 .addr-search__option:hover,
 .addr-search__option--active {
-  background: var(--accent-soft, #E8F0F6);
+  background: var(--accent-soft, #E8EEF1);
 }
 
 .addr-search__option--active {
-  border-left: 2px solid var(--accent, #28618A);
+  border-left: 2px solid var(--accent, #1D5075);
   padding-left: calc(var(--space-3, 12px) - 2px);
 }
 
 .addr-search__option-hood {
   color: var(--muted, #5B6472);
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
-  font-size: 12px;
+  font-size: var(--text-xs, 12px);
 }
 
 .addr-search__status {
@@ -121,21 +121,21 @@
 .addr-search__btn {
   min-height: 40px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--accent, #28618A);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--accent, #28618A);
+  color: var(--accent, #1D5075);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
 .addr-search__btn:hover:not(:disabled) {
-  background: var(--accent-soft, #E8F0F6);
+  background: var(--accent-soft, #E8EEF1);
 }
 
 .addr-search__btn:disabled {
-  border-color: var(--border, #D7DDE5);
+  border-color: var(--border, #E3E3DE);
   color: var(--muted, #5B6472);
   cursor: not-allowed;
 }
@@ -148,7 +148,7 @@ fieldset:disabled .addr-search__list {
 }
 
 fieldset:disabled .addr-search__input {
-  background: var(--accent-soft, #E8F0F6);
+  background: var(--accent-soft, #E8EEF1);
   color: var(--muted, #5B6472);
   cursor: not-allowed;
 }

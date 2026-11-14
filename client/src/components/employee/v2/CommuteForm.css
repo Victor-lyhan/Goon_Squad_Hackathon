@@ -1,14 +1,15 @@
-/* MVP II commute form (docs/mvp2-ui-redesign.md §2 "Workspaces → Employee").
-   1px borders, 2px radius, no shadows except a 1px focus ring. Tokens read as var(--name, fallback). */
+/* Commute form, MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius, no shadow
+   except a 1px focus ring. Tokens read as var(--name, fallback); every fallback is the value in
+   client/src/styles/tokens.css. The departure times and the detour minutes are set in mono. */
 
 .cf {
   display: flex;
   flex-direction: column;
   gap: 16px;
   max-width: 640px;
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: var(--text-sm, 14px);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
   line-height: 1.45;
 }
 
@@ -33,7 +34,7 @@
   margin: 0;
   padding: 0;
   font-weight: 600;
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
 }
 
 .cf-home-name {
@@ -65,12 +66,20 @@
 .cf input[type='number'] {
   min-height: 40px;
   padding: 0 10px;
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   color: inherit;
   font: inherit;
   box-shadow: none;
+}
+
+/* Times and minutes (docs/mvp3.md P4: IBM Plex Mono for times). After the rule above: `font: inherit`
+   would reset the family. */
+.cf input[type='time'],
+.cf input[type='number'] {
+  font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
 }
 
 .cf input[aria-invalid='true'],
@@ -93,7 +102,7 @@
   flex: 1 1 auto;
   min-height: 40px;
   margin: 0;
-  accent-color: var(--accent, #28618A);
+  accent-color: var(--accent, #1D5075);
 }
 
 .cf-avail {
@@ -112,13 +121,13 @@
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: var(--accent, #28618A);
+  accent-color: var(--accent, #1D5075);
 }
 
 .cf-error {
   margin: 0;
   color: var(--danger, #A4322A);
-  font-size: var(--text-xs, 13px);
+  font-size: var(--text-xs, 12px);
 }
 
 .cf-actions {
@@ -130,27 +139,27 @@
 .cf-btn {
   min-height: 40px;
   padding: 0 16px;
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
 .cf-btn-primary {
-  border-color: var(--accent, #28618A);
-  background: var(--accent, #28618A);
+  border-color: var(--accent, #1D5075);
+  background: var(--accent, #1D5075);
   color: var(--panel, #FFFFFF);
 }
 
 .cf-btn:hover:not(:disabled) {
-  border-color: var(--accent-dark, #1F4E70);
+  border-color: var(--accent-dark, #173E5B);
 }
 
 .cf-btn-primary:hover:not(:disabled) {
-  background: var(--accent-dark, #1F4E70);
+  background: var(--accent-dark, #173E5B);
 }
 
 .cf-btn:disabled,
@@ -164,8 +173,8 @@
 .cf select:focus-visible,
 .cf input:focus-visible {
   outline: none;
-  border-color: var(--accent, #28618A);
-  box-shadow: 0 0 0 1px var(--accent, #28618A);
+  border-color: var(--accent, #1D5075);
+  box-shadow: 0 0 0 1px var(--accent, #1D5075);
 }
 
 .cf-message:empty {
@@ -174,8 +183,8 @@
 
 .cf-message {
   padding: 10px 12px;
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 
