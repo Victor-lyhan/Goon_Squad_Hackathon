@@ -1,0 +1,185 @@
+/* MVP II commute form (docs/mvp2-ui-redesign.md §2 "Workspaces → Employee").
+   1px borders, 2px radius, no shadows except a 1px focus ring. Tokens read as var(--name, fallback). */
+
+.cf {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  font-size: var(--text-sm, 14px);
+  line-height: 1.45;
+}
+
+.cf-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.cf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cf-field > label,
+.cf-label {
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  color: var(--text, #151B26);
+}
+
+.cf-home-name {
+  font-weight: 400;
+}
+
+.cf-hint {
+  margin: 0;
+  color: var(--muted, #5B6474);
+}
+
+.cf select,
+.cf input[type='time'],
+.cf input[type='number'] {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border, #C9CED6);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: inherit;
+  font: inherit;
+  box-shadow: none;
+}
+
+.cf input[aria-invalid='true'],
+.cf select[aria-invalid='true'] {
+  border-color: var(--danger, #B42318);
+}
+
+.cf-detour {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cf-detour input[type='number'] {
+  width: 88px;
+  flex: 0 0 auto;
+}
+
+.cf-detour input[type='range'] {
+  flex: 1 1 auto;
+  min-height: 40px;
+  margin: 0;
+  accent-color: var(--accent, #1F5FBF);
+}
+
+.cf-avail {
+  gap: 4px;
+}
+
+.cf-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.cf-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent, #1F5FBF);
+}
+
+.cf-error {
+  margin: 0;
+  color: var(--danger, #B42318);
+  font-size: var(--text-xs, 13px);
+}
+
+.cf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cf-btn {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--border, #C9CED6);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cf-btn-primary {
+  border-color: var(--accent, #1F5FBF);
+  background: var(--accent, #1F5FBF);
+  color: var(--on-accent, #FFFFFF);
+}
+
+.cf-btn:hover:not(:disabled) {
+  border-color: var(--accent-dark, #174A96);
+}
+
+.cf-btn-primary:hover:not(:disabled) {
+  background: var(--accent-dark, #174A96);
+}
+
+.cf-btn:disabled,
+.cf select:disabled,
+.cf input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cf-btn:focus-visible,
+.cf select:focus-visible,
+.cf input:focus-visible {
+  outline: none;
+  border-color: var(--focus, #1F5FBF);
+  box-shadow: 0 0 0 1px var(--focus, #1F5FBF);
+}
+
+.cf-message:empty {
+  display: none;
+}
+
+.cf-message {
+  padding: 10px 12px;
+  border: 1px solid var(--border, #C9CED6);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+}
+
+.cf-message-alert {
+  border-color: var(--danger, #B42318);
+  color: var(--danger, #B42318);
+}
+
+@media (max-width: 390px) {
+  .cf {
+    gap: 14px;
+  }
+  .cf-row {
+    grid-template-columns: 1fr;
+  }
+  .cf-actions {
+    flex-direction: column;
+  }
+  .cf-btn {
+    width: 100%;
+  }
+}
