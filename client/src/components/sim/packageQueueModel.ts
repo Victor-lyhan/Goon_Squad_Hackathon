@@ -53,6 +53,30 @@ export function countByStatus(rows: QueueRow[]): Record<QueueFilter, number> {
   return counts;
 }
 
-export function filterRows(rows: QueueRow[], filter: QueueFilter): QueueRow[] {
-  return filter === 'all' ? rows : rows.filter((r) => r.status === filter);
+export function filterRows(rows: QueueRow[], filter: QueueFilter, query = ''): QueueRow[] {
+  const q = query.trim().toLowerCase();
+  return rows.filter(
+    (r) =>
+      (filter === 'all' || r.status === filter) &&
+      (q === '' || [r.id, r.label, r.sender, r.recipient].some((t) => t.toLowerCase().includes(q))),
+  );
+}
+
+export type QueueKey = 'ArrowUp' | 'ArrowDown' | 'Home' | 'End';
+export const QUEUE_KEYS: readonly string[] = ['ArrowUp', 'ArrowDown', 'Home', 'End'];
+
+/**
+ * Next selected id for a navigation key over the visible ids, or null when the
+ * key is not a queue key or the list is empty. Up/Down clamp at the ends; with
+ * no (or a filtered-out) current id, Down/Home pick the first and Up/End the last.
+ */
+export function moveSelection(ids: string[], currentId: string | undefined, key: string): string | null {
+  if (!QUEUE_KEYS.includes(key) || ids.length === 0) return null;
+  const i = currentId === undefined ? -1 : ids.indexOf(currentId);
+  switch (key) {
+    case 'Home': return ids[0];
+    case 'End': return ids[ids.length - 1];
+    case 'ArrowDown': return ids[i < 0 ? 0 : Math.min(ids.length - 1, i + 1)];
+    default: return ids[i < 0 ? ids.length - 1 : Math.max(0, i - 1)];
+  }
 }
