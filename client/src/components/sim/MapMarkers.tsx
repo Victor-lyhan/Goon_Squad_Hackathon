@@ -10,6 +10,9 @@ export type MapMarkersProps = {
   clock: Pick<Clock, 'speed'>;
   /** Real ms between polls; the tween runs over this span. */
   pollMs?: number;
+  /** Friendly names for tooltips and screen readers; ids are never shown. */
+  shipmentLabels?: Record<string, string>;
+  employeeNames?: Record<string, string>;
 };
 
 type Frame = Pick<Snapshot, 'runId' | 'timeMin' | 'markers' | 'packagePositions'>;
@@ -18,7 +21,8 @@ const prefersReducedMotion = (): boolean =>
   typeof window !== 'undefined' && typeof window.matchMedia === 'function'
   && window.matchMedia(REDUCED_MOTION_QUERY).matches;
 
-export function MapMarkers({ graph, snapshot, clock, pollMs = 1000 }: MapMarkersProps) {
+export function MapMarkers({ graph, snapshot, clock, pollMs = 1000, shipmentLabels = {}, employeeNames = {} }: MapMarkersProps) {
+  const pkgName = (id: string) => shipmentLabels[id] ?? 'package';
   const [alpha, setAlpha] = useState(1);
   const prevRef = useRef<Frame>(snapshot);
   const nextRef = useRef<Frame>(snapshot);
@@ -60,15 +64,15 @@ export function MapMarkers({ graph, snapshot, clock, pollMs = 1000 }: MapMarkers
             key={id}
             className="marker-package"
             x={p.x - 7} y={p.y - 7} width={14} height={14} rx={2}
-            aria-label={`Package ${id}`}
+            aria-label={`Package: ${pkgName(id)}`}
           >
-            <title>{`Package ${id}`}</title>
+            <title>{`Package: ${pkgName(id)}`}</title>
           </rect>
         );
       })}
       {markers.map((m) => {
         const p = project(m);
-        const label = `Vehicle ${m.employeeId}${m.carryingShipmentId ? `, carrying ${m.carryingShipmentId}` : ''}${m.servicing ? ', servicing' : ''}`;
+        const label = `Carrier ${employeeNames[m.employeeId] ?? ''}`.trim() + `${m.carryingShipmentId ? `, carrying ${pkgName(m.carryingShipmentId)}` : ''}${m.servicing ? ', servicing' : ''}`;
         return (
           <g key={m.employeeId} role="img" aria-label={label}>
             {m.servicing && <circle className="marker-ring" cx={p.x} cy={p.y} r={22} />}
