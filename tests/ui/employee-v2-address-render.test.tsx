@@ -3,10 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AddressSearch, AddressSearchView, runSearch } from '../../client/src/components/employee/v2/AddressSearch';
 import {
-  EMPTY_TEXT, UNAVAILABLE_TEXT, addressSearchReducer as reduce, describeSearchError, initialSearchState,
+  EMPTY_TEXT, NOT_ANSWERING_TEXT, UNAVAILABLE_TEXT, addressSearchReducer as reduce, describeSearchError, initialSearchState,
   type AddressResult, type AddressSearchAction, type AddressSearchState, type HomeChoice,
 } from '../../client/src/components/employee/v2/addressSearchModel';
-import { LOCKED_TEXT } from '../../client/src/components/employee/commuteModel';
 
 const R: AddressResult[] = [
   { label: '31-10 Steinway St, Queens, NY 11103', neighborhood: 'Astoria', lat: 40.7605, lng: -73.9174 },
@@ -80,7 +79,8 @@ describe('AddressSearch static states', () => {
   it('error: the message and a Retry button', () => {
     const { html, text } = render(states.error);
     expect(combobox(html)).toContain('aria-expanded="false"');
-    expect(text).toContain('Geocoding failed (500).');
+    expect(text).toContain(NOT_ANSWERING_TEXT);
+    expect(text).not.toContain('500'); // the raw message never shows (#598)
     expect(html).toMatch(/<button type="button"[^>]*>Retry<\/button>/);
   });
 
@@ -91,10 +91,11 @@ describe('AddressSearch static states', () => {
     expect(html).not.toContain('Retry');
   });
 
-  it('chosen: shows the neighborhood and Change, never the address', () => {
-    // Even with a stale typed query in state, the chosen view shows only the neighborhood.
+  it('chosen: shows Change only, never the address; the form around it prints the home once (#598)', () => {
+    // Even with a stale typed query in state, the chosen view shows no address.
     const { html, text } = render(states.results, { value: home });
-    expect(text).toMatch(/Home:\s+Astoria/);
+    expect(text).not.toContain('Home:');
+    expect(text).not.toContain('Astoria');
     expect(html).toMatch(/<button type="button"[^>]*>Change<\/button>/);
     expect(html).not.toContain('role="combobox"');
     for (const r of R) expect(html).not.toContain(r.label);
@@ -108,20 +109,20 @@ describe('AddressSearch static states', () => {
     expect(html).toContain('>Cancel</button>');
   });
 
-  it('disabled: read-only input with the lock wording and no list', () => {
+  it('disabled: read-only input, no list and no sentence of its own (#598)', () => {
     const { html, text } = render(states.results, { disabled: true });
     const input = combobox(html);
     expect(input).toContain('readOnly=""');
     expect(input).toContain('aria-expanded="false"');
     expect(input).toContain('value=""');
     expect(html).not.toContain('role="option"');
-    expect(text).toContain(LOCKED_TEXT);
+    expect(text.replace(/\s+/g, ' ').trim()).toBe('Home address');
   });
 
   it('disabled with a saved home: Change is disabled', () => {
     const { html, text } = render(initialSearchState, { value: home, disabled: true });
     expect(html).toMatch(/<button type="button"[^>]*disabled=""[^>]*>Change<\/button>/);
-    expect(text).toContain(LOCKED_TEXT);
+    expect(text.replace(/\s+/g, ' ').trim()).toBe('Change');
   });
 });
 
@@ -135,9 +136,9 @@ describe('AddressSearch component', () => {
     expect(calls).toBe(0);
   });
 
-  it('renders the chosen home from the value prop', () => {
+  it('renders Change, not the search, when the value prop holds a home', () => {
     const html = renderToStaticMarkup(<AddressSearch search={search} value={home} onChoose={() => {}} />);
-    expect(html).toContain('Astoria');
+    expect(html).not.toContain('role="combobox"');
     expect(html).toContain('>Change</button>');
   });
 });
@@ -198,7 +199,7 @@ describe('runSearch', () => {
     await runSearch(() => { throw new Error('bad'); }, Q, new AbortController().signal, dispatch);
     expect(out).toEqual([
       { type: 'searchFailure', query: Q, failure: { kind: 'unavailable' } },
-      { type: 'searchFailure', query: Q, failure: { kind: 'error', message: 'bad' } },
+      { type: 'searchFailure', query: Q, failure: { kind: 'error', message: NOT_ANSWERING_TEXT } },
     ]);
   });
 });
