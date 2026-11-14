@@ -51,7 +51,7 @@ const moments: [string, () => Run][] = [
   ['after finish', () => control(base, { action: 'finish' })],
 ];
 
-describe('Simulator with real Demo-city data', () => {
+describe('Simulator with real Demo-city data', { timeout: 15_000 }, () => {
   it('has a relay package that waits at a hub overnight', () => {
     expect(hubPickMin).toBeGreaterThan(hubDropMin);
     const { sim } = render(at(base, Math.floor((hubDropMin + hubPickMin) / 2)));

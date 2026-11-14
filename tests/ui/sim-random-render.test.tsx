@@ -11,7 +11,15 @@ import { generateScenario } from '../../server/domain/generator';
 
 const cities: [string, number, number][] = [['seed 3', 3, 4], ['seed 11', 11, 4], ['zero hubs', 5, 0]];
 
+const built = new Map<string, ReturnType<typeof buildCity>>();
+/** Each city is generated once per file and shared by every test. */
 function build(seed: number, hubs: number) {
+  const key = `${seed}/${hubs}`;
+  if (!built.has(key)) built.set(key, buildCity(seed, hubs));
+  return built.get(key)!;
+}
+
+function buildCity(seed: number, hubs: number) {
   const run = createInitialRun(generateScenario({
     preset: 'random', seed, employees: 200, packages: 60, hubs, maxExtraMin: 8,
   }));
@@ -23,9 +31,19 @@ function build(seed: number, hubs: number) {
   return { run, s, evening, morning };
 }
 
-function renderAt(run: ReturnType<typeof build>['run'], t: number, selectedId?: string) {
+const sims = new WeakMap<object, Map<number, ReturnType<typeof buildSimulatorResponse>>>();
+/** API view model per (city, time), built once per file. */
+function simAt(run: ReturnType<typeof build>['run'], t: number) {
+  const m = sims.get(run) ?? new Map();
+  sims.set(run, m);
+  if (!m.has(t)) m.set(t, buildSimulatorResponse({ ...run, clock: { ...run.clock, timeMin: t } }));
+  return m.get(t)!;
+}
+
+function renderAt(run: ReturnType<typeof build>['run'], t: number, selectedId?: string, fresh = false) {
   const s = run.scenario;
-  const sim = buildSimulatorResponse({ ...run, clock: { ...run.clock, timeMin: t } });
+  // The budget test passes fresh=true so its timing still includes building the view model.
+  const sim = fresh ? buildSimulatorResponse({ ...run, clock: { ...run.clock, timeMin: t } }) : simAt(run, t);
   const routes = selectedRoutes(sim, selectedId);
   const html = renderToStaticMarkup(
     <CityMap graph={s.graph} businesses={s.businesses} hubs={s.hubs}
@@ -83,12 +101,13 @@ describe.each(cities)('random city render (%s)', (_n, seed, hubs) => {
   });
 });
 
+// Budget stays 500 ms. The generous timeout only covers the warm-up render on a slow runner.
 describe('render budget', () => {
-  it('renders the 200-employee city to static markup in under 500 ms', () => {
+  it('renders the 200-employee city to static markup in under 500 ms', { timeout: 15_000 }, () => {
     const { run, evening } = build(3, 4);
-    renderAt(run, evening); // warm up
+    renderAt(run, evening, undefined, true); // warm up
     const t0 = performance.now();
-    renderAt(run, evening);
+    renderAt(run, evening, undefined, true);
     expect(performance.now() - t0).toBeLessThan(500);
   });
 });

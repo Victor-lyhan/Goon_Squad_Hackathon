@@ -55,7 +55,7 @@ const section = (html: string, label: string) => {
 const card = (html: string, key: string) =>
   visibleText(html.slice(html.indexOf(`data-testid="metric-${key}"`)).split('</div></div>')[0]);
 
-describe('Simulator playback with real Demo-city snapshots', () => {
+describe('Simulator playback with real Demo-city snapshots', { timeout: 15_000 }, () => {
   it('jump_to_morning lands 5 min before the first Day 2 event', () => {
     expect(checkpoints[2][1].clock.timeMin).toBe(firstDay2 - 5);
     expect(lastDay1).toBeLessThan(firstDay2);

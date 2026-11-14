@@ -20,6 +20,8 @@ const demo = createInitialRun(loadDefaultScenario());
 const random = createInitialRun(generateScenario({ preset: 'random', seed: 7, employees: 40, packages: 20, hubs: 4, maxExtraMin: 10 }));
 const zeroHub = createInitialRun(generateScenario({ preset: 'random', seed: 3, employees: 30, packages: 12, hubs: 0, maxExtraMin: 10 }));
 
+const compares = { demo: compareFor(demo), random: compareFor(random), zeroHub: compareFor(zeroHub) };
+
 const LABELS = ['Projected matched / requested', 'Projected relay plans', 'Projected average added minutes',
   'Projected max added minutes', 'Projected customer savings', 'Projected platform contribution'];
 
@@ -30,9 +32,9 @@ function expectClean(html: string) {
   expect(html).toContain('With relay');
 }
 
-describe('ComparePanel with real compare output', () => {
+describe('ComparePanel with real compare output', { timeout: 15_000 }, () => {
   it('demo city: delta line equals the API difference', () => {
-    const c = compareFor(demo);
+    const c = compares.demo;
     const delta = c.withRelay.metrics.matched - c.directOnly.metrics.matched;
     const html = renderToStaticMarkup(<ComparePanel compare={c} />);
     expectClean(html);
@@ -44,14 +46,14 @@ describe('ComparePanel with real compare output', () => {
   });
 
   it('random seed renders cleanly', () => {
-    const c = compareFor(random);
+    const c = compares.random;
     const html = renderToStaticMarkup(<ComparePanel compare={c} />);
     expectClean(html);
     expect(html).toMatch(/Relay adds (\+\d+ match(es)?|no extra matches)|No hubs/);
   });
 
   it('zero-hub city explains why relay adds nothing', () => {
-    const c = compareFor(zeroHub);
+    const c = compares.zeroHub;
     expect(c.withRelay.metrics.relay).toBe(0);
     const html = renderToStaticMarkup(<ComparePanel compare={c} />);
     expectClean(html);

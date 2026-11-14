@@ -21,7 +21,7 @@ function times(run: Run): [string, number][] {
   return [['start', simStartMin], ['overnight', night], ['finish', simEndMin]];
 }
 
-describe.each(cities)('package queue spec (%s)', (_n, run) => {
+describe.each(cities)('package queue spec (%s)', { timeout: 15_000 }, (_n, run) => {
   const { businesses } = run.scenario;
   for (const [label, t] of times(run)) {
     const sim = buildSimulatorResponse({ ...run, clock: { ...run.clock, timeMin: t } });

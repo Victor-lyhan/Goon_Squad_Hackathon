@@ -19,8 +19,15 @@ const times: [string, number][] = [
   ['simEndMin', s.settings.simEndMin],
 ];
 
+const sims = new Map<number, ReturnType<typeof buildSimulatorResponse>>();
+/** One API view model per time, built once per file. */
+function simAt(t: number) {
+  if (!sims.has(t)) sims.set(t, buildSimulatorResponse({ ...run, clock: { ...run.clock, timeMin: t } }));
+  return sims.get(t)!;
+}
+
 function render(t: number, selectedId?: string) {
-  const sim = buildSimulatorResponse({ ...run, clock: { ...run.clock, timeMin: t } });
+  const sim = simAt(t);
   const routes = selectedRoutes(sim, selectedId);
   const t0 = performance.now();
   const html = renderToStaticMarkup(
@@ -34,7 +41,8 @@ function render(t: number, selectedId?: string) {
 }
 const count = (html: string, re: RegExp) => (html.match(re) ?? []).length;
 
-describe('largest random city map', () => {
+// Explicit 15 s timeout (>= 3x any local time, floor 10 s): the 200-employee city renders slowly on CI runners.
+describe('largest random city map', { timeout: 15_000 }, () => {
   it('has the expected size', () => {
     expect(s.employees.length).toBe(200);
     expect(s.hubs.length).toBe(10);
@@ -49,7 +57,7 @@ describe('largest random city map', () => {
     });
 
     it('highlights only the selected package legs; relay legs differ and the hub is marked', () => {
-      const sim = buildSimulatorResponse({ ...run, clock: { ...run.clock, timeMin: t } });
+      const sim = simAt(t);
       const relay = sim.plans.find((p) => p.legs.length === 2);
       const direct = sim.plans.find((p) => p.legs.length === 1);
       expect(relay).toBeTruthy();
