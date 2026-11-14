@@ -31,6 +31,20 @@ type EventWithStopIndex = SimEvent & { stopIndex: number };
 
 type Point = { x: number; y: number };
 
+/**
+ * Runs normally retain the output of buildTimeline, but snapshotAt is also
+ * used while assembling/importing a run. Normalize that input here so status
+ * derivation never depends on an incidental array order at an equal minute.
+ */
+function orderedEvents(events: SimEvent[]): SimEvent[] {
+  return [...events].sort((left, right) =>
+    left.timeMin - right.timeMin
+    || EVENT_KIND_ORDER[left.kind] - EVENT_KIND_ORDER[right.kind]
+    || left.planId.localeCompare(right.planId)
+    || left.seq - right.seq,
+  );
+}
+
 /** The fixture is directed and generated graphs may contain parallel roads. */
 function edgeDurations(run: Run): Map<string, number> {
   const durations = new Map<string, number>();
@@ -183,13 +197,14 @@ export function buildTimeline(plans: DeliveryPlan[], jobs: Job[], hubs: Hub[]): 
  * behind progress or earnings from a later snapshot.
  */
 export function snapshotAt(run: Run, timeMin: number): Snapshot {
-  const occurredEvents = run.events.filter((event) => event.timeMin <= timeMin);
+  const timeline = orderedEvents(run.events);
+  const occurredEvents = timeline.filter((event) => event.timeMin <= timeMin);
   const plansByShipmentId = new Map(
     run.assignments.plans.map((plan) => [plan.shipmentId, plan]),
   );
   const eventsByJobId = new Map<string, SimEvent[]>();
 
-  for (const event of run.events) {
+  for (const event of timeline) {
     const events = eventsByJobId.get(event.jobId) ?? [];
     events.push(event);
     eventsByJobId.set(event.jobId, events);
