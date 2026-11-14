@@ -1,2 +1,4 @@
-// Placeholder (M0). Owner: agent:victor-2.
-export {};
+// Placeholder: the page owner replaces this.
+export default function Simulator() {
+  return <h1>Simulator</h1>;
+}
