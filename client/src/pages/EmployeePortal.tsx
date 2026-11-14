@@ -3,8 +3,10 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import type { Trip } from '../../../shared/types';
 import type { JobResponse } from '../../../shared/api';
 import type { PutCommuteRequest } from '../../../shared/schemas';
-import { ApiRequestError, getJob, putCommute } from '../api';
-import { Toast, useToasts } from '../ui';
+import { ApiRequestError, getEmployees, getJob, putCommute } from '../api';
+import { Drawer, Toast, useToasts } from '../ui';
+import { EmployeeNotFound, JobLinkNotice } from '../components/employee/JobDetail';
+import { employeeLookup, jobLinkState, type EmployeeLookup } from '../components/employee/jobDetailModel';
 import { EmployeePortalView } from '../components/employee/EmployeePortalView';
 import { useEmployeeDashboard } from '../components/employee/useEmployeeDashboard';
 import {
@@ -23,6 +25,8 @@ export default function EmployeePortal() {
   const [saved, setSaved] = useState<{ trips: Trip[]; rematchedShipmentIds: string[] } | null>(null);
   const [job, setJob] = useState<JobResponse | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [jobMissing, setJobMissing] = useState(false);
+  const [lookup, setLookup] = useState<EmployeeLookup>({ kind: 'found' });
 
   // New-delivery-job toast: first poll for an employee only seeds the seen set.
   const seen = useRef<Set<string> | null>(null);
@@ -37,15 +41,30 @@ export default function EmployeePortal() {
   // Job detail from ?job=. Refetched while open so status stays current.
   useEffect(() => {
     setJobError(null);
+    setJobMissing(false);
     if (!jobId) { setJob(null); return; }
     let alive = true;
     const load = () => getJob(jobId)
-      .then((j) => { if (alive) { setJob(j); setJobError(null); } })
-      .catch((e: unknown) => { if (alive) setJobError(e instanceof Error ? e.message : 'Could not load job'); });
+      .then((j) => { if (alive) { setJob(j); setJobError(null); setJobMissing(false); } })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        if (e instanceof ApiRequestError && e.status === 404) { setJob(null); setJobError(null); setJobMissing(true); return; }
+        setJobError(e instanceof Error ? e.message : 'Could not load job');
+      });
     void load();
     const t = setInterval(load, 1000);
     return () => { alive = false; clearInterval(t); };
   }, [jobId]);
+
+  // Unknown employee: when the dashboard fails, ask the API who exists (also catches a runId change).
+  useEffect(() => {
+    if (!data.error) { setLookup({ kind: 'found' }); return; }
+    let alive = true;
+    getEmployees()
+      .then((r) => { if (alive) setLookup(employeeLookup(r.employees, id)); })
+      .catch(() => { if (alive) setLookup({ kind: 'found' }); });
+    return () => { alive = false; };
+  }, [data.error, id]);
 
   const onViewJob = (j: string) => setParams((p) => { const n = new URLSearchParams(p); n.set('job', j); return n; });
   const onCloseJob = () => setParams((p) => { const n = new URLSearchParams(p); n.delete('job'); return n; });
@@ -71,6 +90,11 @@ export default function EmployeePortal() {
     }
   };
 
+  if (lookup.kind === 'unknown') return <EmployeeNotFound firstId={lookup.firstId} />;
+
+  const linkState = jobLinkState(jobId, job, jobMissing, id);
+  const noticeOpen = linkState.kind === 'missing' || linkState.kind === 'other';
+
   return (
     <>
       <EmployeePortalView
@@ -79,13 +103,16 @@ export default function EmployeePortal() {
         fieldErrors={fieldErrors}
         saved={saved}
         saveNotice={notice}
-        job={job}
-        jobError={jobError}
+        job={linkState.kind === 'ok' ? job : null}
+        jobError={noticeOpen ? null : jobError}
         onSave={onSave}
         onViewJob={onViewJob}
         onCloseJob={onCloseJob}
         onRetry={() => void data.refetch()}
       />
+      <Drawer open={noticeOpen} onClose={onCloseJob} title="Job detail">
+        <JobLinkNotice state={linkState} onBack={onCloseJob} />
+      </Drawer>
       <Toast toasts={toasts} onDismiss={dismiss} />
     </>
   );

@@ -122,3 +122,40 @@ export function toJobDetailModel(job: JobResponse, l: JobLookups, progress?: Shi
     stops: stopRows(job, l),
   };
 }
+
+// ---- Stale deep links (issue #164): unknown employee / unknown job / someone else's job ----
+
+export const EMPLOYEE_MISSING_TITLE = "We couldn't find that employee";
+export const JOB_MISSING_TITLE = "This job isn't in the current city";
+export const JOB_OTHER_TITLE = 'This job is assigned to someone else';
+
+export type JobLinkState =
+  | { kind: 'none' }
+  | { kind: 'ok' }
+  | { kind: 'missing' }
+  | { kind: 'other'; ownerId: string; href: string };
+
+/** Deep link to a job on its owner's portal (DECISIONS pass 4). */
+export const employeeJobHref = (employeeId: string, jobId: string) =>
+  `/employee/${encodeURIComponent(employeeId)}?job=${encodeURIComponent(jobId)}`;
+
+/**
+ * Decides what the ?job= drawer shows. `job` is the latest API answer (null if none loaded),
+ * `missing` is true when the API said the job does not exist (404).
+ */
+export function jobLinkState(jobId: string | null, job: JobResponse | null, missing: boolean, employeeId: string): JobLinkState {
+  if (!jobId) return { kind: 'none' };
+  if (job && job.job.id === jobId) {
+    return job.job.employeeId === employeeId
+      ? { kind: 'ok' }
+      : { kind: 'other', ownerId: job.job.employeeId, href: employeeJobHref(job.job.employeeId, jobId) };
+  }
+  return missing ? { kind: 'missing' } : { kind: 'ok' };
+}
+
+export type EmployeeLookup = { kind: 'found' } | { kind: 'unknown'; firstId: string | null };
+
+/** Decides from the API's employee list (never a hardcoded ID) whether an employee exists. */
+export function employeeLookup(employees: { id: string }[], id: string): EmployeeLookup {
+  return employees.some((e) => e.id === id) ? { kind: 'found' } : { kind: 'unknown', firstId: employees[0]?.id ?? null };
+}
