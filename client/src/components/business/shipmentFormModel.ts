@@ -117,3 +117,32 @@ export function fromShipment(s: Shipment): FormState {
 
 /** Prefill for Edit request / Duplicate (grams -> kg, minutes -> day + HH:MM). */
 export const formFromShipment = fromShipment;
+
+let requestCounter = 0;
+/** Fresh id for a new request. Module-wide counter so a Duplicate never reuses the original's id (POST is idempotent per id). */
+export function newClientRequestId(originId: string): string {
+  requestCounter += 1;
+  return `req-${originId}-${requestCounter}-${Date.now().toString(36)}`;
+}
+
+/** Runs one async action at a time; a call while one is pending is ignored (returns undefined). */
+export function createSubmitGuard() {
+  let busy = false;
+  return async function guarded<T>(action: () => Promise<T>): Promise<T | undefined> {
+    if (busy) return undefined;
+    busy = true;
+    try {
+      return await action();
+    } finally {
+      busy = false;
+    }
+  };
+}
+
+/** User-facing text for a failed action. A locked (409) rejection always points at a new planning cycle. */
+export function actionErrorMessage(e: unknown): string {
+  const status = (e as { status?: number } | null)?.status;
+  const msg = e instanceof Error ? e.message : 'Request failed';
+  if (status === 409 && !/planning cycle|already matched/i.test(msg)) return `${msg}. Start a new planning cycle to change deliveries.`;
+  return msg;
+}

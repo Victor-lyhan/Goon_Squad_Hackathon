@@ -6,7 +6,7 @@ import { ApiRequestError, createShipment, matchShipment, patchShipment } from '.
 import { ShipmentForm } from '../ShipmentForm';
 import { MatchResultCard } from './MatchResultCard';
 import { patchFromRequest } from './businessPortalModel';
-import { formFromShipment, type FormState } from './shipmentFormModel';
+import { actionErrorMessage, createSubmitGuard, formFromShipment, type FormState } from './shipmentFormModel';
 import { Button } from '../../ui';
 import './BusinessPortal.css';
 
@@ -31,7 +31,7 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
   const [editing, setEditing] = useState<{ id: string; initial: Partial<FormState> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const busy = useRef(false);
+  const guard = useRef(createSubmitGuard()).current;
   const [lastReset, setLastReset] = useState(p.resetKey);
   if (lastReset !== p.resetKey) {
     setLastReset(p.resetKey);
@@ -40,22 +40,22 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
   const formInitial = useMemo(() => editing?.initial ?? p.initial, [editing, p.initial]);
 
   async function run(action: () => Promise<ShipmentResponse>) {
-    if (busy.current) return; // blocks double submission
-    busy.current = true;
-    setSubmitting(true);
-    setFieldErrors({});
-    try {
-      const res = await action();
-      setResult(res);
-      setEditing(null);
-      await p.onChanged();
-    } catch (e) {
-      if (e instanceof ApiRequestError && e.status === 400 && e.fieldErrors) setFieldErrors(e.fieldErrors);
-      else p.onError(e instanceof Error ? e.message : 'Request failed');
-    } finally {
-      busy.current = false;
-      setSubmitting(false);
-    }
+    // The guard blocks double submission; the state flags drive the pending UI.
+    await guard(async () => {
+      setSubmitting(true);
+      setFieldErrors({});
+      try {
+        const res = await action();
+        setResult(res);
+        setEditing(null);
+        await p.onChanged();
+      } catch (e) {
+        if (e instanceof ApiRequestError && e.status === 400 && e.fieldErrors) setFieldErrors(e.fieldErrors);
+        else p.onError(actionErrorMessage(e));
+      } finally {
+        setSubmitting(false);
+      }
+    });
   }
 
   const onSubmit = (req: CreateShipmentRequest) =>
@@ -70,6 +70,7 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
           businesses={p.businesses}
           hubs={p.hubs}
           employees={p.employees}
+          busy={submitting}
           onViewTracking={() => p.onViewTracking(result.shipment.id)}
           onEdit={() => setEditing({ id: result.shipment.id, initial: formFromShipment(result.shipment) })}
           onRetry={() => void run(() => matchShipment(result.shipment.id))}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CreateShipmentRequest } from '../../../shared/schemas';
 import type { Business } from '../../../shared/types';
 import { Button, Field, formatCents } from '../ui';
-import { defaultForm, toRequest, validate, type FormState } from './business/shipmentFormModel';
+import { defaultForm, newClientRequestId, toRequest, validate, type FormState } from './business/shipmentFormModel';
 import { RouteMiniMap } from './business/RouteMiniMap';
 import './business/ShipmentForm.css';
 
@@ -24,7 +24,6 @@ export function ShipmentForm({ origin, businesses, locked, submitting, fieldErro
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   // Same content resubmitted reuses its id (idempotent POST); edited content gets a new one.
   const lastRequest = useRef({ sig: '', id: '' });
-  const counter = useRef(0);
   useEffect(() => { setForm({ ...defaultForm(), ...initial, originBusinessId: origin.id }); setLocalErrors({}); }, [initial, origin.id]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -41,8 +40,7 @@ export function ShipmentForm({ origin, businesses, locked, submitting, fieldErro
     if (Object.keys(errs).length > 0) return;
     const sig = JSON.stringify(form);
     if (lastRequest.current.sig !== sig) {
-      counter.current += 1;
-      lastRequest.current = { sig, id: `req-${origin.id}-${counter.current}-${Date.now().toString(36)}` };
+      lastRequest.current = { sig, id: newClientRequestId(origin.id) };
     }
     onSubmit(toRequest(form, lastRequest.current.id));
   }
