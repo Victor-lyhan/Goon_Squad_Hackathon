@@ -1,5 +1,5 @@
-// Collapsible map legend for the MVP II simulator's map corner: what each marker and line means.
-// Props only. The open state is either passed in (`open` + `onOpenChange`) or held locally; it is
+// Collapsible map legend for the simulator's map corner: what each marker and line means in the network
+// view. In journey mode it renders nothing: JourneyLegend explains the journey map (issue 699). Props only. The open state is either passed in (`open` + `onOpenChange`) or held locally; it is
 // never persisted in browser storage. Rows come from legendModel, so swatches match the map's layer colors.
 import { useId, useState, type CSSProperties } from 'react';
 import type { Focus } from '../workspaceModel';
@@ -18,16 +18,13 @@ export type MapLegendProps = {
 function swatchStyle(row: LegendRow): CSSProperties {
   if (row.shape === 'line') return { background: row.color, height: `${row.width ?? 2}px` };
   if (row.shape === 'ring') return { borderColor: row.color };
-  if (row.shape === 'numbered') return { background: row.color, color: row.textColor };
   return { background: row.color };
 }
 
 function Swatch({ row }: { row: LegendRow }) {
   return (
     <span className="ml__swatch-box" aria-hidden="true">
-      <span className={`ml__swatch ml__swatch--${row.shape}`} style={swatchStyle(row)}>
-        {row.shape === 'numbered' ? '1' : null}
-      </span>
+      <span className={`ml__swatch ml__swatch--${row.shape}`} style={swatchStyle(row)} />
     </span>
   );
 }
@@ -43,6 +40,8 @@ export function MapLegend({ mode, hasSelection = false, focus, open, onOpenChang
   };
 
   const rows = legendRows({ mode, hasSelection, focus });
+  // Journey mode has no rows of its own: no empty box in the map corner.
+  if (rows.length === 0) return null;
 
   return (
     <section className="ml" aria-label="Map legend">

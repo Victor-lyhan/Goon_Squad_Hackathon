@@ -137,9 +137,11 @@ describe('a collapsed panel: its controls cannot be reached', () => {
     }
   });
 
-  it.each(collapsed)('$name: the map legend stays reachable', (s) => {
+  it.each(collapsed)('$name: the map legend stays reachable (journey mode has none: #699)', (s) => {
     const map = one(s.root, (n) => n.attrs.role === 'region' && n.attrs['aria-label'] === 'Map', 'map');
-    expect(controlsIn(map).filter((c) => !isHidden(c)).map((c) => accessibleName(c, s.root))).toContain('Legend');
+    const names = controlsIn(map).filter((c) => !isHidden(c)).map((c) => accessibleName(c, s.root));
+    if (s.selection?.kind === 'package') expect(names).not.toContain('Legend');
+    else expect(names).toContain('Legend');
   });
 
   it('the hidden body is display: none in the CSS too (not only the attribute)', () => {

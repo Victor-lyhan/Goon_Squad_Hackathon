@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { MapLegend } from '../../client/src/components/sim/v2/legend/MapLegend';
 import { cssColor } from '../../client/src/components/sim/v2/legend/legendModel';
-import { LEG2, PACKAGE_FILL } from '../../client/src/components/map/layers';
+import { PACKAGE_FILL } from '../../client/src/components/map/layers';
 
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const items = (html: string) => html.match(/<li\b/g)?.length ?? 0;
@@ -48,21 +48,25 @@ describe('MapLegend', () => {
     expect(text(html)).toContain('Dimmed: not part of the selection');
   });
 
-  it('journey mode: numbered stop, both legs, no carrier names', () => {
-    const html = renderToStaticMarkup(<MapLegend mode="journey" />);
-    expect(items(html)).toBe(6);
-    const t = text(html);
-    for (const s of ['Numbered stop, in journey order', 'Leg 1 route', 'Leg 2 route', 'Normal commute (faint)']) expect(t).toContain(s);
-    expect(html).toMatch(/class="ml__swatch ml__swatch--numbered"[^>]*>1<\/span>/);
-    expect(html).toContain(`background:${cssColor(LEG2)}`);
+  it('journey mode renders nothing: no rows, no empty box (#699; JourneyLegend explains the journey map)', () => {
+    expect(renderToStaticMarkup(<MapLegend mode="journey" />)).toBe('');
+    expect(renderToStaticMarkup(<MapLegend mode="journey" hasSelection open={false} onOpenChange={() => {}} />)).toBe('');
+    expect(renderToStaticMarkup(<MapLegend mode="journey" focus={{ kind: 'employee', id: 'emp-1' }} />)).toBe('');
+  });
+
+  it('network rows are unchanged, with no numbered-stop swatch', () => {
+    const html = renderToStaticMarkup(<MapLegend mode="network" />);
+    expect(html.match(/class="ml__row ml__row--(\w+)"/g)!.map((m) => m.split('--')[1].slice(0, -1)))
+      .toEqual(['business', 'home', 'vehicle', 'package', 'baseline', 'route']);
     expect(html).toMatch(/height:4px/);
     expect(html).toMatch(/height:2px/);
-    assertClean(html);
+    expect(html).not.toContain('ml__swatch--numbered');
+    expect(text(html)).not.toMatch(/Numbered stop|Leg 1 route|Leg 2 route/);
   });
 
   it('never shows an "all layers hidden" line (#648: the layer checkboxes are gone)', () => {
-    for (const mode of ['network', 'journey'] as const) {
-      const html = renderToStaticMarkup(<MapLegend mode={mode} hasSelection />);
+    {
+      const html = renderToStaticMarkup(<MapLegend mode="network" hasSelection />);
       expect(text(html)).not.toMatch(/hidden|Turn a layer on/i);
       expect(html).toContain('<ul');
     }

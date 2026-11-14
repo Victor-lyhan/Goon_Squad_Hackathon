@@ -226,10 +226,12 @@ describe('doc §1: package journey mode', () => {
     // The step symbols keep the leg colour classes.
     const tones = all(s.right, (n) => hasClass(n, 'jt-step__n')).map((n) => n.attrs.class.match(/jt-step__n--(leg\d)/)?.[1]);
     expect(tones).toEqual(plan.legs.flatMap((leg, i) => leg.stops.map(() => `leg${i + 1}`)));
-    // The map legend lists the leg route colours too.
-    const mapLegend = readText(one(s.mapRegion, (n) => n.attrs['aria-label'] === 'Map legend', 'map legend'));
-    expect(mapLegend).toContain('Leg 1 route');
-    if (plan.kind === 'relay') expect(mapLegend).toContain('Leg 2 route');
+    // #699: no map legend of its own in journey mode; the journey legend keys the map's symbols.
+    expect(all(s.mapRegion, (n) => n.attrs['aria-label'] === 'Map legend')).toEqual([]);
+    const symbols = byClass(legend, 'jl__item--symbol').map((li) => readText(byClass(li, 'jl__label')[0]));
+    expect(symbols).toEqual(plan.kind === 'relay'
+      ? ['Package', 'Sender', 'Overnight at the relay point', 'Handoff', 'Delivered']
+      : ['Package', 'Sender', 'Delivered']);
   });
 
   it.each(JOURNEYS)('$name: the right panel shows the reward and the delivery time, equal to the formatted plan values (#552)', (s) => {

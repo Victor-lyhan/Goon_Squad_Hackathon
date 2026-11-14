@@ -270,8 +270,10 @@ describe('SimPageBody render', () => {
     expect(text(focused)).toContain('Dimmed: not part of this focus');
     const journey = render(journeyHook(), { kind: 'package', id: 'shp-2' });
     expect(journey).toContain('data-legend-mode="journey"');
-    expect(text(journey)).toContain('Numbered stop, in journey order');
-    expect(text(journey)).toContain('Leg 2 route');
+    // #699: the map legend shows nothing in journey mode; the journey legend has the map's symbols.
+    expect(journey).not.toContain('aria-label="Map legend"');
+    expect(text(journey)).not.toMatch(/Numbered stop|Leg 1 route|Leg 2 route/);
+    expect(text(journey)).toContain('Overnight at the relay point');
   });
 
   it('the comparison section is in the left panel, idle, with Compare', () => {
@@ -292,9 +294,9 @@ describe('SimPageBody render', () => {
       expect(t).toContain(s);
     }
     expect(html).toContain('aria-label="Journey legend"');
-    expect(t).toContain('Leg 1');
-    expect(t).toContain('Leg 2');
-    expect(t).toContain('Normal commute');
+    // #699: the map's symbols, not "Leg 1/2" and the faint normal commute of MVP II.
+    for (const s of ['Sender', 'Overnight at the relay point', 'Handoff', 'Delivered']) expect(t).toContain(s);
+    expect(t).not.toMatch(/\bLeg [12]\b|Normal commute/);
     expect(t).toContain('Cy Lam');
     expect(t).toContain('Ben Okafor');
     expect(t).toContain('Package journey');
