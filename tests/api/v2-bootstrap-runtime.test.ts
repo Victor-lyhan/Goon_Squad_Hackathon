@@ -81,7 +81,8 @@ describe('v2 runtime: ticker and shutdown', () => {
     const saved = await api.savedRun();
     expect(saved?.version).toBe(before + 1);
     expect(saved?.clock.playing).toBe(false);
-    expect(fs.readdirSync(path.dirname(api.repo.statePath))).toStrictEqual(['state-v2.json']);
+    // the state file and its sidecar (the fingerprint of the default inputs, written at boot: #503)
+    expect(fs.readdirSync(path.dirname(api.repo.statePath)).sort()).toStrictEqual(['state-v2.json', 'state-v2.source.json']);
   }, T);
 
   it('the MVP 1 state is saved even when the v2 save fails, and the failure is reported', async () => {

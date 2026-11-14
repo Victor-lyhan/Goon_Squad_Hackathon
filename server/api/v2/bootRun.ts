@@ -4,6 +4,11 @@
 //   503 `travel_data_missing`). Nothing here estimates a travel time, and boot does not throw.
 // - A saved v2 state is restored (paused) only if it is a v2 run whose places are all in the cache;
 //   an unusable file is renamed to <file>.bad-<n>, never overwritten (MVP 1 behaviour, #184).
+// - A usable saved state is restored only if it was built from the same default inputs (DECISIONS pass 55):
+//   a fingerprint of the three fixture files and the default request is kept in a sidecar file next to the
+//   state file. A missing or different sidecar: the state file is renamed to <file>.stale-<n>, never deleted,
+//   and the default run is built from the current files. The boot result then carries a `notice` sentence.
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -129,11 +134,76 @@ export function buildDefaultRun(input: { travel: TravelProvider; places: Places;
   return createInitialRun(scenario, { travel: input.travel, buildEvents: buildTimeline });
 }
 
-// ---------- the saved state ----------
+// ---------- the fingerprint of the default inputs ----------
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isText = (v: unknown): v is string => typeof v === 'string' && v !== '';
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** JSON with the keys of every object sorted, so key order and whitespace in a file do not matter. List order is kept: it matters to the generator. */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item === undefined ? null : item)).join(',')}]`;
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).filter((key) => record[key] !== undefined).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * SHA-256 (hex) over everything the default run is defined by: the three parsed fixture files and the
+ * default generate request. The travel cache (`matrix.json`, `polylines.json`) is not part of it: it grows
+ * with every live commute save, and a place missing from it is already caught by `savedRunProblem`.
+ */
+export function defaultRunFingerprint(fixtures: NycFixtures, request: GenerateScenarioRequest): string {
+  const inputs = {
+    businesses: fixtures.businessesFile,
+    neighborhoods: fixtures.neighborhoodsFile,
+    story: fixtures.storyFile,
+    request,
+  };
+  return createHash('sha256').update(stableJson(inputs)).digest('hex');
+}
+
+const SOURCE_FILE_VERSION = 1;
+
+/** The sidecar file of a state file: `data/state-v2.source.json` for `data/state-v2.json`. */
+export function sourcePathFor(statePath: string): string {
+  return `${statePath.endsWith('.json') ? statePath.slice(0, -'.json'.length) : statePath}.source.json`;
+}
+
+/** The fingerprint in the sidecar file, or null if the file is missing, unreadable or not a sidecar. */
+function readSourceFingerprint(sourcePath: string): string | null {
+  try {
+    const value: unknown = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+    if (!isRecord(value) || value.schemaVersion !== SOURCE_FILE_VERSION || !isText(value.fingerprint)) return null;
+    return value.fingerprint;
+  } catch {
+    return null;
+  }
+}
+
+/** Through a temp file and a rename, so a crash never leaves half a sidecar. Creates the folder if needed. */
+function writeSourceFingerprint(sourcePath: string, fingerprint: string): void {
+  fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+  const tmp = `${sourcePath}.tmp`;
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify({ schemaVersion: SOURCE_FILE_VERSION, fingerprint }, null, 2)}\n`);
+    fs.renameSync(tmp, sourcePath);
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  }
+}
+
+/** A path as the log shows it: relative to the repo root when it is inside the repo (`data/state-v2.json`). */
+function shown(file: string): string {
+  const relative = path.relative(repoRoot, file);
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative) ? relative : file;
+}
+
+// ---------- the saved state ----------
 
 // The wrapper `{ schemaVersion, run }` that server/store.ts writes (the same for MVP 1 and MVP II).
 const STORE_FILE_VERSION = 1;
@@ -235,13 +305,14 @@ function inspectState(statePath: string, places: Places): SavedState {
 }
 
 /**
- * Moves an unusable state file to <file>.bad-<n> (first free n) and returns the new path, or null if it
- * could not be moved. A rename, not a copy: the generic store must not find the file again, and a second
- * restart must not make a second copy.
+ * Moves a state file to <file>.<kind>-<n> (first free n) and returns the new path, or null if it could not
+ * be moved. `bad`: an unusable file. `stale`: a usable run built from other default inputs.
+ * A rename, not a copy: the generic store must not find the file again, and a second restart must not make
+ * a second copy. An existing name is never reused, so nothing is overwritten.
  */
-function setAside(statePath: string): string | null {
+function setAside(statePath: string, kind: 'bad' | 'stale'): string | null {
   for (let n = 1; n < 1000; n++) {
-    const dest = `${statePath}.bad-${n}`;
+    const dest = `${statePath}.${kind}-${n}`;
     if (fs.existsSync(dest)) continue;
     try {
       fs.renameSync(statePath, dest);
@@ -256,7 +327,16 @@ function setAside(statePath: string): string | null {
 // ---------- boot ----------
 
 export type V2Boot =
-  | { status: 'ready'; store: Store<RunV2>; travel: TravelProvider }
+  | {
+      status: 'ready';
+      store: Store<RunV2>;
+      travel: TravelProvider;
+      /**
+       * One sentence for the server log, only when a saved run was set aside as stale and the default run was
+       * built in its place. It names paths only: never a key, never file contents.
+       */
+      notice?: string;
+    }
   | { status: 'not_loaded'; reason: string };
 
 export type BootV2RunInput = {
@@ -266,7 +346,10 @@ export type BootV2RunInput = {
   places: Places | null;
   /** Folder with businesses.json, neighborhoods.json and demoStory.json (`NYC_FIXTURES_DIR` in the app). */
   fixturesDir: string;
-  /** The v2 state file (`DEFAULT_V2_STATE_PATH` in the app). Its folder is created on the first save. */
+  /**
+   * The v2 state file (`DEFAULT_V2_STATE_PATH` in the app), written on the first save. A ready boot writes
+   * its sidecar (`sourcePathFor(statePath)`) and creates the folder for it.
+   */
   statePath: string;
 };
 
@@ -274,15 +357,19 @@ const notLoaded = (reason: string): V2Boot => ({ status: 'not_loaded', reason })
 
 /**
  * Builds the default run first, so `ready` always means "the cache holds everything the demo needs",
- * then opens the store on `statePath`. While the result is `not_loaded` the state file is not touched.
+ * then opens the store on `statePath`. While the result is `not_loaded` neither the state file nor its
+ * sidecar is touched.
  */
 export function bootV2Run(input: BootV2RunInput): V2Boot {
   const { travel, places, fixturesDir, statePath } = input;
   if (!travel || !places) return notLoaded(TRAVEL_NOT_LOADED_MESSAGE);
 
   let initial: RunV2;
+  let fingerprint: string;
   try {
-    initial = buildDefaultRun({ travel, places, fixtures: readNycFixtures(fixturesDir) });
+    const fixtures = readNycFixtures(fixturesDir);
+    initial = buildDefaultRun({ travel, places, fixtures });
+    fingerprint = defaultRunFingerprint(fixtures, DEFAULT_RUN_REQUEST);
   } catch (e) {
     if (e instanceof TravelDataMissingError) return notLoaded(travelErrorBody(e)!.error); // names the pair
     if (e instanceof NycFixtureError) return notLoaded(e.message); // names the file
@@ -290,16 +377,40 @@ export function bootV2Run(input: BootV2RunInput): V2Boot {
   }
 
   try {
+    const sourcePath = sourcePathFor(statePath);
+    const savedFingerprint = readSourceFingerprint(sourcePath);
     const saved = inspectState(statePath, places);
+    let notice: string | undefined;
     if (saved.kind === 'unusable') {
-      const copy = setAside(statePath);
+      const copy = setAside(statePath, 'bad');
       if (copy === null) {
         return notLoaded(`The v2 state file ${statePath} is unusable (${saved.problem}) and could not be renamed. Move it away and restart.`);
       }
       console.warn(`[v2 boot] ${statePath} is unusable (${saved.problem}); starting from the default NYC run, bad file kept at ${copy}`);
+    } else if (saved.kind === 'usable' && savedFingerprint !== fingerprint) {
+      // A good run, but built from other default inputs (or nobody recorded which): keep it, do not show it.
+      const copy = setAside(statePath, 'stale');
+      if (copy === null) {
+        return notLoaded(`The v2 state file ${statePath} was saved from other NYC story files and could not be renamed. Move it away and restart.`);
+      }
+      const why = savedFingerprint === null
+        ? `${shown(statePath)} has no record of the NYC story files it was saved from (${shown(sourcePath)} is missing or unreadable).`
+        : `The NYC story files or the default detour limit changed since ${shown(statePath)} was saved.`;
+      notice = `${why} Started from the new default run; the old run is kept as ${shown(copy)}.`;
+    }
+    // After the set-aside, so a crash in between leaves no state file and an old sidecar: the next boot
+    // builds the default run. Not rewritten when it already holds this fingerprint.
+    if (savedFingerprint !== fingerprint) {
+      try {
+        writeSourceFingerprint(sourcePath, fingerprint);
+      } catch (e) {
+        // The run still works. Without the sidecar the next restart sets a saved run aside as stale: kept, not shown.
+        console.warn(`[v2 boot] ${sourcePath} could not be written (${(e as NodeJS.ErrnoException).code ?? 'unknown error'}); a run saved now will be set aside at the next restart`);
+      }
     }
     // The store loads a usable file (paused) and calls `initial` only when there is none.
-    return { status: 'ready', store: createStore<RunV2>({ filePath: statePath, initial: () => initial }), travel };
+    const store = createStore<RunV2>({ filePath: statePath, initial: () => initial });
+    return notice === undefined ? { status: 'ready', store, travel } : { status: 'ready', store, travel, notice };
   } catch (e) {
     return notLoaded(`The v2 state file ${statePath} could not be opened: ${e instanceof Error ? e.message : String(e)}`);
   }

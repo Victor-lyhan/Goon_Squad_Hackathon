@@ -10,6 +10,8 @@
 // - No travel cache, a corrupt one, or one that lacks something the default run needs: `not_loaded`.
 //   Nothing here throws at server start, nothing is estimated, the state file is not touched, and
 //   createV2Router answers 503 `travel_data_missing` on every /api/v2 path.
+// - A saved run from other story files is set aside by bootV2Run (DECISIONS pass 55); its `notice` sentence
+//   is passed on as `runtime.notice` for server/index.ts to log once.
 // - The key goes to the travel service and to the address search only. This file logs nothing.
 import type express from 'express';
 import type { Run as RunV2, Snapshot } from '../../../shared/v2/types';
@@ -43,6 +45,11 @@ export type V2Runtime = {
   status: 'ready' | 'not_loaded';
   /** Why /api/v2 answers 503, in one sentence. Only when `not_loaded`. It never holds the key. */
   reason?: string;
+  /**
+   * One sentence for the start log, only when `ready` and a saved run was set aside as stale (the story files
+   * or the default limit changed) and the default run was built in its place. Paths only, never the key.
+   */
+  notice?: string;
   /** For `createApp(store, { v2: deps })`. */
   deps: V2Deps;
   /** Starts the v2 clock ticker. Does nothing when not loaded, when it is already running, or after `shutdown`. */
@@ -129,6 +136,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
 
   return {
     status: 'ready',
+    ...(boot.notice === undefined ? {} : { notice: boot.notice }),
     deps: { travel, store, extraRoutes },
 
     startTicker(opts) {
