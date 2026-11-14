@@ -12,6 +12,29 @@ const DEFAULT_OPTIONS = {
   maxExtraMin: 8,
 };
 
+const TIMELINE_CASES = [
+  ...Array.from({ length: 20 }, (_, index) => ({
+    name: `seed ${index + 1}`,
+    options: { ...DEFAULT_OPTIONS, seed: index + 1 },
+    expectsAllUnmatched: false,
+  })),
+  {
+    name: 'zero hubs',
+    options: { ...DEFAULT_OPTIONS, seed: 21, hubs: 0 },
+    expectsAllUnmatched: false,
+  },
+  {
+    name: 'all-unmatched demand',
+    options: { ...DEFAULT_OPTIONS, seed: 22, maxExtraMin: 0 },
+    expectsAllUnmatched: true,
+  },
+] as const;
+
+// Each city's local runtime is measured below 500 ms; 1.5 s leaves at least
+// three times that headroom while preventing a single slow city from timing out
+// the entire generated-city coverage set in CI.
+const CITY_TIMEOUT_MS = 1_500;
+
 const centFields: Array<keyof Pick<Metrics,
   | 'earnedRewardsCents'
   | 'projectedCustomerSavingsCents'
@@ -50,13 +73,19 @@ function assertTimelineMetrics(scenario: Scenario, expectsAllUnmatched = false):
   let priorDelivered = 0;
   let priorEarnings = 0;
   let finish: Metrics | undefined;
+  const occurredEvents = [];
+  let eventIndex = 0;
 
   for (const timeMin of minutes) {
+    while (eventIndex < run.events.length && run.events[eventIndex].timeMin <= timeMin) {
+      occurredEvents.push(run.events[eventIndex]);
+      eventIndex += 1;
+    }
     const metrics = computeMetrics({
       shipments: scenario.shipments,
       plans: run.assignments.plans,
       unmatched: run.assignments.unmatched,
-      occurredEvents: run.events.filter((event) => event.timeMin <= timeMin),
+      occurredEvents,
       settings: scenario.settings,
     });
     expectSaneMetrics(metrics);
@@ -79,12 +108,7 @@ function assertTimelineMetrics(scenario: Scenario, expectsAllUnmatched = false):
 }
 
 describe('computeMetrics event-minute timeline properties', () => {
-  it('stays finite and monotonic for default seeds, zero hubs, and all-unmatched demand', () => {
-    for (let seed = 1; seed <= 20; seed += 1) {
-      assertTimelineMetrics(generateScenario({ ...DEFAULT_OPTIONS, seed }));
-    }
-
-    assertTimelineMetrics(generateScenario({ ...DEFAULT_OPTIONS, seed: 21, hubs: 0 }));
-    assertTimelineMetrics(generateScenario({ ...DEFAULT_OPTIONS, seed: 22, maxExtraMin: 0 }), true);
-  }, 4_500);
+  it.each(TIMELINE_CASES)('stays finite and monotonic for $name', ({ options, expectsAllUnmatched }) => {
+    assertTimelineMetrics(generateScenario(options), expectsAllUnmatched);
+  }, CITY_TIMEOUT_MS);
 });
