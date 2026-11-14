@@ -1,4 +1,4 @@
-/** Pure helpers for the app shell: Demo-account selector reconciliation and runId tracking. */
+/** Pure helpers for the app shell: Demo-account selector reconciliation and labels, and runId tracking. */
 export const RUN_POLL_MS = 3000;
 
 export type Selection = {
@@ -18,6 +18,29 @@ export function staleNote(kind: 'business' | 'employee', fallbackName: string | 
   return fallbackName
     ? `That ${what} isn't in the current city. Showing ${fallbackName} instead.`
     : `That ${what} isn't in the current city.`;
+}
+
+/** One entry of the Demo account selector: `id` is the option value, `label` its visible text. */
+export type AccountOption = { id: string; label: string };
+
+/** Between an employee's name and the employer's name: "Jordan Lee · Titan Foods". */
+export const EMPLOYER_SEPARATOR = ' · ';
+
+/**
+ * The employee options of the Demo account selector: "<employee name> · <employer name>", in the order of
+ * `GET /api/v2/employees` (so the story's employees stay first; DECISIONS pass 59). The employer is looked up
+ * by `employee.businessId` in the `GET /api/v2/businesses` list. The label is the name alone while that list
+ * is not loaded (`businesses` undefined), or when the employee has no employer in it or the employer has no name.
+ */
+export function employeeOptions(
+  employees: readonly { id: string; name: string; businessId?: string }[],
+  businesses: readonly { id: string; name: string }[] | undefined,
+): AccountOption[] {
+  const employerName = new Map((businesses ?? []).map((b) => [b.id, b.name]));
+  return employees.map((e) => {
+    const employer = e.businessId === undefined ? '' : (employerName.get(e.businessId) ?? '').trim();
+    return { id: e.id, label: employer ? `${e.name}${EMPLOYER_SEPARATOR}${employer}` : e.name };
+  });
 }
 
 /** True when a polled runId differs from the last one seen (the first sighting is not a change). */
