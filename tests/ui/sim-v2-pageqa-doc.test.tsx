@@ -223,7 +223,7 @@ describe('doc §1: package journey mode', () => {
       readText(byClass(li, 'jl__badge')[0]), readText(byClass(li, 'jl__name')[0]),
       byClass(li, 'jl__badge')[0].attrs.style.toUpperCase(),
     ])).toEqual(plan.legs.map((leg, i) => [['A', 'B'][i], `${['A', 'B'][i]} · ${nameOf(s, leg.employeeId)}`, `BACKGROUND:${colours[i]}`]));
-    // The step numbers use the same leg colour classes.
+    // The step symbols keep the leg colour classes.
     const tones = all(s.right, (n) => hasClass(n, 'jt-step__n')).map((n) => n.attrs.class.match(/jt-step__n--(leg\d)/)?.[1]);
     expect(tones).toEqual(plan.legs.flatMap((leg, i) => leg.stops.map(() => `leg${i + 1}`)));
     // The map legend lists the leg route colours too.
@@ -242,14 +242,14 @@ describe('doc §1: package journey mode', () => {
     const deliveredLine = byClass(header, 'jt__time--delivered');
     if (delivered === undefined) expect(deliveredLine).toEqual([]);
     else expect(readText(deliveredLine[0])).toBe(`Delivered ${formatMin(delivered)}`);
-    // One line per leg: carrier, home neighbourhood, extra minutes, reward (the leg's rewardCents as money).
+    // One line per leg: letter badge, "A · <carrier>" (#683), home neighbourhood, extra minutes, reward (the leg's rewardCents as money).
     const home = (employeeId: string) => {
       const homeId = s.map.employees.find((e) => e.id === employeeId)!.homeId;
       return s.map.homes.find((h) => h.id === homeId)!.neighborhood;
     };
     const lines = byClass(jt, 'jt-leg');
     expect(lines.map((li) => elements(li).map(readText))).toEqual(plan.legs.map((leg, i) => [
-      `Leg ${i + 1}`, nameOf(s, leg.employeeId), `from ${home(leg.employeeId)}`, `+${leg.extraMin} min extra`,
+      ['A', 'B'][i], `${['A', 'B'][i]} · ${nameOf(s, leg.employeeId)}`, `from ${home(leg.employeeId)}`, `+${leg.extraMin} min extra`,
       `${formatCents(leg.rewardCents)} reward`,
     ]));
     // In the right panel, not on the map or in the left panel.

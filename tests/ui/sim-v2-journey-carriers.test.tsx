@@ -136,10 +136,10 @@ describe('JourneyLegend: each carrier in the colour of its vehicle and its route
   });
 });
 
-describe('JourneyTimeline: delivery time and one line per leg', () => {
-  const legLines = (html: string) => (html.match(/<li class="jt-leg [^"]*">.*?<\/li>/g) ?? []).map(text);
+describe('JourneyTimeline: delivery time and one line per carrier', () => {
+  const legLines = (html: string) => (html.match(/<li class="jt-leg [^"]*"[^>]*>.*?<\/li>/g) ?? []).map(text);
 
-  it('relay, not delivered yet: planned delivery under the header, two leg lines, no "Delivered" time', () => {
+  it('relay, not delivered yet: planned delivery under the header, carrier lines A and B, no "Delivered" time', () => {
     const sim = simAt(T.overnight, { 'shp-2': 'at_hub' });
     const plan = planOf(sim, 'shp-2');
     const j = buildJourney({ shipmentId: 'shp-2', sim, map }) as Journey;
@@ -147,13 +147,24 @@ describe('JourneyTimeline: delivery time and one line per leg', () => {
     const header = text(html.match(/<header[\s\S]*?<\/header>/)![0]);
     expect(header).toContain(`Planned delivery ${formatMin(plan.deliveryMin)}`);
     expect(html).not.toContain('jt__time--delivered');
+    // The letter badge (hidden from screen readers), then "A · <name>" / "B · <name>"; never "Leg 1" / "Leg 2".
+    const letters = ['A', 'B'];
     expect(legLines(html)).toEqual(plan.legs.map((l, i) =>
-      `Leg ${i + 1} ${j.carriers[i].name} from ${j.carriers[i].homeNeighborhood} +${l.extraMin} min extra ${formatCents(l.rewardCents)} reward`));
+      `${letters[i]} ${letters[i]} · ${j.carriers[i].name} from ${j.carriers[i].homeNeighborhood} +${l.extraMin} min extra ${formatCents(l.rewardCents)} reward`));
+    expect(text(html)).not.toMatch(/\bLeg \d/);
+    // Each line's badge and left border are the carrier's map colour (map/layers.ts), as in the legend.
+    const items = html.match(/<li class="jt-leg [^>]*>.*?<\/span>/g) ?? [];
+    expect(items).toHaveLength(2);
+    items.forEach((li, i) => {
+      const colour = hex(i === 0 ? L.LEG1 : L.LEG2);
+      expect(li).toContain(`style="border-left-color:${colour}"`);
+      expect(li).toContain(`jt-badge--leg${i + 1}" aria-hidden="true" style="background:${colour}">${letters[i]}</span>`);
+    });
     expect(html).toContain('<ul class="jt__legs" aria-label="Carriers">');
     expect(text(html)).not.toMatch(/NaN|undefined|null|\bhub\b/i);
   });
 
-  it('direct, delivered: "Delivered <time>" from the snapshot, one leg line', () => {
+  it('direct, delivered: "Delivered <time>" from the snapshot, one carrier line: only A', () => {
     const sim = withDelivered(simAt(T.afterDelivery, { 'shp-1': 'delivered' }), { 'shp-1': 1074 });
     const plan = planOf(sim, 'shp-1');
     const j = buildJourney({ shipmentId: 'shp-1', sim, map }) as Journey;
@@ -162,7 +173,9 @@ describe('JourneyTimeline: delivery time and one line per leg', () => {
     expect(header).toContain(`Planned delivery ${formatMin(plan.deliveryMin)}`);
     expect(header).toContain(`Delivered ${formatMin(1074)}`);
     expect(legLines(html)).toHaveLength(1);
+    expect(legLines(html)[0]).toContain(`A · ${j.carriers[0].name}`);
     expect(legLines(html)[0]).toContain(`${formatCents(plan.legs[0].rewardCents)} reward`);
+    expect(text(html)).not.toMatch(/\bB · |\bLeg \d/);
   });
 
   it('an unmatched package shows no delivery time, no leg line and no reward', () => {
