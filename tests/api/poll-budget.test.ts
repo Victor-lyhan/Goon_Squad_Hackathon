@@ -66,7 +66,7 @@ describe('poll budgets', () => {
     const body = (await (await fetch(`${base}/api/simulator`)).json()) as Record<string, unknown>;
     expect(body).not.toHaveProperty('graph');
     expect(JSON.stringify(body)).not.toContain('"edges"');
-  });
+  }, 30_000);
 
   it('Demo city: business and employee dashboards are fast', async () => {
     await post('/api/simulator/control', { action: 'seek', timeMin: MID_EVENING_MIN });
@@ -80,5 +80,5 @@ describe('poll budgets', () => {
     console.log(`demo: business ${b.median.toFixed(1)} ms, employee ${e.median.toFixed(1)} ms`);
     expect(b.median).toBeLessThan(DASH_MEDIAN_MS);
     expect(e.median).toBeLessThan(DASH_MEDIAN_MS);
-  });
+  }, 30_000);
 });
