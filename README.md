@@ -15,11 +15,12 @@ npm run dev
 ```
 `npm run dev` starts the API on **http://localhost:3001** and Vite on **http://localhost:5173**; Vite proxies `/api` to the API. Open http://localhost:5173.
 
-Production-style run (serves the built client from the API process):
+## Production build
 ```bash
-npm run build
-npm start
+npm run build   # builds the client into client/dist (the server is not compiled)
+npm start       # runs the server with tsx and serves client/dist
 ```
+Open **http://localhost:3001** (override with `PORT`). One process serves the API under `/api` and the built client; there is no Vite proxy. Refreshing a deep link such as `/business/<id>?shipment=<id>`, `/employee/<id>?job=<id>` or `/simulator?package=<id>` returns the app shell, while unknown `/api/*` paths return JSON `404 { "error": ... }`. Run state is saved to `data/state.json` (see below). If `client/dist` is missing, only the API is served.
 
 ## Tests
 ```bash
