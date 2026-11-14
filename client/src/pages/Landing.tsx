@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
-export const DEFAULT_BUSINESS_PATH = '/business/biz-a';
-export const DEFAULT_EMPLOYEE_PATH = '/employee/emp-1';
+import { portalPaths, readIdentity, resolveIdentity, useDirectory } from '../demoIdentity';
+
 export const SIMULATOR_PATH = '/simulator';
 
 const STEPS = [
@@ -10,7 +10,11 @@ const STEPS = [
   { title: 'Simulated delivery', text: 'Watch the matched deliveries run on a synthetic city map.' },
 ];
 
-export default function Landing() {
+export default function Landing({ initial }: { initial?: Parameters<typeof useDirectory>[0] } = {}) {
+  const dir = useDirectory(initial);
+  const paths = portalPaths(
+    dir.status === 'ready' ? resolveIdentity(readIdentity(), dir.businesses, dir.employees) : null,
+  );
   return (
     <div className="landing">
       <section className="panel hero">
@@ -19,10 +23,16 @@ export default function Landing() {
           Relay matches B2B packages to the commutes employees already make, direct or through one hub relay.
         </p>
         <div className="cta-row">
-          <Link className="btn btn-primary" to={DEFAULT_BUSINESS_PATH}>Business portal</Link>
-          <Link className="btn" to={DEFAULT_EMPLOYEE_PATH}>Employee portal</Link>
+          {paths.business
+            ? <Link className="btn btn-primary" to={paths.business}>Business portal</Link>
+            : <span className="btn btn-primary btn-disabled" aria-disabled="true">Business portal</span>}
+          {paths.employee
+            ? <Link className="btn" to={paths.employee}>Employee portal</Link>
+            : <span className="btn btn-disabled" aria-disabled="true">Employee portal</span>}
           <Link className="btn" to={SIMULATOR_PATH}>Simulator</Link>
         </div>
+        {dir.status === 'loading' && <p className="demo-account-status">Loading demo accounts…</p>}
+        {dir.status === 'error' && <p className="demo-account-status demo-account-error" role="alert">Could not load demo accounts. Is the API running?</p>}
       </section>
       <section aria-label="How it works">
         <ol className="steps">
