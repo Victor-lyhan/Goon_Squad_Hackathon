@@ -16,9 +16,11 @@ export type MatchContext = {
 
 const compareId = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
+export type MatchMode = 'with_relay' | 'direct_only';
+
 /** Greedily reserve whole trips, preserving assignments from earlier requests. */
 export function assignShipments(
-  shipments: Shipment[], ctx: MatchContext, opts?: { existing?: DeliveryPlan[] },
+  shipments: Shipment[], ctx: MatchContext, opts?: { existing?: DeliveryPlan[]; mode?: MatchMode },
 ): AssignmentResult {
   const plans = [...(opts?.existing ?? [])];
   const assigned = new Set(plans.map(plan => plan.shipmentId));
@@ -27,7 +29,7 @@ export function assignShipments(
   const pending = shipments.filter(shipment => !assigned.has(shipment.id)).map(shipment => ({
     shipment,
     candidates: shipment.originBusinessId === shipment.destinationBusinessId
-      ? [] : generateCandidates(shipment, ctx),
+      ? [] : generateCandidates(shipment, ctx, opts?.mode),
   })).sort((a, b) => a.candidates.length - b.candidates.length ||
     a.shipment.deadlineMin - b.shipment.deadlineMin || compareId(a.shipment.id, b.shipment.id));
 
@@ -56,6 +58,16 @@ export function assignShipments(
     (createdSeq.get(a.shipmentId) ?? Infinity) - (createdSeq.get(b.shipmentId) ?? Infinity) ||
     compareId(a.shipmentId, b.shipmentId));
   return { plans, unmatched, computeMs: 0 };
+}
+
+/** Compare fresh allocations without reserving trips from any live assignments. */
+export function compareAssignments(
+  shipments: Shipment[], ctx: MatchContext,
+): { directOnly: AssignmentResult; withRelay: AssignmentResult } {
+  return {
+    directOnly: assignShipments(shipments, ctx, { mode: 'direct_only' }),
+    withRelay: assignShipments(shipments, ctx, { mode: 'with_relay' }),
+  };
 }
 
 /** One stop is inserted; the other is the employer endpoint of the commute. */
@@ -99,7 +111,9 @@ function scheduleLeg(
 }
 
 /** Enumerates candidates only; trip reservation belongs to allocation. */
-export function generateCandidates(shipment: Shipment, ctx: MatchContext): DeliveryPlan[] {
+export function generateCandidates(
+  shipment: Shipment, ctx: MatchContext, mode: MatchMode = 'with_relay',
+): DeliveryPlan[] {
   const origin = ctx.businesses.find(business => business.id === shipment.originBusinessId);
   const destination = ctx.businesses.find(business => business.id === shipment.destinationBusinessId);
   if (!origin || !destination) return [];
@@ -126,7 +140,7 @@ export function generateCandidates(shipment: Shipment, ctx: MatchContext): Deliv
       'pickup', 'delivery', shipment.readyMin, shipment.deadlineMin);
     if (leg) addPlan('direct', [leg]);
   }
-  if (ctx.settings.allowRelay) {
+  if (mode === 'with_relay' && ctx.settings.allowRelay) {
     for (const hub of ctx.hubs) {
       const deposits = evenings.flatMap(({ trip, employee }) => {
         const leg = scheduleLeg(ctx, trip, employee, hub.nodeId, 'pickup', 'hub_drop',
