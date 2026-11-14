@@ -1,0 +1,88 @@
+/* First cut of the MVP II simulator page (#426): page states, the map banners and the right-panel
+   selection blocks. Square corners (radius ≤ 4px), 1px borders, flat fills, no shadows, no gradients.
+   Tokens as var(--name, fallback). */
+
+/* ---------- Loading, unavailable (503) and error: the whole workspace area ---------- */
+.spc-state {
+  position: fixed;
+  top: var(--app-header-h, 57px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6, 24px);
+  background: var(--bg, #F7F8FA);
+  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
+}
+.spc-state__panel {
+  max-width: 480px;
+  display: grid;
+  gap: var(--space-3, 12px);
+  justify-items: start;
+  padding: var(--space-4, 16px) var(--space-6, 24px);
+  background: var(--panel, #FFFFFF);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+}
+.spc-state__panel--loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  color: var(--muted, #5B6472);
+}
+.spc-state__title { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; }
+.spc-state__message { margin: 0; }
+.spc-state__note { margin: 0; color: var(--muted, #5B6472); font-size: var(--text-xs, 12px); }
+
+/* ---------- Map slot ---------- */
+.spc-map { position: relative; width: 100%; height: 100%; }
+.spc-banner {
+  position: absolute;
+  top: var(--space-3, 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  margin: 0;
+  padding: var(--space-1, 4px) var(--space-3, 12px);
+  background: var(--panel, #FFFFFF);
+  border: 1px solid var(--warn, #9A6700);
+  border-radius: var(--radius, 2px);
+  color: var(--text, #151B26);
+  font-size: var(--text-xs, 12px);
+  white-space: nowrap;
+}
+.spc-banner--quiet { border-color: var(--border, #D7DDE5); color: var(--muted, #5B6472); }
+.spc-banner + .spc-banner { top: calc(var(--space-3, 12px) + 32px); }
+
+/* ---------- Left panel: failed action ---------- */
+.spc-action-error {
+  display: grid;
+  gap: var(--space-2, 8px);
+  justify-items: start;
+  margin-bottom: var(--space-3, 12px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 1px solid var(--danger, #B42318);
+  border-left-width: 3px;
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+}
+.spc-action-error p { margin: 0; color: var(--danger, #B42318); }
+
+/* ---------- Right panel ---------- */
+.spc-entity,
+.spc-message {
+  display: grid;
+  gap: var(--space-2, 8px);
+  justify-items: start;
+  padding: var(--space-3, 12px) 0;
+}
+.spc-entity__name { margin: 0; font-size: var(--text-md, 15px); font-weight: 600; }
+.spc-entity__role { margin: 0; color: var(--muted, #5B6472); }
+.spc-message p { margin: 0; }
+
+.spc-journey { display: grid; gap: var(--space-3, 12px); }
+.spc-journey__foot { padding: 0 var(--space-4, 16px) var(--space-3, 12px); }
