@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, type ReactNode } from 'react';
+import { useEffect, useReducer, useRef, useState, type ReactNode, type Ref } from 'react';
 import { INITIAL_PANELS, panelReducer, workspaceKeyAction, type PanelState } from './workspaceModel';
 import './SimWorkspace.css';
 
@@ -24,10 +24,11 @@ type PanelProps = {
   open: boolean;
   bodyId: string;
   onToggle: () => void;
+  toggleRef?: Ref<HTMLButtonElement>;
   children: ReactNode;
 };
 
-function Panel({ side, title, open, bodyId, onToggle, children }: PanelProps) {
+function Panel({ side, title, open, bodyId, onToggle, toggleRef, children }: PanelProps) {
   // The chevron points the way the panel will move: toward its edge to collapse, away to expand.
   const towardEdge = side === 'left' ? '‹' : '›';
   const awayFromEdge = side === 'left' ? '›' : '‹';
@@ -35,6 +36,7 @@ function Panel({ side, title, open, bodyId, onToggle, children }: PanelProps) {
     <aside className={`sw-panel sw-${side}${open ? '' : ' is-collapsed'}`} aria-label={`${title} panel`}>
       <div className="sw-panel-head">
         <button
+          ref={toggleRef}
           type="button"
           className="sw-toggle"
           aria-expanded={open}
@@ -55,6 +57,32 @@ function Panel({ side, title, open, bodyId, onToggle, children }: PanelProps) {
 
 export function SimWorkspace({ map, left, right, onClearSelection, journey, initialPanels }: SimWorkspaceProps) {
   const [panels, dispatch] = useReducer(panelReducer, initialPanels ?? INITIAL_PANELS);
+  const inJourney = !!journey;
+
+  // #631: the journey timeline and "Play journey" live only in the right panel, so entering a journey
+  // opens a collapsed Inspector. Adjusted during render, so no frame shows the journey without them.
+  // Only the step from no journey to a journey opens it: another package, or a panel the user
+  // collapses during the journey, is left as it is. The width change is the usual toggle's, so the
+  // CSS transition (none with reduced motion) applies.
+  const [wasInJourney, setWasInJourney] = useState(inJourney);
+  if (inJourney !== wasInJourney) {
+    setWasInJourney(inJourney);
+    if (inJourney && !panels.rightOpen) dispatch({ type: 'toggleRight' });
+  }
+
+  // #631: both "Back to network" buttons unmount when the journey ends, which drops keyboard focus
+  // to <body>. Put it on the left panel's toggle (always mounted, collapsed or not). Focus that is
+  // on any other element is left alone.
+  const leftToggleRef = useRef<HTMLButtonElement>(null);
+  const hadJourney = useRef(inJourney);
+  useEffect(() => {
+    const ended = hadJourney.current && !inJourney;
+    hadJourney.current = inJourney;
+    if (!ended) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    leftToggleRef.current?.focus();
+  }, [inJourney]);
 
   // Latest callbacks in a ref so the window listener is attached once.
   const latest = useRef({ onClearSelection, journey });
@@ -78,7 +106,7 @@ export function SimWorkspace({ map, left, right, onClearSelection, journey, init
     <div className="sim-v2">
       <div className="sw-frame">
         <Panel side="left" title="Controls" open={panels.leftOpen} bodyId={LEFT_BODY_ID}
-          onToggle={() => dispatch({ type: 'toggleLeft' })}>
+          onToggle={() => dispatch({ type: 'toggleLeft' })} toggleRef={leftToggleRef}>
           {journey && (
             <div className="sw-journey">
               <div className="sw-eyebrow">Package journey</div>
