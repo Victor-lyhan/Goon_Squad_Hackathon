@@ -1,13 +1,13 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 07:01 (Sat), planner pass 22_
+_Last update: 2026-11-14 07:13 (Sat), planner pass 23_
 
 ## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Nothing new merged since pass 21. Five of the six CI timing sweeps are merged; only p1-a's (#303) is left. #303 is back to `ready` (see below). No new issues were queued this pass.
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). All six CI timing sweeps are merged (#309–#313, #316). There are no open issues or PRs. I queued nothing this pass: every area already has spec, real-data, 390 px, reduced-motion and poll-abort tests, so new issues would be filler (DECISIONS pass 13).
 
 ## Main health: GREEN
-- The last three main runs passed, including the merge of #315 (#314).
-- Every test area except `tests/domain/matching*|routing*` (#303) has explicit CI timeouts and builds its data once per file.
+- The last three main runs passed, including the merge of #316 (#303).
+- Every test area now has explicit CI timeouts and builds its data once per file.
 
 ## Stuck
 - None.
@@ -16,13 +16,13 @@ Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Du
 - None.
 
 ## Queued (label `ready`)
-- **#303** p1-a, matcher/routing timing sweep. Its PR was never opened. p1-a pushed commit 8d9afdc to `origin/issue-303` at 11:31 UTC (6 `tests/domain/matching-*` files), but `gh pr create` failed. `scripts/worker.sh:80-84` hides the error and logs it as "PR already existed", then labels the issue `in-review`. Relabeled `ready` at 07:01 so p1-a reruns it (DECISIONS pass 22).
-- No other issues queued. All other workers are idle by design (no filler, DECISIONS pass 13).
+- None. All six workers are idle by design until the humans send the M6 bug list.
 
 ## Next up
-- p1-a reruns #303 and opens the PR, then the reviewer merges it. If #303 is `in-review` with no PR again, `gh pr create` is failing every time, and a human needs to run it by hand (QUESTIONS pass 22). Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and answers on a global `testTimeout` and on the Codex sandbox's EPERM on listen.
+- From the humans: the M6 bug list, a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and answers on a global `testTimeout`, the Codex sandbox's EPERM on listen, and `scripts/worker.sh` hiding `gh pr create` errors (QUESTIONS passes 18–23). Then M6 (11 p.m. Sat): bug fixes only.
 
 ## Done (newest first)
+- PR #316 (#303) p1-a: matcher/routing CI timing sweep. 346 tests measured; generated-city tests get explicit 10 s timeouts. Matcher perf is 218 ms (default) and 554 ms (maximum), against limits of 2,000 and 5,000 ms. The pass 22 rerun opened its PR normally.
 - PR #315 (#314) victor-1: `notifications-cycles` cut from 8.4 s to about 1.0 s (all assertions kept). New `commute-latency` test: the demo commute PUT median is about 26 ms, against a 150 ms budget. The PUT cost is the matcher retrying unmatched packages (25–40 ms per PUT).
 - PR #313 (#304) p1-b, #312 (#305) victor-1, #311 (#307) p2-a, #310 (#308) p2-b, #309 (#306) victor-2: CI timing sweeps (explicit 3x timeouts, data built once per file, perf limits unchanged)
 - PR #302 (#301) p1-b: metrics-timeline test per city, CI-sized timeouts (main green again)
