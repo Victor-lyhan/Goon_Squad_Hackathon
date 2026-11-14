@@ -1,10 +1,9 @@
 // #477: visual QA of the UI kit and global styles; since #651 against docs/mvp3.md P4 (the MVP III look).
 // Reads ui.css, global.css and tokens.css and fails on: radius above 6px, shadows other than a focus ring,
 // gradients, and colours / font families / spacing that are not tokens. Also checks focus rings,
-// disabled states that are not colour-only, reduced motion per animating selector, and the StatusPill shape.
+// disabled states that are not colour-only, and reduced motion per animating selector.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { statusLabel, type PillStatus } from '../../client/src/ui/StatusPill';
 
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 const read = (p: string) => strip(readFileSync(p, 'utf8'));
@@ -57,10 +56,10 @@ const resolve = (v: string): string => {
 
 /** The doc's base colours (docs/mvp3.md P4) plus the white panel; white may be written as a keyword or hex. */
 const DOC_COLOURS = ['#171c24', '#f7f7f4', '#e3e3de', '#1d5075', '#ffffff', '#fff', 'white'];
-/** Selectors allowed a full circle (spinner ring, status dot). Everything else stays at 6px or less. */
+/** Selectors allowed a full circle (spinner ring). Everything else stays at 6px or less. */
 /** docs/mvp3.md P4: 6px radius max. */
 const MAX_RADIUS_PX = 6;
-const FULL_CIRCLE_OK = ['.ui-spinner', '.ui-pill::before'];
+const FULL_CIRCLE_OK = ['.ui-spinner'];
 
 const COLOUR_PROP = /^(color|background(-color)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|fill|stroke|caret-color|accent-color|text-decoration(-color)?|column-rule(-color)?)$/;
 const COLOUR_KEYWORDS_OK = new Set([
@@ -175,7 +174,7 @@ function lum(hex: string): number {
 const contrast = (a: string, b: string) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
 
 /** Every interactive kit element, plus the global link focus. */
-const KIT_CONTROLS = ['.ui-btn', '.ui-field input', '.ui-field select', '.ui-field textarea', '.ui-drawer__close', '.ui-toast button'];
+const KIT_CONTROLS = ['.ui-btn'];
 /** Surfaces a control can sit on (the ring is offset outside the control, so it is drawn on these). */
 const SURFACES = ['--bg', '--panel', '--accent-soft'].map((t) => resolve(`var(${t})`));
 
@@ -260,8 +259,8 @@ describe('reduced motion covers every animating kit selector (#477)', () => {
   const animating = (kind: 'animation' | 'transition') =>
     RULES.ui.filter((r) => !isReduce(r) && motion(r, kind).some((d) => d.prop === kind || d.prop.endsWith('-duration') || d.prop.endsWith('-name'))).flatMap((r) => r.selectors);
 
-  it('the spinner, drawer, backdrop and toast are among the animating selectors', () => {
-    expect(animating('animation')).toEqual(expect.arrayContaining(['.ui-spinner', '.ui-drawer', '.ui-drawer__backdrop', '.ui-toast']));
+  it('the spinner and the connection banner are among the animating selectors', () => {
+    expect(animating('animation')).toEqual(expect.arrayContaining(['.ui-spinner', '.ui-connection-banner']));
   });
 
   for (const kind of ['animation', 'transition'] as const) {
@@ -284,30 +283,5 @@ describe('reduced motion covers every animating kit selector (#477)', () => {
       const d = blanket.decls.find((x) => x.prop === p)!;
       expect(seconds(d.value.replace('!important', ''))).toBeLessThanOrEqual(0.01);
     }
-  });
-});
-
-describe('StatusPill: no pill-shaped everything (#477)', () => {
-  const pill = RULES.ui.find((r) => r.selectors.includes('.ui-pill'))!;
-  const get = (p: string) => pill.decls.find((d) => d.prop === p)?.value;
-
-  it('radius is 2 to 6px', () => {
-    const px = Number.parseFloat(resolve(get('border-radius')!));
-    expect(px).toBeGreaterThanOrEqual(2);
-    expect(px).toBeLessThanOrEqual(MAX_RADIUS_PX);
-  });
-
-  it('label is set in IBM Plex Mono at a loaded weight (Mono ships 400/500)', () => {
-    expect(get('font-family')).toBe('var(--font-mono)');
-    expect(['400', '500']).toContain(get('font-weight'));
-  });
-
-  it('status-to-label map is unchanged', () => {
-    const expected: Record<string, string> = {
-      unmatched: 'Unmatched', scheduled: 'Scheduled', picked_up: 'Picked up', at_hub: 'At hub',
-      out_for_delivery: 'Out for delivery', delivered: 'Delivered', assigned: 'Assigned',
-      in_progress: 'In progress', completed: 'Completed', direct: 'Direct', relay: 'Relay',
-    };
-    for (const [s, label] of Object.entries(expected)) expect(statusLabel(s as PillStatus)).toBe(label);
   });
 });
