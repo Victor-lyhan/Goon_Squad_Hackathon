@@ -158,7 +158,11 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
     : '';
 
   return (
-    <form className="nd" aria-labelledby={id('title')} noValidate onSubmit={p.onSubmit}>
+    <form className="nd" aria-labelledby={id('title')} noValidate onSubmit={p.onSubmit}
+      onKeyDown={(e) => {
+        // Esc anywhere in the form does what Cancel does (an open native select handles its own Esc first).
+        if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); p.onCancel(); }
+      }}>
       <div className="nd-head">
         <h2 className="nd-title" id={id('title')}>New delivery</h2>
         <p className="nd-from">From {p.origin.name}{p.origin.neighborhood ? ` · ${p.origin.neighborhood}` : ''}</p>
@@ -260,6 +264,7 @@ function ResultLine(p: { tone: 'ok' | 'warn'; text: string; detail?: string | nu
       <p className="nd-result__text">
         <strong>{p.text}</strong>
         {p.detail ? <> {p.detail}</> : null}
+        {' '}<span className="nd-result__id">Shipment <span className="nd-mono">{p.shipmentId}</span></span>
       </p>
       <button type="button" className="nd-btn nd-btn--link" onClick={() => p.onOpen(p.shipmentId)}>View delivery</button>
     </div>
