@@ -3,6 +3,7 @@ import type { CreateShipmentRequest } from '../../../shared/schemas';
 import type { Business } from '../../../shared/types';
 import { Button, Field, formatCents } from '../ui';
 import { defaultForm, toRequest, validate, type FormState } from './business/shipmentFormModel';
+import { RouteMiniMap } from './business/RouteMiniMap';
 import './business/ShipmentForm.css';
 
 export type ShipmentFormProps = {
@@ -29,6 +30,7 @@ export function ShipmentForm({ origin, businesses, locked, submitting, fieldErro
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
   const errors = { ...localErrors, ...fieldErrors };
   const disabled = locked || submitting;
+  const destination = businesses.find((b) => b.id === form.destinationBusinessId);
   const others = businesses.filter((b) => b.id !== origin.id);
 
   function submit(e: React.FormEvent) {
@@ -99,6 +101,13 @@ export function ShipmentForm({ origin, businesses, locked, submitting, fieldErro
       <Field label="Drop-off instructions (optional)">
         <input type="text" value={form.dropoffInstructions} disabled={disabled} onChange={(e) => set('dropoffInstructions', e.target.value)} />
       </Field>
+      {destination && (
+        <section className="shipment-form__review" aria-label="Review">
+          <h3>Review</h3>
+          <p>{origin.name} → {destination.name}</p>
+          <RouteMiniMap originNodeId={origin.nodeId} destinationNodeId={destination.nodeId} />
+        </section>
+      )}
       <p className="shipment-form__price">Price: {formatCents(ASSUMED_PRICE_CENTS)} flat per package</p>
       <div className="shipment-form__submit">
         <Button type="submit" disabled={disabled}>{submitting ? 'Matching your package…' : 'Find a delivery match'}</Button>
