@@ -15,6 +15,9 @@ import { postCompare, postRecompute, postPlanningReset } from './api/planning';
 import { postGenerateScenario, getExportScenario, postImportScenario } from './api/scenario';
 import { startClockTicker } from './api/ticker';
 import { createV2Router, V2_DEPS_NOT_LOADED, type V2Deps } from './api/v2/router';
+import { createV2Runtime } from './api/v2/bootstrap';
+import { DEFAULT_V2_STATE_PATH, NYC_FIXTURES_DIR } from './api/v2/bootRun';
+import { loadDotEnv, serverKey } from './geo/env';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.resolve(here, '../client/dist');
@@ -91,13 +94,21 @@ export function portInUseMessage(port: number): string {
 }
 
 // Stop the ticker, pause the clock, and wait until the final state write has landed.
-export async function shutdown(store: Store, ticker: { stop(): void }): Promise<void> {
+// `v2` is the MVP II runtime (server/api/v2/bootstrap.ts): it does the same for the v2 run and its own
+// state file. Both are always tried, so a failed save of one never skips the other.
+export async function shutdown(store: Store, ticker: { stop(): void }, v2?: { shutdown(): Promise<void> }): Promise<void> {
   ticker.stop();
-  await store.flush(); // let an in-flight tick finish first
-  await store.mutate((run) => {
-    run.clock.playing = false;
-  });
-  await store.flush();
+  const v2Saved = v2 ? v2.shutdown() : Promise.resolve();
+  v2Saved.catch(() => undefined); // awaited below; this only keeps an early failure from being "unhandled"
+  try {
+    await store.flush(); // let an in-flight tick finish first
+    await store.mutate((run) => {
+      run.clock.playing = false;
+    });
+    await store.flush();
+  } finally {
+    await v2Saved;
+  }
 }
 
 if (isEntry) {
@@ -107,7 +118,19 @@ if (isEntry) {
     initial: () => createInitialRun(loadDefaultScenario()),
   });
   const ticker = startClockTicker(store);
-  const server = createApp(store).listen(PORT, (err?: Error) => {
+
+  // MVP II: fixtures/nyc/ (travel cache + NYC files) -> the v2 run in data/state-v2.json -> /api/v2.
+  // The key is read from the environment (.env at the repo root) and is never logged.
+  loadDotEnv();
+  const v2 = createV2Runtime({ fixturesDir: NYC_FIXTURES_DIR, statePath: DEFAULT_V2_STATE_PATH, key: serverKey() });
+  if (v2.status === 'ready') {
+    v2.startTicker();
+    console.log('Relay MVP II API ready at /api/v2 (NYC travel cache loaded)');
+  } else {
+    console.log(`Relay MVP II API (/api/v2) is not loaded and answers 503: ${v2.reason}`);
+  }
+
+  const server = createApp(store, { v2: v2.deps }).listen(PORT, (err?: Error) => {
     if (err) return; // Express 5 also passes listen errors here; the 'error' handler below reports them
     console.log(`Relay API listening on http://localhost:${PORT}`);
   });
@@ -127,7 +150,7 @@ if (isEntry) {
     console.log(`${sig} received, saving state and shutting down (press Ctrl-C again to force)`);
     server.close();
     server.closeAllConnections?.();
-    shutdown(store, ticker).then(
+    shutdown(store, ticker, v2).then(
       () => process.exit(0),
       (e) => {
         console.error('Shutdown failed to save state:', e);
