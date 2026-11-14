@@ -79,7 +79,12 @@ export function fakeGoogle(seconds = 900, meters = 6000) {
     if (url === GEOCODE_URL) {
       return reply({
         status: 'OK',
-        results: [{ formatted_address: GEOCODED.label, geometry: { location: { lat: GEOCODED.lat, lng: GEOCODED.lng } }, address_components: [] }],
+        // The county places the result in Queens (#602: only the five boroughs); there is still no neighborhood component.
+        results: [{
+          formatted_address: GEOCODED.label,
+          geometry: { location: { lat: GEOCODED.lat, lng: GEOCODED.lng } },
+          address_components: [{ long_name: 'Queens County', short_name: 'Queens County', types: ['administrative_area_level_2', 'political'] }],
+        }],
       });
     }
     const body = JSON.parse(init?.body ?? '{}');

@@ -115,10 +115,63 @@ describe('geocodeAddress', () => {
 
   it('reads location, formatted address and neighborhood (else sublocality, else null)', async () => {
     const { fetchImpl } = fakeFetch(() => ({ status: 200, body: okBody }));
-    expect(await geocodeAddress('85 Broadway', { apiKey: KEY, fetchImpl })).toEqual([
-      { lat: 40.7106, lng: -73.9665, formattedAddress: '85 Broadway, Brooklyn, NY 11249, USA', neighborhood: 'Williamsburg' },
-      { lat: 40.75, lng: -73.94, formattedAddress: '85 Broadway, Queens, NY 11101, USA', neighborhood: 'Queens' },
-      { lat: 40.7081, lng: -74.0121, formattedAddress: '85 Broadway, New York, NY 10006, USA', neighborhood: null },
+    expect(await geocodeAddress('85 Broadway', { apiKey: KEY, fetchImpl })).toStrictEqual([
+      { lat: 40.7106, lng: -73.9665, formattedAddress: '85 Broadway, Brooklyn, NY 11249, USA', neighborhood: 'Williamsburg', sublocality: 'Brooklyn', county: null },
+      { lat: 40.75, lng: -73.94, formattedAddress: '85 Broadway, Queens, NY 11101, USA', neighborhood: 'Queens', sublocality: 'Queens', county: null },
+      { lat: 40.7081, lng: -74.0121, formattedAddress: '85 Broadway, New York, NY 10006, USA', neighborhood: null, sublocality: null, county: null },
+    ]);
+  });
+
+  // #602. Type names from https://developers.google.com/maps/documentation/geocoding/requests-geocoding
+  it('reads where Google places the point: sublocality_level_1 (else sublocality) and administrative_area_level_2', async () => {
+    const part = (name: string, types: string[], short = name) => ({ long_name: name, short_name: short, types });
+    const state = part('New York', ['administrative_area_level_1', 'political'], 'NY');
+    const result = (components: unknown) => ({
+      formatted_address: 'somewhere, NY, USA',
+      geometry: { location: { lat: 40.7, lng: -73.9 } },
+      address_components: components,
+    });
+    const body = {
+      status: 'OK',
+      results: [
+        // A Brooklyn address: the borough is the first-level sublocality, the county is Kings.
+        result([
+          part('Williamsburg', ['neighborhood', 'political']),
+          part('Brooklyn', ['political', 'sublocality', 'sublocality_level_1']),
+          part('Kings County', ['administrative_area_level_2', 'political']),
+          state,
+        ]),
+        // Mount Vernon: a city of its own in Westchester County, with no sublocality.
+        result([
+          part('Fleetwood', ['neighborhood', 'political']),
+          part('Mount Vernon', ['locality', 'political']),
+          part('Westchester County', ['administrative_area_level_2', 'political']),
+          state,
+        ]),
+        // A smaller sublocality listed first does not hide the first-level one.
+        result([
+          part('Corona', ['political', 'sublocality', 'sublocality_level_2']),
+          part('Queens', ['political', 'sublocality', 'sublocality_level_1']),
+          part('Queens County', ['administrative_area_level_2', 'political']),
+        ]),
+        // A sublocality without a level; a county with only a short name.
+        result([part('Staten Island', ['political', 'sublocality']), { short_name: 'Richmond County', types: ['administrative_area_level_2'] }]),
+        // The state and the city are neither; components that are not objects or have no types are skipped.
+        result([state, part('New York', ['locality', 'political']), null, 'Kings County', { long_name: 'Kings County' }, { long_name: 'Bronx', types: 'sublocality_level_1' }]),
+        result(undefined),
+        result('administrative_area_level_2'),
+      ],
+    };
+    const { fetchImpl } = fakeFetch(() => ({ status: 200, body }));
+    const found = await geocodeAddress('85 Broadway', { apiKey: KEY, fetchImpl });
+    expect(found.map(({ neighborhood, sublocality, county }) => ({ neighborhood, sublocality, county }))).toStrictEqual([
+      { neighborhood: 'Williamsburg', sublocality: 'Brooklyn', county: 'Kings County' },
+      { neighborhood: 'Fleetwood', sublocality: null, county: 'Westchester County' },
+      { neighborhood: 'Corona', sublocality: 'Queens', county: 'Queens County' },
+      { neighborhood: 'Staten Island', sublocality: 'Staten Island', county: 'Richmond County' },
+      { neighborhood: null, sublocality: null, county: null },
+      { neighborhood: null, sublocality: null, county: null },
+      { neighborhood: null, sublocality: null, county: null },
     ]);
   });
 
