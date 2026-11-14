@@ -1,13 +1,15 @@
-// "The story works" on the real cache (DECISIONS pass 54, issue #492): the default NYC scenario, matched on the
-// committed Google matrix, with a clean plan check, at least 20 of 24 packages matched, every `expect` row as
-// written, the relay business each relay note names, and free trips left for the live demo request.
+// "The story works" on the real cache (DECISIONS pass 54, issue #492; retuned for docs/mvp3.md P3, issue #650):
+// the default NYC scenario, matched on the committed Google matrix, with a clean plan check, all 24 packages
+// matched, every row marked direct or relay and matched as written (at least 12 relays, at least 2 directs), the
+// relay business each relay note names, relays of two employees over three businesses, no stop at a home, the
+// "Navy Yard grinder burrs" package the homepage opens, and free trips left for the live demo request.
 // If this fails after a story or matrix change, retune fixtures/nyc/demoStory.json; do not lower the numbers.
 import { describe, expect, it } from 'vitest';
 import { generateHomePool } from '../../server/domain/v2/generator';
 import { TravelDataMissingError } from '../../shared/v2/types';
 import {
-  LIVE_DEMO_PAIRS, STORY_TEST_TIMEOUT_MS, checkWithLiveShipment, loadNycFixtures, planOfRow, relayBusinessNamedIn,
-  requestLiveDelivery, runDefaultStory, type StoryRun,
+  LIVE_DEMO_PAIRS, NAVY_YARD, STORY_TEST_TIMEOUT_MS, checkWithLiveShipment, loadNycFixtures, namedBusinessIds,
+  planOfRow, relayBusinessNamedIn, requestLiveDelivery, runDefaultStory, type StoryRun,
 } from './generator-v2-nyc-story-helper';
 
 const fixtures = loadNycFixtures();
@@ -42,10 +44,22 @@ describe('NYC demo story on the committed Google matrix', () => {
     expect(theRun().issues).toEqual([]);
   }, STORY_TEST_TIMEOUT_MS);
 
-  it('matches at least 20 of the 24 packages', () => {
+  it('matches all 24 packages', () => {
     const { result } = theRun();
     expect(result.plans.length + result.unmatched.length).toBe(24);
-    expect(result.plans.length).toBeGreaterThanOrEqual(20);
+    expect(result.unmatched).toEqual([]);
+    expect(result.plans.length).toBeGreaterThanOrEqual(24);
+  }, STORY_TEST_TIMEOUT_MS);
+
+  it('marks every row direct or relay: at least 12 relays and at least 2 directs', () => {
+    // docs/mvp3.md P3: most packages are one-relay journeys, and at least two stay direct for the comparison.
+    const relays = story.shipments.filter(row => row.expect === 'relay');
+    const directs = story.shipments.filter(row => row.expect === 'direct');
+    expect(relays.length).toBeGreaterThanOrEqual(12);
+    expect(directs.length).toBeGreaterThanOrEqual(2);
+    expect(relays.length).toBeGreaterThan(directs.length);
+    // No row is left as "any", so the row-by-row check below covers all 24 packages.
+    expect(story.shipments.filter(row => row.expect === 'any').map(row => row.label)).toEqual([]);
   }, STORY_TEST_TIMEOUT_MS);
 
   it('gives every direct row a direct plan and every relay row a relay plan', () => {
@@ -64,13 +78,50 @@ describe('NYC demo story on the committed Google matrix', () => {
 
   it('relays through the business each relay note names', () => {
     const relayRows = story.shipments.map((row, index) => ({ row, index })).filter(({ row }) => row.expect === 'relay');
-    expect(relayRows.length).toBeGreaterThanOrEqual(3);
+    expect(relayRows.length).toBeGreaterThanOrEqual(12);
     for (const { row, index } of relayRows) {
       const named = relayBusinessNamedIn(row.note, fixtures.businessesFile.businesses);
       // Every relay row in the story names its relay business; a note that names none or two is a story bug.
       expect(named, `${row.label}: note "${row.note ?? ''}" must name exactly one network business`).toBeDefined();
       expect(planOfRow(theRun(), index)?.relayBusinessId, row.label).toBe(named);
     }
+  }, STORY_TEST_TIMEOUT_MS);
+
+  it('carries a relay with 2 employees over 3 businesses and a direct with 1 employee over 2, never stopping at a home', () => {
+    const { scenario } = theRun();
+    const businessIds = new Set(scenario.businesses.map(business => business.id));
+    story.shipments.forEach((row, index) => {
+      const plan = planOfRow(theRun(), index);
+      expect(plan, row.label).toBeDefined();
+      const stops = plan!.legs.flatMap(leg => leg.stops.map(stop => stop.placeId));
+      // SPEC MVP II rule 5: a home is only a commute endpoint, never a pickup, drop-off or storage point.
+      expect(stops.filter(placeId => !businessIds.has(placeId)), row.label).toEqual([]);
+      const carriers = plan!.legs.map(leg => leg.employeeId);
+      if (plan!.kind === 'relay') {
+        expect(carriers, row.label).toHaveLength(2);
+        expect(new Set(carriers).size, row.label).toBe(2);
+        expect(new Set([row.originBusinessId, plan!.relayBusinessId, row.destinationBusinessId]).size, row.label).toBe(3);
+        expect(stops, row.label).toEqual([
+          row.originBusinessId, plan!.relayBusinessId, plan!.relayBusinessId, row.destinationBusinessId,
+        ]);
+      } else {
+        expect(carriers, row.label).toHaveLength(1);
+        expect(plan!.relayBusinessId, row.label).toBeUndefined();
+        expect(stops, row.label).toEqual([row.originBusinessId, row.destinationBusinessId]);
+      }
+    });
+  }, STORY_TEST_TIMEOUT_MS);
+
+  it('keeps "Navy Yard grinder burrs" from Blue Bottle Coffee to Brooklyn Roasting Company, relayed at Etsy', () => {
+    // The homepage's "Watch a package" finds this package by its label (DECISIONS pass 63, #652).
+    const index = story.shipments.findIndex(row => row.label === NAVY_YARD.label);
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(story.shipments[index]).toMatchObject({
+      originBusinessId: NAVY_YARD.originBusinessId, destinationBusinessId: NAVY_YARD.destinationBusinessId, expect: 'relay',
+    });
+    const plan = planOfRow(theRun(), index);
+    expect(plan?.kind).toBe('relay');
+    expect(plan?.relayBusinessId).toBe(NAVY_YARD.relayBusinessId);
   }, STORY_TEST_TIMEOUT_MS);
 
   it('gives the identical result on a second run', () => {
@@ -94,6 +145,22 @@ describe('NYC demo story homes', () => {
       })
       .map(({ id, home }) => `${id} ${home.id}: npm run fetch:routes -- --refetch ${home.id}`);
     expect(moved).toEqual([]);
+  }, STORY_TEST_TIMEOUT_MS);
+
+  it('writes each featured note about that employee: the home neighborhood, and the businesses their routes stop at', () => {
+    const { scenario, result } = theRun();
+    const businesses = fixtures.businessesFile.businesses;
+    for (const employee of story.featuredEmployees) {
+      expect(employee.note, `${employee.name}: the note names the home neighborhood`).toContain(employee.home.neighborhood);
+      expect(scenario.employees.find(e => e.id === employee.id)?.name, employee.id).toBe(employee.name);
+      // Businesses this employee visits while carrying a package in the default run, other than the employer.
+      const stops = new Set(result.plans.flatMap(plan => plan.legs)
+        .filter(leg => leg.employeeId === employee.id)
+        .flatMap(leg => leg.stops.map(stop => stop.placeId))
+        .filter(placeId => placeId !== employee.businessId));
+      const named = new Set(namedBusinessIds(employee.note, businesses).filter(id => id !== employee.businessId));
+      expect([...named].sort(), `${employee.name}: "${employee.note}"`).toEqual([...stops].sort());
+    }
   }, STORY_TEST_TIMEOUT_MS);
 
   it('has at most 20 featured employees, each on a story home or an exact home of the 120-home pool', () => {

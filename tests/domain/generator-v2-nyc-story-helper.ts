@@ -85,12 +85,28 @@ export function planOfRow(run: StoryRun, index: number): DeliveryPlan | undefine
   return run.result.plans.find(plan => plan.shipmentId === shipmentId);
 }
 
-/** The network business a relay row's `note` names, when it names exactly one. Longer names win ("Blue Bottle Coffee"). */
-export function relayBusinessNamedIn(note: string | undefined, businesses: NycBusinessesFile['businesses']): string | undefined {
-  if (!note) return undefined;
-  const named = businesses.filter(business => note.includes(business.name));
-  return named.length === 1 ? named[0]!.id : undefined;
+/** The IDs of the network businesses a note names (by `name`, as written in businesses.json), in file order. */
+export function namedBusinessIds(note: string | undefined, businesses: NycBusinessesFile['businesses']): string[] {
+  if (!note) return [];
+  return businesses.filter(business => note.includes(business.name)).map(business => business.id);
 }
+
+/** The network business a relay row's `note` names, when it names exactly one. */
+export function relayBusinessNamedIn(note: string | undefined, businesses: NycBusinessesFile['businesses']): string | undefined {
+  const named = namedBusinessIds(note, businesses);
+  return named.length === 1 ? named[0] : undefined;
+}
+
+/**
+ * The package the homepage's "Watch a package" opens: it is found by this label (DECISIONS pass 63), so a
+ * retune keeps the label, the sender, the recipient and the relay point.
+ */
+export const NAVY_YARD = {
+  label: 'Navy Yard grinder burrs',
+  originBusinessId: 'biz-blue-bottle-wall',
+  destinationBusinessId: 'biz-brooklyn-roasting',
+  relayBusinessId: 'biz-etsy',
+} as const;
 
 /**
  * Pairs for the live demo: a delivery request typed into the New delivery form after the 24 story packages.

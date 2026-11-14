@@ -107,8 +107,10 @@ describe('generated employee names (#603)', () => {
 
 describe('nothing but names moved (#603): digests taken before the change', () => {
   it('default scenario: every employee without its name and every shipment', () => {
+    // Pinned again after the story retune of #650 (docs/mvp3.md P3): the 24 packages changed on purpose; no
+    // employee field did (only three featured notes, which are not part of an employee).
     expect(digestWithoutNames(build({ preset: 'demo' })))
-      .toBe('12e4df0125279ee29173e005d5f65ac411a29b59c3c1952c25936f89f9f4b0c9');
+      .toBe('6daa6ff8bb2d83799a26428dc4f4fd19598cd63f17c1b29b899190ba2814d745');
   }, TIMEOUT_MS);
 
   const randomDigests: Array<[seed: number, digest: string]> = [
