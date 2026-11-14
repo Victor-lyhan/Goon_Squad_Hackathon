@@ -1,7 +1,7 @@
-// The pure steps of the MVP II delivery-request routes (DECISIONS pass 6, 9, 44, 46):
-//   POST  /api/v2/shipments            planCreateShipment -> withShipment -> matchPending -> shipmentView
-//   PATCH /api/v2/shipments/:id        planPatchShipment  -> withShipment -> matchPending -> shipmentView
-//   POST  /api/v2/shipments/:id/match  planMatchRetry     -> matchPending -> shipmentView
+// The pure steps of the MVP II delivery-request routes (DECISIONS pass 6, 9, 44, 46, 62):
+//   POST  /api/v2/shipments            planCreateShipment -> withShipment -> atPlanningStart -> matchPending -> shipmentView
+//   PATCH /api/v2/shipments/:id        planPatchShipment  -> withShipment -> atPlanningStart -> matchPending -> shipmentView
+//   POST  /api/v2/shipments/:id/match  planMatchRetry     -> atPlanningStart -> matchPending -> shipmentView
 // The route owns the HTTP handling, the store and the matching. Nothing here reads fs, a clock or
 // randomness, and no message echoes request text or an ID, so the same request on the same run
 // always gives the same result. Rules are MVP 1's (server/api/shipments.ts).
@@ -148,8 +148,10 @@ function nextSeq(shipments: readonly Shipment[]): number {
 
 // ---------- POST /api/v2/shipments ----------
 /**
- * Decides what a create request means, in MVP 1's order: the body's shape (400), the lock (409),
- * a replay of a stored `clientRequestId`, then the business and time checks against the run (400).
+ * Decides what a create request means, in this order: the body's shape (400), a replay of a stored
+ * `clientRequestId`, the lock (409), then the business and time checks against the run (400).
+ * The replay comes before the lock (DECISIONS pass 62): a client that repeats a request it already
+ * sent, after Play, asks about a delivery that exists, so it gets that delivery and not a 409.
  * A 400 lists every problem at once, keyed by form field.
  */
 export function planCreateShipment(run: Run, body: unknown): CreateShipmentPlan {
@@ -158,11 +160,10 @@ export function planCreateShipment(run: Run, body: unknown): CreateShipmentPlan 
     const fieldErrors = issueErrors(parsed.error.issues);
     return invalid({ ...runProblems(run, usableFields(body, fieldErrors)), ...fieldErrors });
   }
-  if (isLocked(run)) return locked();
-
   const request = parsed.data;
   const stored = run.scenario.shipments.find((s) => s.clientRequestId === request.clientRequestId);
   if (stored) return { kind: 'replay', shipmentId: stored.id };
+  if (isLocked(run)) return locked();
 
   const fieldErrors = runProblems(run, request);
   if (hasErrors(fieldErrors)) return invalid(fieldErrors);
@@ -247,4 +248,20 @@ export function withShipment(run: Run, shipment: Shipment): Run {
   const shipments = [...run.scenario.shipments.filter((s) => s.id !== shipment.id), shipment]
     .sort((a, b) => a.createdSeq - b.createdSeq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return { ...run, version: run.version + 1, scenario: { ...run.scenario, shipments } };
+}
+
+/**
+ * The rewind rule (DECISIONS pass 62): a planning run with its clock at the start of the run, paused.
+ * Seek, Next event, Jump to morning, Finish and "Play journey" move the clock without locking the run,
+ * and the matcher does not read the clock. So a delivery stored after such a preview would be answered
+ * at the moved clock: already at the relay point or delivered, with its reward already earned. The
+ * routes therefore call this in the mutation that stores a new, edited or re-matched delivery.
+ * The phase stays `planning` and the speed stays. A run whose clock is already there, and a locked
+ * run, come back as the same object. The input run is not changed.
+ */
+export function atPlanningStart(run: Run): Run {
+  const { simStartMin } = run.scenario.settings;
+  const { clock } = run;
+  if (clock.phase !== 'planning' || (clock.timeMin === simStartMin && !clock.playing)) return run;
+  return { ...run, clock: { ...clock, timeMin: simStartMin, playing: false } };
 }
