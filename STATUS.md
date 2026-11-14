@@ -1,51 +1,55 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14, 15:40 (Sat), planner pass 57 (started 15:26)_
+_Last update: 2026-11-14, 15:50 (Sat), planner pass 58 (started 15:43)_
 
 ## Current milestone: M9 Polish (target 10:00 p.m. Sat)
-**M8 is done.** The story retune merged at 15:33 (PR #527): the default NYC scenario matches **24 of 24**, every story row as written, default detour limit 12, no home moved. What is left in M9: **the cutover of `/`, `/business`, `/employee`, `/simulator` to the MVP II pages** (waits only for the PR of #529, which edits the same `App.tsx`), the README demo steps (after the cutover, so the paths are written once), and the fixes below.
+Following the humans' note of 15:40: **the cutover is in progress** (#548, p2-a started it at 15:47). Next is deleting the MVP 1 code (one issue per owner, queued when the PR of #548 merges), then visible demo polish. Test-only work is parked behind visible fixes.
 
 ## HUMAN TO-DO
-1. **Open `/nyc/simulator`, `/nyc/business/<id>`, `/nyc/employee/<id>` with the browser key.** No agent has seen the Google map. A rejected key now shows our own message with the setting to fix (PR #525).
-2. **`npm run fetch:routes` once more** for the route lines of the new story (only new lines are fetched), then `npm run fetch:routes -- --drop-entered`, then commit `fixtures/nyc/`. Exit code 0 = the story matches as written.
-3. A restart now starts from the new story by itself (PR #523); the old run is kept as `data/state-v2.json.stale-<n>`.
-4. On `/nyc` pages "Watch in simulator" and "Watch this package" open the **old** simulator until the cutover. Use the header's Simulator link.
-5. Git tag `mvp1` still does not exist.
+1. **Main is red since your route-line commit 2c8423d**, in `tests/geo/nyc-cache-committed-lines`. One line, JetBlue to a Park Slope home, is 0.62x its pair's distance. It looks like a real route (Google's matrix took a 20.6 km road, the line is about 12.8 km). **Nothing for you to do**: #554 (victor-3) fixes the rule. No refetch needed unless #554 says the line is broken.
+2. **Open `/nyc/simulator`, `/nyc/business/<id>`, `/nyc/employee/<id>` with the browser key** (after #548: `/simulator`, `/business/<id>`, `/employee/<id>`). No agent has seen the Google map.
+3. Run `npm run fetch:routes -- --drop-entered` before committing `fixtures/nyc/` again.
+4. Git tag `mvp1` still does not exist. Set it before the MVP 1 code is deleted (a pass or two from now).
 
-## Main health: green
-- The three newest runs on main at 15:26 are green. Seven PRs merged since (#522 to #527, #534). This session cannot list runs or fetch.
+## Main health: RED (test suite), CI not readable
+- `bash scripts/test.sh` fails on main in 6 tests of one file (reported by PR #545, cause checked in `matrix.json`). Fix: #554, top priority, victor-3.
+- The three newest CI runs were still in progress at 15:43. This session cannot list runs.
 
 ## Stuck
 - Nothing labeled `stuck`.
 
-## Queued this pass (10 issues, all `ready`)
-- victor-1: #535 **relay business gets no notification (bug from PR #524)**; #536 fetch missing route lines when a map is asked for; #532 the simulator's left panel over HTTP on the real cache; #533 the three workspaces agree on the real run.
-- victor-2: #528 an open simulator tab picks up route lines that arrive late.
-- victor-3: #530 measure a commute save against a slow or silent Google; #538 explain a failed story row in the fetch command.
-- victor-4: #531 metrics on the real cache. p1-b: #540 simulated-day tests without the story file.
-- p2-a: #529 page-crash fallback and the header in a real DOM.
+## Queued this pass (8 issues)
+- p2-a: **#548 the cutover** (in progress); #549 a route map in the Business delivery details.
+- p2-b: #550 keyboard and focus fixes in the commute editor and job view (in progress); #551 "5.5 km shorter" and the reward first in the job view.
+- victor-2: #552 journey mode: carrier vehicles in their leg colour, reward and delivery time in the panel; #553 a marker stays on a line when a leg has no route yet.
+- victor-3: **#554 main is red**; #555 a 10 s deadline for the live commute save (PR #546 measured 63.5 s).
+- Parked (`ready` removed): #532, #533 (victor-1 test sets), so #535 and #536 go first.
 
 ## In progress / in review
-- victor-1 #521 (broken-request sweep). victor-2 #519 (simulator in a real DOM); PR #537 (#511) in review. victor-3 #530. victor-4 #516 (a whole day on the real cache).
-- p2-a #529. p2-b #518 (Employee page in a real DOM). p1-b #512 (simulator views on the real run). p1-a: PR #539 (#482) in review, then #493.
+- victor-1 #521 (broken-request sweep); ready: #535 relay notification, #536 missing route lines.
+- victor-2 #528 (late route lines); PR #544 (#519) in review. Its two `it.fails` are already fixed on main by PR #537, so they must become `it` (comment on #519).
+- victor-3 #538 (story explainer in the fetch command). victor-4 #531 (metrics on the real cache); PR #547 (#516) in review.
+- p1-a: #493 ready (matcher on the real cache). p1-b: nothing open.
 
-## Merged since pass 56 (15:20)
-- victor-4: PR #527 (#492) story retune, 24 of 24. It lists four live demo requests that match (two direct, two relay).
-- victor-1: PR #523 (#503) a changed story starts a fresh run. victor-2: PR #525 (#510) message for a rejected browser key.
-- victor-3: PR #522 (#515) guard test and `--drop-entered`; PR #526 (#520) a failed save leaves no place behind.
-- p2-a: PR #524 (#514) Business and homepage on the real run; found the relay notification bug. p2-b: PR #534 (#513) Employee on the real run; fixed "+0 km" for a negative extra distance.
+## Merged since pass 57 (15:40)
+- p2-a: PR #541 (#529) page-crash fallback; fixed a double history entry and Help's active mark.
+- p2-b: PR #542 (#518) Employee page in a real DOM; found 4 focus bugs (#550).
+- p1-b: PR #543 (#512) simulator views on the real run, found the straight-line bug (#553); PR #545 (#540) day tests without the story, found main red.
+- victor-2: PR #537 (#511) simulator page against the doc; Esc now works after a click. p1-a: PR #539 (#482) timed tests.
+- victor-3: PR #546 (#530) commute save measured: no limit near the 10 s budget.
 
 ## Next up (each needs the issues in brackets merged first)
-- p2-a: **the cutover**, header text "Real NYC locations · simulated deliveries", `/nyc/...` kept as redirects [#529]. Then each owner deletes its MVP 1 files (p2-a keeps `business/trackingModel.ts`, the MVP II details import it).
-- victor-1: README demo steps with one of the four live requests of PR #527 pinned by a test [cutover].
-- victor-3: a deadline for the live commute fetch, if #530 measures more than 10 s [#530].
-- Fix issues for whatever #512, #518, #519, #521, #532 and #533 leave as `it.fails`.
+- **Delete MVP 1 code** [#548]: client first, one issue per owner (p2-a, p2-b, victor-2), then the MVP 1 API and `client/src/api` calls (victor-1), then the MVP 1 engine files (p1-a, p1-b). See DECISIONS pass 58.
+- victor-1: README demo steps with one live request of PR #527 pinned by a test [#548]; #533 back to `ready` [#535, #536].
+- victor-2: business names always on the map in the network view [#552, same file].
+- Whatever #521 and #544 leave as `it.fails`.
 
 ## Known bugs / gaps
-- **A business that is only a relay point is not told** it holds a package; its workspace shows nothing about it (#535).
-- An open simulator tab draws no route for a delivery created live, because it loads the map before the lines arrive (#528). Reloading the tab fixes it.
-- Plans from a commute re-match, Recompute, Random city or an import get no route lines (#536). The new story's lines are not fetched yet (to-do 2).
-- A page that throws shows a blank screen (#529).
-- Nobody knows how long a commute save waits when Google is slow; up to 15 s per attempt is possible (#530).
-- The Employee job detail shows a negative extra distance ("-5.5 km") when the detour is shorter but slower. It is the real value.
-- This planner run can't use `gh run list`, `gh pr list`, `gh api`, `git fetch`, `npm` or `tsx`; it reads PRs one by one.
+- Main's test suite is red (#554).
+- A relay-only business is not told it holds a package (#535).
+- A live delivery has no route in an open simulator tab (#528), and its marker cuts corners until the line arrives (#553).
+- Plans from a re-match, Recompute, Random city or an import get no route lines (#536).
+- A commute save can hang for a minute when Google is silent (#555).
+- Employee: Esc does not close the commute editor, focus is lost on close (#550); "-5.5 km" in the job view (#551).
+- Journey mode: both carriers' vehicles are the same colour; no reward or delivery time in the panel (#552).
+- This planner run can't use `gh run list`, `gh pr comment`, `git fetch`, `node`, `npm` or `tsx`.
