@@ -1,16 +1,20 @@
 // Guard on the committed Google cache, part 2: fixtures/nyc/polylines.json (issue #498).
-// Every stored route line must be a pair of the matrix, decode, stay inside the NYC box, join its two places and
-// be about as long as the pair's distanceM, so a line left behind by a partial refetch or pasted under the wrong
-// key is caught by CI and not as a marker driving through a river on stage.
+// Every stored route line must be a pair of the matrix, decode, stay inside the NYC box, join its two places, be
+// no shorter than the straight line between them and be 0.5 to 1.5 times the pair's distanceM (issue #554,
+// DECISIONS pass 58), so a line left behind by a partial refetch or pasted under the wrong key is caught by CI
+// and not as a marker driving through a river on stage.
 // It does NOT assert which pairs have a line: the story is being retuned and a human fetches the missing lines
 // afterwards, and a pair without a line is legal (DECISIONS pass 44: the marker then moves on the straight line).
 // Part 1 (places and pairs) is nyc-cache-committed-matrix.test.ts. No network, no key, nothing written.
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { pairKey } from '../../shared/v2/types';
-import { decodePolyline, encodePolyline } from '../../server/domain/v2/polyline';
+import { decodePolyline, encodePolyline, pointAlong } from '../../server/domain/v2/polyline';
 import type { TravelFiles } from '../../server/geo/cache';
+import { straightLineM } from '../../server/geo/cacheReport';
 import {
   COMMITTED_CACHE_TEST_TIMEOUT_MS,
+  LINE_STRAIGHT_SLACK_M,
+  LISTED_LINE_LENGTH_RATIO,
   MAX_LINE_END_OFFSET_M,
   MAX_LINE_LENGTH_RATIO,
   MIN_LINE_LENGTH_RATIO,
@@ -55,9 +59,25 @@ describe('committed NYC route lines (fixtures/nyc/polylines.json)', () => {
     expect(problems.map((problem) => problem.subject), failureMessage(problems)).toEqual([]);
   });
 
-  it(`every line is between ${MIN_LINE_LENGTH_RATIO} and ${MAX_LINE_LENGTH_RATIO} times as long as its pair's distanceM`, () => {
+  it(`every line is between ${MIN_LINE_LENGTH_RATIO} and ${MAX_LINE_LENGTH_RATIO} times as long as its pair's distanceM, and not shorter than the straight line between its two places`, () => {
     const problems = ofCheck(report.problems, 'line-length');
     expect(problems.map((problem) => problem.subject), failureMessage(problems)).toEqual([]);
+  });
+
+  it(`a line under ${LISTED_LINE_LENGTH_RATIO} times its pair's distanceM passes, and the printed report lists it with both directions' distances`, () => {
+    const text = formatLineOutliers(report.stats).join('\n');
+    const short = report.stats.filter((stat) => stat.ratio < LISTED_LINE_LENGTH_RATIO);
+
+    expect(text).toContain(`under ${LISTED_LINE_LENGTH_RATIO}x of distanceM (these pass; the limit is ${MIN_LINE_LENGTH_RATIO}x): ${short.length === 0 ? 'none' : `${short.length}.`}`);
+    for (const stat of short) {
+      // It joins its two places and is longer than the straight line between them: a real road, not a cut line.
+      expect(Math.max(stat.startM, stat.endM)).toBeLessThanOrEqual(MAX_LINE_END_OFFSET_M);
+      expect(stat.lengthM).toBeGreaterThanOrEqual(stat.straightM - LINE_STRAIGHT_SLACK_M);
+      expect(text).toContain(
+        `    ${stat.key}  ${stat.ratio.toFixed(3)}x  (line ${Math.round(stat.lengthM)} m, distanceM ${stat.distanceM}, ` +
+          `the way back's distanceM ${stat.reverseDistanceM ?? 'not cached'}, straight line ${Math.round(stat.straightM)} m)`,
+      );
+    }
   });
 
   it('measures every stored line and prints the ones closest to each limit', () => {
@@ -70,6 +90,8 @@ describe('committed NYC route lines (fixtures/nyc/polylines.json)', () => {
     const unmeasured = ofCheck(report.problems, 'line-pair', 'line-decode').length;
     expect(report.stats).toHaveLength(stored - unmeasured);
     expect(lines.join('\n')).not.toMatch(/undefined|NaN|Infinity/);
+    // An entered home's ID holds its coordinates (DECISIONS pass 56): the report never prints one.
+    expect(lines.join('\n')).not.toMatch(/home-c-/);
   });
 });
 
@@ -164,12 +186,102 @@ describe('committed NYC route lines: the checks catch a broken copy', () => {
     expect(only(outAndBack).map((problem) => [problem.check, problem.subject])).toEqual([['line-length', key]]);
     expect(only(outAndBack)[0].what).toContain(`allowed ${MIN_LINE_LENGTH_RATIO} to ${MAX_LINE_LENGTH_RATIO}`);
 
-    // The same line against a pair whose distance says the trip is three times as long: a third, under 0.7.
+    // The same line against a pair whose distance says the trip is three times as long: a third, under 0.5.
     const stretched = copy();
     stretched.matrix.pairs[key].distanceM *= 3;
     const problems = only(stretched);
     expect(problems.map((problem) => [problem.check, problem.subject])).toEqual([['line-length', key]]);
+    expect(problems[0].what).toMatch(/\(0\.3\dx; allowed 0\.5 to 1\.5/);
     expect([from, to]).toContain(problems[0].refetch[0]);
+  });
+
+  it(`the lower limit is ${MIN_LINE_LENGTH_RATIO}: a line at 0.6 times its pair's distanceM passes and is listed, one at 0.45 fails`, () => {
+    const { key, lengthM } = longest();
+    const { from, to } = splitPairKey(key)!;
+    const backM: number | undefined = files.matrix.pairs[pairKey(to, from)]?.distanceM;
+    const back = backM === undefined ? 'not cached' : String(backM);
+
+    const listed = copy();
+    listed.matrix.pairs[key].distanceM = Math.round(lengthM / 0.6);
+    const passing = lineReport(listed);
+    expect(passing.problems).toEqual(report.problems);
+    expect(formatLineOutliers(passing.stats).join('\n')).toMatch(
+      new RegExp(`\\n    ${key.replace('|', '\\|')}  0\\.60\\dx  \\(line \\d+ m, distanceM \\d+, the way back's distanceM ${back}, straight line \\d+ m\\)`),
+    );
+
+    const tooShort = copy();
+    tooShort.matrix.pairs[key].distanceM = Math.round(lengthM / 0.45);
+    const problems = only(tooShort);
+    expect(problems.map((problem) => [problem.check, problem.subject])).toEqual([['line-length', key]]);
+    expect(problems[0].what).toContain(`(0.45x; allowed ${MIN_LINE_LENGTH_RATIO} to ${MAX_LINE_LENGTH_RATIO}`);
+    if (backM !== undefined) expect(problems[0].what).toContain(`the way back's distanceM is ${back})`);
+    expect(failureMessage(problems)).toContain('npm run fetch:routes -- --refetch ');
+  });
+
+  it('a line cut in half does not reach its second place', () => {
+    const { key } = longest();
+    const points = decodePolyline(files.polylines.polylines[key]);
+    const { to } = splitPairKey(key)!;
+    const half = points.slice(0, Math.ceil(points.length / 2));
+    const broken = copy();
+    broken.polylines.polylines[key] = encodePolyline(half);
+
+    const problems = only(broken);
+
+    // Always the ends; the length too when the half is under 0.5x or shorter than the straight line.
+    expect(problems.every((problem) => problem.subject === key)).toBe(true);
+    expect(problems.map((problem) => problem.check).filter((check) => check !== 'line-length')).toEqual(['line-ends']);
+    const gap = Math.round(straightLineM(half[half.length - 1], files.matrix.places[to]));
+    expect(gap).toBeGreaterThan(MAX_LINE_END_OFFSET_M);
+    expect(problems[0].what).toContain(`ends ${gap} m from ${to}; the limit is ${MAX_LINE_END_OFFSET_M} m`);
+    expect(failureMessage(problems)).toContain('npm run fetch:routes -- --refetch ');
+  });
+
+  it('a line stored under the key of another pair does not join that pair\'s places', () => {
+    const line = longest();
+    const lineFrom = files.matrix.places[splitPairKey(line.key)!.from];
+    const lineTo = files.matrix.places[splitPairKey(line.key)!.to];
+    // Another stored pair whose two places are both far from the line's own ends.
+    const other = report.stats.find((stat) => {
+      const ends = splitPairKey(stat.key)!;
+      return (
+        straightLineM(files.matrix.places[ends.from], lineFrom) > 3 * MAX_LINE_END_OFFSET_M &&
+        straightLineM(files.matrix.places[ends.to], lineTo) > 3 * MAX_LINE_END_OFFSET_M
+      );
+    });
+    expect(other, 'no stored pair is far enough from the longest line to try this').toBeDefined();
+    const broken = copy();
+    broken.polylines.polylines[other!.key] = files.polylines.polylines[line.key];
+
+    const problems = only(broken);
+
+    expect(problems.every((problem) => problem.subject === other!.key)).toBe(true);
+    expect(problems.map((problem) => problem.check).filter((check) => check !== 'line-length')).toEqual(['line-ends']);
+    expect(problems[0].what).toMatch(/starts \d+ m from .+ and ends \d+ m from .+; the limit is 300 m/);
+  });
+
+  it('a line shorter than the straight line between its two places fails, whatever its pair says', () => {
+    // The pair whose places are farthest apart, and a straight line that stops 250 m short of each: both ends
+    // pass the end check (300 m), but no road is 500 m shorter than the straight line.
+    const { key, straightM, lengthM } = [...report.stats].sort((a, b) => b.straightM - a.straightM || (a.key < b.key ? -1 : 1))[0];
+    const { from, to } = splitPairKey(key)!;
+    const ends = [files.matrix.places[from], files.matrix.places[to]];
+    expect(straightM).toBeGreaterThan(2_000);
+    const cut = [pointAlong(ends, 250 / straightM), pointAlong(ends, 1 - 250 / straightM)];
+    const broken = copy();
+    broken.polylines.polylines[key] = encodePolyline(cut);
+    // A pair that agrees with the cut line, so the 0.5 to 1.5 rule alone would let it through.
+    broken.matrix.pairs[key].distanceM = Math.round(straightM - 500);
+
+    const problems = only(broken);
+
+    expect(problems.map((problem) => [problem.check, problem.subject])).toEqual([['line-length', key]]);
+    expect(problems[0].what).toMatch(/is \d+ m long but its two places are \d+ m apart in a straight line, and a road cannot be shorter \(200 m is allowed for the two ends on the road\)$/);
+    expect(failureMessage(problems)).toContain('npm run fetch:routes -- --refetch ');
+
+    // The slack is for the snapped ends only: the real line of this pair is not near it.
+    expect(lengthM).toBeGreaterThan(straightM);
+    expect(LINE_STRAIGHT_SLACK_M).toBeLessThan(2 * MAX_LINE_END_OFFSET_M);
   });
 
   it('a line that leaves the NYC box fails', () => {
