@@ -5,6 +5,7 @@ import {
   portalPaths, readIdentity, resolveIdentity, useDirectory, writeIdentity,
   type Directory,
 } from './demoIdentity';
+import { ConnectionMonitor } from './ui/ConnectionBanner';
 import './styles/global.css';
 import Landing, { SIMULATOR_PATH } from './pages/Landing';
 import BusinessPortal from './pages/BusinessPortal';
@@ -108,6 +109,7 @@ function NotFound() {
 export function AppShell({ initial }: { initial?: DirectoryData } = {}) {
   return (
     <>
+      <ConnectionMonitor />
       <Header initial={initial} />
       <main className="app-main">
         <Routes>

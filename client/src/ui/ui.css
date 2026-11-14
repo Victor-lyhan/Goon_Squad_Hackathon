@@ -49,3 +49,7 @@
 .ui-card{padding:.85rem}
 }
 .ui-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ui-connection-banner{position:sticky;top:0;z-index:70;box-sizing:border-box;width:100%;padding:.5rem 1rem;background:#b45309;color:#fff;text-align:center;font-weight:600;overflow-wrap:anywhere;animation:ui-fade .2s ease-out}
+@media (prefers-reduced-motion:reduce){
+.ui-connection-banner{animation:none}
+}
