@@ -40,6 +40,6 @@ describe('export file name', () => {
 
 describe('generator validation', () => {
   it('rejects out-of-range values before any request', () => {
-    expect(validateSetup({ ...defaultForm(), hubs: '11', maxExtraMin: '31' }).ok).toBe(false);
+    expect(validateSetup({ ...defaultForm(), preset: 'random', hubs: '11', maxExtraMin: '31' }).ok).toBe(false);
   });
 });

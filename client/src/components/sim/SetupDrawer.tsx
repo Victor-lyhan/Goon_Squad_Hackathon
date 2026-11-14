@@ -7,7 +7,7 @@ import { compareMatches, exportScenario, generateScenario, importScenario, recom
 import { Button, Drawer, Field } from '../../ui';
 import { ComparePanel } from './ComparePanel';
 import {
-  CONFIRM_TEXT, NUMERIC_FIELDS, FIELD_RANGES, TRADEOFF_STEPS, confirmReducer, defaultForm, describeActionError, exportFilename,
+  CONFIRM_TEXT, DEMO_IGNORES_TEXT, NUMERIC_FIELDS, PRESET_LABELS, generatedText, isFieldDisabled, FIELD_RANGES, TRADEOFF_STEPS, confirmReducer, defaultForm, describeActionError, exportFilename,
   isLockedError, parseImportText, rangeHint, recomputeButtonState, recomputeToast, validateSetup,
   type NumericField, type SetupForm,
 } from './setupModel';
@@ -28,7 +28,6 @@ type Action = 'compare' | 'recompute' | 'generate' | 'export' | 'import' | 'rese
 
 export function SetupDrawer({ open, onClose, onChanged, phase, hintEmployeeId }: SetupDrawerProps) {
   const [form, setForm] = useState<SetupForm>(defaultForm);
-  const [showErrors, setShowErrors] = useState(false);
   const [pending, setPending] = useState<Action | null>(null);
   const [error, setError] = useState<{ action: Action; text: string; locked: boolean } | null>(null);
   const [confirm, dispatchConfirm] = useReducer(confirmReducer, null);
@@ -70,7 +69,6 @@ export function SetupDrawer({ open, onClose, onChanged, phase, hintEmployeeId }:
 
   const onGenerate = () => {
     if (busy) return;
-    setShowErrors(true);
     if (!validation.ok) return;
     setError(null); setNotice(null);
     dispatchConfirm({ type: 'ask', action: 'generate' });
@@ -78,7 +76,11 @@ export function SetupDrawer({ open, onClose, onChanged, phase, hintEmployeeId }:
   const onConfirmGenerate = () => {
     dispatchConfirm({ type: 'confirm' });
     if (!validation.ok) return;
-    void run('generate', async () => { await generateScenario(validation.request); return 'City generated.'; }, true);
+    void run('generate', async () => { const res = await generateScenario(validation.request);
+      // The generate response has no seed, so read it from the stored scenario (the Demo city has its own).
+      const seed = await exportScenario().then((r) => r.scenario.seed, () => undefined);
+      const text = generatedText(res, seed);
+      return text; }, true);
   };
   const onConfirmImport = () => {
     const data = importData;
@@ -128,18 +130,19 @@ export function SetupDrawer({ open, onClose, onChanged, phase, hintEmployeeId }:
           <h3>Generate city</h3>
           <Field label="Preset">
             <select value={form.preset} onChange={(e) => set({ preset: e.target.value as SetupForm['preset'] })}>
-              <option value="demo">Demo</option>
-              <option value="random">Random</option>
+              <option value="demo">{PRESET_LABELS.demo}</option>
+              <option value="random">{PRESET_LABELS.random}</option>
             </select>
           </Field>
+          {isFieldDisabled(form.preset) && <p className="setup-hint">{DEMO_IGNORES_TEXT}</p>}
           <div className="setup-grid">
             {NUMERIC_FIELDS.map((f: NumericField) => (
-              <Field key={f} label={FIELD_RANGES[f].label} hint={rangeHint(f)} error={showErrors ? validation.errors[f] : undefined}>
-                <input type="text" inputMode="numeric" value={form[f]} onChange={(e) => set({ [f]: e.target.value })} />
+              <Field key={f} label={FIELD_RANGES[f].label} hint={rangeHint(f)} error={isFieldDisabled(form.preset) ? undefined : validation.errors[f]}>
+                <input type="text" inputMode="numeric" disabled={isFieldDisabled(form.preset)} value={form[f]} onChange={(e) => set({ [f]: e.target.value })} />
               </Field>
             ))}
           </div>
-          <Button onClick={onGenerate} loading={pending === 'generate'} disabled={busy || confirm !== null}>Generate city</Button>
+          <Button onClick={onGenerate} loading={pending === 'generate'} disabled={busy || confirm !== null || !validation.ok}>Generate city</Button>
           {confirmBox('generate', onConfirmGenerate)}
           {inlineError('generate')}
         </section>
