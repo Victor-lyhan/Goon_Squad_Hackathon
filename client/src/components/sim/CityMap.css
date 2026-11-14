@@ -2,6 +2,8 @@
 .city-map .road { stroke: #cbd5e1; stroke-width: 6; stroke-linecap: round; }
 .city-map .route-base { fill: none; stroke: #94a3b8; stroke-width: 6; stroke-dasharray: 14 10; opacity: .7; }
 .city-map .route-hi { fill: none; stroke: var(--accent, #f97316); stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
+.city-map .legend-route { stroke: var(--accent, #f97316); stroke-width: 8; stroke-linecap: round; }
+.city-map .legend-muted { font-weight: 500; fill: #64748b; }
 .city-map .node { fill: #e2e8f0; }
 .city-map .node-click { cursor: pointer; }
 .city-map .node-click:hover, .city-map .node-click:focus { fill: var(--accent, #f97316); outline: none; }
