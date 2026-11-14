@@ -10,8 +10,9 @@ import type { MapResponse, SimulatorResponse } from '../../shared/v2/api';
 import { simPageView } from '../../client/src/components/sim/v2/compose/simPageView';
 import { BusinessInspector } from '../../client/src/components/sim/v2/inspector/BusinessInspector';
 import { EmployeeInspector } from '../../client/src/components/sim/v2/inspector/EmployeeInspector';
+import { buildJourney } from '../../client/src/components/sim/v2/journey/journeyModel';
 import {
-  JOB_STATUS_LABEL, SHIPMENT_STATUS_LABEL,
+  JOB_STATUS_LABEL, NO_MATCH_YET, SHIPMENT_STATUS_LABEL,
   type BusinessInspectorModel, type EmployeeInspectorModel,
 } from '../../client/src/components/sim/v2/inspector/inspectorModel';
 import { DEFAULT_LAYERS } from '../../client/src/components/sim/v2/workspaceModel';
@@ -115,12 +116,23 @@ describe.each(real.moments)('every business inspector at $name', (moment) => {
         expect(r.statusLabel).toBe(SHIPMENT_STATUS_LABEL[sim.snapshot.shipmentStatus[r.shipmentId]]);
         expect(r.carriers.map((c) => c.id)).toEqual(plan ? plan.legs.map((l) => l.employeeId) : []);
         expect(r.reason).toBe(plan ? null : sim.unmatched.find((u) => u.shipmentId === r.shipmentId)!.reason);
+        // Reward = the plan's jobs' rewardCents added up; extra = the legs' extraMin added up (#580).
+        const jobs = plan ? sim.jobs.filter((j) => j.planId === plan.id) : [];
+        expect(jobs.length).toBe(plan ? plan.legs.length : 0);
+        expect(r.rewardLabel).toBe(plan ? formatCents(jobs.reduce((n, j) => n + j.rewardCents, 0)) : null);
+        const extra = plan ? plan.legs.reduce((n, l) => n + l.extraMin, 0) : 0;
+        expect(r.extraLabel).toBe(plan ? `${extra < 0 ? '-' : '+'}${Math.abs(extra)} min` : null);
+        expect(r.noMatchLabel).toBe(plan ? null : NO_MATCH_YET);
       }
+      for (const r of model.sent) expect(r.role).toBe('Sender');
+      for (const r of model.received) expect(r.role).toBe('Recipient');
+      for (const r of model.held) expect(r.role).toBe('Relay point');
       const commuters = map.employees.filter((e) => e.businessId === b.id).length;
       const allowed = [
         ...namesOf(sim, map),
         `${commuters} ${commuters === 1 ? 'commuter works' : 'commuters work'} here`,
         ...rows.map((r) => r.timeLabel ?? ''),
+        ...rows.flatMap((r) => [r.rewardLabel ?? '', r.extraLabel ?? '']),
         ...rows.flatMap((r) => r.carriers.map((_, i) => `Leg ${i + 1}`)),
       ];
       expect({ business: b.id, left: leftover(html, allowed).match(/\d+/g) ?? [] }).toEqual({ business: b.id, left: [] });
@@ -184,15 +196,20 @@ describe.each(real.moments)('every employee inspector at $name', (moment) => {
         const block = model.legs.find((l) => l.jobId.startsWith(plan.id) && l.shipmentId === plan.shipmentId
           && l.stops.length === leg.stops.length && l.finishLabel === formatMin(leg.finishMin));
         expect(block).toBeDefined();
-        expect(block!.stops.map((s) => s.timeLabel)).toEqual(leg.stops.map((s) => formatMin(s.serviceStartMin)));
+        expect(block!.stops.map((s) => s.timeLabel)).toEqual(leg.stops.map((s) => formatMin(s.serviceEndMin)));
         expect(block!.extraLabel).toBe(`+${leg.extraMin} min`);
+        // The same stop has the same time in the journey timeline (#580).
+        const journey = buildJourney({ shipmentId: plan.shipmentId, sim, map });
+        if (journey?.kind !== 'journey') throw new Error(`${plan.shipmentId}: no journey`);
+        const steps = journey.steps.filter((st) => st.legIndex === legIndex);
+        expect(block!.stops.map((s) => s.timeLabel)).toEqual(steps.map((st) => formatMin(st.timeMin)));
         expect(block!.rewardLabel).toBe(formatCents(leg.rewardCents));
         const job = sim.jobs.find((j) => j.id === block!.jobId)!;
         expect(block!.statusLabel).toBe(JOB_STATUS_LABEL[sim.snapshot.jobStatus[job.id]]);
         const legLabel = plan.kind === 'relay' ? `Relay leg ${legIndex + 1} of ${plan.legs.length}` : 'Direct';
         expect(block!.legLabel).toBe(legLabel);
         allowed.push(legLabel, formatMin(leg.finishMin), `+${leg.extraMin} min`, formatCents(leg.rewardCents),
-          ...leg.stops.map((s) => formatMin(s.serviceStartMin)));
+          ...leg.stops.map((s) => formatMin(s.serviceEndMin)));
       }
       const earned = sim.snapshot.earningsCents[e.id] ?? 0;
       expect(model.earnedLabel).toBe(formatCents(earned));

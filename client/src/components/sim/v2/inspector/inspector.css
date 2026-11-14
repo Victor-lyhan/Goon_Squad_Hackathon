@@ -99,6 +99,25 @@
 .insp-row-title { font-weight: 600; overflow-wrap: anywhere; }
 .insp-row-meta { color: var(--muted, #5B6472); font-size: var(--text-xs, 12px); }
 
+/* Role of this business, then the plan's reward and extra minutes (or "No match yet"). */
+.insp-row-figs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1, 4px) var(--space-3, 12px);
+  padding: 0 var(--space-2, 8px) var(--space-1, 4px);
+  font-size: var(--text-xs, 12px);
+}
+.insp-row-role {
+  padding: 0 var(--space-1, 4px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  color: var(--text, #151B26);
+}
+.insp-fig { white-space: nowrap; }
+.insp-fig-label,
+.insp-nomatch { color: var(--muted, #5B6472); }
+
 .insp-row-links {
   display: flex;
   flex-wrap: wrap;

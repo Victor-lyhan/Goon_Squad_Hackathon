@@ -74,7 +74,7 @@ describe('inspector static renders', () => {
   it('business: the unmatched row shows its reason', () => {
     const html = renderBusiness(BIZ.recipient);
     expect(html).toContain('No commuter passes both businesses within their detour limit');
-    expect(textOf(html)).toContain('Spare keys Not matched To Dumbo Print Studio');
+    expect(textOf(html)).toContain('Spare keys Not matched Sender No match yet To Dumbo Print Studio');
     expect(textOf(html)).not.toContain('Not matched · Not matched');
   });
 
@@ -85,7 +85,7 @@ describe('inspector static renders', () => {
     expect(text).toContain('EMP-1');
     expect(text).toContain('Astoria');
     expect(text).toContain('Relay leg 2 of 2');
-    expect(text).toContain('Day 2, 7:40 AM · LIC Bookshop Pickup at relay point Relay point');
+    expect(text).toContain('Day 2, 7:42 AM · LIC Bookshop Pickup at relay point Relay point');
     expect(text).toContain('+7 min');
     expect(text).toContain('$5.20');
     expect(text).toContain('Earned so far $4.50');

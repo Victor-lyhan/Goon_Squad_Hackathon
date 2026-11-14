@@ -93,8 +93,8 @@ describe('employeeInspector', () => {
     const [direct] = m.legs;
     expect(direct.packageLabel).toBe('Menu proofs');
     expect(direct.stops.map((s) => [s.timeLabel, s.place.name, s.isRelay])).toEqual([
-      ['Day 1, 5:30 PM', 'Dumbo Print Studio', false],
-      ['Day 1, 6:00 PM', 'Harlem Bakery', false],
+      ['Day 1, 5:32 PM', 'Dumbo Print Studio', false],
+      ['Day 1, 6:02 PM', 'Harlem Bakery', false],
     ]);
     expect(direct.finishLabel).toBe('Day 1, 6:30 PM');
     expect(direct.extraLabel).toBe('+6 min');
@@ -108,7 +108,7 @@ describe('employeeInspector', () => {
   it('shows the relay stop first for relay leg 2, marked as relay point', () => {
     const leg = employeeInspector(EMP.maya, sim, map)!.legs[1];
     expect(leg.stops[0]).toMatchObject({ isRelay: true, kindLabel: 'Pickup at relay point',
-      place: { id: BIZ.relay, name: 'LIC Bookshop' }, timeLabel: 'Day 2, 7:40 AM' });
+      place: { id: BIZ.relay, name: 'LIC Bookshop' }, timeLabel: 'Day 2, 7:42 AM' });
     expect(leg.stops[1]).toMatchObject({ isRelay: false, kindLabel: 'Delivery', place: { name: 'Harlem Bakery' } });
     expect(leg.statusLabel).toBe('Assigned');
     expect(leg.finishLabel).toBe('Day 2, 8:15 AM');

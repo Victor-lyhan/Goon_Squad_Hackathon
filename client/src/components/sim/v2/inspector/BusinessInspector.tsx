@@ -58,7 +58,7 @@ type RowHandlers = {
 };
 
 function PackageRowItem({ row, h }: { row: PackageRow; h: RowHandlers }) {
-  const meta = [...new Set([row.planKind, row.statusLabel, row.timeLabel])].filter(Boolean).join(' · ');
+  const meta = [...new Set([row.planKind, row.statusLabel])].filter(Boolean).join(' · ');
   return (
     <li className="insp-row" data-testid={`insp-row-${row.shipmentId}`}>
       <button
@@ -68,8 +68,35 @@ function PackageRowItem({ row, h }: { row: PackageRow; h: RowHandlers }) {
         onClick={() => h.onSelectPackage(row.shipmentId)}
       >
         <span className="insp-row-title">{row.label}</span>
-        <span className="insp-row-meta">{meta}</span>
+        <span className="insp-row-meta">
+          {meta}
+          {row.timeLabel && (
+            <>
+              {' · '}
+              <span className="insp-mono">{row.timeLabel}</span>
+            </>
+          )}
+        </span>
       </button>
+      <div className="insp-row-figs" data-testid={`insp-figs-${row.shipmentId}`}>
+        <span className="insp-row-role">{row.role}</span>
+        {row.noMatchLabel ? (
+          <span className="insp-nomatch">{row.noMatchLabel}</span>
+        ) : (
+          <>
+            {row.rewardLabel && (
+              <span className="insp-fig">
+                <span className="insp-fig-label">Reward</span> <span className="insp-mono">{row.rewardLabel}</span>
+              </span>
+            )}
+            {row.extraLabel && (
+              <span className="insp-fig">
+                <span className="insp-fig-label">Extra</span> <span className="insp-mono">{row.extraLabel}</span>
+              </span>
+            )}
+          </>
+        )}
+      </div>
       <div className="insp-row-links">
         {row.parties.map((p) => (
           <span key={p.role} className="insp-party">
