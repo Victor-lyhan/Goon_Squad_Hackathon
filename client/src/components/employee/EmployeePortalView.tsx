@@ -1,6 +1,6 @@
 import type { EmployeeDashboard, JobResponse, MapResponse } from '../../../../shared/api';
 import type { PutCommuteRequest } from '../../../../shared/schemas';
-import type { Business, Hub } from '../../../../shared/types';
+import type { Business, Hub, Trip } from '../../../../shared/types';
 import { Button, Drawer, EmptyState, Spinner } from '../../ui';
 import { CommuteEditor } from '../CommuteEditor';
 import { JobCard } from '../JobCard';
@@ -17,6 +17,7 @@ export type EmployeePortalViewProps = {
   error: string | null;
   saving?: boolean;
   fieldErrors?: Record<string, string>;
+  saved?: { trips: Trip[]; rematchedShipmentIds: string[] } | null;
   saveNotice?: { kind: 'success' | 'error'; text: string } | null;
   job?: JobResponse | null;
   jobError?: string | null;
@@ -80,6 +81,7 @@ export function EmployeePortalView(p: EmployeePortalViewProps) {
               locked={dash.phase === 'locked'}
               saving={p.saving}
               fieldErrors={p.fieldErrors}
+              saved={p.saved}
               onSave={p.onSave}
             />
           )}

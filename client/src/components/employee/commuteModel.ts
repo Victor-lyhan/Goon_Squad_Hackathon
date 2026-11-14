@@ -120,3 +120,12 @@ export function removeWaypoint(f: CommuteForm, dir: WaypointDirection, index: nu
 export function clearWaypoints(f: CommuteForm, dir: WaypointDirection): CommuteForm {
   return { ...f, [viaKey(dir)]: [] };
 }
+
+export const SAVED_TEXT = 'Saved. Available for matching.';
+export const LOCKED_TEXT = 'Planning is locked. To change your commute, press "Start new planning cycle" in the simulator Setup drawer.';
+
+/** "3 waiting packages were matched to your route." or '' when none. */
+export function rematchedText(n: number): string {
+  if (n <= 0) return '';
+  return `${n} waiting ${n === 1 ? 'package was' : 'packages were'} matched to your route.`;
+}

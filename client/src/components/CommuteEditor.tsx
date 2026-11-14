@@ -3,9 +3,9 @@ import type { PutCommuteRequest } from '../../../shared/schemas';
 import type { MapResponse } from '../../../shared/api';
 import type { Business, Employee, Trip } from '../../../shared/types';
 import { CityMap } from './CityMap';
-import { Button, Card, Field } from '../ui';
+import { Button, Card, Field, formatDuration } from '../ui';
 import {
-  addWaypoint, clearWaypoints, removeWaypoint, toForm, toRequest, validate,
+  LOCKED_TEXT, SAVED_TEXT, addWaypoint, clearWaypoints, rematchedText, removeWaypoint, toForm, toRequest, validate,
   type CommuteForm, type WaypointDirection,
 } from './employee/commuteModel';
 import { projectNodes } from './sim/mapGeometry';
@@ -19,11 +19,13 @@ export type CommuteEditorProps = {
   locked: boolean;
   saving?: boolean;
   fieldErrors?: Record<string, string>;
+  /** Last successful PUT /commute response: its trips are shown as the persisted routes. */
+  saved?: { trips: Trip[]; rematchedShipmentIds: string[] } | null;
   onSave: (req: PutCommuteRequest) => void;
 };
 
 export function CommuteEditor({
-  employee, trips, map, businesses, locked, saving = false, fieldErrors, onSave,
+  employee, trips, map, businesses, locked, saving = false, fieldErrors, saved, onSave,
 }: CommuteEditorProps) {
   const [form, setForm] = useState<CommuteForm>(() => toForm(employee));
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
@@ -40,8 +42,9 @@ export function CommuteEditor({
   const nodes = map.graph.nodes;
   const labelOf = (id: string) => nodes.find((n) => n.id === id)?.label ?? 'Intersection';
   const named = nodes.filter((n) => n.label);
-  const evening = trips.find((t) => t.direction === 'evening');
-  const morning = trips.find((t) => t.direction === 'morning');
+  const shown = saved ? saved.trips : trips;
+  const evening = shown.find((t) => t.direction === 'evening');
+  const morning = shown.find((t) => t.direction === 'morning');
 
   const vias = dir === 'evening' ? form.eveningViaNodeIds : form.morningViaNodeIds;
   const pos = projectNodes(nodes);
@@ -63,10 +66,12 @@ export function CommuteEditor({
       <h2 className="commute-editor__title">My commute</h2>
       {locked && (
         <p className="commute-editor__locked" role="status">
-          Planning is locked. Commute edits need a new planning cycle.
+          {LOCKED_TEXT}
         </p>
       )}
 
+      <div className="commute-editor__layout">
+      <div className="commute-editor__fields">
       <Field label="Employer" error={errors.businessId}>
         <select value={form.businessId} disabled={disabled} onChange={(e) => set('businessId', e.target.value)}>
           {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -80,27 +85,6 @@ export function CommuteEditor({
         </select>
       </Field>
 
-      <CityMap
-        className="commute-editor__map"
-        graph={map.graph}
-        businesses={map.businesses}
-        hubs={map.hubs}
-        highlightRoute={evening?.baselineNodeIds}
-        baselineRoute={morning?.baselineNodeIds}
-        selectedNodeId={form.homeNodeId || undefined}
-        onNodeClick={disabled ? undefined : onMapClick}
-      >
-        {adjusting && vias.map((id, i) => {
-          const p = pos.get(id);
-          if (!p) return null;
-          return (
-            <g key={`${id}-${i}`} className="commute-editor__wp-marker" pointerEvents="none">
-              <circle cx={p.x} cy={p.y} r={14} fill="#1f6feb" stroke="#fff" strokeWidth={3} />
-              <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central" fontSize={16} fontWeight={700} fill="#fff">{i + 1}</text>
-            </g>
-          );
-        })}
-      </CityMap>
 
       <details className="commute-editor__adjust" open={adjusting} onToggle={(e) => { setAdjusting((e.currentTarget as HTMLDetailsElement).open); setWpError(''); }}>
         <summary>Adjust my route</summary>
@@ -130,10 +114,6 @@ export function CommuteEditor({
           <button type="button" disabled={disabled} onClick={() => { setWpError(''); setForm((f) => clearWaypoints(f, dir)); }}>Clear</button>
         )}
       </details>
-      <ul className="commute-editor__routes">
-        {evening && <li>Evening route: {evening.baselineDurationMin} min</li>}
-        {morning && <li>Morning route: {morning.baselineDurationMin} min</li>}
-      </ul>
 
       <div className="commute-editor__row">
         <Field label="Evening departure (Day 1)" error={errors.eveningDepartureMin}>
@@ -156,6 +136,43 @@ export function CommuteEditor({
       <Field label={`Max added minutes: ${form.maxExtraMin}`} error={errors.maxExtraMin}>
         <input type="range" min={0} max={30} step={1} value={form.maxExtraMin} disabled={disabled} onChange={(e) => set('maxExtraMin', Number(e.target.value))} />
       </Field>
+
+      </div>
+      <div className="commute-editor__mapcol">
+      <CityMap
+        className="commute-editor__map"
+        graph={map.graph}
+        businesses={map.businesses}
+        hubs={map.hubs}
+        highlightRoutes={saved ? [evening?.baselineNodeIds, morning?.baselineNodeIds].filter((r): r is string[] => Boolean(r)) : undefined}
+        highlightRoute={saved ? undefined : evening?.baselineNodeIds}
+        baselineRoute={saved ? undefined : morning?.baselineNodeIds}
+        selectedNodeId={form.homeNodeId || undefined}
+        onNodeClick={disabled ? undefined : onMapClick}
+      >
+        {adjusting && vias.map((id, i) => {
+          const p = pos.get(id);
+          if (!p) return null;
+          return (
+            <g key={`${id}-${i}`} className="commute-editor__wp-marker" pointerEvents="none">
+              <circle cx={p.x} cy={p.y} r={14} fill="#1f6feb" stroke="#fff" strokeWidth={3} />
+              <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central" fontSize={16} fontWeight={700} fill="#fff">{i + 1}</text>
+            </g>
+          );
+        })}
+      </CityMap>
+      {saved && (
+        <div className="commute-editor__saved" role="status">
+          <p className="commute-editor__saved-title">{SAVED_TEXT}</p>
+          {rematchedText(saved.rematchedShipmentIds.length) && <p>{rematchedText(saved.rematchedShipmentIds.length)}</p>}
+        </div>
+      )}
+      <ul className="commute-editor__routes">
+        {evening && <li>Evening route: {formatDuration(evening.baselineDurationMin)}</li>}
+        {morning && <li>Morning route: {formatDuration(morning.baselineDurationMin)}</li>}
+      </ul>
+      </div>
+      </div>
 
       <div className="commute-editor__save">
         <Button onClick={submit} loading={saving} disabled={locked}>Save commute and find jobs</Button>
