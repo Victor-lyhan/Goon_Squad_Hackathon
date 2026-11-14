@@ -1,3 +1,5 @@
+> **MVP III (5:15 p.m. Sat): read `docs/mvp3.md` first. It overrides MVP II and the UI redesign doc where they conflict. Feature freeze 9:30 p.m.**
+
 # SPEC: Relay
 
 > **MVP II (added 11:40 a.m. Sat) is at the bottom of this file and overrides anything above that conflicts with it**, including "Out of scope: external APIs" and the synthetic 12×12 grid. M0–M6 below are done or superseded.

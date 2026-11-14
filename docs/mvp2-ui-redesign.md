@@ -1,3 +1,5 @@
+> **SUPERSEDED by `docs/mvp3.md` (colors, fonts, simulator controls, page structure). Follow mvp3.md where they conflict.**
+
 # MVP II UI redesign (human-written; source of truth for all UI work in M7–M9)
 
 Wording update: the app now uses real NYC locations with simulated deliveries. Replace "synthetic city" with "Real NYC locations · simulated deliveries" and replace "hub" with "relay point (network business)" everywhere in the UI.
