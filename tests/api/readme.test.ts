@@ -6,12 +6,17 @@ import { TRAVEL_DATA_MISSING_TEXT } from '../../client/src/components/employee/v
 import { ENV_INDICATOR_TEXT } from '../../client/src/ui/shellModel';
 import { DEFAULT_V2_STATE_PATH, sourcePathFor } from '../../server/api/v2/bootRun';
 import { SERVER_KEY_NAME } from '../../server/geo/env';
-import { CHECK_LINE, EXIT_INCOMPLETE, EXIT_OK, EXIT_USAGE, RESUME_LINE, parseArgs } from '../../server/geo/fetchScript';
+import {
+  CHECK_KEY_LINE, CHECK_LINE, DROP_ENTERED_COMMAND, EXIT_INCOMPLETE, EXIT_OK, EXIT_USAGE, RESUME_LINE, parseArgs, refetchCommand,
+} from '../../server/geo/fetchScript';
+import { formatKeyCheck } from '../../server/geo/keyCheck';
+import { CLIENT_MISSING_LINE, CLIENT_SERVED_LINE, KEY_NOT_SET_LINE, KEY_SET_LINE, portInUseMessage } from '../../server/index';
 
 const root = path.resolve(__dirname, '../..');
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
   scripts: Record<string, string>;
+  engines?: { node?: string };
 };
 
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -202,6 +207,137 @@ describe('README after the cutover', () => {
   });
 });
 
+// ---------- #637: the Node version, PORT and the start lines ----------
+
+type Version = [major: number, minor: number, patch: number];
+/** "22", "22.12" or "22.12.0" as three numbers. Anything else throws, so an unexpected format fails the test. */
+function version(text: string): Version {
+  const m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/.exec(text.trim());
+  if (!m) throw new Error(`not a version: "${text}"`);
+  return [Number(m[1]), Number(m[2] ?? 0), Number(m[3] ?? 0)];
+}
+const compare = (a: Version, b: Version) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+/** One alternative of an `engines.node` range: `>=a.b.c` (no upper end) or `^a.b.c` (below the next major). */
+type Span = { from: Version; belowMajor: number | null };
+/** The `||` alternatives of a range written with `>=` and `^` only, which is all the packages read here use. */
+function spans(range: string): Span[] {
+  return range.split('||').map((part) => {
+    const m = /^(>=|\^)\s*(\S+)$/.exec(part.trim());
+    if (!m) throw new Error(`engines range "${range}": "${part.trim()}" is neither >=x nor ^x`);
+    const from = version(m[2]);
+    return { from, belowMajor: m[1] === '^' ? from[0] + 1 : null };
+  });
+}
+const satisfies = (v: Version, range: string) =>
+  spans(range).some((span) => compare(v, span.from) >= 0 && (span.belowMajor === null || v[0] < span.belowMajor));
+/** The lowest version inside every range. It is the start of one of their alternatives. */
+function lowest(ranges: string[], major?: number): Version {
+  const starts = ranges.flatMap((range) => spans(range).map((span) => span.from));
+  const inside = starts.filter((v) => (major === undefined || v[0] === major) && ranges.every((range) => satisfies(v, range)));
+  if (inside.length === 0) throw new Error(`no Node version satisfies all of: ${ranges.join(' ; ')}`);
+  return inside.sort(compare)[0];
+}
+
+describe('README for a fresh clone: Node version, ports and start lines (#637)', () => {
+  const lock = JSON.parse(read('package-lock.json')) as { packages: Record<string, { engines?: { node?: string } }> };
+  /** The `engines.node` of a direct dependency, as the lock file has it. */
+  const enginesOf = (name: string) => {
+    const range = lock.packages[`node_modules/${name}`]?.engines?.node;
+    if (!range) throw new Error(`package-lock.json has no engines.node for ${name}`);
+    return range;
+  };
+  const own = pkg.engines?.node ?? '>=0';
+  const requirements = sectionOf('## Requirements');
+  const bullet = (what: string) => requirements.split('\n').find((line) => line.startsWith('- Node.js') && line.includes(what)) ?? '';
+  /** Every "<version> or newer" of a line. */
+  const named = (line: string) => [...line.matchAll(/(\d+(?:\.\d+){0,2}) or newer/g)].map((m) => version(m[1]));
+
+  it('the range reader knows a version below, inside and between the alternatives of a range', () => {
+    const sample = '^20.19.0 || >=22.12.0';
+    expect(satisfies(version('20.18.9'), sample)).toBe(false);
+    expect(satisfies(version('20.19'), sample)).toBe(true);
+    expect(satisfies(version('21.5.0'), sample)).toBe(false);
+    expect(satisfies(version('22.11.0'), sample)).toBe(false);
+    expect(satisfies(version('22.12.0'), sample)).toBe(true);
+    expect(satisfies(version('26'), sample)).toBe(true);
+    expect(lowest([sample, '>=22'])).toEqual([22, 12, 0]);
+    expect(lowest([sample, '>=18'])).toEqual([20, 19, 0]);
+    expect(() => spans('20 || >=22')).toThrow(/neither/);
+  });
+
+  it('names a Node version for running the app that Vite accepts, and it is the lowest one', () => {
+    const line = bullet('to run the app');
+    const [appVersion, ...more] = named(line);
+    expect(appVersion, 'a "- Node.js <version> or newer to run the app" line in Requirements').toBeDefined();
+    expect(more).toEqual([]);
+    const ranges = [own, enginesOf('vite')];
+    // Fails when the README names a version below what vite's engines in the lock file allow.
+    for (const range of ranges) expect(satisfies(appVersion, range), `Node ${appVersion.join('.')} in "${range}"`).toBe(true);
+    expect(appVersion).toEqual(lowest(ranges));
+    for (const command of ['`npm run dev`', '`npm run build`', '`npm start`']) expect(line).toContain(command);
+    expect(line).toContain('`package-lock.json`');
+    // The old line is gone: plain "22 or newer" is below Vite's range.
+    expect(readme).not.toMatch(/Node\.js \d+ or newer \(`engines` in `package\.json`\)/);
+  });
+
+  it('names the higher Node version vitest and jsdom need for the tests', () => {
+    const line = bullet('to run the tests');
+    const versions = named(line);
+    const ranges = [own, enginesOf('vite'), enginesOf('vitest'), enginesOf('jsdom')];
+    const needed = lowest(ranges);
+    // The README has this second line only when the tests need more than the app does.
+    if (compare(needed, lowest([own, enginesOf('vite')])) === 0) {
+      expect(line).toBe('');
+      return;
+    }
+    expect(versions.length, 'a "- Node.js <version> or newer to run the tests" line in Requirements').toBeGreaterThan(0);
+    for (const v of versions) {
+      for (const range of ranges) expect(satisfies(v, range), `Node ${v.join('.')} in "${range}"`).toBe(true);
+      // Each one is the lowest of its major, so "24.15 or newer" is not a guess either.
+      expect(v).toEqual(lowest(ranges, v[0]));
+    }
+    expect(versions[0]).toEqual(needed);
+    expect(line).toContain('`bash scripts/test.sh`');
+    expect(line).toMatch(/vitest and jsdom/);
+    // "vitest does not list Node 23 or 25": true for the range in the lock file.
+    for (const major of [...line.matchAll(/Node (\d+) or (\d+)/g)].flatMap((m) => [m[1], m[2]])) {
+      expect(satisfies(version(`${major}.99.99`), enginesOf('vitest')), `vitest on Node ${major}`).toBe(false);
+    }
+  });
+
+  it('says PORT applies to npm start only, and that npm run dev needs ports 3001 and 5173 free', () => {
+    expect(requirements).toMatch(/`PORT` is optional and applies to `npm start` only \(default `3001`\)/);
+    const setup = sectionOf('## Setup and run');
+    expect(setup).toMatch(/`npm run dev` needs ports 3001 and 5173 free/);
+    expect(setup).toMatch(/Do not set `PORT`/);
+    // The cause, in the config the README describes: the proxy target and Vite's port are fixed.
+    const vite = read('vite.config.ts');
+    expect(vite).toContain("proxy: { '/api': 'http://localhost:3001' }");
+    expect(vite).toMatch(/port: 5173,\s*strictPort: true/);
+    // The server's own message offers another PORT, which is right for npm start only.
+    expect(portInUseMessage(3001)).toContain('PORT=3002');
+    expect(setup).toMatch(/already in use, stop the other server/);
+    const production = sectionOf('## Production build');
+    expect(production).toContain('`PORT=3002 npm start`');
+    expect(readme).not.toMatch(/PORT=\d+ npm run dev/);
+  });
+
+  it('names the start lines of npm start in the words of server/index.ts', () => {
+    const production = sectionOf('## Production build');
+    const sentence = production.split('\n').find((line) => line.startsWith('When it starts, `npm start` prints')) ?? '';
+    for (const line of [CLIENT_SERVED_LINE, CLIENT_MISSING_LINE, KEY_SET_LINE, KEY_NOT_SET_LINE]) {
+      expect(sentence, line).toContain(`"${line}"`);
+    }
+    expect(sentence).toMatch(/the key itself is never printed/);
+  });
+
+  it('holds no coordinate: no number with four or more decimals and no entered-home ID', () => {
+    const lines = readme.split(/\r?\n/);
+    const found = lines.flatMap((line, i) => (/\d\.\d{4,}|home-c-[-\d]/.test(line) ? [i + 1] : []));
+    expect(found, 'README line numbers that look like a coordinate').toEqual([]);
+  });
+});
+
 describe('README, Google setup section', () => {
   const HEADING = '## Google setup: keys and travel data';
   const start = readme.indexOf(`\n${HEADING}\n`);
@@ -290,6 +426,67 @@ describe('README, Google setup section', () => {
     at(CHECK_LINE);
     at('saved after every step');
     at('resumes');
+  });
+
+  // #637: the two other last lines of a run that exits 1, as server/geo/fetchScript.ts prints them.
+  it('lists the --check-key hint and the --refetch command among the last lines, each in a row of its own', () => {
+    const rows = section.split('\n').filter((line) => line.startsWith('| '));
+    const rowWith = (text: string) => rows.filter((line) => line.split(' | ')[0].includes(text));
+    // After Google refused the first call to an API.
+    expect(CHECK_KEY_LINE).toContain('npm run fetch:routes -- --check-key');
+    expect(rowWith(`"${CHECK_KEY_LINE}"`)).toHaveLength(1);
+    expect(rowWith(`"${CHECK_KEY_LINE}"`)[0]).toMatch(/refused the first request/);
+    // After a home moved: the command the run prints, with a placeholder where it prints the IDs.
+    const command = refetchCommand(['PLACE']).replace('PLACE', '<placeId>');
+    expect(command).toBe('npm run fetch:routes -- --refetch <placeId>');
+    expect(rowWith(`\`${command}\``)).toHaveLength(1);
+    expect(rowWith(`\`${command}\``)[0]).toMatch(/Moved homes:/);
+    // The two that were there before are rows of the same table.
+    for (const line of [RESUME_LINE, CHECK_LINE]) expect(rowWith(`"${line}"`), line).toHaveLength(1);
+    expect(at('The last line of a run that exits 1')).toBeGreaterThan(at('**Exit codes**'));
+  });
+
+  it('offers --check-key between the dry run and the paid run, with the last lines of the check', () => {
+    const step4 = section.slice(at('### 4. Fetch the travel data'), at('### 5. Commit the cache and restart the server'));
+    const order = [
+      step4.indexOf('\nnpm run fetch:routes -- --dry-run'),
+      step4.indexOf('\nnpm run fetch:routes -- --check-key'),
+      step4.indexOf('\nnpm run fetch:routes  '),
+    ];
+    expect(order.every((index) => index >= 0), 'three command lines in step 4').toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    const check = step4.split('\n').find((line) => line.startsWith('**Then check the key**')) ?? '';
+    expect(check).toContain('`npm run fetch:routes -- --check-key`');
+    expect(check).toMatch(/before the paid run/);
+    expect(check).toMatch(/three small calls/); // billable, so it is said
+    expect(check).toMatch(/writes nothing/);
+    // The two endings of the check, as server/geo/keyCheck.ts prints them.
+    const row = { api: 'geocoding', problem: 'unknown', detail: '', remedy: '' } as const;
+    const ok = formatKeyCheck([{ ...row, ok: true }]).at(-1)!;
+    const failed = formatKeyCheck([{ ...row, ok: false }]).at(-1)!;
+    expect(ok).not.toBe(failed);
+    expect(check).toContain(`"${ok}"`);
+    expect(check).toContain(`"${failed}"`);
+  });
+
+  it('runs --drop-entered before git add, and says why', () => {
+    const step5 = section.slice(at('### 5. Commit the cache and restart the server'), at('### What you see'));
+    expect(DROP_ENTERED_COMMAND).toBe('npm run fetch:routes -- --drop-entered');
+    const drop = step5.indexOf(`\n${DROP_ENTERED_COMMAND}`);
+    const add = step5.indexOf('\ngit add fixtures/nyc/');
+    expect(drop).toBeGreaterThanOrEqual(0);
+    expect(add).toBeGreaterThan(drop);
+    const why = step5.split('\n').find((line) => line.startsWith('**Why the drop comes first:**')) ?? '';
+    expect(why).toMatch(/typed address/);
+    expect(why).toContain('`home-c-<lat>_<lng>`'); // the placeholder, never a coordinate
+    expect(why).toMatch(/must never be committed/);
+    expect(why).toMatch(/never an ID/);
+    expect(why).toMatch(/server has to be stopped/);
+    // The old claim is gone: the files do hold coordinates, of businesses and made-up homes only after the drop.
+    expect(step5).not.toMatch(/The two files hold coordinates, seconds/);
+    expect(step5).toMatch(/After the drop the two files hold/);
+    // The page that creates such a home points at this step.
+    expect(section.slice(at('### What you see'))).toMatch(/remove it before you commit the cache \(step 5\)/);
   });
 
   it('takes the request numbers from the dry run, not from typed numbers', () => {
