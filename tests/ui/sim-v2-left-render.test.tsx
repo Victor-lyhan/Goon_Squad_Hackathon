@@ -123,7 +123,7 @@ describe('ScenarioControls static renders', () => {
       expect(labels).toEqual(['Preset', 'Seed', 'Employees', 'Packages', 'Detour limit (min)']);
       expect(html).not.toMatch(/hub/i);
       const inputs = tags(html, 'input');
-      expect(inputs.map((t) => attr(t, 'value'))).toEqual(['42', '60', '24', '8']);
+      expect(inputs.map((t) => attr(t, 'value'))).toEqual(['42', '60', '24', '12']);
       expect(tags(html, 'option').find((t) => t.includes('selected'))).toContain('value="random"');
       expect(html).toContain('10 to 120');
       expect(html).toContain('5 to 60');

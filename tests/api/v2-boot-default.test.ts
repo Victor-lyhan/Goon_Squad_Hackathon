@@ -19,7 +19,7 @@ describe('v2 boot constants', () => {
   });
 
   it('the default run is the demo preset with the contract defaults', () => {
-    expect(DEFAULT_RUN_REQUEST).toEqual({ preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 8 });
+    expect(DEFAULT_RUN_REQUEST).toEqual({ preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 12 });
   });
 });
 
