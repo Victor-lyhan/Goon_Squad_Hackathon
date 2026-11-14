@@ -1,5 +1,5 @@
-import type { CommuteResponse, EmployeeDashboard } from '../../../../shared/api';
-import type { Notification } from '../../../../shared/types';
+import type { CommuteResponse, EmployeeDashboard, EmployeeJobView } from '../../../../shared/api';
+import type { JobStatus, Notification } from '../../../../shared/types';
 
 export const POLL_MS = 1000;
 
@@ -39,4 +39,24 @@ export function needsMapRefetch(prevVersion: number | null, nextVersion: number,
 
 export function welcomeTitle(name: string): string {
   return `Welcome, ${name}`;
+}
+
+export type FeedGroup = { status: JobStatus; heading: string; views: EmployeeJobView[] };
+
+const GROUP_HEADING: Record<JobStatus, string> = { in_progress: 'In progress', assigned: 'Upcoming', completed: 'Completed' };
+const GROUP_ORDER: JobStatus[] = ['in_progress', 'assigned', 'completed'];
+
+/**
+ * Groups the feed by the API job status (no status is computed here) and orders each group by
+ * the trip's departure, then pickup time and job id. Empty groups are omitted.
+ */
+export function feedGroups(dash: Pick<EmployeeDashboard, 'assigned' | 'completed' | 'trips'>): FeedGroup[] {
+  const depart = (v: EmployeeJobView) => dash.trips.find((t) => t.id === v.job.tripId)?.departureMin ?? v.job.pickup.serviceStartMin;
+  const all = [...dash.assigned, ...dash.completed];
+  return GROUP_ORDER.map((status) => ({
+    status,
+    views: all.filter((v) => v.status === status).sort((a, b) =>
+      depart(a) - depart(b) || a.job.pickup.serviceStartMin - b.job.pickup.serviceStartMin || a.job.id.localeCompare(b.job.id)),
+  })).filter((g) => g.views.length > 0)
+    .map((g) => ({ ...g, heading: `${GROUP_HEADING[g.status]} (${g.views.length})` }));
 }

@@ -29,7 +29,19 @@ function legWasCompleted(plan: DeliveryPlan, legIndex: number, events: SimEvent[
 export function computeMetrics(input: ComputeMetricsInput): Metrics {
   const { shipments, plans, unmatched, occurredEvents, settings } = input;
   const legs = plans.flatMap((plan) => plan.legs);
-  const extraMinutes = legs.map((leg) => leg.extraMin);
+  // matching.scheduleLeg defines extraMin as the augmented trip finish minus
+  // that trip's baseline finish, so it is cumulative for the whole trip (not
+  // incremental per leg). A trip is normally reserved after one leg, but use
+  // the greatest cumulative values if imported data contains it more than once.
+  const extraByTripId = new Map<string, { extraMin: number; extraDistanceM: number }>();
+  for (const leg of legs) {
+    const current = extraByTripId.get(leg.tripId);
+    extraByTripId.set(leg.tripId, {
+      extraMin: Math.max(current?.extraMin ?? 0, leg.extraMin),
+      extraDistanceM: Math.max(current?.extraDistanceM ?? 0, leg.extraDistanceM),
+    });
+  }
+  const tripExtras = [...extraByTripId.values()];
   // Key actuals by plan, rather than only shipment ID. This keeps an event
   // from an unrelated/stale plan from making a current plan look delivered.
   const deliveredPlanIds = new Set(
@@ -60,12 +72,15 @@ export function computeMetrics(input: ComputeMetricsInput): Metrics {
     direct: plans.filter((plan) => plan.kind === 'direct').length,
     relay: plans.filter((plan) => plan.kind === 'relay').length,
     unmatched: unmatched.length,
-    avgExtraMinPerTrip: legs.length === 0
+    avgExtraMinPerTrip: tripExtras.length === 0
       ? null
-      : extraMinutes.reduce((total, extraMin) => total + extraMin, 0) / legs.length,
-    maxExtraMin: legs.length === 0 ? null : Math.max(...extraMinutes),
+      : tripExtras.reduce((total, trip) => total + trip.extraMin, 0) / tripExtras.length,
+    maxExtraMin: tripExtras.length === 0 ? null : Math.max(...tripExtras.map((trip) => trip.extraMin)),
     earnedRewardsCents,
-    projectedCustomerSavingsCents: plans.length * (settings.courierPriceCents - settings.priceCents),
+    projectedCustomerSavingsCents: plans.length * Math.max(
+      0,
+      settings.courierPriceCents - settings.priceCents,
+    ),
     projectedCustomerSpendCents: plans.length * settings.priceCents
       + unmatched.length * settings.courierPriceCents,
     projectedPlatformContributionCents,
@@ -75,6 +90,6 @@ export function computeMetrics(input: ComputeMetricsInput): Metrics {
       ),
       0,
     ),
-    extraDistanceM: legs.reduce((total, leg) => total + leg.extraDistanceM, 0),
+    extraDistanceM: tripExtras.reduce((total, trip) => total + trip.extraDistanceM, 0),
   };
 }

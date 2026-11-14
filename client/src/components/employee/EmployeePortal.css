@@ -31,3 +31,6 @@
 .emp-portal__new > .job-card { outline: 2px solid #2563eb; }
 .emp-portal__new-badge { position: absolute; top: -8px; right: 12px; z-index: 1; background: #2563eb; color: #fff; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
 .emp-portal__notes { margin: 0 0 12px; padding-left: 18px; font-size: 0.9rem; }
+.emp-portal__group { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.emp-portal__group-title { margin: 4px 0 0; font-size: 1rem; }
+.emp-portal__feed .ui-empty { overflow-wrap: anywhere; }

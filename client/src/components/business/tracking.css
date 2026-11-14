@@ -15,7 +15,16 @@
 .trk-legs{margin:0;padding-left:1.25rem;display:grid;gap:.4rem}
 .trk-legs li{display:grid}
 .route-mini-map{max-width:420px;margin:.5rem 0}
-.route-mini-map .route-mini-map__svg{max-height:220px}
+.route-mini-map .route-mini-map__svg{width:100%;height:auto;display:block;background:#f8fafc;border-radius:8px}
+.route-map .road{stroke:#cbd5e1;stroke-width:8;stroke-linecap:round}
+.route-map .route-hi{fill:none;stroke:#c2410c;stroke-width:16;stroke-linecap:round;stroke-linejoin:round}
+.route-map .route-hi-alt{stroke:#1d4ed8;stroke-dasharray:36 22}
+.route-map .biz{fill:#475569}
+.route-map .hub{fill:#2563eb;stroke:#fff;stroke-width:5}
+.route-map text{font:600 32px system-ui,sans-serif;fill:#1e293b;paint-order:stroke;stroke:#f8fafc;stroke-width:8px}
+.route-map .leg-badge{fill:#fff;stroke:#0f172a;stroke-width:4}
+.route-map .route-map text.leg-badge-text,.route-map .leg-badge-text{font-size:30px;stroke:none;fill:#0f172a}
+.route-mini-map__caption{margin:.25rem 0 0;font-size:.9rem;color:#334155}
 .route-mini-map__note{color:#64748b;font-size:.9rem;margin:.5rem 0}
 .trk-row:focus-visible{outline:3px solid var(--accent,#0e7c86);outline-offset:2px}
 .trk-row__label,.trk-row__who{overflow-wrap:anywhere}

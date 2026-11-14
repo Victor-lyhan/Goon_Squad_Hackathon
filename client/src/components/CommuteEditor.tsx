@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { PutCommuteRequest } from '../../../shared/schemas';
 import type { MapResponse } from '../../../shared/api';
 import type { Business, Employee, Trip } from '../../../shared/types';
+import { getShipment } from '../api/client';
 import { CityMap } from './CityMap';
 import { Button, Card, Field, formatDuration } from '../ui';
 import {
@@ -34,6 +35,15 @@ export function CommuteEditor({
   const [adjusting, setAdjusting] = useState(false);
   const [dir, setDir] = useState<WaypointDirection>('evening');
   const [wpError, setWpError] = useState('');
+  const [pkgNames, setPkgNames] = useState<Record<string, string>>({});
+  const rematchedKey = saved ? saved.rematchedShipmentIds.join(',') : '';
+  useEffect(() => {
+    let live = true;
+    for (const id of rematchedKey ? rematchedKey.split(',') : []) {
+      getShipment(id).then((r) => { if (live) setPkgNames((m) => ({ ...m, [id]: r.shipment.label })); }).catch(() => {});
+    }
+    return () => { live = false; };
+  }, [rematchedKey]);
 
   const set = <K extends keyof CommuteForm>(k: K, v: CommuteForm[K]) => setForm((f) => ({ ...f, [k]: v }));
   const errors = { ...localErrors, ...fieldErrors };
@@ -159,7 +169,7 @@ export function CommuteEditor({
       {saved && (
         <div className="commute-editor__saved" role="status">
           <p className="commute-editor__saved-title">{SAVED_TEXT}</p>
-          {rematchedText(saved.rematchedShipmentIds.length) && <p>{rematchedText(saved.rematchedShipmentIds.length)}</p>}
+          {rematchedText(saved.rematchedShipmentIds, pkgNames) && <p>{rematchedText(saved.rematchedShipmentIds, pkgNames)}</p>}
         </div>
       )}
       <ul className="commute-editor__routes">

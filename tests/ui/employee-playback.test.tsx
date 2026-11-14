@@ -36,7 +36,7 @@ function page(empId: string, t: number) {
 const status = (d: ReturnType<typeof page>['dash'], id: string) =>
   [...d.assigned, ...d.completed].find((v) => v.job.id === id)!.status;
 const feed = (html: string) => {
-  const i = html.indexOf('<h2>History</h2>');
+  const i = html.indexOf('Completed (');
   return i < 0 ? { active: html, history: '' } : { active: html.slice(0, i), history: html.slice(i) };
 };
 const clean = (html: string) => {

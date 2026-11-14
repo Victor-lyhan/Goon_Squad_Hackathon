@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { EmployeeDashboard, MapResponse } from '../../../../shared/api';
 import type { Business, Hub } from '../../../../shared/types';
-import { getBusinesses, getEmployeeDashboard, getMap } from '../../api';
+import { ApiRequestError, getBusinesses, getEmployeeDashboard, getMap } from '../../api';
+import { dashReducer, initialDashState, isReconnecting } from './dashboardState';
 import { needsMapRefetch, POLL_MS } from './employeePortalModel';
 import { arrivalsFor, nextArrivals, stepBaseline } from './newJobsModel';
 import type { Arrivals, JobArrival, JobBaseline } from './newJobsModel';
@@ -12,6 +13,10 @@ export type EmployeeData = {
   businesses: Business[];
   hubs: Hub[];
   error: string | null;
+  /** True while polls fail but the last dashboard is still shown. */
+  reconnecting: boolean;
+  /** Run the current data belongs to (null until known). */
+  runId: string | null;
   /** Jobs that arrived in the latest poll (for toasts). */
   arrived: JobArrival[];
   /** Job IDs still wearing the New badge. */
@@ -23,10 +28,10 @@ export type EmployeeData = {
 const msg = (e: unknown) => (e instanceof Error ? e.message : 'Request failed');
 
 export function useEmployeeDashboard(employeeId: string): EmployeeData {
-  const [dash, setDash] = useState<EmployeeDashboard | null>(null);
+  const [state, dispatch] = useReducer(dashReducer, initialDashState);
+  const { dash, error } = state;
   const [map, setMap] = useState<MapResponse | null>(null);
   const [directory, setDirectory] = useState<{ businesses: Business[]; hubs: Hub[] }>({ businesses: [], hubs: [] });
-  const [error, setError] = useState<string | null>(null);
   const [arrived, setArrived] = useState<JobArrival[]>([]);
   const [arrivals, setArrivals] = useState<Arrivals>({});
   const baseline = useRef<JobBaseline | null>(null);
@@ -47,34 +52,46 @@ export function useEmployeeDashboard(employeeId: string): EmployeeData {
       setDirectory({ businesses: b.businesses, hubs: b.hubs });
       haveMap.current = true;
     } catch (e) {
-      if (alive.current) setError(msg(e));
+      if (alive.current) dispatch({ type: 'failure', message: msg(e), status: e instanceof ApiRequestError ? e.status : 0 });
     }
   }, []);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (rerun = false): Promise<void> => {
     const id = idRef.current;
     try {
       const next = await getEmployeeDashboard(id);
       if (!alive.current || idRef.current !== id) return;
+      let runChanged = false;
       let refetchMap = needsMapRefetch(lastVersion.current, next.version, haveMap.current);
       // Versions only ever go up (even for a new city), so check the run id once per version change.
       if (lastVersion.current !== null && next.version !== lastVersion.current && !refetchMap) {
         try {
           const m = await getMap();
           if (!alive.current || idRef.current !== id) return;
-          if (m.runId !== runIdRef.current) { runIdRef.current = m.runId; refetchMap = true; }
+          if (m.runId !== runIdRef.current) { runIdRef.current = m.runId; refetchMap = true; runChanged = true; }
         } catch { /* keep the old run id; the next change retries */ }
+      }
+      if (runChanged) {
+        // Stale data from the old run: drop it, reset the New baseline and refetch from scratch.
+        lastVersion.current = null;
+        baseline.current = null;
+        setArrivals({});
+        setArrived([]);
+        dispatch({ type: 'runChanged', runId: runIdRef.current! });
+        haveMap.current = false;
+        void loadStatic();
+        if (!rerun) await refetch(true);
+        return;
       }
       lastVersion.current = next.version;
       const step = stepBaseline(baseline.current, runIdRef.current, next);
       baseline.current = step.baseline;
       setArrivals((a) => nextArrivals(a, step.newIds, next, Date.now()));
       setArrived(arrivalsFor(next, step.newIds));
-      setDash(next);
-      setError(null);
+      dispatch({ type: 'success', dash: next, runId: runIdRef.current });
       if (refetchMap) { haveMap.current = false; void loadStatic(); }
     } catch (e) {
-      if (alive.current && idRef.current === id) setError(msg(e));
+      if (alive.current && idRef.current === id) dispatch({ type: 'failure', message: msg(e), status: e instanceof ApiRequestError ? e.status : 0 });
     }
   }, [loadStatic]);
 
@@ -84,16 +101,18 @@ export function useEmployeeDashboard(employeeId: string): EmployeeData {
     baseline.current = null;
     setArrivals({});
     setArrived([]);
-    setDash(null);
-    setError(null);
+    dispatch({ type: 'reset' });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Next poll is scheduled only after the previous one finishes, so a slow request never overlaps.
     const tick = async () => {
-      if (inFlight.current) return;
-      inFlight.current = true;
-      try { await refetch(); } finally { inFlight.current = false; }
+      if (!inFlight.current) {
+        inFlight.current = true;
+        try { await refetch(); } finally { inFlight.current = false; }
+      }
+      if (alive.current) timer = setTimeout(() => { void tick(); }, POLL_MS);
     };
     void tick();
-    const timer = setInterval(tick, POLL_MS);
-    return () => { alive.current = false; clearInterval(timer); };
+    return () => { alive.current = false; if (timer) clearTimeout(timer); };
   }, [employeeId, refetch]);
 
   const onSeenJob = useCallback((jobId: string) => {
@@ -101,5 +120,5 @@ export function useEmployeeDashboard(employeeId: string): EmployeeData {
   }, []);
   const newJobIds = useMemo(() => new Set(Object.keys(arrivals)), [arrivals]);
 
-  return { dash, map, businesses: directory.businesses, hubs: directory.hubs, error, arrived, newJobIds, onSeenJob, refetch };
+  return { dash, map, businesses: directory.businesses, hubs: directory.hubs, error, reconnecting: isReconnecting(state), runId: state.runId, arrived, newJobIds, onSeenJob, refetch };
 }

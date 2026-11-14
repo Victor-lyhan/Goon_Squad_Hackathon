@@ -7,7 +7,7 @@ import { JobCard } from '../JobCard';
 import { EarningsSummary } from './EarningsSummary';
 import { JobDetail } from './JobDetail';
 import { jobNotifications } from './newJobsModel';
-import { portalView, welcomeTitle } from './employeePortalModel';
+import { feedGroups, portalView, welcomeTitle } from './employeePortalModel';
 import './EmployeePortal.css';
 
 export type EmployeePortalViewProps = {
@@ -61,18 +61,20 @@ export function EmployeePortalView(p: EmployeePortalViewProps) {
       <EarningsSummary earnedCents={dash.earnedCents} assigned={dash.assigned} completed={dash.completed} />
       <div className="emp-portal__cols">
         <section className="emp-portal__feed" aria-label="Jobs">
-          <h2>Assigned jobs</h2>
+          <h2>Your jobs</h2>
           {view === 'empty' && (
-            <EmptyState title="No jobs yet. Save your commute to get matched." />
+            <EmptyState
+              title="No jobs yet"
+              description="Matched packages appear here automatically. Your commute is saved below."
+            />
           )}
           {view === 'ready' && dash.assigned.length === 0 && <p>No active jobs right now.</p>}
-          {dash.assigned.map(card)}
-          {dash.completed.length > 0 && (
-            <>
-              <h2>History</h2>
-              {dash.completed.map(card)}
-            </>
-          )}
+          {feedGroups(dash).map((g) => (
+            <div key={g.status} className="emp-portal__group" data-status={g.status}>
+              <h3 className="emp-portal__group-title">{g.heading}</h3>
+              {g.views.map(card)}
+            </div>
+          ))}
         </section>
         <section className="emp-portal__commute" aria-label="My commute">
           {p.saveNotice && (

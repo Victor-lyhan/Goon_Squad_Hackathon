@@ -58,7 +58,7 @@ describe('package detail model', () => {
     expect(d.legs).toHaveLength(1);
     expect(d.legs[0]).toMatchObject({
       employeeName: 'Ana', pickupPlace: 'Alpha Bakery', dropoffPlace: 'Beta Books',
-      extraLabel: '+5 min', rewardCents: 300,
+      extraLabel: '+5 min added', rewardCents: 300,
     });
     expect(d.timeLabel).toBe('Delivered');
     expect(d.timeValue).toBe('Day 1, 6:22 PM');

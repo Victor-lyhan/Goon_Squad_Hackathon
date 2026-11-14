@@ -143,8 +143,9 @@ export function routeLine(
   return `${label} route: ${durationText(trip.baselineDurationMin)} (${labelOf(trip.originNodeId)} to ${labelOf(trip.destinationNodeId)})`;
 }
 
-/** "3 waiting packages were matched to your route." or '' when none. */
-export function rematchedText(n: number): string {
-  if (n <= 0) return '';
-  return `${n} waiting ${n === 1 ? 'package was' : 'packages were'} matched to your route.`;
+/** "Matched to your route: Box A, Box B." (names only; unknown names fall back to "a waiting package"). */
+export function rematchedText(ids: string[], names: Record<string, string> = {}): string {
+  if (ids.length === 0) return '';
+  const list = ids.map((id) => names[id] || 'a waiting package').join(', ');
+  return `${ids.length} waiting ${ids.length === 1 ? 'package was' : 'packages were'} matched to your route. Packages: ${list}.`;
 }
