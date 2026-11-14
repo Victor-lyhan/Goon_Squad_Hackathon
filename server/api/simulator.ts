@@ -40,6 +40,16 @@ export const postSimulatorControl =
       res.status(400).json({ error: 'Invalid simulator control', fieldErrors });
       return;
     }
+    if (parsed.data.action === 'seek') {
+      const { simStartMin, simEndMin } = store.get().scenario.settings;
+      if (parsed.data.timeMin < simStartMin || parsed.data.timeMin > simEndMin) {
+        res.status(400).json({
+          error: 'Invalid simulator control',
+          fieldErrors: { timeMin: `Must be between ${simStartMin} and ${simEndMin}` },
+        });
+        return;
+      }
+    }
     try {
       const run = await store.mutate((r) => {
         r.clock = applyControl(r.clock, parsed.data, r.events, r.scenario.settings);
