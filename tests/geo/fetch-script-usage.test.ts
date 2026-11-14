@@ -201,10 +201,10 @@ describe('runFetchScript: the command line', () => {
   });
 
   it('parseArgs: no flag is a real run, --dry-run may be repeated', () => {
-    expect(parseArgs([])).toEqual({ ok: true, options: { dryRun: false, help: false, refetch: [], checkKey: false } });
-    expect(parseArgs(['--dry-run'])).toEqual({ ok: true, options: { dryRun: true, help: false, refetch: [], checkKey: false } });
-    expect(parseArgs(['--dry-run', '--dry-run'])).toEqual({ ok: true, options: { dryRun: true, help: false, refetch: [], checkKey: false } });
-    expect(parseArgs(['--help'])).toEqual({ ok: true, options: { dryRun: false, help: true, refetch: [], checkKey: false } });
+    expect(parseArgs([])).toEqual({ ok: true, options: { dryRun: false, help: false, refetch: [], checkKey: false, dropEntered: false } });
+    expect(parseArgs(['--dry-run'])).toEqual({ ok: true, options: { dryRun: true, help: false, refetch: [], checkKey: false, dropEntered: false } });
+    expect(parseArgs(['--dry-run', '--dry-run'])).toEqual({ ok: true, options: { dryRun: true, help: false, refetch: [], checkKey: false, dropEntered: false } });
+    expect(parseArgs(['--help'])).toEqual({ ok: true, options: { dryRun: false, help: true, refetch: [], checkKey: false, dropEntered: false } });
   });
 });
 

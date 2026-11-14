@@ -2,6 +2,8 @@
 // moved home (or a business whose address was corrected) would keep the old point's travel times: a stale time is
 // an invented time (SPEC "MVP II" rule 2). A moved place is never patched: it is dropped with every pair and route
 // line that touches it, and the next `npm run fetch:routes` refills only that place (re-running skips cached pairs).
+// The same drop removes the homes typed into the commute editor (`home-c-<lat>_<lng>`): their ID holds the
+// coordinates of an address a person entered, and the cache is a committed file (SPEC "MVP II" rule 6).
 // Pure: plain cache objects in, new plain objects and text lines out. No fs, no environment, no network, no logging.
 
 import { pairKey } from '../../shared/v2/types';
@@ -74,6 +76,65 @@ export function dropPlaces(files: TravelFiles, placeIds: readonly string[]): Cac
     unknown,
   };
 }
+
+// ---------- homes entered in the commute editor ----------
+
+/**
+ * The ID prefix of a home entered in the commute editor: `home-c-<lat>_<lng>` (shared/v2/types.ts). The ID is
+ * the point, so nothing that is printed, logged or committed may hold one.
+ */
+export const ENTERED_HOME_PREFIX = 'home-c-';
+
+export const isEnteredHomeId = (id: string): boolean => id.startsWith(ENTERED_HOME_PREFIX);
+
+/**
+ * The entered homes the cache knows of, each once, sorted: every `home-c-` key of `matrix.places`, and every
+ * `home-c-` end of a pair key or a route-line key (a leftover whose `places` entry is gone still holds the point).
+ * For counting and for `dropPlaces` only: these IDs are coordinates, so a caller never prints them.
+ */
+export function enteredHomes(files: TravelFiles): string[] {
+  const ids = new Set<string>();
+  const note = (id: string) => {
+    if (isEnteredHomeId(id)) ids.add(id);
+  };
+  for (const id of Object.keys(files.matrix.places)) note(id);
+  for (const key of [...Object.keys(files.matrix.pairs), ...Object.keys(files.polylines.polylines)]) {
+    // `<from>|<to>`: a place ID never holds a `|` (travelService.ts refuses one), so the first one is the separator.
+    const cut = key.indexOf('|');
+    if (cut === -1) continue;
+    note(key.slice(0, cut));
+    note(key.slice(cut + 1));
+  }
+  return [...ids].sort();
+}
+
+/**
+ * Drops every entered home with all its pairs and route lines (`dropPlaces`). Nothing has to be fetched again:
+ * the default scenario uses no entered home. A cache without one comes back as an equal copy with nothing removed.
+ */
+export function dropEnteredHomes(files: TravelFiles): CacheEditResult {
+  return dropPlaces(files, enteredHomes(files));
+}
+
+/**
+ * The one line the fetch script prints for a drop of entered homes: counts only, never an ID.
+ * `verb` is `Would drop` in a dry run.
+ */
+export function formatEnteredDrop(result: Pick<CacheEditResult, 'dropped' | 'removed'>, verb: 'Dropped' | 'Would drop' = 'Dropped'): string {
+  const { dropped, removed } = result;
+  if (dropped.length === 0) return 'Entered homes: none in the travel cache. Nothing to drop.';
+  return (
+    `${verb} ${plural(dropped.length, 'entered home')} (addresses typed into the commute editor): ` +
+    `${plural(removed.places, 'place')}, ${plural(removed.pairs, 'pair')}, ${plural(removed.polylines, 'route line')}.`
+  );
+}
+
+/** `text` without entered-home IDs, for a message that may quote a cache key (a reader error names the bad entry). */
+export function hideEnteredIds(text: string): string {
+  return text.replace(/home-c-[^\s|"'`,;)]*/g, 'home-c (entered address)');
+}
+
+// ---------- homes that moved ----------
 
 export interface MovedHome {
   id: string;
