@@ -3,11 +3,10 @@ import type { ShipmentResponse } from '../../../../../shared/v2/api';
 import type { CreateShipmentRequest } from '../../../../../shared/v2/schemas';
 import type { Employee, NetworkBusiness, PackageCategory, Phase } from '../../../../../shared/v2/types';
 import { matchShipment as apiMatchShipment } from '../../../api/v2';
-import { newClientRequestId } from '../shipmentFormModel';
 import {
   DEFAULT_WINDOW, RESULT_COPY, arrangedCard, draftAfterResult, emptyDraft, firstInvalidField,
-  initialSubmitState, mapServerFieldErrors, recipientOptions, retryShipmentId, submitReducer, toRequest, validate,
-  windowText,
+  initialSubmitState, mapServerFieldErrors, newClientRequestId, recipientOptions, retryShipmentId, submitReducer,
+  toRequest, validate, windowText,
   type ArrangedCard, type DraftField, type FieldErrors, type NewDeliveryDraft, type SubmitStatus, type TimeWindow,
 } from './newDeliveryModel';
 import './newDelivery.css';
