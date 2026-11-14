@@ -1,5 +1,5 @@
-/* First cut of the MVP II simulator page (#426): page states, the map banners and the right-panel
-   selection blocks. Square corners (radius ≤ 4px), 1px borders, flat fills, no shadows, no gradients.
+/* MVP II simulator page (#426, #460): page states, the map banners, the map legend's corner and the
+   right-panel message blocks. The inspector, package panel, legend and comparison bring their own CSS. Square corners (radius ≤ 4px), 1px borders, flat fills, no shadows, no gradients.
    Tokens as var(--name, fallback). */
 
 /* ---------- Loading, unavailable (503) and error: the whole workspace area ---------- */
@@ -58,6 +58,16 @@
 .spc-banner--quiet { border-color: var(--border, #D7DDE5); color: var(--muted, #5B6472); }
 .spc-banner + .spc-banner { top: calc(var(--space-3, 12px) + 32px); }
 
+/* The legend sits in the bottom-left corner, above the Google logo; the zoom buttons are bottom-right. */
+.spc-legend {
+  position: absolute;
+  left: var(--space-3, 12px);
+  bottom: 32px;
+  z-index: 2;
+  max-height: calc(100% - 96px);
+  overflow-y: auto;
+}
+
 /* ---------- Left panel: failed action ---------- */
 .spc-action-error {
   display: grid;
@@ -73,15 +83,12 @@
 .spc-action-error p { margin: 0; color: var(--danger, #B42318); }
 
 /* ---------- Right panel ---------- */
-.spc-entity,
 .spc-message {
   display: grid;
   gap: var(--space-2, 8px);
   justify-items: start;
   padding: var(--space-3, 12px) 0;
 }
-.spc-entity__name { margin: 0; font-size: var(--text-md, 15px); font-weight: 600; }
-.spc-entity__role { margin: 0; color: var(--muted, #5B6472); }
 .spc-message p { margin: 0; }
 
 .spc-journey { display: grid; gap: var(--space-3, 12px); }

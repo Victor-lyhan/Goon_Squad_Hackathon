@@ -1,7 +1,8 @@
-// First cut of the MVP II simulator page body (#426): the merged pieces in one workspace.
-// left = controls, center = the NYC map, right = run summary / selected item / package journey.
+// The MVP II simulator page body (#426, completed in #460): the merged pieces in one workspace.
+// left = controls, the package panel and the direct-only vs relay comparison; center = the NYC map
+// with its legend; right = run summary / business or employee inspector / package journey.
 //
-// `SimPageBody` holds the page's UI state (focus, layers, pan target) and takes the data hook's
+// `SimPageBody` holds the page's UI state (focus, layers, pan target, legend open, comparison) and takes the data hook's
 // value and the selection as props, so tests pass a hand-built hook value. `SimPageLayout` is the
 // stateless render of one `simPageView`, so tests can call it and reach every handler without a DOM.
 // Nothing about a delivery is computed here: every control calls the hook's actions.
@@ -13,10 +14,17 @@ import type { MapPanTarget } from '../../../map/types';
 import { FocusSelector } from '../FocusSelector';
 import { LayerToggles } from '../LayerToggles';
 import { PackageList } from '../PackageList';
+import { PackagePanel } from '../packages/PackagePanel';
+import { BusinessInspector } from '../inspector/BusinessInspector';
+import { EmployeeInspector } from '../inspector/EmployeeInspector';
+import { MapLegend } from '../legend/MapLegend';
+import { CompareSection } from '../compare/CompareSection';
 import { PanelSection } from '../PanelSection';
 import { RunSummary } from '../RunSummary';
 import { SimWorkspace } from '../SimWorkspace';
-import { DEFAULT_LAYERS, NO_FOCUS, toggleLayer, type Focus, type LayerKey, type LayerVisibility } from '../workspaceModel';
+import {
+  DEFAULT_LAYERS, NO_FOCUS, toggleLayer, type Focus, type FocusKind, type LayerKey, type LayerVisibility,
+} from '../workspaceModel';
 import { PlanningControls } from '../controls/PlanningControls';
 import { PlaybackControls } from '../controls/PlaybackControls';
 import { ScenarioControls } from '../controls/ScenarioControls';
@@ -25,8 +33,9 @@ import { JourneyTimeline } from '../journey/JourneyTimeline';
 import type { GenerateRequest, SimulatorV2 } from '../live/useSimulatorV2';
 import type { Selection } from '../network/selectionModel';
 import {
-  BACK_TO_NETWORK, LOADING_TEXT, MAP_PENDING_TEXT, RECONNECTING_TEXT, panTargetFor, selectionAfterMapClick, simPageView,
-  type SimPageView, type SimReadyView, type SimRightView,
+  BACK_TO_NETWORK, COMPARE_IDLE, LOADING_TEXT, MAP_PENDING_TEXT, RECONNECTING_TEXT, compareView, panTargetFor,
+  selectionAfterMapClick, simPageView,
+  type CompareState, type SimCompareView, type SimPageView, type SimReadyView, type SimRightView,
 } from './simPageView';
 import './compose.css';
 
@@ -41,6 +50,13 @@ export type SimPageHandlers = {
   toggleLayer: (key: LayerKey) => void;
   setFocus: (focus: Focus) => void;
   selectPackage: (shipmentId: string) => void;
+  selectBusiness: (businessId: string) => void;
+  selectEmployee: (employeeId: string) => void;
+  /** "Focus on this business / employee" in the inspector: sets the map focus. */
+  focusOn: (kind: FocusKind, id: string) => void;
+  setLegendOpen: (open: boolean) => void;
+  /** Direct-only vs relay: calls the hook's read-only `compare`; nothing is applied to the run. */
+  runCompare: () => void;
   mapSelect: (id: string | null) => void;
   clearSelection: () => void;
   backToNetwork: () => void;
@@ -55,6 +71,9 @@ export type SimPageHandlerDeps = {
   setFocus: (focus: Focus) => void;
   setLayers: (update: (layers: LayerVisibility) => LayerVisibility) => void;
   setPanTo: (target: MapPanTarget | undefined) => void;
+  setLegendOpen: (open: boolean) => void;
+  compare: CompareState;
+  setCompare: (state: CompareState) => void;
   /** A new number per call; makes each pan request unique. */
   nextPanSeq: () => number;
 };
@@ -78,6 +97,19 @@ export function createSimPageHandlers(d: SimPageHandlerDeps): SimPageHandlers {
     toggleLayer: (key) => d.setLayers((v) => toggleLayer(v, key)),
     setFocus: (focus) => d.setFocus(focus),
     selectPackage: (shipmentId) => select({ kind: 'package', id: shipmentId }),
+    selectBusiness: (businessId) => select({ kind: 'business', id: businessId }),
+    selectEmployee: (employeeId) => select({ kind: 'employee', id: employeeId }),
+    focusOn: (kind, id) => d.setFocus({ kind, id }),
+    setLegendOpen: (open) => d.setLegendOpen(open),
+    runCompare: () => {
+      const runId = d.sim.sim?.runId;
+      if (!runId) return;
+      if (d.compare.status === 'loading' && d.compare.runId === runId) return;
+      d.setCompare({ status: 'loading', runId });
+      void d.sim.compare().then((response) => {
+        d.setCompare(response ? { status: 'done', runId, response } : { status: 'error', runId });
+      });
+    },
     mapSelect: (id) => select(selectionAfterMapClick(id, d.selection, d.sim)),
     clearSelection: toNetwork,
     backToNetwork: toNetwork,
@@ -95,6 +127,8 @@ export type SimPageLayoutProps = {
   focus: Focus;
   layers: LayerVisibility;
   panTo?: MapPanTarget;
+  legendOpen: boolean;
+  compare: SimCompareView;
   handlers: SimPageHandlers;
 };
 
@@ -123,14 +157,26 @@ function RightPanel({ right, handlers }: { right: SimRightView; handlers: SimPag
   switch (right.kind) {
     case 'summary':
       return <RunSummary metrics={right.metrics} />;
-    case 'entity':
+    case 'business':
       return (
-        <section className="spc-entity" aria-label="Selection">
-          <h2 className="sw-section-title">{right.entity === 'business' ? 'Business' : 'Employee'}</h2>
-          <p className="spc-entity__name">{right.name}</p>
-          <p className="spc-entity__role">{right.role}</p>
-          <button type="button" className="sw-btn" onClick={handlers.clearSelection}>Clear selection</button>
-        </section>
+        <BusinessInspector
+          model={right.model}
+          onFocus={(id) => handlers.focusOn('business', id)}
+          onClear={handlers.clearSelection}
+          onSelectPackage={handlers.selectPackage}
+          onSelectBusiness={handlers.selectBusiness}
+          onSelectEmployee={handlers.selectEmployee}
+        />
+      );
+    case 'employee':
+      return (
+        <EmployeeInspector
+          model={right.model}
+          onFocus={(id) => handlers.focusOn('employee', id)}
+          onClear={handlers.clearSelection}
+          onSelectPackage={handlers.selectPackage}
+          onSelectBusiness={handlers.selectBusiness}
+        />
       );
     case 'pending':
     case 'missing':
@@ -158,8 +204,9 @@ function RightPanel({ right, handlers }: { right: SimRightView; handlers: SimPag
   }
 }
 
-function ReadyLayout({ view, focus, layers, panTo, handlers }: SimPageLayoutProps & { view: SimReadyView }) {
+function ReadyLayout({ view, focus, layers, panTo, legendOpen, compare, handlers }: SimPageLayoutProps & { view: SimReadyView }) {
   const c = view.controls;
+  const pk = view.packageList;
   const left = (
     <>
       {view.actionError && (
@@ -186,13 +233,23 @@ function ReadyLayout({ view, focus, layers, panTo, handlers }: SimPageLayoutProp
           focus={focus} onChange={handlers.setFocus} />
       </PanelSection>
       <PanelSection title="Packages">
-        <PackageList items={view.packages} selectedId={view.selectedPackageId} onSelect={handlers.selectPackage} />
+        {pk.kind === 'panel' ? (
+          <PackagePanel sim={pk.sim} map={pk.map} selectedId={view.selectedPackageId} onSelect={handlers.selectPackage} />
+        ) : (
+          <PackageList items={pk.items} selectedId={view.selectedPackageId} onSelect={handlers.selectPackage} />
+        )}
       </PanelSection>
+      <CompareSection response={compare.response} loading={compare.loading} error={compare.error}
+        disabled={compare.disabled} onRun={handlers.runCompare} />
     </>
   );
   const map = (
     <div className="spc-map">
       <GoogleBaseMap {...view.map} panTo={panTo} onSelect={handlers.mapSelect} />
+      <div className="spc-legend" data-legend-mode={view.legend.label}>
+        <MapLegend mode={view.legend.mode} layers={layers} hasSelection={view.legend.hasSelection}
+          focus={view.legend.focus} open={legendOpen} onOpenChange={handlers.setLegendOpen} />
+      </div>
       {view.reconnecting && <p className="spc-banner" role="status">{RECONNECTING_TEXT}</p>}
       {view.mapPending && <p className="spc-banner spc-banner--quiet" role="status">{MAP_PENDING_TEXT}</p>}
     </div>
@@ -244,12 +301,18 @@ export function SimPageBody({ sim, selection, onSelectionChange, initialFocus, i
   const [focus, setFocus] = useState<Focus>(initialFocus ?? NO_FOCUS);
   const [layers, setLayers] = useState<LayerVisibility>(initialLayers ?? DEFAULT_LAYERS);
   const [panTo, setPanTo] = useState<MapPanTarget | undefined>(undefined);
+  // Page state, not view state: a poll gives a new `sim`, never a new legend or comparison.
+  const [legendOpen, setLegendOpen] = useState(true);
+  const [compare, setCompare] = useState<CompareState>(COMPARE_IDLE);
   const panSeq = useRef(0);
 
   const view = useMemo(() => simPageView({ data: sim, selection, focus, layers }), [sim, selection, focus, layers]);
   const handlers = createSimPageHandlers({
-    sim, view, selection, onSelectionChange, setFocus, setLayers, setPanTo,
+    sim, view, selection, onSelectionChange, setFocus, setLayers, setPanTo, setLegendOpen, compare, setCompare,
     nextPanSeq: () => ++panSeq.current,
   });
-  return <SimPageLayout view={view} focus={focus} layers={layers} panTo={panTo} handlers={handlers} />;
+  return (
+    <SimPageLayout view={view} focus={focus} layers={layers} panTo={panTo} legendOpen={legendOpen}
+      compare={compareView(compare, view, sim.sim?.runId ?? null)} handlers={handlers} />
+  );
 }
