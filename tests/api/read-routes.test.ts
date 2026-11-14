@@ -25,33 +25,36 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise((r) => server.close(r)));
 
+const demo = loadDefaultScenario();
 const get = async <T>(p: string) => (await fetch(base + p)).json() as Promise<T>;
 
 describe('read routes', () => {
   it('createInitialRun is deterministic and paused', () => {
     const run = createInitialRun(loadDefaultScenario());
-    expect(run).toMatchObject({ runId: 'run-1', version: 0, trips: [], jobs: [], events: [] });
+    expect(run).toMatchObject({ runId: 'run-1', version: 0 });
+    expect(run.jobs.length).toBeGreaterThan(0);
+    expect(run.events.length).toBeGreaterThan(0);
     expect(run.clock).toEqual({ phase: 'planning', playing: false, timeMin: 930, speed: 120 });
   });
 
   it('GET /api/businesses', async () => {
     const body = await get<BusinessesResponse>('/api/businesses');
-    expect(body.businesses).toEqual(fixture.businesses);
-    expect(body.hubs).toEqual(fixture.hubs);
+    expect(body.businesses).toEqual(demo.businesses);
+    expect(body.hubs).toEqual(demo.hubs);
   });
 
   it('GET /api/employees', async () => {
     const body = await get<EmployeesResponse>('/api/employees');
-    expect(body.employees).toEqual(fixture.employees);
+    expect(body.employees).toEqual(demo.employees);
   });
 
   it('GET /api/map', async () => {
     const body = await get<MapResponse>('/api/map');
     expect(body.runId).toBe('run-1');
-    expect(body.graph).toEqual(fixture.graph);
-    expect(body.businesses).toEqual(fixture.businesses);
-    expect(body.hubs).toEqual(fixture.hubs);
-    expect(body.homes).toEqual(fixture.employees.map((e: any) => ({ employeeId: e.id, nodeId: e.homeNodeId })));
+    expect(body.graph).toEqual(demo.graph);
+    expect(body.businesses).toEqual(demo.businesses);
+    expect(body.hubs).toEqual(demo.hubs);
+    expect(body.homes).toEqual(demo.employees.map((e) => ({ employeeId: e.id, nodeId: e.homeNodeId })));
   });
 
   it('unknown /api path is 404 JSON', async () => {

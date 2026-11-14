@@ -3,7 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Run, Scenario } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../domain/pricing';
+import { assignShipments } from '../domain/matching';
 import { buildTrips, createRouter } from '../domain/routing';
+import { materializeAssignment } from './pipeline';
 
 const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures');
 
@@ -43,15 +45,23 @@ export function loadDefaultScenario(): Scenario {
 
 export function createInitialRun(scenario: Scenario): Run {
   const router = createRouter(scenario.graph);
-  return {
+  const trips = scenario.employees.flatMap((e) => buildTrips(e, scenario.businesses, router));
+  const base: Run = {
     runId: 'run-1',
     version: 0,
     scenario,
-    trips: scenario.employees.flatMap((e) => buildTrips(e, scenario.businesses, router)),
+    trips,
     assignments: { plans: [], unmatched: [], computeMs: 0 },
     jobs: [],
     notifications: [],
     events: [],
     clock: { phase: 'planning', playing: false, timeMin: scenario.settings.simStartMin, speed: 120 },
   };
+  const t0 = performance.now();
+  const result = assignShipments(scenario.shipments, {
+    router, trips, employees: scenario.employees, businesses: scenario.businesses,
+    hubs: scenario.hubs, settings: scenario.settings,
+  });
+  result.computeMs = performance.now() - t0;
+  return { ...base, ...materializeAssignment(base, result) };
 }
