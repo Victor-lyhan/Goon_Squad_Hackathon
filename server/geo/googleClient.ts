@@ -70,6 +70,13 @@ export interface GeocodeResult {
   lng: number;
   formattedAddress: string;
   neighborhood: string | null;
+  /**
+   * Name of the `sublocality_level_1` address component, else of the first `sublocality` one, else null.
+   * In New York City this is the borough ("Brooklyn"). Always set by `geocodeAddress`.
+   */
+  sublocality?: string | null;
+  /** Name of the `administrative_area_level_2` address component (in the United States: the county), else null. Always set by `geocodeAddress`. */
+  county?: string | null;
 }
 
 export interface RouteMatrixElement {
@@ -273,6 +280,11 @@ function routesHeaders(ctx: Ctx, fieldMask: string): Record<string, string> {
 /**
  * Geocoding API: address -> candidate points. `ZERO_RESULTS` (or a blank address) gives `[]`.
  * `neighborhood` is the `neighborhood` address component, else the `sublocality` one, else null.
+ * `sublocality` and `county` say where Google places the point: see GeocodeResult.
+ *
+ * The component type names are Google's ("Address types and address component types"):
+ * https://developers.google.com/maps/documentation/geocoding/requests-geocoding
+ * That page also says a component can be missing or change type, so every part may be null.
  */
 export async function geocodeAddress(address: string, opts: GoogleClientOptions): Promise<GeocodeResult[]> {
   const ctx = context(opts);
@@ -291,16 +303,24 @@ export async function geocodeAddress(address: string, opts: GoogleClientOptions)
       if (!isRecord(item) || !isRecord(item.geometry) || !isRecord(item.geometry.location)) continue;
       const { lat, lng } = item.geometry.location;
       if (typeof lat !== 'number' || typeof lng !== 'number') continue;
-      results.push({ lat, lng, formattedAddress: str(item.formatted_address) ?? '', neighborhood: neighborhoodOf(item.address_components) });
+      const named = componentNamed(item.address_components);
+      results.push({
+        lat,
+        lng,
+        formattedAddress: str(item.formatted_address) ?? '',
+        neighborhood: named((type) => type === 'neighborhood') ?? named((type) => type === 'sublocality' || type.startsWith('sublocality_level_')),
+        sublocality: named((type) => type === 'sublocality_level_1') ?? named((type) => type === 'sublocality'),
+        county: named((type) => type === 'administrative_area_level_2'),
+      });
     }
     return results;
   });
 }
 
-function neighborhoodOf(components: unknown): string | null {
-  if (!Array.isArray(components)) return null;
-  const named = (wanted: (type: string) => boolean): string | null => {
-    for (const component of components) {
+/** `(wanted) => name` of the first address component with a wanted type (its long name, else its short one), or null. */
+function componentNamed(components: unknown): (wanted: (type: string) => boolean) => string | null {
+  return (wanted) => {
+    for (const component of Array.isArray(components) ? components : []) {
       if (!isRecord(component) || !Array.isArray(component.types)) continue;
       if (component.types.some((type) => typeof type === 'string' && wanted(type))) {
         const name = str(component.long_name) ?? str(component.short_name);
@@ -309,7 +329,6 @@ function neighborhoodOf(components: unknown): string | null {
     }
     return null;
   };
-  return named((type) => type === 'neighborhood') ?? named((type) => type === 'sublocality' || type.startsWith('sublocality_level_'));
 }
 
 export interface MatrixBatch {
