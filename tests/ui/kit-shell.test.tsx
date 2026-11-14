@@ -3,7 +3,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { AppShell } from '../../client/src/App';
 import { switchIdentityPath } from '../../client/src/ui/shell';
-import { loadDefaultScenario } from '../../server/api/initialRun';
 
 describe('switchIdentityPath', () => {
   it('keeps the portal type and drops nothing but the id', () => {
@@ -17,17 +16,20 @@ describe('switchIdentityPath', () => {
   });
 });
 
-const { businesses, employees } = loadDefaultScenario();
-const bid = businesses[0].id;
-const eid = employees[0].id;
+// NYC lists (#548): the header and the 404 take their accounts from /api/v2.
+const bid = 'biz-01';
+const eid = 'emp-01';
 const render = (path: string) =>
   renderToStaticMarkup(
     <MemoryRouter initialEntries={[path]}>
-      <AppShell initial={{ businesses, employees }} />
+      <AppShell
+        initialV2={{ status: 'ready', employees: [{ id: eid, name: 'Maya Chen' }] }}
+        initialV2Businesses={{ status: 'ready', businesses: [{ id: bid, name: 'Brooklyn Roasters' }] }}
+      />
     </MemoryRouter>,
   );
 
-describe('app shell with Demo-city lists', () => {
+describe('app shell with the NYC lists', () => {
   it('skip link comes first, targets main', () => {
     for (const p of ['/', `/business/${bid}`, `/employee/${eid}`, '/simulator', '/help', '/nope']) {
       const html = render(p);

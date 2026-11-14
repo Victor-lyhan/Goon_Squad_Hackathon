@@ -32,7 +32,7 @@ function render(run: Run, selectedId?: string) {
   const sim = buildSimulatorResponse(run);
   const html = renderToStaticMarkup(
     <MemoryRouter>
-      <Header initial={{ businesses: scenario.businesses, employees: scenario.employees }} />
+      <Header />
       <SimulatorView sim={sim} map={map} employees={scenario.employees} selectedId={selectedId}
         onSelect={noop} onControl={noop} />
     </MemoryRouter>,

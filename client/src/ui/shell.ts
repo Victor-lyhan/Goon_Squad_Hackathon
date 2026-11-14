@@ -9,18 +9,6 @@ export function switchIdentityPath(
   return { kind, path: `/${kind}/${encodeURIComponent(id)}` };
 }
 
-/** Path after switching the account on /nyc/employee/:id; null elsewhere. Stays inside the preview. */
-export function switchPreviewEmployeePath(pathname: string, id: string): string | null {
-  if (!id || !/^\/nyc\/employee\/[^/]+\/?$/.test(pathname)) return null;
-  return `/nyc/employee/${encodeURIComponent(id)}`;
-}
-
-/** Path after switching the account on /nyc/business/:id; null elsewhere. Path only, so `?shipment=` is dropped. */
-export function switchPreviewBusinessPath(pathname: string, id: string): string | null {
-  if (!id || !/^\/nyc\/business\/[^/]+\/?$/.test(pathname)) return null;
-  return `/nyc/business/${encodeURIComponent(id)}`;
-}
-
 /** The header's v2 employee list. `unavailable` = /api/v2 answered 503 (no travel data yet). */
 export type V2Directory =
   | { status: 'loading' }

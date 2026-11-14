@@ -6,7 +6,8 @@ import { getBusinesses, getEmployees, isTravelUnavailable } from '../api/v2';
 import {
   startV2BusinessDirectory, startV2Directory, type V2BusinessDirectory, type V2Directory,
 } from '../ui/shell';
-import { ENV_LABELS, PREVIEW_SIMULATOR_PATH, previewBusinessPath, previewEmployeePath } from '../ui/shellModel';
+import { ENV_LABELS, pickAccount, workspaceHrefs } from '../ui/shellModel';
+import type { DemoIdentity } from '../demoIdentity';
 import '../styles/help.css';
 
 type Target = 'business' | 'employee' | 'simulator';
@@ -26,7 +27,7 @@ export const HELP_SIMULATOR_PATH = '/simulator';
 type Step = (typeof HELP_STEPS)[number];
 
 /**
- * The same six steps on the NYC network (/nyc/help, DECISIONS pass 55). "Relay point", never "hub";
+ * The same six steps on the NYC network (/help since the cutover, #548). "Relay point", never "hub";
  * the simulator step names only controls that are on main (Play journey is #496, merged).
  */
 export const NYC_HELP_STEPS: readonly Step[] = [
@@ -47,15 +48,15 @@ export type NycHelpView = {
   note: { kind: 'loading' | 'unavailable' | 'error'; text: string } | null;
 };
 
-/** Pure: the step links and status line from the two v2 lists (first employee, first business). */
-export function nycHelpView(employees: V2Directory, businesses: V2BusinessDirectory): NycHelpView {
-  const emp = employees.status === 'ready' ? employees.employees[0]?.id : undefined;
-  const biz = businesses.status === 'ready' ? businesses.businesses[0]?.id : undefined;
-  const links = {
-    employee: emp ? previewEmployeePath(emp) : null,
-    business: biz ? previewBusinessPath(biz) : null,
-    simulator: PREVIEW_SIMULATOR_PATH,
-  };
+/**
+ * Pure: the step links (main paths; the stored demo identity if it is in the lists, else the first account)
+ * and the status line from the two v2 lists.
+ */
+export function nycHelpView(employees: V2Directory, businesses: V2BusinessDirectory, stored: DemoIdentity = {}): NycHelpView {
+  const links = workspaceHrefs(
+    pickAccount(stored.businessId, businesses.status === 'ready' ? businesses.businesses.map((b) => b.id) : undefined),
+    pickAccount(stored.employeeId, employees.status === 'ready' ? employees.employees.map((e) => e.id) : undefined),
+  );
   const both = [employees, businesses];
   const failed = both.find((d) => d.status === 'error');
   let note: NycHelpView['note'] = null;
@@ -69,7 +70,7 @@ type NycHelpReads = { getEmployees: typeof getEmployees; getBusinesses: typeof g
 
 /**
  * Starts the two v2 list loads (a list already given is skipped) and returns the cleanup that aborts
- * both requests and drops late answers. Never reads or writes the stored demo identity (pass 52).
+ * both requests and drops late answers.
  */
 export function startNycHelpLists(
   onEmployees: (d: V2Directory) => void,
@@ -82,7 +83,7 @@ export function startNycHelpLists(
   return () => { stopE?.(); stopB?.(); };
 }
 
-/** The two lists for /nyc/help, loaded once and aborted on unmount. A list passed in is used as is (tests). */
+/** The two lists for /help, loaded once and aborted on unmount. A list passed in is used as is (tests). */
 function useNycLists(initialEmployees?: V2Directory, initialBusinesses?: V2BusinessDirectory) {
   const [employees, setEmployees] = useState<V2Directory>(initialEmployees ?? { status: 'loading' });
   const [businesses, setBusinesses] = useState<V2BusinessDirectory>(initialBusinesses ?? { status: 'loading' });
@@ -118,7 +119,7 @@ function Steps({ steps, href }: { steps: readonly Step[]; href: (t: Target) => s
 
 function NycHelp({ initialEmployees, initialBusinesses }: { initialEmployees?: V2Directory; initialBusinesses?: V2BusinessDirectory }) {
   const { employees, businesses } = useNycLists(initialEmployees, initialBusinesses);
-  const { links, note } = nycHelpView(employees, businesses);
+  const { links, note } = nycHelpView(employees, businesses, readIdentity());
   return (
     <div className="help help-nyc">
       <h1>Guided demo</h1>
@@ -145,7 +146,7 @@ function NycHelp({ initialEmployees, initialBusinesses }: { initialEmployees?: V
 
 export default function Help({ initial, dataset = 'synthetic', initialEmployees, initialBusinesses }: {
   initial?: { businesses: Business[]; employees: Employee[] };
-  /** 'synthetic' (default) is the MVP 1 directory; 'nyc' reads /api/v2 and links to the /nyc preview pages. */
+  /** The app mounts 'nyc' (/api/v2, main paths); 'synthetic' is the MVP 1 page, no longer mounted. */
   dataset?: 'synthetic' | 'nyc';
   /** NYC only: skip the /api/v2 requests and use these lists (tests). */
   initialEmployees?: V2Directory;

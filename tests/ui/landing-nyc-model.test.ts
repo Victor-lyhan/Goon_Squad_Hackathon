@@ -27,9 +27,13 @@ describe('startNycSummary', () => {
     expect(calls.map((c) => c.url).sort()).toEqual(['/api/v2/businesses', '/api/v2/employees', '/api/v2/simulator']);
     for (const c of calls) { expect(c.url.startsWith('/api/v2/')).toBe(true); expect(c.init.method).toBe('GET'); }
     expect(seen).toEqual([{
-      status: 'ready', businesses: 5, commuters: 3, relayPoints: 5, matched: 19, requested: 24, firstEmployeeId: 'emp-7',
+      status: 'ready', businesses: 5, commuters: 3, relayPoints: 5, matched: 19, requested: 24,
+      businessIds: businesses.businesses.map((b) => b.id), employeeIds: employees.employees.map((e) => e.id),
     }]);
-    expect(nycWorkspacePaths(seen[0])).toEqual({ business: null, employee: '/nyc/employee/emp-7', simulator: '/nyc/simulator' });
+    expect(seen[0].status === 'ready' && seen[0].employeeIds[0]).toBe('emp-7');
+    expect(nycWorkspacePaths(seen[0])).toEqual({
+      business: `/business/${businesses.businesses[0].id}`, employee: '/employee/emp-7', simulator: '/simulator',
+    });
   });
 
   it('503 travel_data_missing gives the unavailable state', async () => {
@@ -38,7 +42,7 @@ describe('startNycSummary', () => {
     startNycSummary((s) => seen.push(s));
     await until(() => seen.length > 0);
     expect(seen).toEqual([{ status: 'unavailable' }]);
-    expect(nycWorkspacePaths(seen[0])).toEqual({ business: null, employee: null, simulator: '/nyc/simulator' });
+    expect(nycWorkspacePaths(seen[0])).toEqual({ business: null, employee: null, simulator: '/simulator' });
   });
 
   it('a 503 without a travel code is a plain error', async () => {

@@ -5,14 +5,16 @@ import { AppShell } from '../../client/src/App';
 import { ConnectionBanner } from '../../client/src/ui/ConnectionBanner';
 import { initialConnection, nextConnection } from '../../client/src/ui/connectionModel';
 import { reconcileSelection, runChanged, staleNote } from '../../client/src/ui/shellModel';
-import { loadDefaultScenario } from '../../server/api/initialRun';
 
-const { businesses, employees } = loadDefaultScenario();
+const businesses = [{ id: 'biz-01', name: 'Brooklyn Roasters' }, { id: 'biz-02', name: 'Hudson Print Co' }];
+const employees = [{ id: 'emp-01', name: 'Maya Chen' }, { id: 'emp-02', name: 'Luis Ortega' }, { id: 'emp-03', name: 'Ana Ruiz' }, { id: 'emp-04', name: 'Sam Lee' }];
 const bids = businesses.map((b) => b.id);
 const eids = employees.map((e) => e.id);
 const render = (path: string) =>
   renderToStaticMarkup(
-    <MemoryRouter initialEntries={[path]}><AppShell initial={{ businesses, employees }} /></MemoryRouter>,
+    <MemoryRouter initialEntries={[path]}>
+      <AppShell initialV2={{ status: 'ready', employees }} initialV2Businesses={{ status: 'ready', businesses }} />
+    </MemoryRouter>,
   );
 
 describe('reconcileSelection with Demo-city ids', () => {
@@ -61,8 +63,8 @@ describe('shell render', () => {
     expect(render(`/business/${bids[0]}`)).not.toContain('current city');
   });
   it('badge is on every route', () => {
-    for (const p of ['/', `/business/${bids[0]}`, `/employee/${eids[0]}`, '/simulator', '/nope']) {
-      expect(render(p)).toContain('Synthetic city · simulated deliveries');
+    for (const p of ['/', `/business/${bids[0]}`, `/employee/${eids[0]}`, '/simulator', '/help', '/nope']) {
+      expect(render(p)).toContain('Real NYC locations · simulated deliveries');
     }
   });
 });

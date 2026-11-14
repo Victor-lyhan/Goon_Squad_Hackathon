@@ -50,11 +50,11 @@ describe('dataset="nyc" with sample /api/v2 responses', () => {
     expect(h).not.toMatch(/NaN|undefined/);
   });
 
-  it('links the entries to the /nyc preview paths; Business has no preview page yet', () => {
-    expect(workspaceLinks(h)).toEqual(['/nyc/employee/emp-7', '/nyc/simulator']);
+  it('links the entries to the main paths (#548)', () => {
+    expect(workspaceLinks(h)).toEqual([`/business/${businesses.businesses[0].id}`, '/employee/emp-7', '/simulator']);
     expect(h.match(/Open workspace/g)).toHaveLength(3);
-    expect(h.match(/aria-disabled="true"/g)).toHaveLength(1);
-    expect(h).not.toMatch(/href="\/(business|employee|simulator)/);
+    expect(h).not.toContain('aria-disabled="true"');
+    expect(h).not.toContain('href="/nyc');
   });
 
   it('says relay point, never hub, and labels the data as real NYC locations', () => {
@@ -81,7 +81,7 @@ describe('dataset="nyc" states', () => {
     expect(s).not.toMatch(/\d|–|NaN|<dd/);
     expect(h).not.toMatch(/NaN|undefined/);
     expect(h.match(/Open workspace/g)).toHaveLength(3);
-    expect(workspaceLinks(h)).toEqual(['/nyc/simulator']);
+    expect(workspaceLinks(h)).toEqual(['/simulator']);
   });
 
   it('a non-503 failure is the plain error line, not the 503 one', () => {
@@ -98,7 +98,7 @@ describe('dataset="nyc" states', () => {
       expect(h).toContain('aria-busy="true"');
       expect(h).toContain('is-placeholder');
       expect(summaryOf(h)).not.toMatch(/\d/);
-      expect(workspaceLinks(h)).toEqual(['/nyc/simulator']);
+      expect(workspaceLinks(h)).toEqual(['/simulator']);
       expect(h.match(/Open workspace/g)).toHaveLength(3);
     }
   });

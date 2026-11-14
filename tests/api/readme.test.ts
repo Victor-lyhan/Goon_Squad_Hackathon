@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TRAVEL_DATA_MISSING_TEXT } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
-import { PREVIEW_SIMULATOR_PATH, previewEmployeePath } from '../../client/src/ui/shellModel';
 import { SERVER_KEY_NAME } from '../../server/geo/env';
 import { CHECK_LINE, EXIT_INCOMPLETE, EXIT_OK, EXIT_USAGE, RESUME_LINE, parseArgs } from '../../server/geo/fetchScript';
 
@@ -142,8 +141,10 @@ describe('README, MVP II section', () => {
 
   it('describes what you see: preview pages, the 503 text and the v2 state file', () => {
     const seen = section.slice(at('### What you see'));
-    expect(seen).toContain(PREVIEW_SIMULATOR_PATH);
-    expect(seen).toContain(previewEmployeePath('<id>').replace('%3C', '<').replace('%3E', '>'));
+    // The /nyc paths the README names redirect to the main paths since the cutover (#548); the README
+    // steps are rewritten in their own issue, so these are plain strings here.
+    expect(seen).toContain('/nyc/simulator');
+    expect(seen).toContain('/nyc/employee/<id>');
     expect(seen).toMatch(/Business page follows/);
     expect(seen).toContain('/api/v2');
     expect(seen).toContain('503');

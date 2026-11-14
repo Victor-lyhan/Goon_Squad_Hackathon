@@ -6,15 +6,20 @@ import { AppShell, BADGE_TEXT } from '../../client/src/App';
 import {
   activeDestination, DESTINATIONS, ENV_INDICATOR_TEXT, ENV_LABELS,
 } from '../../client/src/ui/shellModel';
-import { loadDefaultScenario } from '../../server/api/initialRun';
+import type { V2BusinessDirectory, V2Directory } from '../../client/src/ui/shell';
 
-const { businesses, employees } = loadDefaultScenario();
+const businesses = [{ id: 'biz-01', name: 'Brooklyn Roasters' }, { id: 'biz-02', name: 'Hudson Print Co' }];
+const employees = [{ id: 'emp-01', name: 'Maya Chen' }];
 const bid = businesses[0].id;
 const eid = employees[0].id;
-const render = (path: string, initial: { businesses: typeof businesses; employees: typeof employees } = { businesses, employees }) =>
-  renderToStaticMarkup(
-    <MemoryRouter initialEntries={[path]}><AppShell initial={initial} /></MemoryRouter>,
+type Lists = { businesses: typeof businesses; employees: typeof employees };
+const render = (path: string, initial: Lists = { businesses, employees }) => {
+  const e: V2Directory = { status: 'ready', employees: initial.employees };
+  const b: V2BusinessDirectory = { status: 'ready', businesses: initial.businesses };
+  return renderToStaticMarkup(
+    <MemoryRouter initialEntries={[path]}><AppShell initialV2={e} initialV2Businesses={b} /></MemoryRouter>,
   );
+};
 const header = (html: string) => /<header class="shell-header">([\s\S]*?)<\/header>/.exec(html)![1];
 const nav = (html: string) => /<nav aria-label="Workspaces" class="shell-nav">([\s\S]*?)<\/nav>/.exec(header(html))![1];
 const navLabels = (html: string) => [...nav(html).matchAll(/class="shell-nav-link[^"]*"[^>]*>([^<]*)</g)].map((m) => m[1]);
@@ -23,8 +28,8 @@ const css = readFileSync('client/src/ui/shell.css', 'utf8');
 const app = readFileSync('client/src/App.tsx', 'utf8');
 
 describe('environment indicator', () => {
-  it('is one constant, synthetic until the NYC cutover', () => {
-    expect(ENV_INDICATOR_TEXT).toBe('Synthetic city · simulated deliveries');
+  it('is one constant, NYC since the cutover (#548)', () => {
+    expect(ENV_INDICATOR_TEXT).toBe('Real NYC locations · simulated deliveries');
     expect(BADGE_TEXT).toBe(ENV_INDICATOR_TEXT);
     expect(ENV_LABELS.nyc).toBe('Real NYC locations · simulated deliveries');
   });
@@ -54,7 +59,8 @@ describe('compact header', () => {
     expect(navLabels(html)).toEqual(['Business', 'Employee', 'Simulator']);
     expect(nav(html).match(/<a /g)).toHaveLength(3);
     expect(current(html)).toEqual(active ? [active] : []);
-    expect(html.split(ENV_INDICATOR_TEXT)).toHaveLength(2);
+    // The header says it once; the NYC homepage and Guided demo repeat it in their own copy.
+    expect(header(html).split(ENV_INDICATOR_TEXT)).toHaveLength(2);
     expect(header(html)).toMatch(/<a [^>]*class="shell-wordmark"[^>]*>Relay<|<a [^>]*href="\/"[^>]*class="shell-wordmark"/);
     expect(header(html)).toContain('href="/help"');
     expect(header(html)).toContain(`class="shell-env">${ENV_INDICATOR_TEXT}<`);
@@ -118,7 +124,8 @@ describe('shell CSS', () => {
 });
 
 describe('App.tsx contract', () => {
-  it('keeps the Landing imports unchanged', () => {
-    expect(app).toContain("import Landing, { SIMULATOR_PATH } from './pages/Landing';");
+  it('mounts the NYC homepage', () => {
+    expect(app).toContain("import Landing from './pages/Landing';");
+    expect(app).toContain('<Landing dataset="nyc"');
   });
 });
