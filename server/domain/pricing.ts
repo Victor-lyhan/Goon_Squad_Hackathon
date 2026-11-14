@@ -22,6 +22,14 @@ export function customerPriceCents(settings: Settings): number {
   return settings.priceCents;
 }
 
+/**
+ * The comparison courier price is an assumption, so never present a negative
+ * customer "saving" when an edited Relay price exceeds it.
+ */
+export function projectedCustomerSavingsCents(settings: Settings): number {
+  return Math.max(0, settings.courierPriceCents - settings.priceCents);
+}
+
 export function platformContributionCents(
   kind: 'direct' | 'relay',
   settings: Settings,
