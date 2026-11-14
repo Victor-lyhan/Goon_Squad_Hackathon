@@ -252,4 +252,18 @@ describe('announcements (#497)', () => {
     expect(heading.tag).toBe('h2');
     expect(heading.attrs.tabindex).toBe('-1');
   });
+
+  it('where focus goes when a delivery closes: its row, else the caption or the empty title, each with a focus style (#609)', () => {
+    const open = page(ready(), { shipmentId: 'shp-9' });
+    // The open delivery's row is a tab stop with a focus style (walked above); the fallbacks are not tab stops.
+    expect(all(open, (e) => e.tag === 'tr' && e.attrs['aria-selected'] === 'true' && e.attrs.tabindex === '0')).toHaveLength(1);
+    const caption = all(open, (e) => e.tag === 'caption' && cls(e).includes('bw-table__caption'))[0];
+    const empty = page(ready(), { initialTable: { sort: { key: 'label', dir: 'asc' }, filters: { query: 'zzz', direction: 'all', status: 'all' } } });
+    const title = all(empty, (e) => cls(e).includes('bw-empty__title'))[0];
+    for (const e of [caption, title]) {
+      expect(e.attrs.tabindex).toBe('-1');
+      expect(tabOrder(e.tag === 'caption' ? open : empty)).not.toContain(e);
+      expect(focusSelectors.some((s) => matchesSelector(e, s)), `${describeEl(e)} has no :focus-visible style`).toBe(true);
+    }
+  });
 });
