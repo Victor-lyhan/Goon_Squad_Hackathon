@@ -16,7 +16,7 @@ export function Toast({ toasts, onDismiss }: ToastsProps) {
   return (
     <div className="ui-toasts" role="status" aria-live="polite">
       {toasts.map((t) => (
-        <div key={t.id} className={`ui-toast ui-toast--${t.kind}`}>
+        <div key={t.id} className={`ui-toast ui-toast--${t.kind}`} role={t.kind === 'error' ? 'alert' : undefined}>
           <span>{t.kind === 'error' ? 'Error: ' : t.kind === 'success' ? 'Done: ' : ''}{t.message}</span>
           <button type="button" onClick={() => onDismiss(t.id)}>Dismiss</button>
         </div>

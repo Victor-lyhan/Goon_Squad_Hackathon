@@ -23,12 +23,18 @@ const MAP: Record<PillStatus, { label: string; tone: Tone }> = {
   relay: { label: 'Relay', tone: 'warn' },
 };
 
+/** Unknown (future) status: still show readable text rather than crashing. */
+const FALLBACK = (status: string): { label: string; tone: Tone } => ({
+  label: String(status).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
+  tone: 'neutral',
+});
+
 /** Text label for a status (shared so tests/other UI can reuse it). */
 export function statusLabel(status: PillStatus): string {
-  return MAP[status].label;
+  return (MAP[status] ?? FALLBACK(status)).label;
 }
 
 export function StatusPill({ status }: StatusPillProps) {
-  const { label, tone } = MAP[status];
+  const { label, tone } = MAP[status] ?? FALLBACK(status);
   return <span className={`ui-pill ui-pill--${tone}`}>{label}</span>;
 }
