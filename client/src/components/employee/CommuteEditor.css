@@ -7,8 +7,9 @@
 .commute-editor__routes { margin: 0; padding-left: 18px; font-size: 0.9rem; }
 .commute-editor__row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .commute-editor__toggle { display: flex; align-items: center; gap: 8px; min-height: 36px; }
-.commute-editor__save { display: flex; }
-.commute-editor__save .ui-btn { flex: 1; }
+.commute-editor__save { display: flex; flex-direction: column; gap: 8px; }
+.commute-editor__save .ui-btn { flex: none; width: 100%; }
+.commute-editor__save a { color: inherit; font-weight: 600; }
 @media (max-width: 600px) {
   .commute-editor__save { position: sticky; bottom: 0; padding: 12px 6px; background: #fff; z-index: 2; }
   .commute-editor__save .ui-btn:focus-visible { outline: 3px solid var(--accent, #0e7c86); outline-offset: 2px; }

@@ -122,7 +122,26 @@ export function clearWaypoints(f: CommuteForm, dir: WaypointDirection): CommuteF
 }
 
 export const SAVED_TEXT = 'Saved. Available for matching.';
-export const LOCKED_TEXT = 'Planning is locked. To change your commute, press "Start new planning cycle" in the simulator Setup drawer.';
+export const LOCKED_TEXT = 'Planning is locked, so commute edits need a new planning cycle. Press "Start new planning cycle" in the simulator Setup drawer.';
+export const SIMULATOR_PATH = '/simulator';
+export const UNAVAILABLE_TEXT = 'Not available for deliveries';
+
+/** Message for a failed commute save: a 409 always means planning is locked. */
+export function commuteSaveError(status: number, message: string): string {
+  if (status === 409) return LOCKED_TEXT;
+  return status === 400 ? 'Please fix the highlighted fields.' : message;
+}
+
+/** One line per direction: duration and place names, or the unavailable text when there is no trip. */
+export function routeLine(
+  label: 'Evening' | 'Morning',
+  trip: { baselineDurationMin: number; originNodeId: string; destinationNodeId: string } | undefined,
+  labelOf: (id: string) => string,
+  durationText: (min: number) => string,
+): string {
+  if (!trip) return `${label} route: ${UNAVAILABLE_TEXT}`;
+  return `${label} route: ${durationText(trip.baselineDurationMin)} (${labelOf(trip.originNodeId)} to ${labelOf(trip.destinationNodeId)})`;
+}
 
 /** "3 waiting packages were matched to your route." or '' when none. */
 export function rematchedText(n: number): string {

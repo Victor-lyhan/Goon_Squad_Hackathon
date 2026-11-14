@@ -5,7 +5,7 @@ import type { Business, Employee, Trip } from '../../../shared/types';
 import { CityMap } from './CityMap';
 import { Button, Card, Field, formatDuration } from '../ui';
 import {
-  LOCKED_TEXT, SAVED_TEXT, addWaypoint, clearWaypoints, rematchedText, removeWaypoint, toForm, toRequest, validate,
+  LOCKED_TEXT, SAVED_TEXT, SIMULATOR_PATH, routeLine, addWaypoint, clearWaypoints, rematchedText, removeWaypoint, toForm, toRequest, validate,
   type CommuteForm, type WaypointDirection,
 } from './employee/commuteModel';
 import { projectNodes } from './sim/mapGeometry';
@@ -64,11 +64,6 @@ export function CommuteEditor({
   return (
     <Card className="commute-editor">
       <h2 className="commute-editor__title">My commute</h2>
-      {locked && (
-        <p className="commute-editor__locked" role="status">
-          {LOCKED_TEXT}
-        </p>
-      )}
 
       <div className="commute-editor__layout">
       <div className="commute-editor__fields">
@@ -168,13 +163,18 @@ export function CommuteEditor({
         </div>
       )}
       <ul className="commute-editor__routes">
-        {evening && <li>Evening route: {formatDuration(evening.baselineDurationMin)}</li>}
-        {morning && <li>Morning route: {formatDuration(morning.baselineDurationMin)}</li>}
+        <li>{routeLine('Evening', evening, labelOf, formatDuration)}</li>
+        <li>{routeLine('Morning', morning, labelOf, formatDuration)}</li>
       </ul>
       </div>
       </div>
 
       <div className="commute-editor__save">
+        {locked && (
+          <p className="commute-editor__locked" role="status">
+            {LOCKED_TEXT} <a href={SIMULATOR_PATH}>Open the simulator</a>
+          </p>
+        )}
         <Button onClick={submit} loading={saving} disabled={locked}>Save commute and find jobs</Button>
       </div>
     </Card>
