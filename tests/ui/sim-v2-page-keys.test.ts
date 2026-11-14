@@ -41,16 +41,42 @@ describe('simKeyAction', () => {
     expect(simKeyAction(ev(' ', { target: { tagName: 'canvas' } }), network())).toBe('toggle_play');
   });
 
-  it('does nothing from form controls, buttons or editable text, in either mode (except Esc from a button)', () => {
-    const tags = ['INPUT', 'input', 'SELECT', 'select', 'TEXTAREA', 'textarea', 'BUTTON', 'button'];
+  it('a text field keeps every key, in either mode: text, search, number and a bare input, a textarea, editable text', () => {
+    const fields: SimKeyEvent['target'][] = [
+      { tagName: 'INPUT' }, { tagName: 'input' },
+      { tagName: 'INPUT', type: 'text' }, { tagName: 'INPUT', type: 'search' }, { tagName: 'INPUT', type: 'number' },
+      { tagName: 'INPUT', type: 'TEXT' }, { tagName: 'INPUT', type: 'date' }, { tagName: 'INPUT', type: '' },
+      { tagName: 'TEXTAREA' }, { tagName: 'textarea' }, { tagName: 'TEXTAREA', type: 'textarea' },
+      { tagName: 'DIV', isContentEditable: true },
+    ];
     for (const mode of [journey(), network()]) {
-      for (const key of ['Escape', ' ', '.']) {
-        for (const tagName of tags) {
-          if (key === 'Escape' && tagName.toUpperCase() === 'BUTTON') continue;
-          expect(simKeyAction(ev(key, { target: { tagName } }), mode)).toBeNull();
-        }
-        expect(simKeyAction(ev(key, { target: { tagName: 'DIV', isContentEditable: true } }), mode)).toBeNull();
+      for (const key of ['Escape', 'Esc', ' ', 'Spacebar', '.']) {
+        for (const target of fields) expect(simKeyAction(ev(key, { target }), mode)).toBeNull();
       }
+    }
+  });
+
+  // #607: a click on the scrubber, a layer checkbox or the focus dropdown leaves the focus there.
+  it('Esc and "." work from a range input, a checkbox, a radio and a select', () => {
+    const controls: SimKeyEvent['target'][] = [
+      { tagName: 'INPUT', type: 'range' }, { tagName: 'INPUT', type: 'checkbox' }, { tagName: 'INPUT', type: 'radio' },
+      { tagName: 'input', type: 'RANGE' }, { tagName: 'SELECT' }, { tagName: 'select', type: 'select-one' },
+    ];
+    for (const target of controls) {
+      expect(simKeyAction(ev('Escape', { target }), journey())).toBe('exit_journey');
+      expect(simKeyAction(ev('Esc', { target }), network())).toBe('clear_selection');
+      expect(simKeyAction(ev('Escape', { target }), network({ hasSelection: false }))).toBeNull();
+      expect(simKeyAction(ev('.', { target }), journey())).toBe('next_event');
+      expect(simKeyAction(ev('.', { target }), network())).toBe('next_event');
+      expect(simKeyAction(ev('Escape', { target, ctrlKey: true }), journey())).toBeNull();
+    }
+  });
+
+  it('Space plays or pauses from the scrubber and the focus dropdown', () => {
+    for (const target of [{ tagName: 'INPUT', type: 'range' }, { tagName: 'SELECT' }, { tagName: 'select', type: 'select-one' }]) {
+      expect(simKeyAction(ev(' ', { target }), journey())).toBe('toggle_play');
+      expect(simKeyAction(ev('Spacebar', { target }), network({ playing: true }))).toBe('toggle_play');
+      expect(simKeyAction(ev(' ', { target, repeat: true }), network())).toBeNull();
     }
   });
 
@@ -62,11 +88,25 @@ describe('simKeyAction', () => {
     }
   });
 
-  it('never returns an action for Space when a button has focus, so its own click is not doubled', () => {
+  it('"." from a focused button is next event (after a click on Play journey the focus is on Stop)', () => {
+    for (const target of [{ tagName: 'BUTTON' }, { tagName: 'button', type: 'button' }, { tagName: 'INPUT', type: 'submit' }]) {
+      expect(simKeyAction(ev('.', { target }), journey())).toBe('next_event');
+      expect(simKeyAction(ev('.', { target }), network())).toBe('next_event');
+    }
+  });
+
+  it('never returns an action for Space when a button, checkbox or radio has focus, so its own click or toggle is not doubled', () => {
+    const pressed: SimKeyEvent['target'][] = [
+      { tagName: 'BUTTON' }, { tagName: 'button', type: 'submit' },
+      { tagName: 'INPUT', type: 'checkbox' }, { tagName: 'INPUT', type: 'radio' }, { tagName: 'input', type: 'Checkbox' },
+      { tagName: 'INPUT', type: 'button' }, { tagName: 'INPUT', type: 'submit' }, { tagName: 'INPUT', type: 'reset' },
+    ];
     for (const playing of [false, true]) {
       for (const mode of [journey({ playing }), network({ playing })]) {
-        expect(simKeyAction(ev(' ', { target: { tagName: 'BUTTON' } }), mode)).toBeNull();
-        expect(simKeyAction(ev('Spacebar', { target: { tagName: 'button' } }), mode)).toBeNull();
+        for (const target of pressed) {
+          expect(simKeyAction(ev(' ', { target }), mode)).toBeNull();
+          expect(simKeyAction(ev('Spacebar', { target }), mode)).toBeNull();
+        }
       }
     }
   });

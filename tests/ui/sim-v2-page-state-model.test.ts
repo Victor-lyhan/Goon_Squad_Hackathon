@@ -106,7 +106,7 @@ const simWith = (over: Partial<SimulatorResponse> = {}, clock: Partial<Simulator
 const ctx = (selection: Selection, sim: SimulatorResponse | null = simWith(), busy = false): SimKeyContext =>
   ({ selection, data: { sim, busy } });
 const body = { tagName: 'BODY' };
-const key = (k: string, target: { tagName?: string; isContentEditable?: boolean } | null = body) => ({ key: k, target });
+const key = (k: string, target: { tagName?: string; type?: string; isContentEditable?: boolean } | null = body) => ({ key: k, target });
 const isEsc = (k: string) => k === 'Escape' || k === 'Esc';
 const pkg: Selection = { kind: 'package', id: 'shp-2' };
 const emp: Selection = { kind: 'employee', id: 'emp-1' };
@@ -152,18 +152,37 @@ describe('simKeyEffect', () => {
     expect(simKeyEffect(key(' '), ctx(null, simWith({}, { playing: true, timeMin: 2160 })))).toEqual({ kind: 'control', request: { action: 'pause' } });
   });
 
-  it('nothing fires while the focus is in an input, select, textarea or button (Esc from a button does, #511)', () => {
-    for (const tagName of ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'input', 'button']) {
-      const button = tagName.toUpperCase() === 'BUTTON';
+  it('nothing fires while the focus is in a text field; a button keeps only its Space (#511, #607)', () => {
+    for (const tagName of ['INPUT', 'TEXTAREA', 'input']) {
       for (const k of ['Escape', ' ', '.']) {
-        const fires = button && k === 'Escape';
-        for (const sel of [pkg, emp]) {
-          if (fires) expect(simKeyEffect(key(k, { tagName }), ctx(sel))).toEqual({ kind: 'select', selection: null });
-          else expect(simKeyEffect(key(k, { tagName }), ctx(sel))).toBeNull();
-        }
+        for (const sel of [pkg, emp]) expect(simKeyEffect(key(k, { tagName }), ctx(sel))).toBeNull();
+      }
+    }
+    for (const tagName of ['BUTTON', 'button']) {
+      for (const sel of [pkg, emp]) {
+        expect(simKeyEffect(key('Escape', { tagName }), ctx(sel))).toEqual({ kind: 'select', selection: null });
+        expect(simKeyEffect(key('.', { tagName }), ctx(sel))).toEqual({ kind: 'control', request: { action: 'next_event' } });
+        expect(simKeyEffect(key(' ', { tagName }), ctx(sel))).toBeNull();
       }
     }
     expect(simKeyEffect(key(' ', { tagName: 'DIV', isContentEditable: true }), ctx(null))).toBeNull();
+  });
+
+  it('the scrubber, a layer checkbox and the focus dropdown do not keep Esc, Space or "." (#607)', () => {
+    const range = { tagName: 'INPUT', type: 'range' };
+    const checkbox = { tagName: 'INPUT', type: 'checkbox' };
+    const dropdown = { tagName: 'SELECT', type: 'select-one' };
+    for (const target of [range, checkbox, dropdown]) {
+      expect(simKeyEffect(key('Escape', target), ctx(pkg))).toEqual({ kind: 'select', selection: null });
+      expect(simKeyEffect(key('Escape', target), ctx(emp))).toEqual({ kind: 'select', selection: null });
+      expect(simKeyEffect(key('.', target), ctx(pkg))).toEqual({ kind: 'control', request: { action: 'next_event' } });
+    }
+    for (const target of [range, dropdown]) {
+      expect(simKeyEffect(key(' ', target), ctx(pkg))).toEqual({ kind: 'control', request: { action: 'pause' } });
+    }
+    expect(simKeyEffect(key(' ', checkbox), ctx(pkg))).toBeNull(); // Space toggles the layer, not playback
+    expect(simKeyEffect(key('Escape', { tagName: 'INPUT', type: 'text' }), ctx(pkg))).toBeNull();
+    expect(simKeyEffect(key(' ', { tagName: 'INPUT', type: 'search' }), ctx(pkg))).toBeNull();
   });
 
   it('other keys and modified keys do nothing', () => {
@@ -190,7 +209,7 @@ describe('attachSimKeys', () => {
         expect(o.capture).toBe(true);
         capture.delete(l);
       },
-      press(k: string, target: { tagName?: string } = body): FakeEvent {
+      press(k: string, target: { tagName?: string; type?: string } = body): FakeEvent {
         const e = { key: k, target, defaultPrevented: false } as FakeEvent;
         e.preventDefault = vi.fn(() => { e.defaultPrevented = true; });
         for (const l of capture) l(e);
@@ -253,19 +272,82 @@ describe('attachSimKeys', () => {
     expect(control).toHaveBeenCalledTimes(3);
   });
 
-  it('a key from a focused control is left to the control (no action; Space and . keep their default)', () => {
+  it('a key from a text field is left to the field (no action; Esc, Space and . keep their default)', () => {
+    const win = fakeWindow();
+    const select = vi.fn();
+    const control = vi.fn();
+    const escape = vi.fn(() => true);
+    attachSimKeys(win, { context: () => ctx(pkg), select, control, escape });
+    for (const target of [{ tagName: 'INPUT' }, { tagName: 'INPUT', type: 'search' }, { tagName: 'TEXTAREA' }]) {
+      for (const k of [' ', '.', 'Escape']) expect(win.press(k, target).preventDefault).not.toHaveBeenCalled();
+    }
+    expect(select).not.toHaveBeenCalled();
+    expect(control).not.toHaveBeenCalled();
+    expect(escape).not.toHaveBeenCalled();
+  });
+
+  it('Space on a focused button or checkbox is left to it; Esc from them leaves the journey (#511, #607)', () => {
     const win = fakeWindow();
     const select = vi.fn();
     const control = vi.fn();
     attachSimKeys(win, { context: () => ctx(pkg), select, control });
-    for (const tagName of ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON']) {
-      for (const k of [' ', '.']) expect(win.press(k, { tagName }).preventDefault).not.toHaveBeenCalled();
-      win.press('Escape', { tagName });
-    }
-    // Only the Esc from the button leaves the journey (#511); the text fields keep theirs.
-    expect(select).toHaveBeenCalledTimes(1);
-    expect(select).toHaveBeenCalledWith(null);
+    const targets = [{ tagName: 'BUTTON' }, { tagName: 'INPUT', type: 'checkbox' }];
+    for (const target of targets) expect(win.press(' ', target).preventDefault).not.toHaveBeenCalled();
     expect(control).not.toHaveBeenCalled();
+    for (const target of targets) expect(win.press('Escape', target).preventDefault).toHaveBeenCalled();
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(select).toHaveBeenCalledWith(null);
+  });
+
+  it('from the scrubber and the focus dropdown, Esc, Space and "." act once and are claimed (#607)', () => {
+    const win = fakeWindow();
+    const select = vi.fn();
+    const control = vi.fn();
+    // SimWorkspace's listener, with the same rule for text fields (workspaceModel uses the key map's).
+    const workspaceEsc = vi.fn();
+    win.bubble.add((e) => { if (isEsc(e.key) && !e.defaultPrevented) workspaceEsc(); });
+    let current = ctx(pkg);
+    attachSimKeys(win, { context: () => current, select, control });
+    for (const target of [{ tagName: 'INPUT', type: 'range' }, { tagName: 'SELECT', type: 'select-one' }]) {
+      expect(win.press('Escape', target).preventDefault).toHaveBeenCalled();
+      expect(win.press(' ', target).preventDefault).toHaveBeenCalled();
+      expect(win.press('.', target).preventDefault).toHaveBeenCalled();
+    }
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(control.mock.calls.map(([r]) => r)).toEqual([
+      { action: 'pause' }, { action: 'next_event' }, { action: 'pause' }, { action: 'next_event' },
+    ]);
+    // With nothing selected Esc has nothing to do, and is still claimed from a control.
+    current = ctx(null);
+    expect(win.press('Escape', { tagName: 'INPUT', type: 'range' }).preventDefault).toHaveBeenCalled();
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(workspaceEsc).not.toHaveBeenCalled();
+  });
+
+  it('a key that sends a control stops a running Play journey first; Esc and a key with no effect do not (#607)', () => {
+    const win = fakeWindow();
+    const order: string[] = [];
+    const select = vi.fn(() => { order.push('select'); });
+    let current = ctx(emp, simWith({}, { playing: false }));
+    attachSimKeys(win, {
+      context: () => current,
+      select,
+      control: (req) => { order.push(req.action); },
+      stopJourney: () => { order.push('stop'); },
+    });
+    win.press('.');
+    win.press(' ');
+    win.press('.', { tagName: 'BUTTON' });
+    expect(order).toEqual(['stop', 'next_event', 'stop', 'play', 'stop', 'next_event']);
+
+    order.length = 0;
+    win.press('Escape'); // a selection change, not a control
+    win.press('a');
+    win.press('.', { tagName: 'INPUT', type: 'text' });
+    win.press(' ', { tagName: 'BUTTON' }); // the button's own Space
+    current = ctx(emp, simWith({ nextEventMin: null }));
+    win.press('.'); // "Next event" is disabled: nothing is sent, so nothing is stopped
+    expect(order).toEqual(['select']);
   });
 });
 

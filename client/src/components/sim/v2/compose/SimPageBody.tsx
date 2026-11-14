@@ -1,5 +1,5 @@
 // The MVP II simulator page body (#426, completed in #460): the merged pieces in one workspace.
-// left = controls, the package panel and the direct-only vs relay comparison; center = the NYC map
+// left = playback, the package panel, the other controls and the direct-only vs relay comparison; center = the NYC map
 // with its legend; right = run summary / business or employee inspector / package journey.
 //
 // `SimPageBody` holds the page's UI state (focus, layers, pan target, legend open, comparison) and takes the data hook's
@@ -269,6 +269,14 @@ function ReadyLayout({
         <PlaybackControls clock={c.clock} simStartMin={c.simStartMin} simEndMin={c.simEndMin}
           nextEventMin={c.nextEventMin} busy={c.busy} onControl={handlers.control} />
       </PanelSection>
+      {/* Directly under Playback (#607, pass 61): the list that opens a journey is reached without scrolling. */}
+      <PanelSection title="Packages">
+        {pk.kind === 'panel' ? (
+          <PackagePanel sim={pk.sim} map={pk.map} selectedId={view.selectedPackageId} onSelect={handlers.selectPackage} />
+        ) : (
+          <PackageList items={pk.items} selectedId={view.selectedPackageId} onSelect={handlers.selectPackage} />
+        )}
+      </PanelSection>
       <PanelSection title="Scenario">
         <ScenarioControls value={c.scenario} phase={c.clock.phase} busy={c.busy} onGenerate={handlers.generate} />
       </PanelSection>
@@ -281,13 +289,6 @@ function ReadyLayout({
       <PanelSection title="Focus">
         <FocusSelector employees={view.focusOptions.employees} businesses={view.focusOptions.businesses}
           focus={focus} onChange={handlers.setFocus} />
-      </PanelSection>
-      <PanelSection title="Packages">
-        {pk.kind === 'panel' ? (
-          <PackagePanel sim={pk.sim} map={pk.map} selectedId={view.selectedPackageId} onSelect={handlers.selectPackage} />
-        ) : (
-          <PackageList items={pk.items} selectedId={view.selectedPackageId} onSelect={handlers.selectPackage} />
-        )}
       </PanelSection>
       <CompareSection response={compare.response} loading={compare.loading} error={compare.error}
         disabled={compare.disabled} onRun={handlers.runCompare} />
@@ -347,7 +348,8 @@ export type SimPageBodyProps = {
   initialLayers?: LayerVisibility;
   /**
    * The page's Esc key asks this first (#496): it stops a running Play journey and returns true, so
-   * the first Esc stops the journey and the next one goes back to the network.
+   * the first Esc stops the journey and the next one goes back to the network. The page's Space and
+   * `.` keys call it before their control (#607), as the buttons stop the player in `control` below.
    */
   escapeRef?: { current: (() => boolean) | null };
 };

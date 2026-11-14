@@ -213,8 +213,10 @@ describe('Esc: "A clear exit ("Back to network" / Esc) returns to the full view"
     expect(simKeyEffect(esc('BUTTON'), ctxOf(FOUR_STATES[0]))).toBeNull(); // nothing selected
   });
 
-  it('Esc in an input, select or textarea is left to the control; Space on a button stays the button\'s', () => {
-    for (const tagName of ['INPUT', 'SELECT', 'TEXTAREA']) expect(simKeyEffect(esc(tagName), ctxOf(relayState))).toBeNull();
+  it('Esc in a text input or textarea is left to the field; Space on a button stays the button\'s', () => {
+    for (const tagName of ['INPUT', 'TEXTAREA']) expect(simKeyEffect(esc(tagName), ctxOf(relayState))).toBeNull();
+    // #607: the focus dropdown does not keep Esc.
+    expect(simKeyEffect(esc('SELECT'), ctxOf(relayState))).toEqual({ kind: 'select', selection: null });
     expect(simKeyEffect({ key: ' ', target: { tagName: 'BUTTON' } }, ctxOf(relayState))).toBeNull();
   });
 
