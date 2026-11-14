@@ -5,10 +5,11 @@ import { gridCostsFrom, gridTravel, RELAY_FIXTURE_PLACES, relayFixtureTravel, ty
 
 const NONE = Infinity;
 /**
- * These numbers come from `createRouter(fixture.graph).shortestPath` of
- * server/domain/routing.ts at commit d24ab87 (the commit issue #605 started
- * from), printed for every pair of the five places the three §9 tests use,
- * before those tests stopped importing the router. NONE is "no route".
+ * These numbers come from `createRouter(fixture.graph).shortestPath` of the
+ * MVP 1 router (`routing.ts` in server/domain, deleted in #711) at commit
+ * d24ab87 (the commit issue #605 started from), printed for every pair of
+ * the five places the three §9 tests use, before those tests stopped
+ * importing the router. NONE is "no route".
  * [from, to, minutes, metres]
  */
 const ROUTER_PAIRS: [string, string, number, number][] = [
