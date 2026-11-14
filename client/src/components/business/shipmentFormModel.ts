@@ -114,3 +114,6 @@ export function fromShipment(s: Shipment): FormState {
     dropoffInstructions: s.dropoffInstructions,
   };
 }
+
+/** Prefill for Edit request / Duplicate (grams -> kg, minutes -> day + HH:MM). */
+export const formFromShipment = fromShipment;
