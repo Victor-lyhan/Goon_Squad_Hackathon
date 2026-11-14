@@ -23,6 +23,22 @@ describe('homepage content', () => {
     expect(html).toContain('Delivery infrastructure, powered by existing commutes.');
   });
 
+  it('keeps the introduction to its heading and at most two short lines, with no environment line (#610)', () => {
+    const intro = /<section class="landing-intro">([\s\S]*?)<\/section>/.exec(html)![1];
+    expect(intro).toMatch(/^<h1>Delivery infrastructure, powered by existing commutes\.<\/h1>/);
+    const lines = [...intro.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map((x) => x[1]);
+    expect(lines.length).toBeGreaterThanOrEqual(1);
+    expect(lines.length).toBeLessThanOrEqual(2);
+    for (const line of lines) expect(line.length).toBeLessThanOrEqual(120);
+    expect(intro).not.toContain('simulated deliveries');
+  });
+
+  it('says the environment once, in the footer, and labels Relay points with its note (#610)', () => {
+    expect(html.match(/Real NYC locations · simulated deliveries/g)).toHaveLength(1);
+    expect(/<footer class="landing-footer">[\s\S]*<\/footer>/.exec(html)![0]).toContain('Real NYC locations · simulated deliveries');
+    expect(html).toContain('<dt>Relay points</dt><dd class="op-summary-value">18</dd><dd class="op-summary-hint">every network business</dd>');
+  });
+
   it('has exactly three workspace links in order Business, Employee, Simulator', () => {
     const links = workspaceLinks(html);
     expect(links).toHaveLength(3);
@@ -74,6 +90,10 @@ describe('landing.css rules', () => {
       .filter((x) => Number(x[1]) >= 390)
       .map((x) => x[2]).join('\n');
     expect(narrow).toMatch(/\.workspaces \{ grid-template-columns: 1fr; \}/);
+  });
+  it('styles the Relay points note quietly and has no rule left for the removed indicator line (#610)', () => {
+    expect(css).toMatch(/\.op-summary-item dd\.op-summary-hint \{[^}]*color: var\(--muted, [^)]*\)/);
+    expect(css).not.toContain('landing-indicator');
   });
   it('no radius over 4px, no shadows, no gradients', () => {
     for (const [, v] of css.matchAll(/border-radius:\s*([^;]+);/g)) {
