@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { Metrics, Scenario } from '../../shared/types.js';
 import { createInitialRun } from '../../server/api/initialRun.js';
 import { generateScenario } from '../../server/domain/generator.js';
@@ -58,8 +58,7 @@ function expectSaneMetrics(metrics: Metrics): void {
   expect(metrics.matched).toBeLessThanOrEqual(metrics.requested);
 }
 
-function assertTimelineMetrics(scenario: Scenario, expectsAllUnmatched = false): void {
-  const run = createInitialRun(scenario);
+function assertTimelineMetrics(scenario: Scenario, run: ReturnType<typeof createInitialRun>, expectsAllUnmatched = false): void {
   if (expectsAllUnmatched) {
     expect(run.assignments.plans).toHaveLength(0);
     expect(run.assignments.unmatched).toHaveLength(scenario.shipments.length);
@@ -108,7 +107,17 @@ function assertTimelineMetrics(scenario: Scenario, expectsAllUnmatched = false):
 }
 
 describe('computeMetrics event-minute timeline properties', () => {
-  it.each(TIMELINE_CASES)('stays finite and monotonic for $name', ({ options, expectsAllUnmatched }) => {
-    assertTimelineMetrics(generateScenario(options), expectsAllUnmatched);
+  const runs = new Map<string, { scenario: Scenario; run: ReturnType<typeof createInitialRun> }>();
+
+  beforeAll(() => {
+    for (const testCase of TIMELINE_CASES) {
+      const scenario = generateScenario(testCase.options);
+      runs.set(testCase.name, { scenario, run: createInitialRun(scenario) });
+    }
+  }, 30_000);
+
+  it.each(TIMELINE_CASES)('stays finite and monotonic for $name', ({ name, expectsAllUnmatched }) => {
+    const { scenario, run } = runs.get(name)!;
+    assertTimelineMetrics(scenario, run, expectsAllUnmatched);
   }, CITY_TIMEOUT_MS);
 });

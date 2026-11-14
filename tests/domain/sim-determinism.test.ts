@@ -50,8 +50,7 @@ function jobsFor(plans: DeliveryPlan[]): Job[] {
   })));
 }
 
-function pipeline(options: GenerateScenarioOptions): PipelineResult {
-  const scenario = generateScenario(options);
+function pipeline(scenario: Scenario): PipelineResult {
   const router = createRouter(scenario.graph);
   const trips = scenario.employees.flatMap((employee) => buildTrips(employee, scenario.businesses, router));
   const context: MatchContext = {
@@ -111,14 +110,14 @@ function assertIdFormats(result: PipelineResult): void {
 }
 
 describe('generated-city domain pipeline determinism', () => {
-  it.each([
-    ['default city', DEFAULT_CITY],
-    ['maximum city', MAX_CITY],
-  ])('is deeply and byte-for-byte stable for every required seed in the %s', (_name, city) => {
-    for (const seed of SEEDS) {
-      const options = { ...city, seed };
-      const first = pipeline(options);
-      const second = pipeline(options);
+  const cities = [
+    ...SEEDS.map((seed) => ['default city', seed, generateScenario({ ...DEFAULT_CITY, seed })] as const),
+    ...SEEDS.map((seed) => ['maximum city', seed, generateScenario({ ...MAX_CITY, seed })] as const),
+  ];
+
+  it.each(cities)('is deeply and byte-for-byte stable for %s seed %i', (_name, _seed, scenario) => {
+      const first = pipeline(scenario);
+      const second = pipeline(scenario);
 
       expect(second).toEqual(first);
       // This mirrors persistence: key insertion order must remain stable too.
@@ -128,12 +127,11 @@ describe('generated-city domain pipeline determinism', () => {
           .toBe(JSON.stringify(first.modes[mode].stateFile));
       }
       assertIdFormats(first);
-    }
-  }, 120_000);
+  }, 10_000);
 
   it('changes generated scenarios when the seed changes', () => {
-    const first = generateScenario({ ...DEFAULT_CITY, seed: 1 });
-    const second = generateScenario({ ...DEFAULT_CITY, seed: 42 });
+    const first = cities.find(([, seed]) => seed === 1)![2];
+    const second = cities.find(([, seed]) => seed === 42)![2];
 
     expect(second).not.toEqual(first);
     expect(JSON.stringify(second)).not.toBe(JSON.stringify(first));

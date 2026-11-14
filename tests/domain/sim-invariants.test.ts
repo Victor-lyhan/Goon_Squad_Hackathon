@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { DeliveryPlan, Job, Run, Scenario } from '../../shared/types';
 import { generateScenario } from '../../server/domain/generator';
 import { assignShipments, type MatchContext } from '../../server/domain/matching';
@@ -135,16 +135,22 @@ function assertRunInvariants(run: Run): void {
 }
 
 describe('generated-city simulation invariants', () => {
-  it('keeps timeline snapshots monotonic and complete for random seeds 1 through 15', () => {
-    for (let seed = 1; seed <= 15; seed += 1) {
-      assertRunInvariants(generatedRun(generateScenario({ ...DEFAULT_RANDOM_OPTIONS, seed })));
-    }
+  const seeds = Array.from({ length: 15 }, (_, index) => index + 1);
+  const runs = new Map<number, Run>();
+
+  beforeAll(() => {
+    for (const seed of seeds) runs.set(seed, generatedRun(generateScenario({ ...DEFAULT_RANDOM_OPTIONS, seed })));
+    runs.set(16, generatedRun(generateScenario({
+      preset: 'random', seed: 16, employees: 200, packages: 60, hubs: 10, maxExtraMin: 8,
+    })));
   }, 30_000);
 
+  it.each(seeds)('keeps timeline snapshots monotonic and complete for random seed %i', (seed) => {
+    assertRunInvariants(runs.get(seed)!);
+  }, 10_000);
+
   it('handles the maximum generated city and snapshots it in under 50 ms', () => {
-    const run = generatedRun(generateScenario({
-      preset: 'random', seed: 16, employees: 200, packages: 60, hubs: 10, maxExtraMin: 8,
-    }));
+    const run = runs.get(16)!;
     assertRunInvariants(run);
 
     for (let timeMin = run.scenario.settings.simStartMin;

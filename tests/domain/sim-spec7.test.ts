@@ -170,9 +170,7 @@ function shuffledTimes(): number[] {
 describe('spec §7 simulator rules', () => {
   it('keeps fixture and every Demo-city plan stationary during service and changes custody only on completion', () => {
     const fixtureRun = fixtureRelayRun();
-    const demoRun = runForScenario(generateScenario({
-      preset: 'demo', seed: 0, employees: 60, packages: 24, hubs: 6, maxExtraMin: 8,
-    }));
+    const demoRun = DEMO_RUN;
 
     expect(fixtureRun.assignments.plans).toHaveLength(1);
     expect(demoRun.assignments.plans.length).toBeGreaterThan(0);
@@ -181,9 +179,7 @@ describe('spec §7 simulator rules', () => {
   }, 30_000);
 
   it('is replay-equivalent in forward, reverse, and seeded-shuffled minute orders without decreasing earnings', () => {
-    const run = runForScenario(generateScenario({
-      preset: 'demo', seed: 0, employees: 60, packages: 24, hubs: 6, maxExtraMin: 8,
-    }));
+    const run = DEMO_RUN;
     const expected = new Map<number, ReturnType<typeof snapshotAt>>();
     let previousEarnings = 0;
 
@@ -219,9 +215,7 @@ describe('spec §7 simulator rules', () => {
       'hub_drop:plan-a-drop', 'hub_drop:plan-z-drop', 'hub_pickup:plan-z-pickup', 'pickup:plan-a-pickup', 'delivered:plan-z-delivered',
     ]);
 
-    const unmatchedRun = runForScenario(generateScenario({
-      preset: 'random', seed: 7, employees: 0, packages: 3, hubs: 0, maxExtraMin: 8,
-    }));
+    const unmatchedRun = UNMATCHED_RUN;
     for (const timeMin of [930, 1500, 2160]) {
       const snapshot = snapshotAt(unmatchedRun, timeMin);
       expect(Object.values(snapshot.shipmentStatus)).toEqual(['unmatched', 'unmatched', 'unmatched']);
@@ -230,3 +224,10 @@ describe('spec §7 simulator rules', () => {
     }
   }, 30_000);
 });
+
+const DEMO_RUN = runForScenario(generateScenario({
+  preset: 'demo', seed: 0, employees: 60, packages: 24, hubs: 6, maxExtraMin: 8,
+}));
+const UNMATCHED_RUN = runForScenario(generateScenario({
+  preset: 'random', seed: 7, employees: 0, packages: 3, hubs: 0, maxExtraMin: 8,
+}));

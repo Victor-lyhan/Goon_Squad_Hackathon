@@ -66,7 +66,7 @@ function pointIsOnRoute(marker: MarkerPosition, plans: DeliveryPlan[], run: Run)
 
 describe('largest random city snapshot performance and marker continuity', () => {
   it('keeps every-minute markers continuous and snapshotAt comfortably below the poll budget', () => {
-    const run = largestRun();
+    const run = LARGEST_RUN;
     const samples = [930, 1022, 1100, 1947, 2040, 2160].map((timeMin) => snapshotAt(run, timeMin));
     const plansByEmployeeId = new Map<string, DeliveryPlan[]>();
     const nodeById = new Map(run.scenario.graph.nodes.map((node) => [node.id, node]));
@@ -133,3 +133,5 @@ describe('largest random city snapshot performance and marker continuity', () =>
     expect(perCallMs[1]).toBeLessThan(5);
   }, 30_000);
 });
+
+const LARGEST_RUN = largestRun();
