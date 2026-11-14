@@ -12,7 +12,7 @@ import { act, useReducer, type Dispatch } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommuteResponse, EmployeeDashboard } from '../../shared/v2/api';
 import type { PutCommuteRequest } from '../../shared/v2/schemas';
-import { ApiRequestError } from '../../client/src/api/client';
+import { ApiRequestError } from '../../client/src/api/http';
 import {
   DEFAULT_DEBOUNCE_MS, NOT_ANSWERING_TEXT, UNAVAILABLE_TEXT,
 } from '../../client/src/components/employee/v2/addressSearchModel';

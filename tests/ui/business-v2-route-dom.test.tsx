@@ -8,7 +8,7 @@ import { BusinessPageView } from '../../client/src/components/business/v2/page/B
 import { pageScreen } from '../../client/src/components/business/v2/page/businessPageModel';
 import { DeliveryRouteSlot } from '../../client/src/components/business/v2/route/DeliveryRoutePreview';
 import { useDeliveryMap } from '../../client/src/components/business/v2/route/useDeliveryMap';
-import { ApiRequestError } from '../../client/src/api/client';
+import { ApiRequestError } from '../../client/src/api/http';
 import { ACME, BAKERY, BUSINESSES, DASHBOARD, RELAY, ready } from './business-v2-page-sample';
 import { button, click, flush, mount, textOf } from './kitDom';
 

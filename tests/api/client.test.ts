@@ -3,7 +3,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, request } from '../../client/src/api/http';
 import * as index from '../../client/src/api';
-import * as legacy from '../../client/src/api/client';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -72,11 +71,10 @@ describe('api client: the fetch core', () => {
 describe('api client: what the index exports after the MVP 1 helpers were deleted', () => {
   const CORE = ['ApiRequestError', 'DEFAULT_TIMEOUT_MS', 'apiConfig', 'isAbortError', 'isNetworkError', 'probeHealth', 'request'];
 
-  it('the index and the old client path hold the fetch core and nothing else', () => {
+  it('the index holds the fetch core and nothing else', () => {
     expect(Object.keys(index).sort()).toEqual(CORE);
-    expect(Object.keys(legacy).sort()).toEqual(CORE);
     expect(index.request).toBe(request);
-    expect(legacy.ApiRequestError).toBe(ApiRequestError);
+    expect(index.ApiRequestError).toBe(ApiRequestError);
   });
 
   it('the only path the index itself calls is /api/health', async () => {
