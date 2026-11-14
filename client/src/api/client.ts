@@ -50,7 +50,8 @@ export const DEFAULT_TIMEOUT_MS = 8000;
 /** Mutable settings; tests set `apiConfig.timeoutMs` and restore DEFAULT_TIMEOUT_MS afterwards. */
 export const apiConfig = { timeoutMs: DEFAULT_TIMEOUT_MS };
 
-async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {},
+  extra: { cache?: RequestCache; ignoreBody?: boolean } = {}): Promise<T> {
   const { signal } = opts;
   const timeoutMs = opts.timeoutMs ?? apiConfig.timeoutMs;
   const controller = new AbortController();
@@ -73,6 +74,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
         headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
+        cache: extra.cache,
       });
     } catch (e) {
       return fail(e);
@@ -92,6 +94,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
       throw new ApiRequestError(res.status, message, fieldErrors);
     }
     try {
+      if (extra.ignoreBody) { await res.arrayBuffer(); return undefined as T; }
       return (await res.json()) as T;
     } catch (e) {
       return fail(e);
@@ -101,6 +104,22 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
     signal?.removeEventListener('abort', onAbort);
   }
 }
+
+/**
+ * Server liveness probe: GET /api/health with cache 'no-store' and the same timeout/signal handling
+ * as the other GETs. Resolves true on a 2xx and false on a network error, timeout or non-2xx.
+ * Never throws, except that a caller abort (opts.signal) rejects with an error for which isAbortError is true.
+ * Capitalised function expression: /api/health is not in shared/api.ts, see the note above.
+ */
+export const probeHealth = async function ProbeHealth(opts?: RequestOptions): Promise<boolean> {
+  try {
+    await request<void>('GET', '/api/health', undefined, opts, { cache: 'no-store', ignoreBody: true });
+    return true;
+  } catch (e) {
+    if (isAbortError(e)) throw e;
+    return false;
+  }
+};
 
 const enc = encodeURIComponent;
 
