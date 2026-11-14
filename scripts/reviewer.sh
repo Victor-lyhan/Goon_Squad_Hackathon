@@ -14,8 +14,9 @@ log "$NAME starting ($ENGINE ${MODEL:-default model})"
 
 while ! halted; do
   git -C "$REPO_ROOT" fetch -q --prune origin || { backoff 60; continue; }
+  FILTER=${PARITY:+".number % 2 == $PARITY"}; FILTER=${FILTER:-true}
   PR=$(gh pr list --state open --label needs-review --json number \
-        --jq 'sort_by(.number) | .[0].number // empty')
+        --jq "map(select($FILTER)) | sort_by(.number) | .[0].number // empty")
   if [ -z "$PR" ]; then sleep 60; continue; fi
 
   BR=$(gh pr view "$PR" --json headRefName --jq .headRefName)
