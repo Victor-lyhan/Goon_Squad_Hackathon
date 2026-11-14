@@ -13,11 +13,11 @@ type Props = {
   businesses?: Business[];
   /** Optional: a change resets the "new since last poll" baseline. */
   runId?: string;
-  /** Set false when the parent already shows toasts. Default true. */
+  /** Opt in to in-list toasts. Default false: BusinessPortal already toasts new matches. */
   toasts?: boolean;
 };
 
-export function NotificationList({ notifications, onSelect, shipments, businesses, runId, toasts: showToasts = true }: Props) {
+export function NotificationList({ notifications, onSelect, shipments, businesses, runId, toasts: showToasts = false }: Props) {
   const inRouter = useInRouterContext();
   const rows = notificationRows(notifications, shipments, businesses);
   const { toasts, push, dismiss } = useToasts();

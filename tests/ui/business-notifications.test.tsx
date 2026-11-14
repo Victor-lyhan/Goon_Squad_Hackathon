@@ -57,3 +57,12 @@ describe('NotificationList with Demo-city data', () => {
     expect(html).toContain('m a');
   });
 });
+
+describe('NotificationList toasts', () => {
+  it('renders no toast region by default (BusinessPortal owns the toast)', () => {
+    expect(renderToStaticMarkup(<NotificationList notifications={[n('a', 1)]} />)).not.toContain('ui-toasts');
+  });
+  it('renders the toast region when opted in', () => {
+    expect(renderToStaticMarkup(<NotificationList notifications={[n('a', 1)]} toasts />)).toContain('ui-toasts');
+  });
+});
