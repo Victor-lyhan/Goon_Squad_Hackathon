@@ -3,8 +3,10 @@
 import type {
   BusinessDashboard, EmployeeDashboard, EmployeeJobView, JobResponse, ShipmentView,
 } from '../../shared/api';
-import type { Job, Run, Shipment, Snapshot } from '../../shared/types';
+import type { Job, Notification, Run, Shipment, Snapshot } from '../../shared/types';
 
+const notesNewest = (a: Notification, b: Notification) =>
+  b.createdSeq - a.createdSeq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const byNewest = (a: Shipment, b: Shipment) => b.createdSeq - a.createdSeq;
 
 function buildShipmentView(run: Run, snapshot: Snapshot, shipment: Shipment): ShipmentView {
@@ -47,7 +49,7 @@ export function businessDashboard(run: Run, snapshot: Snapshot, businessId: stri
     business,
     outgoing,
     incoming,
-    notifications: run.notifications.filter((n) => n.audience === 'business' && n.audienceId === businessId),
+    notifications: run.notifications.filter((n) => n.audience === 'business' && n.audienceId === businessId).sort(notesNewest),
     totals: {
       sent: outgoing.length,
       matched: matchedOut.length,
@@ -74,7 +76,7 @@ export function employeeDashboard(run: Run, snapshot: Snapshot, employeeId: stri
     completed: views.filter((v) => v.status === 'completed'),
     earnedCents: snapshot.earningsCents[employeeId] ?? 0,
     projectedCents: jobs.reduce((sum, j) => sum + j.rewardCents, 0),
-    notifications: run.notifications.filter((n) => n.audience === 'employee' && n.audienceId === employeeId),
+    notifications: run.notifications.filter((n) => n.audience === 'employee' && n.audienceId === employeeId).sort(notesNewest),
     phase: run.clock.phase,
     version: run.version,
   };
