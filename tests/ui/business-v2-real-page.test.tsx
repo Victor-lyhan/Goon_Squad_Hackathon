@@ -147,11 +147,10 @@ describe.each(real.moments)('every business at $name (minute $timeMin)', ({ time
 });
 
 describe('a relay point sees the packages it holds', () => {
-  // BUG (#514): a business that is only the relay point of a plan gets no notification and no row, so its
-  // workspace never shows that it holds a package overnight (DECISIONS pass 50 says the notifications panel
-  // is where it sees this role). The business notifications are emitted in server/api/v2/pipeline.ts
-  // (`materializeAssignment`: only the sender and the recipient get one). Outside this issue's files.
-  it.fails('every relay business has a notification about each package it relays', () => {
+  // Found as a bug by #514 and fixed by #535: a business that is only the relay point of a plan gets its own
+  // notification from server/api/v2/pipeline.ts (`materializeAssignment`), so its workspace shows that it
+  // holds a package overnight (DECISIONS pass 50: the notifications panel is where it sees this role).
+  it('every relay business has a notification about each package it relays', () => {
     const moment = real.at(run.scenario.settings.simEndMin);
     const relayPlans = run.assignments.plans.filter((p) => p.kind === 'relay' && p.relayBusinessId);
     expect(relayPlans.length).toBeGreaterThan(0);

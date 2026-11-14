@@ -60,7 +60,8 @@ export function materializeAssignment(run: Run, result: AssignmentResult, deps: 
   const jobs = plans.flatMap(jobsFor);
   const events = deps.buildEvents(plans, jobs);
 
-  // Reconcile: every plan/job gets exactly one notification with a deterministic ID.
+  // Reconcile: every plan gets one notification per business involved (sender, recipient and,
+  // for a relay plan, the relay point) and every job gets one, each with a deterministic ID.
   // Existing IDs keep their createdSeq and get their text refreshed in place; IDs for
   // plans/jobs that no longer exist are dropped.
   const previous = new Map(run.notifications.map((n) => [n.id, n]));
@@ -94,6 +95,13 @@ export function materializeAssignment(run: Run, result: AssignmentResult, deps: 
     matched(shipment.originBusinessId,
       `Delivery arranged: "${shipment.label}" to ${dest}${via}, ${money(plan.customerPriceCents)}.`);
     matched(shipment.destinationBusinessId, `Incoming delivery: "${shipment.label}" from ${origin}${via}.`);
+    // The relay business holds the package overnight and is neither sender nor recipient: its
+    // notifications panel is the only place it sees that (DECISIONS pass 50, pass 57). Storage
+    // is at the business itself, so the text names no employee and no home (SPEC MVP II rule 5).
+    if (plan.kind === 'relay' && plan.relayBusinessId !== undefined) {
+      matched(plan.relayBusinessId,
+        `Relay point: "${shipment.label}" from ${origin} to ${dest} is dropped here in the evening and collected the next morning.`);
+    }
     for (const job of jobsByPlan.get(plan.id) ?? []) {
       const role = plan.kind === 'relay'
         ? (job.legIndex === 0

@@ -1,11 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
-import { TravelDataMissingError, pairKey, type DeliveryPlan, type Run } from '../../shared/v2/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TravelDataMissingError, pairKey, type DeliveryPlan, type Notification, type Run } from '../../shared/v2/types';
+import { snapshotAt } from '../../server/domain/v2/simulation';
+import { buildTimeline } from '../../server/domain/v2/timeline';
 import { buildTrips } from '../../server/domain/v2/trips';
 import { createInitialRun } from '../../server/api/v2/initialRun';
 import { matchContext, matchPending, materializeAssignment } from '../../server/api/v2/pipeline';
 import {
   AGENCY, CAFE, PRINT, sampleDeps, sampleScenario, sampleShipment, sampleTable, stubEvents, tableTravel,
 } from './v2-pipeline-sample';
+import { startReadApi, type ReadApi } from './v2-read-routes-helper';
+
+const RELAY_NOTE = 'Relay point: "Poster proofs" from Northside Print Shop to Midtown Agency is dropped here in the evening and collected the next morning.';
 
 const freshRun = (): Run => createInitialRun(sampleScenario(), sampleDeps());
 
@@ -30,6 +35,10 @@ const expectSamePlanObjects = (run: Run, before: DeliveryPlan[]) => {
 const reservedTripIds = (run: Run) => run.assignments.plans.flatMap((p) => p.legs.map((l) => l.tripId));
 
 const bySeq = <T extends { createdSeq: number }>(list: T[]) => [...list].sort((a, b) => a.createdSeq - b.createdSeq);
+
+const idAndSeq = (list: Notification[]) => list.map((n) => [n.id, n.createdSeq]);
+const forBusiness = (list: Notification[], businessId: string) =>
+  list.filter((n) => n.audience === 'business' && n.audienceId === businessId);
 
 const expectCleanCopy = (run: Run) => {
   for (const { message } of run.notifications) {
@@ -78,22 +87,23 @@ describe('v2 materializeAssignment', () => {
     const without = materializeAssignment(run, { ...run.assignments, plans: [direct] }, sampleDeps());
     expect(without.jobs.map((j) => j.id)).toEqual(['plan-shp-2-L0']);
     expect(without.notifications.map((n) => [n.id, n.createdSeq])).toEqual([
-      ['ntf-plan-shp-2-biz-agency', 5],
-      ['ntf-plan-shp-2-biz-print-shop', 6],
-      ['ntf-plan-shp-2-L0', 7],
+      ['ntf-plan-shp-2-biz-agency', 6],
+      ['ntf-plan-shp-2-biz-print-shop', 7],
+      ['ntf-plan-shp-2-L0', 8],
     ]);
     expect(without.notifications).toEqual(run.notifications.filter((n) => n.planId === direct.id));
 
     // The plan comes back: its notifications are new, numbered after everything seen so far.
     const back = materializeAssignment({ ...run, ...without }, { ...run.assignments, plans: [relay, direct] }, sampleDeps());
     expect(back.notifications.map((n) => [n.id, n.createdSeq])).toEqual([
-      ['ntf-plan-shp-1-biz-print-shop', 8],
-      ['ntf-plan-shp-1-biz-agency', 9],
-      ['ntf-plan-shp-1-L0', 10],
-      ['ntf-plan-shp-1-L1', 11],
-      ['ntf-plan-shp-2-biz-agency', 5],
-      ['ntf-plan-shp-2-biz-print-shop', 6],
-      ['ntf-plan-shp-2-L0', 7],
+      ['ntf-plan-shp-1-biz-print-shop', 9],
+      ['ntf-plan-shp-1-biz-agency', 10],
+      ['ntf-plan-shp-1-biz-cafe', 11],
+      ['ntf-plan-shp-1-L0', 12],
+      ['ntf-plan-shp-1-L1', 13],
+      ['ntf-plan-shp-2-biz-agency', 6],
+      ['ntf-plan-shp-2-biz-print-shop', 7],
+      ['ntf-plan-shp-2-L0', 8],
     ]);
   });
 
@@ -105,7 +115,10 @@ describe('v2 materializeAssignment', () => {
     expect(again.notifications.map((n) => [n.id, n.createdSeq])).toEqual(run.notifications.map((n) => [n.id, n.createdSeq]));
     expect(again.notifications[0].message)
       .toBe('Delivery arranged: "Poster proofs (v2)" to Midtown Agency via Corner Bakery (relay point), $10.00.');
+    // The relay point's own message says "here", so only the label changes in it.
     expect(again.notifications[2].message)
+      .toBe('Relay point: "Poster proofs (v2)" from Northside Print Shop to Midtown Agency is dropped here in the evening and collected the next morning.');
+    expect(again.notifications[3].message)
       .toBe('New delivery job: "Poster proofs (v2)". Drop at Corner Bakery; another employee completes delivery. Reward $3.00.');
   });
 
@@ -116,6 +129,7 @@ describe('v2 materializeAssignment', () => {
     expect(notifications.map((n) => n.message)).toEqual([
       'Delivery arranged: "Poster proofs" to Unknown place via a relay point, $10.00.',
       'Incoming delivery: "Poster proofs" from Northside Print Shop via a relay point.',
+      'Relay point: "Poster proofs" from Northside Print Shop to Unknown place is dropped here in the evening and collected the next morning.',
       'New delivery job: "Poster proofs". Drop at the relay point; another employee completes delivery. Reward $3.00.',
       'New delivery job: "Poster proofs". Collect from the relay point and deliver to Unknown place. Reward $3.00.',
       'Delivery arranged: "Signed contract" to Northside Print Shop, $10.00.',
@@ -131,6 +145,139 @@ describe('v2 materializeAssignment', () => {
     const out = materializeAssignment(run, run.assignments, sampleDeps());
     expect(out.jobs).toHaveLength(3);
     expect(out.notifications.every((n) => n.planId === 'plan-shp-2')).toBe(true);
+  });
+});
+
+describe('v2 relay-point notification (#535)', () => {
+  it('tells the relay business of a relay plan once: audience, ID, kind, shipment, plan and text', () => {
+    const run = freshRun();
+    const relay = planFor(run, 'shp-1');
+    expect(relay).toMatchObject({ kind: 'relay', relayBusinessId: CAFE });
+    expect(forBusiness(run.notifications, CAFE)).toEqual([{
+      id: 'ntf-plan-shp-1-biz-cafe', audience: 'business', audienceId: CAFE, kind: 'delivery_matched',
+      shipmentId: 'shp-1', planId: 'plan-shp-1', message: RELAY_NOTE, createdSeq: 3,
+    }]);
+    // "relay point", never "hub"; no employee, no home, no raw ID.
+    expect(RELAY_NOTE).not.toMatch(/hub|home/i);
+    for (const { name } of run.scenario.employees) expect(RELAY_NOTE).not.toMatch(new RegExp(`\\b${name}\\b`));
+    expectCleanCopy(run);
+    // Sender and recipient keep their own messages.
+    expect(run.notifications.filter((n) => n.planId === relay.id && n.audience === 'business').map((n) => n.audienceId))
+      .toEqual([PRINT, AGENCY, CAFE]);
+  });
+
+  it('adds nothing for a direct plan: sender and recipient only', () => {
+    const run = freshRun();
+    const direct = planFor(run, 'shp-2');
+    expect(direct.kind).toBe('direct');
+    expect(direct.relayBusinessId).toBeUndefined();
+    expect(run.notifications.filter((n) => n.planId === direct.id).map((n) => n.id)).toEqual([
+      'ntf-plan-shp-2-biz-agency', 'ntf-plan-shp-2-biz-print-shop', 'ntf-plan-shp-2-L0',
+    ]);
+    // Every plan: two business notifications, plus one more only when it is a relay plan.
+    for (const plan of run.assignments.plans) {
+      const business = run.notifications.filter((n) => n.planId === plan.id && n.audience === 'business');
+      expect(business, plan.id).toHaveLength(plan.kind === 'relay' ? 3 : 2);
+    }
+  });
+
+  it('is idempotent: the pipeline run twice gives the same notifications with the same createdSeq', () => {
+    const run = freshRun();
+    const first = structuredClone(run.notifications);
+    expect(idAndSeq(first)).toContainEqual(['ntf-plan-shp-1-biz-cafe', 3]);
+
+    // Materialize the same plans again, twice, as a recompute does.
+    Object.assign(run, materializeAssignment(run, run.assignments, sampleDeps()));
+    expect(run.notifications).toEqual(first);
+    Object.assign(run, materializeAssignment(run, run.assignments, sampleDeps()));
+    expect(run.notifications).toEqual(first);
+
+    // The incremental match run twice for the same shipment: nothing twice, nothing renumbered.
+    addShipment(run, 4, 'Catering order', AGENCY, CAFE);
+    matchPending(run, ['shp-4'], sampleDeps());
+    const afterOne = structuredClone(run.notifications);
+    matchPending(run, ['shp-4'], sampleDeps());
+    expect(run.notifications).toEqual(afterOne);
+    expect(afterOne.filter((n) => n.planId !== 'plan-shp-4')).toEqual(first);
+    const ids = run.notifications.map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('a relay plan that disappears after a recompute takes its relay notification with it', () => {
+    const run = freshRun();
+    const [relay, direct] = run.assignments.plans;
+    expect(forBusiness(run.notifications, CAFE)).toHaveLength(1);
+    const without = materializeAssignment(run, { ...run.assignments, plans: [direct] }, sampleDeps());
+    expect(forBusiness(without.notifications, CAFE)).toEqual([]);
+    expect(without.notifications.some((n) => n.planId === relay.id)).toBe(false);
+    expect(without.notifications).toEqual(run.notifications.filter((n) => n.planId === direct.id));
+  });
+
+  it('keeps one notification per ID when the relay business is also the sender or the recipient', () => {
+    // Not something the matcher produces; the reconcile must still never emit an ID twice.
+    const run = freshRun();
+    const relay = { ...planFor(run, 'shp-1'), relayBusinessId: PRINT };
+    const out = materializeAssignment(run, { ...run.assignments, plans: [relay] }, sampleDeps());
+    expect(forBusiness(out.notifications, PRINT).map((n) => [n.id, n.message])).toEqual([
+      ['ntf-plan-shp-1-biz-print-shop', 'Delivery arranged: "Poster proofs" to Midtown Agency via Northside Print Shop (relay point), $10.00.'],
+    ]);
+  });
+});
+
+describe('v2 relay-point notification in GET /businesses/:id/dashboard (#535)', () => {
+  // The real timeline and the real snapshot function, as the bootstrap wires them.
+  const travel = tableTravel();
+  const deps = { travel, buildEvents: buildTimeline };
+  let api: ReadApi | undefined;
+  afterEach(async () => {
+    await api?.close();
+    api = undefined;
+  });
+  const start = async (run: Run) => {
+    api = await startReadApi({ travel, run, snapshotAt: (r, timeMin) => snapshotAt(r, timeMin, travel) });
+    return api;
+  };
+
+  it("lists the notification in the relay business's dashboard, although it neither sends nor receives the package", async () => {
+    const app = await start(createInitialRun(sampleScenario(), deps));
+    const res = await app.get(`/businesses/${CAFE}/dashboard`);
+    expect(res.status).toBe(200);
+    expect(res.body.incoming).toEqual([]);
+    expect(res.body.outgoing.map((v: { shipment: { id: string } }) => v.shipment.id)).toEqual(['shp-3']); // unmatched, no plan
+    expect(res.body.notifications).toEqual([{
+      id: 'ntf-plan-shp-1-biz-cafe', audience: 'business', audienceId: CAFE, kind: 'delivery_matched',
+      shipmentId: 'shp-1', planId: 'plan-shp-1', message: RELAY_NOTE, createdSeq: 3,
+    }]);
+    // The sender and the recipient do not get the relay point's message.
+    for (const id of [PRINT, AGENCY]) {
+      const other = await app.get(`/businesses/${id}/dashboard`);
+      expect(other.body.notifications.map((n: Notification) => n.id)).not.toContain('ntf-plan-shp-1-biz-cafe');
+      expect(other.body.notifications.map((n: Notification) => n.message)).not.toContain(RELAY_NOTE);
+    }
+  });
+
+  it('a business that is the sender of one plan and the relay point of another gets both kinds, each once', async () => {
+    // What a commute save does: emp-1 now also drives to work in the morning, past the cafe,
+    // so the cafe's own package (shp-3) gets a plan. The cafe stays the relay point of shp-1.
+    const run = createInitialRun(sampleScenario(), deps);
+    run.scenario.employees[0].availableMorning = true;
+    run.trips = run.scenario.employees.flatMap((e) => buildTrips(e, travel));
+    matchPending(run, ['shp-3'], deps);
+    matchPending(run, ['shp-3'], deps); // a second pass adds nothing
+    expect(planFor(run, 'shp-3')).toMatchObject({ kind: 'direct' });
+    expect(planFor(run, 'shp-1')).toMatchObject({ kind: 'relay', relayBusinessId: CAFE });
+
+    const app = await start(run);
+    const res = await app.get(`/businesses/${CAFE}/dashboard`);
+    expect(res.status).toBe(200);
+    // Newest first.
+    expect(res.body.notifications.map((n: Notification) => [n.id, n.shipmentId, n.message])).toEqual([
+      ['ntf-plan-shp-3-biz-cafe', 'shp-3', 'Delivery arranged: "Pastry box" to Northside Print Shop, $10.00.'],
+      ['ntf-plan-shp-1-biz-cafe', 'shp-1', RELAY_NOTE],
+    ]);
+    for (const n of res.body.notifications as Notification[]) {
+      expect(n).toMatchObject({ audience: 'business', audienceId: CAFE, kind: 'delivery_matched' });
+    }
   });
 });
 
@@ -169,9 +316,9 @@ describe('v2 matchPending', () => {
     const isNew = (n: { planId: string }) => n.planId === 'plan-shp-4';
     expect(run.notifications.filter((n) => !isNew(n))).toEqual(notificationsBefore);
     expect(run.notifications.filter(isNew).map((n) => [n.id, n.audienceId, n.createdSeq])).toEqual([
-      ['ntf-plan-shp-4-biz-agency', AGENCY, 8],
-      ['ntf-plan-shp-4-biz-cafe', CAFE, 9],
-      ['ntf-plan-shp-4-L0', 'emp-2', 10],
+      ['ntf-plan-shp-4-biz-agency', AGENCY, 9],
+      ['ntf-plan-shp-4-biz-cafe', CAFE, 10],
+      ['ntf-plan-shp-4-L0', 'emp-2', 11],
     ]);
     expect(run.notifications.find((n) => n.id === 'ntf-plan-shp-4-L0')!.message)
       .toBe('New delivery job: "Catering order". Collect from Midtown Agency and deliver to Corner Cafe. Reward $3.00.');
@@ -231,10 +378,10 @@ describe('v2 matchPending', () => {
     expect(added.kind).toBe('direct');
     expect(added.legs[0]).toMatchObject({ tripId: 'emp-1-morn', employeeId: 'emp-1', placeIds: ['home-001', CAFE, PRINT] });
     expect(run.jobs.map((j) => j.id)).toContain('plan-shp-3-L0');
-    expect(run.notifications.filter((n) => n.createdSeq > 7).map((n) => n.id)).toEqual([
+    expect(run.notifications.filter((n) => n.createdSeq > 8).map((n) => n.id)).toEqual([
       'ntf-plan-shp-3-biz-cafe', 'ntf-plan-shp-3-biz-print-shop', 'ntf-plan-shp-3-L0',
     ]);
-    expect(run.notifications).toHaveLength(10);
+    expect(run.notifications).toHaveLength(11);
     const reserved = reservedTripIds(run);
     expect(new Set(reserved).size).toBe(reserved.length);
     expectCleanCopy(run);
