@@ -1,0 +1,82 @@
+/* MVP II Business page (#461): page states, notices and the two-column layout around the merged pieces.
+   Square corners (2px), 1px borders, no shadows. Fluid widths only: works at 390 px. */
+
+.bp {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: var(--space-4, 16px);
+  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  font-size: var(--text-sm, 14px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.bp *, .bp *::before, .bp *::after { box-sizing: border-box; }
+
+.bp-state, .bp-missing {
+  margin: var(--space-4, 16px) 0;
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+}
+.bp-state h1 { font-size: 18px; font-weight: 600; margin: 0 0 var(--space-2, 8px); }
+.bp-missing { margin: 0; }
+.bp-missing h2 { font-size: 16px; font-weight: 600; margin: 0 0 var(--space-2, 8px); }
+.bp-state p, .bp-missing p { margin: 0 0 var(--space-2, 8px); }
+.bp-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3, 12px); }
+.bp-links a { color: var(--accent, #28618A); }
+.bp-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); color: var(--muted, #5B6574); }
+
+.bp-notices:empty { display: none; }
+.bp-notice {
+  margin: var(--space-2, 8px) 0;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-left: 2px solid var(--accent, #28618A);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+}
+.bp-problem { border-left-color: var(--danger, #B42318); }
+.bp-state.bp-problem { border-left: 2px solid var(--danger, #B42318); }
+
+.bp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+  gap: var(--space-4, 16px);
+  margin-top: var(--space-4, 16px);
+  min-width: 0;
+}
+.bp-layout--open { grid-template-columns: minmax(0, 1fr) minmax(0, 440px); }
+.bp-main, .bp-side { min-width: 0; display: flex; flex-direction: column; gap: var(--space-3, 12px); }
+.bp-details { display: flex; flex-direction: column; gap: var(--space-2, 8px); min-width: 0; }
+.bp-details .bp-notice { margin: 0; }
+.bp-new { min-width: 0; }
+
+.bp-btn {
+  min-height: 36px;
+  padding: 0 var(--space-3, 12px);
+  border: 1px solid var(--border-strong, #9AA4B2);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font: inherit;
+  cursor: pointer;
+}
+.bp-btn:focus-visible, .bp-links a:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
+.bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #28618A); text-decoration: underline; }
+
+/* One column: the open delivery comes first, then the table, then the notifications. */
+@media (max-width: 900px) {
+  .bp-layout, .bp-layout--open { display: flex; flex-direction: column; }
+  .bp-side { display: contents; }
+  .bp-details { order: -1; }
+}
+
+@media (max-width: 390px) {
+  .bp { padding: var(--space-2, 8px); }
+  .bp-state, .bp-missing { padding: var(--space-3, 12px); }
+  .bp-layout { gap: var(--space-3, 12px); }
+  .bp-links .bp-btn { width: 100%; min-height: 44px; }
+}

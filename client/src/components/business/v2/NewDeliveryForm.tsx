@@ -152,7 +152,7 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
   };
 
   const alertText = locked
-    ? RESULT_COPY.locked
+    ? (p.status.kind === 'locked' && p.status.message) || RESULT_COPY.locked
     : p.status.kind === 'unavailable' ? RESULT_COPY.unavailable
     : p.status.kind === 'error' ? p.status.message
     : '';

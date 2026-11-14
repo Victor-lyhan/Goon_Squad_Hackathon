@@ -155,7 +155,8 @@ export type SubmitStatus =
   | { kind: 'submitting' }
   | { kind: 'matched'; shipmentId: string }
   | { kind: 'unmatched'; shipmentId: string; reason: string | null }
-  | { kind: 'locked' }
+  /** `message` is the server's 409 text when it sent one; the form falls back to RESULT_COPY.locked. */
+  | { kind: 'locked'; message?: string }
   | { kind: 'unavailable'; code: UnavailableCode }
   | { kind: 'error'; message: string; fieldErrors: FieldErrors };
 
@@ -191,7 +192,9 @@ export function mapServerFieldErrors(fieldErrors: Record<string, string> | undef
 /** Classifies a rejected onSubmit (an ApiRequestError from client/src/api, or anything else). */
 export function statusForError(error: unknown): SubmitStatus {
   const e = (error ?? {}) as { status?: unknown; code?: unknown; fieldErrors?: Record<string, string>; message?: unknown };
-  if (e.status === 409) return { kind: 'locked' };
+  if (e.status === 409) {
+    return typeof e.message === 'string' && e.message.trim() ? { kind: 'locked', message: e.message.trim() } : { kind: 'locked' };
+  }
   if (e.status === 503 && UNAVAILABLE_CODES.includes(e.code as UnavailableCode)) {
     return { kind: 'unavailable', code: e.code as UnavailableCode };
   }
