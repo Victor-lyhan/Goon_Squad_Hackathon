@@ -1,0 +1,79 @@
+/* MVP II Employee page (#438): page states, notices and the commute editor block.
+   Square corners (2px), 1px borders, no shadows. Fluid widths only: works at 390 px. */
+
+.ep {
+  max-width: 760px;
+  margin: 0 auto;
+  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  font-size: var(--text-sm, 14px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ep *, .ep *::before, .ep *::after { box-sizing: border-box; }
+
+.ep-state {
+  margin: var(--space-4, 16px);
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+}
+.ep-state h1 { font-size: 18px; font-weight: 600; margin: 0 0 var(--space-2, 8px); }
+.ep-state p { margin: 0 0 var(--space-2, 8px); }
+.ep-links { display: flex; flex-wrap: wrap; gap: var(--space-3, 12px); }
+.ep-links a { color: var(--accent, #28618A); }
+
+.ep-notices { padding: 0 var(--space-4, 16px); }
+.ep-notices:empty { display: none; }
+.ep-notice {
+  margin: var(--space-2, 8px) 0;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-left: 2px solid var(--accent, #28618A);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+}
+.ep-problem { border-left-color: var(--danger, #B42318); }
+.ep-success { border-left-color: var(--success, #1F7A4D); }
+
+.ep-editor {
+  margin-bottom: var(--space-4, 16px);
+  padding: var(--space-3, 12px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+}
+.ep-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+  margin-bottom: var(--space-2, 8px);
+}
+.ep-editor-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
+/* The page banner says it; the form's own message would repeat it. */
+.ep-form--quiet .cf-message { display: none; }
+
+.ep-btn {
+  min-height: 36px;
+  padding: 0 var(--space-3, 12px);
+  border: 1px solid var(--border-strong, #9AA4B2);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font: inherit;
+  cursor: pointer;
+}
+.ep-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.ep-btn:focus-visible, .ep-links a:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
+.ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #28618A); text-decoration: underline; }
+
+.ep-job { padding: var(--space-4, 16px); }
+
+@media (max-width: 390px) {
+  .ep-state { margin: var(--space-2, 8px); padding: var(--space-3, 12px); }
+  .ep-notices, .ep-job { padding-left: var(--space-2, 8px); padding-right: var(--space-2, 8px); }
+  .ep-editor { padding: var(--space-2, 8px); }
+  .ep-editor-head { flex-wrap: wrap; }
+}
