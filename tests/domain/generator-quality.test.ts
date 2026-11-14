@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DEMO_SCENARIO_OPTIONS, generateScenario } from '../../server/domain/generator.js';
@@ -21,17 +21,25 @@ function assignmentsFor(seed: number) {
 }
 
 describe('random city quality', () => {
-  it('has matches for every default seed and relay plans for most seeds', () => {
-    const results = Array.from({ length: 20 }, (_, index) => assignmentsFor(index + 1).result);
+  const seeds = Array.from({ length: 20 }, (_, index) => index + 1);
+  let assignments = new Map<number, ReturnType<typeof assignmentsFor>>();
+
+  // Measured locally at 2.95 s for this 20-seed generation/matching setup; CI reported 7.184 s.
+  beforeAll(() => {
+    assignments = new Map(seeds.map(seed => [seed, assignmentsFor(seed)]));
+  }, 30_000);
+
+  it('has matches for every default seed and relay plans for most seeds', { timeout: 30_000 }, () => {
+    const results = seeds.map(seed => assignments.get(seed)!.result);
 
     expect(results.every(result => result.plans.length > 0)).toBe(true);
     expect(results.filter(result => result.plans.some(plan => plan.kind === 'relay')).length).toBeGreaterThanOrEqual(15);
   });
 
-  it.each(Array.from({ length: 20 }, (_, index) => index + 1))(
+  it.each(seeds)(
     'uses friendly locations and unique display names for seed %i',
     seed => {
-      const scenario = generateScenario({ ...RANDOM_DEFAULTS, seed });
+      const scenario = assignments.get(seed)!.scenario;
       const nodes = new Map(scenario.graph.nodes.map(node => [node.id, node]));
       const usedNodeIds = [
         ...scenario.businesses.map(business => business.nodeId),
