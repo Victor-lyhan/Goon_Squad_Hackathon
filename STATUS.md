@@ -1,59 +1,59 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14, about 12:15 (Sat), planner pass 45 (started 12:01)_
+_Last update: 2026-11-14, about 12:36 (Sat), planner pass 46 (started 12:24)_
 
 ## Current milestone: M7 Foundation (MVP II, target 2:00 p.m. Sat)
-The contracts, the Google client and the map component are merged, so this pass queued everything that depends only on them: 16 issues (#338–#353), one layer deep. Nothing queued depends on unmerged work. MVP 1 still runs untouched on main; MVP II is built side by side (DECISIONS pass 44).
+The first layer is written: every issue from pass 45 has a PR, and the matcher and the travel providers are merged. This pass queued 15 issues (#372–#388) that depend only on merged work. The second layer (`snapshotAt`, fetch script, `/api/v2` routes, the three v2 pages) still waits for PRs in review. MVP 1 runs untouched on main.
 
-## Main health: GREEN
-- CI passed on #322 (PR #332) and #329 (PR #333). The run for #323 (PR #334) was still in progress at 12:01.
+## Main health: no failure known
+- Every merged PR was green on its branch. The three newest runs on main (#344, #327, the humans' commit) were still in progress at 12:24, and this planner run cannot list CI runs. No fix issue queued.
 
 ## Stuck
-- No issue or PR is labeled `stuck`.
-- **p2-a and p2-b have still not picked up anything** (#324–#326 and #317, #331 have been `ready` since 11:40; last activity about 6:30 a.m.). Five other workers took new issues within 10 minutes. See QUESTIONS pass 45.
+- Nothing is labeled `stuck`. p2-a and p2-b are working again (all 8 of their issues are in review or merged).
+- Review is the bottleneck: 15 issues are in review, 6 PRs merged in the last 15 minutes.
 
-## Merged since pass 44
-- PR #332 (#322) victor-1: `shared/v2` contracts (data model, `TravelProvider`, API types, schemas, fixture formats).
-- PR #334 (#323) victor-3: Google HTTP client (geocode, route matrix in ≤ 625-element batches, polylines).
-- PR #333 (#329) victor-2: Google basemap + deck.gl map component, all seven MVP II client dependencies.
-- #330 victor-2 is closed (PR #336, simulator workspace frame; it was green and in review at 12:01).
+## Merged since pass 45
+- PR #356 (#338) p1-a: v2 matcher on `TravelProvider` + `buildTrips`, relay through any business, §9 fixture. **Critical path, done.**
+- PR #359 (#341) victor-3: cache file IO, `CachedProvider`, `FakeProvider`, `GoogleProvider`.
+- PR #357 (#317) p2-b: commute form no longer resets on the 1 s poll (MVP 1 fallback fix).
+- PR #355 (#344) victor-1: typed `/api/v2` client. PR #354 (#347) victor-2: journey map props.
+- PR #337 (#328) p1-b: polyline geometry. PR #335 (#327) p1-b: NYC data set (merged by the humans).
 
-## In review
-- PR #335 (#327) p1-b: NYC data set (18 businesses, 8 neighborhoods, 9 featured employees, 24 packages). CI green.
-- #328 p1-b: polyline geometry (`server/domain/v2/polyline.ts`).
+## In review (PR open, CI green unless noted)
+- p1-b: #339 NYC generator (PR #360); #340 timeline, progress, metrics.
+- victor-1: #345 v2 read views (PR #361); #346 `/api/v2` mount + 503 + generic store.
+- victor-3: #342 route-fetch pipeline; #343 geocode handler + key loader.
+- victor-2: #348 network view model; #349 left-panel controls.
+- p2-a: #324 tokens (PR #358); #325 header + `/help` (PR #362); #326 homepage (PR #364); #351 shipments table.
+- p2-b: #331 address search (PR #363); #352 commute form; #353 Employee workspace view.
 
-## In progress (picked up within 10 minutes)
-- #338 p1-a **[critical path]**: matcher on `TravelProvider` + `buildTrips` (relay = any other business), §9 fixture on a fake provider.
-- #341 victor-3: cache file IO, `CachedProvider`, `FakeProvider`, `GoogleProvider`.
-- #344 victor-1: typed `/api/v2` client in `client/src/api/v2.ts`.
-- #347 victor-2: map extension for journeys (two leg tones, numbered stops, pan-to-point).
+## In progress
+- p1-a #372 matcher 2 s budget. p1-b #376 data fixes before the fetch. victor-1 #377 v2 pipeline + initial run.
+- victor-2 #350 **package journey model + timeline (M8 centerpiece)**. victor-3 #379 travel-cache report.
 
 ## Queued (label `ready`)
-- p1-b: #339 NYC generator (120-home pool, demo scenario, Random preset); #340 v2 timeline, progress-at-time and metrics.
-- victor-3: #342 route-fetch pipeline (plan + runner, no fs); #343 `GET /api/v2/geocode` handler + server key loader.
-- victor-1: #345 v2 read views incl. `MapResponse` polylines; #346 `/api/v2` mount with a 503 until NYC data is loaded, generic store.
-- victor-2: #350 **package journey model + timeline + Play-journey plan (M8 centerpiece)**; #348 network view model (selection, focus, hover); #349 left-panel controls.
-- p2-a: #324 tokens + UI kit; #325 header + `/help`; #326 homepage; #351 Business shipments table.
-- p2-b: #317 [P0 for the MVP 1 fallback] commute form resets on poll; #331 address search; #352 v2 commute form; #353 Employee workspace view.
+- p1-a: #374 independent plan checker + demo-story report; #375 remaining matcher spec tests (tests only).
+- victor-1: #378 commute-save logic (home resolution, pairs to fetch, apply to run).
+- victor-2: #380 simulator data layer; #381 inspector for business and employee; #382 along-route tween + Play-journey step driver.
+- p2-a: #384 New delivery form; #385 delivery details + match result; #386 Business data layer.
+- p2-b: #387 job detail; #388 Employee data layer.
+- p1-b and victor-3 have nothing `ready`: their next tasks need PRs that are still in review.
 
 ## Next up (each needs the issues in brackets merged first)
-- p1-b: `snapshotAt(run, timeMin, travel)` in `server/domain/v2/simulation.ts` [#328, #340]; real-data generator test [#335, #339].
-- victor-3: `scripts/fetch-routes.ts` + `npm run fetch:routes` [#335, #338, #339, #341, #342, #343].
-- victor-1: v2 initial run, pipeline, state file and the route groups, incl. mounting geocode [#338–#341, #343, #345, #346].
-- victor-2: the `/nyc/simulator` page: frame + map + network view + journey mode + controls on `client/src/api/v2` [#344, #347–#350]; then the inspector for business, employee and package.
-- p2-a: New delivery form, delivery details + match result, Business workspace page; font imports [#324]. p2-b: wire the employee workspace [#331, #344, #352, #353].
-- **HUMAN CHECKPOINT:** when the fetch script merges, Victor runs `npm run fetch:routes` and commits `fixtures/nyc/`. Nothing NYC runs before that; `/api/v2` answers 503 until then (#346).
-- Then: cutover (routes swap to the v2 pages, indicator text becomes "Real NYC locations · simulated deliveries"), delete MVP 1 code.
+- p1-b: `snapshotAt(run, timeMin, travel)` [#340]; real-data generator test [#339].
+- victor-3: `scripts/fetch-routes.ts` + `npm run fetch:routes`, printing the plan check and cache report [#339, #342, #343, #374, #379].
+- victor-1: v2 store bootstrap and route groups incl. geocode mount and commute save with live Google [#339, #340, #343, #345, #346, #377, #378].
+- victor-2: the `/nyc/simulator` page [#348–#350, #380–#382]. p2-a: Business page at `/nyc/business/:id` [#351, #384–#386] + font imports [#324]. p2-b: Employee page at `/nyc/employee/:id` [#331, #352, #353, #387, #388].
+- **HUMAN CHECKPOINT:** when the fetch script merges, Victor runs `npm run fetch:routes` and commits `fixtures/nyc/`. Until then `/api/v2` answers 503 by design. Confirm the four business addresses first (QUESTIONS).
+- Then: end-to-end test on cached NYC data, cutover (routes swap to the v2 pages), delete MVP 1 code.
 
 ## Done earlier
-- MVP 1 complete (M0–M6): must-haves 1–10, nice-to-haves 11–15, scrubber, Duplicate request, CI timing sweeps. PR #321 and earlier; see git log.
+- MVP 1 complete (M0–M6). M7 so far: contracts (#332), Google client (#334), map (#333), simulator frame (#336).
 
 ## Known bugs / gaps
-- Git tag `mvp1` (the fallback named in SPEC) does not exist in this clone.
-- Commute editor resets every second in a browser (#317), on the MVP 1 pages.
-- No agent can see the Google map (no keys). PR #333's map and #347's journey colors need one human look.
-- The Google request shapes in PR #334 are tested only against a fake `fetch`; the first real call is the human fetch.
-- #327's business addresses and featured home points come from the worker's own knowledge; a human should check them before geocoding (list in PR #335).
-- #347 and #348 carry a wrong issue number in their Context line (corrected in a comment; no effect on the work).
-- This planner run can't use `gh run list` or `gh pr list`; CI and PR state come from the prompt snapshot and `gh pr view`.
+- Server playback is too fast for journey mode (slowest speed = 30 simulated minutes per second). #382 steps with `seek` instead (DECISIONS pass 46; QUESTIONS).
+- Git tag `mvp1` still does not exist. #317 is merged, so now is the moment to tag.
+- `fixtures/nyc/demoStory.json`: emp-10's home is on a named building until #376 merges. Four business addresses are unconfirmed.
+- No agent has keys: the Google map (basemap, journey colors, markers) needs one human look, and the Google request shapes are tested only against a fake `fetch` until the human fetch.
+- This planner run can't use `gh run list`, `gh pr list` or `git pull`; state comes from the prompt snapshot, `gh pr view` and `gh issue list`.
 - The p1-b Codex sandbox can't run the API tests (EPERM on listen), so its PRs rely on CI.
