@@ -12,3 +12,12 @@
 @media (max-width: 600px) {
   .commute-editor__save { position: sticky; bottom: 0; padding: 10px 0; background: #fff; z-index: 2; }
 }
+.commute-editor__adjust { border: 1px solid #d0d7de; border-radius: 8px; padding: 8px 10px; }
+.commute-editor__adjust summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.commute-editor__dir { display: flex; gap: 6px; margin: 8px 0; }
+.commute-editor__dir-btn { flex: 1; min-height: 36px; border: 1px solid #d0d7de; border-radius: 8px; background: #fff; }
+.commute-editor__dir-btn.is-active { background: #1f6feb; color: #fff; border-color: #1f6feb; }
+.commute-editor__hint { margin: 0 0 6px; font-size: 0.85rem; color: #57606a; }
+.commute-editor__waypoints { margin: 0 0 6px; padding-left: 20px; }
+.commute-editor__waypoints li { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 32px; }
+.commute-editor__wp-error { margin: 0 0 6px; color: #b42318; font-size: 0.85rem; }

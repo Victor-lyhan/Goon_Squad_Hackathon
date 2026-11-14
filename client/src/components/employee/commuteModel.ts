@@ -93,3 +93,30 @@ export function validate(f: CommuteForm): Record<string, string> {
   }
   return errors;
 }
+
+export const MAX_WAYPOINTS = 3;
+export type WaypointDirection = 'evening' | 'morning';
+export const WAYPOINT_LIMIT_MESSAGE = 'Up to 3 waypoints';
+
+const viaKey = (d: WaypointDirection) => (d === 'evening' ? 'eveningViaNodeIds' : 'morningViaNodeIds') as
+  'eveningViaNodeIds' | 'morningViaNodeIds';
+
+/** Appends a waypoint; returns the same form plus `error` when the cap is hit. Duplicates of the last stop are ignored. */
+export function addWaypoint(
+  f: CommuteForm, dir: WaypointDirection, nodeId: string,
+): { form: CommuteForm; error?: string } {
+  const k = viaKey(dir);
+  const list = f[k];
+  if (list.length >= MAX_WAYPOINTS) return { form: f, error: WAYPOINT_LIMIT_MESSAGE };
+  if (list[list.length - 1] === nodeId) return { form: f };
+  return { form: { ...f, [k]: [...list, nodeId] } };
+}
+
+export function removeWaypoint(f: CommuteForm, dir: WaypointDirection, index: number): CommuteForm {
+  const k = viaKey(dir);
+  return { ...f, [k]: f[k].filter((_, i) => i !== index) };
+}
+
+export function clearWaypoints(f: CommuteForm, dir: WaypointDirection): CommuteForm {
+  return { ...f, [viaKey(dir)]: [] };
+}
