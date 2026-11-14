@@ -20,8 +20,9 @@ describe('landing.css at 390 px (NYC variant included)', () => {
     expect(css).toMatch(/\.landing \{[^}]*overflow-wrap: anywhere/);
   });
 
-  it('styles the NYC indicator line with the tokens', () => {
-    expect(css).toMatch(/\.landing-intro p\.landing-indicator \{[^}]*font-family: var\(--font-mono, [^)]*\)/);
+  it('styles the Relay points note with the tokens; the indicator line under the introduction is gone (#610)', () => {
+    expect(css).toMatch(/\.op-summary-item dd\.op-summary-hint \{[^}]*font-size: var\(--text-xs, [^)]*\)/);
+    expect(css).not.toContain('landing-indicator');
   });
 
   it('follows the design tokens: square corners, no shadows or gradients, fallbacks on every token', () => {
