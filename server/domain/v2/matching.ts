@@ -1,5 +1,5 @@
 import {
-  planIdFor, type AssignmentResult, type NetworkBusiness, type DeliveryPlan, type Employee, type Leg,
+  pairKey, planIdFor, type AssignmentResult, type NetworkBusiness, type DeliveryPlan, type Employee, type Leg,
   type TravelProvider, type Settings, type Shipment, type Stop, type Trip,
 } from '../../../shared/v2/types';
 import { customerPriceCents, legRewardCents, platformContributionCents } from '../pricing';
@@ -20,6 +20,24 @@ export type MatchMode = 'with_relay' | 'direct_only';
 export function assignShipments(
   shipments: Shipment[], ctx: MatchContext, opts?: { existing?: DeliveryPlan[]; mode?: MatchMode },
 ): AssignmentResult {
+  // Relay pairing and unmatched diagnosis revisit the same ordered pairs.
+  // Scope these caches to this allocation: commute saves can update the provider.
+  const travel = ctx.travel;
+  const memoize = (lookup: (from: string, to: string) => number) => {
+    const cache = new Map<string, number>();
+    return (from: string, to: string): number => {
+      const key = pairKey(from, to);
+      if (cache.has(key)) return cache.get(key)!;
+      const value = lookup(from, to); // Missing pairs still throw; never cache failures.
+      cache.set(key, value);
+      return value;
+    };
+  };
+  ctx = { ...ctx, travel: {
+    durationMin: memoize((from, to) => travel.durationMin(from, to)),
+    distanceM: memoize((from, to) => travel.distanceM(from, to)),
+    polyline: (from, to) => travel.polyline(from, to),
+  } };
   const plans = [...(opts?.existing ?? [])];
   const assigned = new Set(plans.map(plan => plan.shipmentId));
   const reserved = new Set(plans.flatMap(plan => plan.legs.map(leg => leg.tripId)));
