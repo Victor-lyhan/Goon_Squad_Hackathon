@@ -18,7 +18,7 @@ import {
   accessibleName, all, byId, focusVisibleSelectors, matchesSelector, parseCss, parseHtml, tabOrder, textOf, v2CssFiles,
   type El,
 } from './employee-v2-qa-helpers';
-import { ACME, BUSINESSES, DASHBOARD, UNMATCHED_REASON, ready } from './business-v2-page-sample';
+import { ACME, BUSINESSES, DASHBOARD, DIRECT, UNMATCHED_REASON, ready } from './business-v2-page-sample';
 
 const BUSINESS_DIR = 'client/src/components/business/v2';
 const focusSelectors = v2CssFiles(BUSINESS_DIR).flatMap((f) => focusVisibleSelectors(parseCss(readFileSync(f, 'utf8'))));
@@ -125,14 +125,11 @@ describe('keyboard walk (#497)', () => {
     expect(names.slice(close, names.indexOf('View journey')).length).toBeGreaterThan(1); // carrier link(s)
   });
 
-  it('result cards: the View delivery button in a matched and an unmatched result', () => {
-    for (const status of [
-      { kind: 'matched', shipmentId: 'shp-1' },
-      { kind: 'unmatched', shipmentId: 'shp-2', reason: UNMATCHED_REASON },
-    ] as SubmitStatus[]) {
-      const names = walkTabs(form(status));
-      expect(names.slice(-3)).toEqual(['View delivery', 'Send request', 'Cancel']);
-    }
+  it('result cards: View delivery and Watch in simulator in a matched result, View delivery in an unmatched one', () => {
+    const matched = walkTabs(form({ kind: 'matched', shipmentId: DIRECT.shipment.id, response: { ...DIRECT, matched: true } }));
+    expect(matched.slice(-4)).toEqual(['View delivery', 'Watch in simulator', 'Send request', 'Cancel']);
+    const unmatched = walkTabs(form({ kind: 'unmatched', shipmentId: 'shp-2', reason: UNMATCHED_REASON }));
+    expect(unmatched.slice(-3)).toEqual(['View delivery', 'Send request', 'Cancel']);
   });
 
   it('problem states: Retry, Dismiss and Back to deliveries are reachable and named', () => {
@@ -167,7 +164,7 @@ describe('announcements (#497)', () => {
   });
 
   it('"Delivery arranged" and "No matching commute yet" with the reason are in a status region', () => {
-    const ok = form({ kind: 'matched', shipmentId: 'shp-1' });
+    const ok = form({ kind: 'matched', shipmentId: DIRECT.shipment.id, response: { ...DIRECT, matched: true } });
     const region = all(ok, (e) => e.attrs.role === 'status')[0];
     expect(textOf(region)).toContain(RESULT_COPY.matched);
     const none = form({ kind: 'unmatched', shipmentId: 'shp-2', reason: UNMATCHED_REASON });
