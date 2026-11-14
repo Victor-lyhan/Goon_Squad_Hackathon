@@ -1,12 +1,16 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CityMap } from '../../client/src/components/CityMap';
-import { MapMarkers } from '../../client/src/components/sim/MapMarkers';
 import { estimateTextWidth, LABEL_FONT, placeLabels, projectNodes } from '../../client/src/components/sim/mapGeometry';
-import { selectedRoutes } from '../../client/src/components/sim/simPageModel';
 import { createInitialRun } from '../../server/api/initialRun';
 import { buildSimulatorResponse } from '../../server/api/simulator';
 import { generateScenario } from '../../server/domain/generator';
+
+/** The selected package's legs, as the deleted MVP 1 page passed them to CityMap. */
+function selectedRoutes(sim: { plans: { shipmentId: string; legs: { routeNodeIds: string[] }[] }[] }, id?: string) {
+  const plan = id ? sim.plans.find((p) => p.shipmentId === id) : undefined;
+  return { legs: plan ? plan.legs.map((l) => l.routeNodeIds) : [], baselines: [] as string[][] };
+}
 
 const run = createInitialRun(generateScenario({
   preset: 'random', seed: 7, employees: 200, packages: 60, hubs: 10, maxExtraMin: 8,
@@ -33,9 +37,7 @@ function render(t: number, selectedId?: string) {
   const html = renderToStaticMarkup(
     <CityMap graph={s.graph} businesses={s.businesses} hubs={s.hubs}
       homes={s.employees.map((e) => ({ employeeId: e.id, nodeId: e.homeNodeId }))}
-      highlightRoutes={routes.legs} baselineRoutes={routes.baselines}>
-      <MapMarkers graph={s.graph} snapshot={sim.snapshot} clock={sim.clock} />
-    </CityMap>,
+      highlightRoutes={routes.legs} baselineRoutes={routes.baselines} />,
   );
   return { html, sim, ms: performance.now() - t0 };
 }
@@ -74,10 +76,9 @@ describe('largest random city map', { timeout: 15_000 }, () => {
     // One render takes 2–10 ms with this file alone and up to 69 ms inside the full parallel `vitest run`
     // (Apple-silicon laptop). The 700 ms limit is 10x the worst and only catches an order-of-magnitude
     // slowdown (DECISIONS pass 52); CI runners are 1.5x–3.5x slower than a laptop.
-    it('draws exactly the snapshot markers, no NaN/undefined/raw node ids, under 700 ms', () => {
-      const { html, sim, ms } = render(t);
-      expect(count(html, /class="marker-vehicle/g)).toBe(sim.snapshot.markers.length);
-      expect(count(html, /class="marker-package"/g)).toBe(Object.keys(sim.snapshot.packagePositions).length);
+    // Marker counts left with MapMarkers (#567); the map itself keeps its checks.
+    it('draws no NaN/undefined/raw node ids, under 700 ms', () => {
+      const { html, ms } = render(t);
       expect(html).not.toMatch(/NaN|undefined|Infinity/);
       const text = html.replace(/<[^>]*>/g, ' ');
       for (const n of s.graph.nodes) expect(text).not.toMatch(new RegExp(`(^|\\s)${n.id}(\\s|$)`));

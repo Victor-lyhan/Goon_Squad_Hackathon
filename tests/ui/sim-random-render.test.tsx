@@ -1,13 +1,17 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CityMap } from '../../client/src/components/CityMap';
-import { MapMarkers } from '../../client/src/components/sim/MapMarkers';
 import { computeViewBox, pointProjector } from '../../client/src/components/sim/mapGeometry';
-import { selectedRoutes } from '../../client/src/components/sim/simPageModel';
 import { createInitialRun } from '../../server/api/initialRun';
 import { buildSimulatorResponse } from '../../server/api/simulator';
 import { snapshotAt } from '../../server/domain/simulation';
 import { generateScenario } from '../../server/domain/generator';
+
+/** The selected package's legs, as the deleted MVP 1 page passed them to CityMap. */
+function selectedRoutes(sim: { plans: { shipmentId: string; legs: { routeNodeIds: string[] }[] }[] }, id?: string) {
+  const plan = id ? sim.plans.find((p) => p.shipmentId === id) : undefined;
+  return { legs: plan ? plan.legs.map((l) => l.routeNodeIds) : [], baselines: [] as string[][] };
+}
 
 const cities: [string, number, number][] = [['seed 3', 3, 4], ['seed 11', 11, 4], ['zero hubs', 5, 0]];
 
@@ -48,9 +52,7 @@ function renderAt(run: ReturnType<typeof build>['run'], t: number, selectedId?: 
   const html = renderToStaticMarkup(
     <CityMap graph={s.graph} businesses={s.businesses} hubs={s.hubs}
       homes={s.employees.map((e) => ({ employeeId: e.id, nodeId: e.homeNodeId }))}
-      highlightRoutes={routes.legs} baselineRoutes={routes.baselines}>
-      <MapMarkers graph={s.graph} snapshot={sim.snapshot} clock={sim.clock} />
-    </CityMap>,
+      highlightRoutes={routes.legs} baselineRoutes={routes.baselines} />,
   );
   return { html, sim };
 }

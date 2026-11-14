@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { MarkerPosition } from '../../shared/types';
 import { shouldTween, tweenMarkers, tweenPackages } from '../../client/src/components/sim/markerTween';
@@ -18,21 +17,5 @@ describe('reduced motion tween', () => {
   it('shouldTween is the inverse flag', () => {
     expect(shouldTween(true)).toBe(false);
     expect(shouldTween(false)).toBe(true);
-  });
-});
-
-describe('MapMarkers.css', () => {
-  const css = readFileSync('client/src/components/sim/MapMarkers.css', 'utf8');
-  it('has no unguarded transition/animation', () => {
-    // Strip @media blocks (one nesting level), then ensure nothing motion-related remains.
-    const outside = css.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, (blk) => {
-      const guarded = /prefers-reduced-motion:\s*no-preference/.test(blk)
-        || (/prefers-reduced-motion:\s*reduce/.test(blk) && !/(transition|animation)\s*:\s*(?!none)\S/.test(blk));
-      return guarded ? '' : blk;
-    });
-    expect(outside).not.toMatch(/\b(transition|animation)\b/);
-  });
-  it('turns motion off under reduce', () => {
-    expect(css).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*transition:\s*none[\s\S]*animation:\s*none/);
   });
 });

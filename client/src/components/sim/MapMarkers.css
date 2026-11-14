@@ -1,7 +1,0 @@
-.city-map .marker-vehicle { fill: var(--accent, #f97316); stroke: #fff; stroke-width: 3; }
-.city-map .marker-vehicle.carrying { fill: #7c3aed; }
-.city-map .marker-ring { fill: none; stroke: #16a34a; stroke-width: 4; }
-.city-map .marker-package { fill: #f59e0b; stroke: #78350f; stroke-width: 2; }
-@media (prefers-reduced-motion: reduce) {
-  .city-map .marker-vehicle, .city-map .marker-ring, .city-map .marker-package { transition: none !important; animation: none !important; }
-}

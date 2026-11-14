@@ -1,29 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CityMap } from '../../client/src/components/CityMap';
-import { selectedRoutes } from '../../client/src/components/sim/simPageModel';
 import type { Graph } from '../../shared/types';
-
-const leg = (routeNodeIds: string[]) => ({ tripId: 't', employeeId: 'e', routeNodeIds });
-const sim = {
-  plans: [
-    { id: 'p1', shipmentId: 's1', kind: 'direct', legs: [leg(['a', 'b'])] },
-    { id: 'p2', shipmentId: 's2', kind: 'relay', legs: [leg(['a', 'b', 'c']), leg(['d', 'e'])] },
-  ],
-} as any;
-
-describe('selectedRoutes', () => {
-  it('direct: one leg', () => {
-    expect(selectedRoutes(sim, 's1')).toEqual({ legs: [['a', 'b']], baselines: [] });
-  });
-  it('relay: one list per leg', () => {
-    expect(selectedRoutes(sim, 's2').legs).toEqual([['a', 'b', 'c'], ['d', 'e']]);
-  });
-  it('empty when nothing selected or unmatched', () => {
-    expect(selectedRoutes(sim, undefined)).toEqual({ legs: [], baselines: [] });
-    expect(selectedRoutes(sim, 'sX')).toEqual({ legs: [], baselines: [] });
-  });
-});
 
 const graph = {
   nodes: [0, 1, 2, 3].map((i) => ({ id: `n${i}`, x: i, y: 0 })),
