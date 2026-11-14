@@ -94,31 +94,31 @@
 .spc-journey { display: grid; gap: var(--space-3, 12px); }
 .spc-journey__foot { padding: 0 var(--space-4, 16px) var(--space-3, 12px); }
 
-/* ---------- Right panel: Play journey (#496) ---------- */
-.spc-play {
-  display: grid;
-  grid-template-columns: auto 1fr;
+/* ---------- Map: the overnight card of a relay journey (#648) ---------- */
+/* In place of the night: centered over the map for about 1 s, dark like the night it stands for. */
+.spc-overnight {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: flex;
   align-items: center;
-  gap: var(--space-2, 8px) var(--space-3, 12px);
-  padding: 0 var(--space-4, 16px);
-}
-.spc-play__hint {
-  color: var(--muted, #5B6472);
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
-  font-size: var(--text-xs, 12px);
-}
-.spc-play__note,
-.spc-play__status,
-.spc-play__error {
-  grid-column: 1 / -1;
+  gap: var(--space-2, 8px);
+  max-width: calc(100% - 48px);
   margin: 0;
-  font-size: var(--text-sm, 13px);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  background: var(--text, #151B26);
+  border: 1px solid var(--text, #151B26);
+  border-radius: var(--radius, 2px);
+  color: var(--panel, #FFFFFF);
+  font-size: var(--text-lg, 18px);
+  font-weight: 600;
+  line-height: 1.2;
 }
-.spc-play__note { color: var(--muted, #5B6472); }
-/* The status line stays in the page when empty (never display: none), so its next text is announced. */
-.spc-play__error { color: var(--danger, #A4322A); }
+.spc-overnight__icon { flex: none; }
 
-/* While Play journey runs, the step the package is heading for is marked more strongly. */
+/* While the journey plays, the step the package is heading for is marked more strongly. */
 .spc-journey--playing .jt-step__button[aria-current='step'] {
   border-left-width: 4px;
 }

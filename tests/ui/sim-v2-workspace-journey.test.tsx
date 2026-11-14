@@ -8,7 +8,7 @@ import { LEFT_BODY_ID, RIGHT_BODY_ID, SimWorkspace } from '../../client/src/comp
 import type { PanelState } from '../../client/src/components/sim/v2/workspaceModel';
 import { button, buttons, click, mount, press, textOf } from './kitDom';
 import {
-  FakeSimServer, T, journeySteps, mountBody, packageRow, panelToggle, readyState, rightBody,
+  FakeSimServer, T, journeySteps, mountBody, packageRow, panelToggle, playPause, readyState, rightBody,
 } from './sim-v2-dom-helpers';
 
 const google = vi.hoisted(() => ({ loads: 0 }));
@@ -194,7 +194,7 @@ describe('leaving a journey', () => {
 describe('the simulator page body', () => {
   const COFFEE = 'Coffee samples'; // shp-2, the relay package
 
-  it('a package picked with the Inspector collapsed shows its timeline and Play journey', () => {
+  it('a package picked with the Inspector collapsed shows its timeline', () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountBody(server);
     click(panelToggle(c, 'right'));
@@ -205,7 +205,9 @@ describe('the simulator page body', () => {
     expect(panelToggle(c, 'right').getAttribute('aria-expanded')).toBe('true');
     expect(journeySteps(c)).toHaveLength(4);
     expect(journeySteps(c).every((s) => s.closest('[hidden]') === null)).toBe(true);
-    expect(button(rightBody(c), 'Play journey').closest('[hidden]')).toBeNull();
+    // #648: the one Play/Pause button is in the left panel; the journey panel has none of its own.
+    expect(buttons(rightBody(c), /^(Play|Pause|Stop)/)).toHaveLength(0);
+    expect(playPause(c).closest('[hidden]')).toBeNull();
   }, T);
 
   it('"Back to network" in either panel leaves the focus inside the workspace', () => {

@@ -8,7 +8,7 @@
 // Data comes from the hand-built samples: `sim-v2-journey-sample.ts` (a direct, a relay and an
 // unmatched package) and `sim-v2-data-fixtures.ts` (an empty run with another runId).
 import { act, createElement, useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router-dom';
 import { vi } from 'vitest';
 import type { MapResponse, SimulatorResponse } from '../../shared/v2/api';
 import type { SimControlRequest } from '../../shared/v2/schemas';
@@ -39,10 +39,10 @@ export function relayStatusAt(timeMin: number): ShipmentProgress {
   return 'delivered';
 }
 
-/** The sample run at `timeMin`, with a next event so the next-event key is enabled. */
+/** The sample run at `timeMin`. */
 export function runAt(timeMin: number, over: Partial<SimulatorResponse> = {}): SimulatorResponse {
   const base = sampleSimAt(timeMin, { 'shp-2': relayStatusAt(timeMin) });
-  // The fake server moves every marker a little each minute, so a Play journey step has movement to draw.
+  // The fake server moves every marker a little each minute, so a journey step has movement to draw.
   const drift = (timeMin - 1000) * 0.00002;
   const snapshot = {
     ...base.snapshot,
@@ -91,6 +91,8 @@ export class FakeSimServer {
   readonly selections: Selection[] = [];
   /** Every URL search string the page showed (SimulatorV2Workspace mounts only). */
   readonly searches: string[] = [];
+  /** How the page got to each entry of `searches`: 'POP' (the first URL, Back), 'PUSH' or 'REPLACE'. */
+  readonly navigations: string[] = [];
   /** When true every write answers null, like the hook after a refused request. */
   refuse = false;
   private listeners = new Set<() => void>();
@@ -132,8 +134,10 @@ export class FakeSimServer {
     const cur = this.state.sim;
     if (!cur) return null;
     let next: SimulatorResponse;
-    if (req.action === 'seek') next = runAt(req.timeMin, { runId: cur.runId });
+    if (req.action === 'seek') next = runAt(req.timeMin, { runId: cur.runId, clock: { ...runAt(req.timeMin).clock, speed: cur.clock.speed } });
     else if (req.action === 'play' || req.action === 'pause') next = { ...cur, clock: { ...cur.clock, playing: req.action === 'play' } };
+    else if (req.action === 'speed') next = { ...cur, clock: { ...cur.clock, speed: req.speed } };
+    else if (req.action === 'reset_playback') next = runAt(930, { runId: cur.runId, clock: { ...runAt(930).clock, playing: false, speed: cur.clock.speed } });
     else next = cur;
     this.set({ ...this.state, sim: next });
     return next;
@@ -179,7 +183,11 @@ export function mountBody(server: FakeSimServer, initial: Selection = null): Mou
 
 function LocationProbe({ server }: { server: FakeSimServer }) {
   const { search } = useLocation();
-  if (server.searches[server.searches.length - 1] !== search) server.searches.push(search);
+  const how = useNavigationType();
+  if (server.searches[server.searches.length - 1] !== search) {
+    server.searches.push(search);
+    server.navigations.push(how);
+  }
   return null;
 }
 
@@ -235,8 +243,18 @@ export const packageLabels = (c: ParentNode) =>
 /** The numbered step buttons of the journey timeline. */
 export const journeySteps = (c: ParentNode) => [...c.querySelectorAll<HTMLButtonElement>('.jt__steps .jt-step__button')];
 
-/** The Play journey step line (its live region). */
-export const playStatus = (c: ParentNode) => c.querySelector<HTMLElement>('.spc-play [role="status"]');
+/** The one Play/Pause button of the left panel (#648), whatever it reads now. */
+export function playPause(c: ParentNode): HTMLButtonElement {
+  const all = [...leftBody(c).querySelectorAll<HTMLButtonElement>('.ctl-playback button.ctl-primary')];
+  if (all.length !== 1) throw new Error(`playPause(): ${all.length} Play/Pause buttons`);
+  return all[0];
+}
+
+/** The step line under the Play/Pause button (its live region). */
+export const playStatus = (c: ParentNode) => c.querySelector<HTMLElement>('.ctl-playback [role="status"]');
+
+/** The "Overnight at <relay point>" card over the map, or null while it is not shown. */
+export const overnightCard = (c: ParentNode) => c.querySelector<HTMLElement>('.spc-overnight');
 
 /** Elements a Tab key could reach: focusable and not inside a `hidden` subtree or disabled. */
 export function tabbable(root: ParentNode): HTMLElement[] {

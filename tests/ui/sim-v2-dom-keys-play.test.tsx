@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-// Keys during "Play journey" on the MVP II simulator page, in a real DOM with fake timers (#607):
-// a key that sends a control (".", Space) stops the running journey first, exactly as the playback
-// buttons do, so the player's next step never seeks back over the key's request. Before #607 the
-// keyboard path called the data hook's `control` directly and the journey kept seeking.
+// Keys while a journey plays on the simulator page, in a real DOM with fake timers (#607, #648).
+// Space is the one Play/Pause button from wherever the focus is (except a text field and a control
+// with its own Space), so it pauses the running journey and never starts the server clock under it;
+// "." is no longer a key of the page, so it leaves the journey running.
 // The map runs in its no-key state: the Google loader is replaced by a recorder that must stay unused.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { button, buttons, byLabel, click, press, textOf } from './kitDom';
+import { byLabel, click, press, textOf } from './kitDom';
 import {
-  FakeSimServer, T, advance, currentSearch, journeySteps, leftBody, mountPage, playStatus, readyState,
+  FakeSimServer, T, advance, currentSearch, journeySteps, leftBody, mountPage, playPause, playStatus, readyState,
 } from './sim-v2-dom-helpers';
 
 const google = vi.hoisted(() => ({ loads: 0 }));
@@ -28,105 +28,80 @@ afterEach(() => {
 });
 
 const STEP_MS = 500;
-const playButton = (c: ParentNode) => button(c, 'Play journey');
-const stopButton = (c: ParentNode) => button(c, 'Stop');
+const TWO_SEEKS = [{ action: 'seek', timeMin: 1039 }, { action: 'seek', timeMin: 1041 }];
 
-/** The page on the relay package with Play journey running: two seeks sent, the focus on Stop. */
+/** The page on the relay package with its journey playing: two seeks sent, the focus on the button (it reads Pause). */
 async function playing() {
   const server = new FakeSimServer(readyState(1000));
   const { container: c } = mountPage(server, '?package=shp-2');
-  click(playButton(c));
+  click(playPause(c));
   await advance(STEP_MS);
   expect(server.seeks()).toEqual([1039, 1041]);
-  expect(document.activeElement).toBe(stopButton(c));
+  expect(textOf(playPause(c))).toBe('Pause');
+  expect(document.activeElement).toBe(playPause(c));
   return { server, c };
 }
 
-/** Lets the journey's timers run on; a journey that was not stopped would send a seek per step. */
+/** Lets the journey's timers run on; a journey that was not paused would send a seek per step. */
 const wait = () => advance(20 * STEP_MS);
 
-describe('a key that sends a control stops Play journey first', () => {
-  it('"." with the focus on the Stop button: next event is sent, no seek follows, "Journey stopped." shows', async () => {
+describe('Space pauses a playing journey from wherever the focus is', () => {
+  it('from the page body: "Journey paused.", no seek follows, and no play or pause request is sent', async () => {
     const { server, c } = await playing();
-
-    press('.', document.activeElement!); // where a click on Play journey leaves the focus
-    expect(server.controls().slice(-1)).toEqual([{ action: 'next_event' }]);
-    expect(textOf(playStatus(c)!)).toBe('Journey stopped.');
-    expect(playButton(c)).toBeTruthy();
-    expect(buttons(c, 'Stop')).toHaveLength(0);
+    (document.activeElement as HTMLElement).blur();
+    press(' ', document.body);
+    expect(textOf(playStatus(c)!)).toBe('Journey paused.');
+    expect(textOf(playPause(c))).toBe('Play');
 
     await wait();
-    expect(server.seeks()).toEqual([1039, 1041]);
-    expect(server.controls()).toEqual([
-      { action: 'seek', timeMin: 1039 }, { action: 'seek', timeMin: 1041 }, { action: 'next_event' },
-    ]);
-    expect(textOf(playStatus(c)!)).toBe('Journey stopped.');
+    expect(server.controls()).toEqual(TWO_SEEKS); // the server clock was never started under the journey
     expect(currentSearch(server)).toBe('?package=shp-2'); // still in the journey
     expect(journeySteps(c)).toHaveLength(4);
   }, T);
 
-  it('"." from the page body does the same', async () => {
+  it('from the focus dropdown (a click leaves the focus there)', async () => {
     const { server, c } = await playing();
-    (document.activeElement as HTMLElement).blur();
-    press('.', document.body);
-    expect(textOf(playStatus(c)!)).toBe('Journey stopped.');
+    const dropdown = byLabel(leftBody(c), 'Focus on employee');
+    dropdown.focus();
+    press(' ', dropdown);
+    expect(textOf(playStatus(c)!)).toBe('Journey paused.');
     await wait();
-    expect(server.controls()).toEqual([
-      { action: 'seek', timeMin: 1039 }, { action: 'seek', timeMin: 1041 }, { action: 'next_event' },
-    ]);
-  }, T);
-
-  it('Space from the scrubber: play is sent and no seek follows', async () => {
-    const { server, c } = await playing();
-    const range = byLabel(leftBody(c), 'Simulation time');
-    range.focus();
-    press(' ', range);
-    expect(server.controls().slice(-1)).toEqual([{ action: 'play' }]);
-    expect(textOf(playStatus(c)!)).toBe('Journey stopped.');
-    await wait();
-    expect(server.seeks()).toEqual([1039, 1041]);
-    expect(server.controls()).toHaveLength(3);
-  }, T);
-
-  it('the "Next event" button behaves the same (the keys now match it)', async () => {
-    const { server, c } = await playing();
-    click(button(leftBody(c), 'Next event'));
-    expect(textOf(playStatus(c)!)).toBe('Journey stopped.');
-    await wait();
-    expect(server.controls()).toEqual([
-      { action: 'seek', timeMin: 1039 }, { action: 'seek', timeMin: 1041 }, { action: 'next_event' },
-    ]);
+    expect(server.controls()).toEqual(TWO_SEEKS);
   }, T);
 });
 
-describe('a key that sends nothing leaves Play journey running', () => {
-  it('Space on the focused Stop button is the button\'s own; "." in the package search is text', async () => {
+describe('a key that is not the page\'s leaves the journey running', () => {
+  it('Space on the focused Pause button is the button\'s own click, not a second toggle', async () => {
     const { server, c } = await playing();
     press(' ', document.activeElement!); // keydown only reaches the page's map; the map leaves it to the button
-    expect(buttons(c, 'Stop')).toHaveLength(1);
-
-    const search = byLabel(leftBody(c), 'Search packages');
-    search.focus();
-    press('.', search);
-    expect(buttons(c, 'Stop')).toHaveLength(1);
-    expect(server.controls().every((r) => r.action === 'seek')).toBe(true);
-
+    expect(textOf(playPause(c))).toBe('Pause');
     await advance(2 * STEP_MS);
     expect(server.seeks()).toEqual([1039, 1041, 1043, 1045]);
   }, T);
 
-  it('"." with no next event left sends nothing and stops nothing, like the disabled button', async () => {
+  it('Space in the package search is text', async () => {
     const { server, c } = await playing();
-    await advance(14 * STEP_MS); // over the night to 1953: the sample has no next event from 1950 on
-    expect(server.state.sim?.nextEventMin).toBeNull();
-    expect(button(leftBody(c), 'Next event').disabled).toBe(true);
-    const sent = server.controls().length;
+    const search = byLabel(leftBody(c), 'Search packages');
+    search.focus();
+    press(' ', search);
+    expect(textOf(playPause(c))).toBe('Pause');
+    await advance(2 * STEP_MS);
+    expect(server.seeks()).toEqual([1039, 1041, 1043, 1045]);
+  }, T);
 
+  it('"." does nothing any more (#648): from the button, the body or the search, the journey plays on', async () => {
+    const { server, c } = await playing();
+    press('.', document.activeElement!);
     (document.activeElement as HTMLElement).blur();
     press('.', document.body);
-    expect(server.controls()).toHaveLength(sent);
-    expect(buttons(c, 'Stop')).toHaveLength(1);
-    await advance(STEP_MS);
-    expect(server.seeks().length).toBe(sent + 1);
+    const search = byLabel(leftBody(c), 'Search packages');
+    search.focus();
+    press('.', search);
+    expect(textOf(playPause(c))).toBe('Pause');
+    expect(server.controls()).toEqual(TWO_SEEKS);
+
+    await advance(2 * STEP_MS);
+    expect(server.seeks()).toEqual([1039, 1041, 1043, 1045]);
+    expect(server.controls().every((r) => r.action === 'seek')).toBe(true);
   }, T);
 });

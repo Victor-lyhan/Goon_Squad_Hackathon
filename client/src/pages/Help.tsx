@@ -21,7 +21,7 @@ export const NYC_HELP_STEPS: readonly Step[] = [
   { title: 'Request a delivery', text: 'In Business, choose New delivery, pick a recipient business, describe the package and choose Send request.', target: 'business', action: 'Open Business' },
   { title: 'Read the match', text: 'The backend plans it on a commute, direct or through a relay point: a network business that holds the package overnight. The delivery shows its ETA, price and carriers.', target: 'business', action: 'Open Business' },
   { title: 'See the new job', text: 'Back in Employee, without refreshing, the new job is already listed with its stops and reward.', target: 'employee', action: 'Open Employee' },
-  { title: 'Run the simulation', text: 'In Simulator, select the package and choose Play journey to follow it along its route, or use Play and Jump to morning to run the whole network.', target: 'simulator', action: 'Open Simulator' },
+  { title: 'Run the simulation', text: 'In Simulator, select the package and choose Play to follow it along its route; the night at the relay point is skipped. With no package selected, Play runs the whole network.', target: 'simulator', action: 'Open Simulator' },
   { title: 'Check the results', text: 'Sender and recipient tracking and employee earnings update from the same run.', target: 'business', action: 'Open Business' },
 ];
 

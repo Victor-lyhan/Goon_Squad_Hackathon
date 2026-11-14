@@ -1,19 +1,16 @@
 /**
- * Pure parts of the MVP II simulator page state (#459): the selection read from and written to the
- * URL (DECISIONS pass 47), the keyboard map applied to the page, the listener wiring and the
- * desktop-only media query. No React and no window reads, so Node tests drive every branch;
- * `useSimPageState.ts` only plugs these into React Router and `window`.
+ * Pure parts of the simulator page state (#459): the selection read from and written to the
+ * URL (DECISIONS pass 47), `play=1` (#648), the keyboard map applied to the page, the listener
+ * wiring and the desktop-only media query. No React and no window reads, so Node tests drive every
+ * branch; `useSimPageState.ts` only plugs these into React Router and `window`.
  *
- * Nothing about a delivery is computed here: a key either changes the selection (the URL) or sends
- * the same SimControlRequest the playback buttons send, through the data hook's `control`.
+ * Nothing about a delivery is computed here: a key either changes the selection (the URL) or
+ * presses the page's one Play/Pause button (#648).
  */
-import type { SimControlRequest } from '../../../../../../shared/v2/schemas';
-import { SIM_WINDOW } from '../compose/simPageView';
-import { playbackRequest, toPlaybackView } from '../controls/controlsModel';
 import type { SimDataState } from '../live/simDataModel';
 import type { Selection } from '../network/selectionModel';
 import { isControlTarget, isTextTarget, simKeyAction, type SimKeyEvent, type SimKeyState } from './keyMap';
-import { parseSimUrl, simUrlFor } from './urlState';
+import { hasAutoPlayKey, parseSimUrl, simUrlFor, wantsAutoPlay, withoutAutoPlay } from './urlState';
 
 // ---------- URL <-> selection ----------
 
@@ -47,6 +44,23 @@ export function locationForSelection(next: Selection, current: SimLocation): Sim
   return search === null ? null : { pathname: current.pathname, search, hash: current.hash };
 }
 
+// ---------- `play=1` (#648) ----------
+
+/** True when the URL asks to start the journey: `?package=<id>&play=1`. */
+export function autoPlayFromSearch(search: string): boolean {
+  return wantsAutoPlay(search);
+}
+
+/**
+ * Where the page goes once Play was asked for: the same path, hash and query string without the
+ * `play` key, or null when the key is not there. The page replaces (never pushes), so Back does not
+ * return to a URL that starts the journey again.
+ */
+export function locationWithoutAutoPlay(current: SimLocation): SimLocation | null {
+  if (!hasAutoPlayKey(current.search)) return null;
+  return { pathname: current.pathname, search: withoutAutoPlay(current.search), hash: current.hash };
+}
+
 // ---------- Run change (#579) ----------
 
 /**
@@ -63,11 +77,11 @@ export function isNewRun(shown: string | null, polled: string | null): boolean {
 /** What the page does for one key press. */
 export type SimKeyEffect =
   | { kind: 'select'; selection: Selection }
-  | { kind: 'control'; request: SimControlRequest };
+  | { kind: 'toggle_play' };
 
 export type SimKeyContext = {
   selection: Selection;
-  data: Pick<SimDataState, 'sim' | 'busy'>;
+  data: Pick<SimDataState, 'sim'>;
 };
 
 export function simKeyState({ selection, data }: SimKeyContext): SimKeyState {
@@ -80,22 +94,16 @@ export function simKeyState({ selection, data }: SimKeyContext): SimKeyState {
 
 /**
  * The effect of a key press, or null. Esc changes the selection (works before the first poll too);
- * Space and the next-event key send the request the matching playback button sends, and do nothing
- * while that button would be disabled (no run yet, an action open, nothing left to play).
- * Which focused elements keep a key for themselves is the key map's rule (`simKeyAction`).
+ * Space presses the one Play/Pause button, so it does what the button does (the picked package's
+ * journey, or the server clock) and nothing while the button is disabled; before the first poll
+ * there is no button, so no effect. Which focused elements keep a key for themselves is the key
+ * map's rule (`simKeyAction`).
  */
 export function simKeyEffect(event: SimKeyEvent, ctx: SimKeyContext): SimKeyEffect | null {
   const action = simKeyAction(event, simKeyState(ctx));
   if (action === null) return null;
   if (action === 'exit_journey' || action === 'clear_selection') return { kind: 'select', selection: null };
-
-  const sim = ctx.data.sim;
-  if (!sim) return null;
-  const disabled = toPlaybackView(sim.clock, SIM_WINDOW, sim.nextEventMin, ctx.data.busy).disabled;
-  if (action === 'toggle_play') {
-    return disabled.play ? null : { kind: 'control', request: playbackRequest('playPause', sim.clock) };
-  }
-  return disabled.nextEvent ? null : { kind: 'control', request: playbackRequest('nextEvent', sim.clock) };
+  return ctx.data.sim ? { kind: 'toggle_play' } : null;
 }
 
 /** The DOM KeyboardEvent parts the listener uses. */
@@ -110,20 +118,15 @@ export type SimKeyHandlers = {
   /** Read at key time, so the listener is attached once and still sees the latest poll and selection. */
   context: () => SimKeyContext;
   select: (selection: Selection) => void;
-  control: (request: SimControlRequest) => void;
+  /** Space: the body's handler of the one Play/Pause button (#648). */
+  togglePlay: () => void;
   /**
-   * Asked first on Esc (#496): returns true when it used the key (a running Play journey stopped),
+   * Asked first on Esc (#496): returns true when it used the key (a running journey was paused),
    * so the first Esc stops the journey and the next one goes back to the network. It is asked from
-   * a focused button, scrubber, checkbox or dropdown too (the Stop button has focus after a click),
-   * never from a text field.
+   * a focused button, checkbox or dropdown too (the Pause button has focus after a click), never
+   * from a text field.
    */
   escape?: () => boolean;
-  /**
-   * Called before every `control` a key sends (#607): stops a running Play journey, exactly as the
-   * playback buttons do (`createSimPageHandlers`), so the player's next step does not seek back
-   * over the key's request.
-   */
-  stopJourney?: () => void;
 };
 
 const isEscape = (key: string) => key === 'Escape' || key === 'Esc';
@@ -136,7 +139,7 @@ const isEscape = (key: string) => key === 'Escape' || key === 'Esc';
  * window Esc listener from before the key map, which skips an event whose default is prevented.
  * So this listener runs in the capture phase (before that bubble listener) and prevents the default
  * of every key it handles: Esc changes the URL once, not twice, and Space does not scroll the page.
- * Esc on a focused button, scrubber, checkbox or dropdown works like Esc anywhere else (#511, #607:
+ * Esc on a focused button, checkbox or dropdown works like Esc anywhere else (#511, #607:
  * after a click the focus is on that control, and Esc must still leave the journey); when it has
  * nothing to do there it is still claimed, so the workspace listener does not act on it. Esc in a
  * text field (`isTextTarget`) is left alone.
@@ -154,10 +157,7 @@ export function attachSimKeys(target: SimKeyTarget, h: SimKeyHandlers): () => vo
     }
     e.preventDefault();
     if (effect.kind === 'select') h.select(effect.selection);
-    else {
-      h.stopJourney?.();
-      h.control(effect.request);
-    }
+    else h.togglePlay();
   };
   target.addEventListener('keydown', listener, { capture: true });
   return () => target.removeEventListener('keydown', listener, { capture: true });

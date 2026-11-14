@@ -336,18 +336,18 @@ const PAGE_WORDS: [label: string, file: string][] = [
   ['Assigned deliveries', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
   ['Watch in simulator', 'client/src/components/employee/v2/DeliveryList.tsx'],
   ['View journey', 'client/src/components/business/v2/deliveryDetailsModel.ts'],
-  ['Play journey', 'client/src/components/sim/v2/compose/journeyPlay.ts'],
+  // #648: the simulator has one Play/Pause button and "Back to start"; Play journey, Jump to morning,
+  // Finish and Start new planning cycle are gone from the page, so the demo no longer names them.
   ['Play', 'client/src/components/sim/v2/controls/controlsModel.ts'],
-  ['Jump to morning', 'client/src/components/sim/v2/controls/PlaybackControls.tsx'],
-  ['Finish', 'client/src/components/sim/v2/controls/PlaybackControls.tsx'],
-  ['Start new planning cycle', 'client/src/components/sim/v2/controls/PlanningControls.tsx'],
+  ['Pause', 'client/src/components/sim/v2/controls/controlsModel.ts'],
+  ['Back to start', 'client/src/components/sim/v2/controls/controlsModel.ts'],
   ['Delivered', 'client/src/components/business/v2/shipmentsTableModel.ts'],
   ['Earnings', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
   ['Earned', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
 ];
 
 describe('README demo steps, in the words of the pages', () => {
-  it('follows SPEC\'s six steps: New delivery, Find a delivery match, Delivery arranged, relay point, Play journey, Jump to morning', () => {
+  it('follows SPEC\'s six steps: New delivery, Find a delivery match, Delivery arranged, relay point, Play (which skips the night)', () => {
     expect(step(1)).toMatch(/^1\. \*\*Employee\*\*/);
     expect(step(2)).toMatch(/^2\. \*\*Business\*\*/);
     expect(step(2)).toContain('**New delivery**');
@@ -357,10 +357,13 @@ describe('README demo steps, in the words of the pages', () => {
     expect(step(4)).toMatch(/^4\. Back in \*\*Employee\*\*/);
     expect(step(4)).toMatch(/without refreshing/);
     expect(step(5)).toMatch(/^5\. \*\*Simulator\*\*/);
-    expect(PLAY_LABEL).toBe('Play journey');
-    expect(step(5)).toContain(`**${PLAY_LABEL}**`);
+    expect(PLAY_LABEL).toBe('Play');
+    expect(step(5)).toContain(`then **${PLAY_LABEL}**`);
     expect(step(5)).toMatch(/relay point .*overnight/);
-    expect(step(5)).toContain('**Jump to morning**');
+    expect(step(5)).toContain('"Overnight at Etsy" card'); // the relay point of the demo request
+    for (const gone of ['Play journey', 'Jump to morning', 'Finish', 'Start new planning cycle']) {
+      expect(demoSection, `"${gone}" is no longer on the simulator page`).not.toContain(gone);
+    }
     expect(step(6)).toContain('**Delivered**');
     expect(step(6)).toContain('**Earned**');
     expect(demoSection).not.toMatch(/\bhubs?\b/i);

@@ -101,7 +101,7 @@ describe('selecting a package from the list', () => {
 });
 
 describe('a 1 s poll', () => {
-  it('with the same version keeps the search text, the status filter and the typed scenario values', () => {
+  it('with the same version keeps the search text and the status filter', () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountBody(server);
     const left = leftBody(c);
@@ -109,7 +109,6 @@ describe('a 1 s poll', () => {
     click(chip(left, 'Unmatched'));
     expect(chip(left, 'Unmatched').getAttribute('aria-pressed')).toBe('true');
     typeInto(searchBox(left), 'archive');
-    typeInto(byLabel(left, 'Seed'), '4242');
     expect(packageLabels(c)).toEqual(['Archive box']);
 
     server.poll(samePollAgain(server.state));
@@ -117,7 +116,6 @@ describe('a 1 s poll', () => {
 
     expect(searchBox(left).value).toBe('archive');
     expect(chip(left, 'Unmatched').getAttribute('aria-pressed')).toBe('true');
-    expect((byLabel(left, 'Seed') as HTMLInputElement).value).toBe('4242');
     expect(packageLabels(c)).toEqual(['Archive box']);
     expect(server.calls).toEqual([]);
   }, T);

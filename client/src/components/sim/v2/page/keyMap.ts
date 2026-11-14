@@ -1,10 +1,10 @@
 /**
- * Keyboard map of the MVP II simulator page (docs/mvp2-ui-redesign.md §1):
- * Esc leaves the journey (or clears a network selection), Space plays/pauses,
- * `.` jumps to the next event. Pure: the page passes the keydown event in.
+ * Keyboard map of the simulator page (docs/mvp2-ui-redesign.md §1, docs/mvp3.md P2):
+ * Esc leaves the journey (or clears a network selection) and Space plays/pauses. The next-event
+ * key `.` went with its button (#648). Pure: the page passes the keydown event in.
  */
 
-export type SimKeyAction = 'exit_journey' | 'clear_selection' | 'toggle_play' | 'next_event';
+export type SimKeyAction = 'exit_journey' | 'clear_selection' | 'toggle_play';
 
 /**
  * The parts of the focused element the map reads. A DOM element fits: an `<input>` reports its
@@ -44,9 +44,9 @@ export function isControlTarget(target: SimKeyEvent['target']): boolean {
 }
 
 /**
- * A place where the user types, which keeps every key (Esc clears a search box, Space and `.` are
- * text): a textarea, editable text, and every `<input>` except the ones with nothing to type
- * (#607: the range scrubber, a checkbox, a radio, a button-like input). An `<input>` with no type
+ * A place where the user types, which keeps every key (Esc clears a search box, Space is text):
+ * a textarea, editable text, and every `<input>` except the ones with nothing to type
+ * (#607: a range input, a checkbox, a radio, a button-like input). An `<input>` with no type
  * or a type not known here (text, search, number, date, ...) is a text field. A `<select>` is not
  * one (pass 61): after the focus dropdown was used, Esc and Space still drive the page.
  */
@@ -70,8 +70,8 @@ export function isPressTarget(target: SimKeyEvent['target']): boolean {
  * The page action for a key press, or null. Nothing fires with Ctrl, Cmd or Alt held, and nothing
  * fires from a text field (`isTextTarget`), which keeps its keys.
  *
- * From anywhere else every key works (#607), so the keys do not die after a click on the scrubber,
- * a layer checkbox, the focus dropdown, a package row or a timeline step (#511, doc §1 "A clear
+ * From anywhere else every key works (#607), so the keys do not die after a click on a filter,
+ * the focus dropdown, a package row or a timeline step (#511, doc §1 "A clear
  * exit (Back to network / Esc)"). The one exception: Space on a focused button, checkbox or radio
  * is left to that control, so its own click or toggle is not doubled by play/pause.
  */
@@ -86,8 +86,6 @@ export function simKeyAction(event: SimKeyEvent, state: SimKeyState): SimKeyActi
     case ' ':
     case 'Spacebar':
       return event.repeat || isPressTarget(event.target) ? null : 'toggle_play';
-    case '.':
-      return 'next_event';
     default:
       return null;
   }

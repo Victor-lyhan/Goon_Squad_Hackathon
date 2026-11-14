@@ -94,9 +94,10 @@ describe('NYC copy', () => {
     expect(NYC_HELP_STEPS.map((s) => s.text).join(' ')).not.toMatch(/hub/i);
   });
   it('names the simulator controls that are on main', () => {
-    expect(NYC_HELP_STEPS[4].text).toContain('Play journey');
-    expect(readFileSync('client/src/components/sim/v2/compose/journeyPlay.ts', 'utf8')).toContain("PLAY_LABEL = 'Play journey'");
-    expect(readFileSync('client/src/components/sim/v2/controls/PlaybackControls.tsx', 'utf8')).toContain("label: 'Jump to morning'");
+    // #648: one Play/Pause button; "Play journey" and "Jump to morning" are gone from the simulator.
+    expect(NYC_HELP_STEPS[4].text).toContain('choose Play to follow it');
+    expect(NYC_HELP_STEPS[4].text).not.toMatch(/Play journey|Jump to morning/);
+    expect(readFileSync('client/src/components/sim/v2/controls/controlsModel.ts', 'utf8')).toContain("PLAY_LABEL = 'Play'");
     expect(readFileSync('client/src/components/business/v2/NewDeliveryForm.tsx', 'utf8')).toContain("'Send request'");
   });
   it('the about paragraph describes the NYC data', () => {

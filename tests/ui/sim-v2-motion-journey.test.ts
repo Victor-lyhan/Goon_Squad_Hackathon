@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  JOURNEY_STEP_MIN, JOURNEY_STEP_MS, journeyDurationMs, journeyStepCount, nextJourneyAction, startJourneyPlayback,
+  JOURNEY_STEP_MIN, JOURNEY_STEP_MS, OVERNIGHT_CARD_MS, journeyEndMin, nextJourneyAction, startJourneyPlayback,
   type JourneyAction,
 } from '../../client/src/components/sim/v2/motion/journeyPlayback';
 
@@ -40,29 +40,52 @@ describe('nextJourneyAction', () => {
 
   it('a step never passes the end of its window', () => {
     expect(nextJourneyAction(WINDOWS, 1079)).toEqual({ kind: 'seek', toMin: 1080 });
-    expect(nextJourneyAction(WINDOWS, 1080)).toEqual({ kind: 'seek', toMin: 1905 });
+    expect(nextJourneyAction(WINDOWS, 1080)).toEqual({ kind: 'seek', toMin: 1905, overnight: true });
     for (const t of playAll(WINDOWS, 930)) {
       expect(WINDOWS.some((w) => t >= w.startMin && t <= w.endMin)).toBe(true);
     }
   });
 
-  it('the whole relay journey plays in under 30 s', () => {
+  it('the whole relay journey plays in under 30 s, the overnight card included', () => {
     const steps = playAll(WINDOWS, 930).length;
-    expect(steps * JOURNEY_STEP_MS).toBeLessThan(30_000);
-    expect(journeyStepCount(WINDOWS)).toBe(steps);
-    expect(journeyDurationMs(WINDOWS)).toBe(steps * JOURNEY_STEP_MS);
+    expect(OVERNIGHT_CARD_MS).toBe(1000);
+    expect(steps * JOURNEY_STEP_MS + OVERNIGHT_CARD_MS).toBeLessThan(30_000);
+  });
+
+  it('only the jump between two windows is the overnight one (#648)', () => {
+    // Before the pickup: a plain jump, also for a direct journey (one window).
+    expect(nextJourneyAction(WINDOWS, 930)).not.toHaveProperty('overnight');
+    expect(nextJourneyAction([WINDOWS[0]], -Infinity)).toEqual({ kind: 'seek', toMin: 1035 });
+    // Inside a window: a step.
+    expect(nextJourneyAction(WINDOWS, 1050)).not.toHaveProperty('overnight');
+    expect(nextJourneyAction(WINDOWS, 1910)).not.toHaveProperty('overnight');
+    // Exactly one overnight jump in the whole journey.
+    let t = -Infinity;
+    let overnight = 0;
+    for (;;) {
+      const a = nextJourneyAction(WINDOWS, t);
+      if (a.kind === 'done') break;
+      if (a.overnight) overnight += 1;
+      t = a.toMin;
+    }
+    expect(overnight).toBe(1);
+  });
+
+  it('journeyEndMin is the end of the last window', () => {
+    expect(journeyEndMin(WINDOWS)).toBe(1950);
+    expect(journeyEndMin([...WINDOWS].reverse())).toBe(1950);
+    expect(journeyEndMin([])).toBe(-Infinity);
   });
 
   it('a time after the last window is done', () => {
     expect(nextJourneyAction(WINDOWS, 2000)).toEqual({ kind: 'done' });
     expect(nextJourneyAction([], 930)).toEqual({ kind: 'done' });
-    expect(journeyDurationMs([])).toBe(0);
   });
 
   it('accepts windows in any order and starts mid-window from where the clock is', () => {
     expect(nextJourneyAction([...WINDOWS].reverse(), 930)).toEqual({ kind: 'seek', toMin: 1035 });
     expect(nextJourneyAction(WINDOWS, 1050)).toEqual({ kind: 'seek', toMin: 1052 });
-    expect(nextJourneyAction(WINDOWS, 1500)).toEqual({ kind: 'seek', toMin: 1905 });
+    expect(nextJourneyAction(WINDOWS, 1500)).toEqual({ kind: 'seek', toMin: 1905, overnight: true });
   });
 });
 
@@ -113,5 +136,79 @@ describe('startJourneyPlayback', () => {
     await s.flush();
     expect(errors).toHaveLength(1);
     expect(s.timers).toEqual([]);
+  });
+
+  // ---- #648: the overnight card and resume ----
+  const RELAY = [{ startMin: 1035, endMin: 1037 }, { startMin: 1905, endMin: 1907 }];
+
+  it('between two windows: the card goes up for 1 s, comes down, then the morning seek', async () => {
+    const s = setup();
+    const log: string[] = [];
+    startJourneyPlayback({
+      ...s.deps, windows: RELAY, fromMin: -Infinity,
+      seek: async (t) => { log.push(`seek ${t}`); },
+      onOvernight: (shown) => log.push(shown ? 'card up' : 'card down'),
+    });
+    await s.flush();
+    await s.fire(); // 1037: the end of the evening leg
+    expect(log).toEqual(['seek 1035', 'seek 1037']);
+    await s.fire(); // the step after the evening leg: no seek, the card
+    expect(log).toEqual(['seek 1035', 'seek 1037', 'card up']);
+    expect(s.timers.map((t) => t.ms)).toEqual([OVERNIGHT_CARD_MS]);
+    await s.fire(); // 1 s later
+    expect(log).toEqual(['seek 1035', 'seek 1037', 'card up', 'card down', 'seek 1905']);
+    expect(s.timers.map((t) => t.ms)).toEqual([JOURNEY_STEP_MS]);
+    await s.fire();
+    await s.fire();
+    expect(log.slice(5)).toEqual(['seek 1907']);
+    expect(s.done()).toBe(1);
+    expect(log.filter((l) => l === 'card up')).toHaveLength(1);
+  });
+
+  it('a direct journey (one window) never shows the card', async () => {
+    const s = setup();
+    const card: boolean[] = [];
+    startJourneyPlayback({ ...s.deps, fromMin: -Infinity, onOvernight: (shown) => card.push(shown) });
+    await s.flush();
+    for (let i = 0; i < 6; i++) await s.fire();
+    expect(s.done()).toBe(1);
+    expect(card).toEqual([]);
+  });
+
+  it('stop while the card is up: no morning seek, and the driver does not report the card down', async () => {
+    const s = setup();
+    const card: boolean[] = [];
+    const stop = startJourneyPlayback({ ...s.deps, windows: RELAY, fromMin: 1037, onOvernight: (shown) => card.push(shown) });
+    await s.flush();
+    expect(card).toEqual([true]);
+    expect(s.seeks).toEqual([]);
+    stop();
+    expect(s.timers).toEqual([]);
+    expect(card).toEqual([true]);
+    expect(s.seeks).toEqual([]);
+  });
+
+  it('without onOvernight the gap is one plain jump, as before', async () => {
+    const s = setup();
+    startJourneyPlayback({ ...s.deps, windows: RELAY, fromMin: 1037 });
+    await s.flush();
+    expect(s.seeks).toEqual([1905]);
+    expect(s.timers.map((t) => t.ms)).toEqual([JOURNEY_STEP_MS]);
+  });
+
+  it('resumes from the minute it is given: mid-window, or in the night (the card again)', async () => {
+    const mid = setup();
+    startJourneyPlayback({ ...mid.deps, windows: RELAY, fromMin: 1036 });
+    await mid.flush();
+    expect(mid.seeks).toEqual([1037]);
+
+    const night = setup();
+    const card: boolean[] = [];
+    startJourneyPlayback({ ...night.deps, windows: RELAY, fromMin: 1500, onOvernight: (shown) => card.push(shown) });
+    await night.flush();
+    expect(card).toEqual([true]);
+    await night.fire();
+    expect(card).toEqual([true, false]);
+    expect(night.seeks).toEqual([1905]);
   });
 });

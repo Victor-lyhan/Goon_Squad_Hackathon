@@ -1,169 +1,134 @@
-import { readFileSync } from 'node:fs';
+// The playback block of the simulator's left panel (#648): one Play/Pause button and "Back to
+// start", rendered from the button view. Static renders plus the click handlers.
+import { existsSync, readFileSync } from 'node:fs';
+import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { PlanningControls } from '../../client/src/components/sim/v2/controls/PlanningControls';
-import { PlaybackControls } from '../../client/src/components/sim/v2/controls/PlaybackControls';
-import { ScenarioControls } from '../../client/src/components/sim/v2/controls/ScenarioControls';
-import { FINISHED_REASON, LOCKED_RECOMPUTE_REASON, PLANNING_NOTE } from '../../client/src/components/sim/v2/controls/controlsModel';
-import { GenerateScenarioRequest } from '../../shared/v2/schemas';
-import type { Clock } from '../../shared/v2/types';
+import { PlaybackControls, type PlaybackControlsProps } from '../../client/src/components/sim/v2/controls/PlaybackControls';
+import { BUSY_REASON, FINISHED_REASON, type PlayButtonView } from '../../client/src/components/sim/v2/controls/controlsModel';
 
-const tags = (h: string, t: string) => h.match(new RegExp(`<${t}\\b[^>]*>`, 'g')) ?? [];
 const attr = (tag: string, name: string) => tag.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1];
 const buttons = (h: string) => [...h.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map((m) => ({ attrs: m[1], text: m[2] }));
-const button = (h: string, text: string) => buttons(h).find((b) => b.text === text)!;
 const isDisabled = (b: { attrs: string }) => /\sdisabled=""/.test(b.attrs);
-const unescape = (s: string) => s.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&');
 
-const W = { simStartMin: 930, simEndMin: 2160 };
-const clock = (over: Partial<Clock> = {}): Clock => ({ phase: 'planning', playing: false, timeMin: 930, speed: 120, ...over });
+const PLAY: PlayButtonView = { label: 'Play', action: 'play_clock', note: null };
+const PAUSE: PlayButtonView = { label: 'Pause', action: 'pause_journey', note: null };
 
-function playback(c: Clock, nextEventMin: number | null = 1000, busy = false) {
-  const onControl = vi.fn();
-  const html = renderToStaticMarkup(<PlaybackControls clock={c} {...W} nextEventMin={nextEventMin} busy={busy} onControl={onControl} />);
-  expect(onControl).not.toHaveBeenCalled();
+function render(over: Partial<PlaybackControlsProps> = {}) {
+  const onToggle = vi.fn();
+  const onReset = vi.fn();
+  const html = renderToStaticMarkup(<PlaybackControls button={PLAY} onToggle={onToggle} onReset={onReset} {...over} />);
+  expect(onToggle).not.toHaveBeenCalled();
+  expect(onReset).not.toHaveBeenCalled();
+  expect(html).not.toMatch(/NaN|undefined|>null</);
   return html;
 }
 
-/** Every input/select has a <label for> or an aria-label; every described-by target exists. */
-function expectAccessible(html: string) {
-  for (const t of [...tags(html, 'input'), ...tags(html, 'select')]) {
-    const id = attr(t, 'id');
-    const labelled = (id && html.includes(`for="${id}"`)) || attr(t, 'aria-label');
-    expect(labelled, t).toBeTruthy();
-  }
-  for (const t of [...tags(html, 'input'), ...tags(html, 'button')]) {
-    const ref = attr(t, 'aria-describedby');
-    if (ref) for (const r of ref.split(' ')) expect(html, r).toContain(`id="${r}"`);
-  }
-  expect(html).not.toMatch(/NaN|undefined|>null</);
-}
-
-/** Disabled buttons have a title and point (aria-describedby) at visible reason text. */
-function expectReasons(html: string) {
-  for (const b of buttons(html).filter(isDisabled)) {
-    expect(attr(`<x${b.attrs}>`, 'title'), b.text).toBeTruthy();
+/** Every aria-describedby of a button points at an element of the block with text. */
+function expectDescribed(html: string) {
+  for (const b of buttons(html)) {
     const ref = attr(`<x${b.attrs}>`, 'aria-describedby');
-    expect(ref, b.text).toBeTruthy();
-    const target = html.match(new RegExp(`id="${ref}"[^>]*>([\\s\\S]*?)</(p|ul)>`))?.[1] ?? '';
-    expect(unescape(target.replace(/<[^>]+>/g, ' ')).trim(), b.text).toMatch(/[A-Za-z]{3,}.*\./);
+    if (!ref) continue;
+    const target = html.match(new RegExp(`id="${ref}"[^>]*>([^<]*)</p>`))?.[1] ?? '';
+    expect(target, b.text).toMatch(/[A-Za-z]{3,}.*\./);
   }
 }
 
-describe('PlaybackControls static renders', () => {
-  it('planning: Play, pressed 4x speed, scrubber at start with mono time, Next event enabled', () => {
-    const html = playback(clock());
-    expect(button(html, 'Play')).toBeTruthy();
-    expect(isDisabled(button(html, 'Play'))).toBe(false);
-    expect(attr(`<x${button(html, 'Play').attrs}>`, 'title')).toMatch(/locks the run/);
-    const speeds = buttons(html).filter((b) => /^(1|4|20)x$/.test(b.text));
-    expect(speeds.map((b) => [b.text, attr(`<x${b.attrs}>`, 'aria-pressed')])).toEqual([['1x', 'false'], ['4x', 'true'], ['20x', 'false']]);
-    expect(speeds.map((b) => attr(`<x${b.attrs}>`, 'title'))).toEqual([
-      '30 simulated minutes per second', '120 simulated minutes per second', '600 simulated minutes per second',
-    ]);
-    const range = tags(html, 'input').find((t) => attr(t, 'type') === 'range')!;
-    expect([attr(range, 'min'), attr(range, 'max'), attr(range, 'step'), attr(range, 'value')]).toEqual(['930', '2160', '1', '930']);
-    expect(html).toContain('>Simulation time</label>');
-    expect(html).toMatch(/<output class="ctl-mono"[^>]*>Day 1, 3:30 PM<\/output>/);
-    for (const t of ['Next event', 'Jump to morning', 'Finish', 'Reset playback']) expect(isDisabled(button(html, t))).toBe(false);
-    expectAccessible(html);
-    expectReasons(html);
-  });
-
-  it('locked + playing: Pause, 20x pressed, Next event disabled with a reason when there is none', () => {
-    const html = playback(clock({ phase: 'locked', playing: true, timeMin: 1950, speed: 600 }), null);
-    expect(isDisabled(button(html, 'Pause'))).toBe(false);
-    expect(attr(`<x${button(html, '20x').attrs}>`, 'aria-pressed')).toBe('true');
-    expect(isDisabled(button(html, 'Next event'))).toBe(true);
-    expect(isDisabled(button(html, 'Jump to morning'))).toBe(true);
-    expect(html).toContain('No more events in this run.');
-    expect(html).toContain('Day 2, 8:30 AM');
-    expectAccessible(html);
-    expectReasons(html);
-  });
-
-  it('locked + paused: Play resumes (no lock warning), steps enabled', () => {
-    const html = playback(clock({ phase: 'locked', playing: false, timeMin: 1200, speed: 30 }), 1300);
-    expect(isDisabled(button(html, 'Play'))).toBe(false);
-    expect(attr(`<x${button(html, 'Play').attrs}>`, 'title')).toBe('Resume the simulation');
-    expect(attr(`<x${button(html, '1x').attrs}>`, 'aria-pressed')).toBe('true');
-    expect(buttons(html).filter(isDisabled)).toEqual([]);
-    expect(html).not.toContain('ctl-notes');
-    expectAccessible(html);
-  });
-
-  it('finished: Play and Finish disabled with the finished reason, Reset playback enabled', () => {
-    const html = playback(clock({ phase: 'locked', playing: false, timeMin: W.simEndMin }), null);
-    for (const t of ['Play', 'Finish', 'Next event', 'Jump to morning']) expect(isDisabled(button(html, t)), t).toBe(true);
-    expect(isDisabled(button(html, 'Reset playback'))).toBe(false);
-    expect(html).toContain(FINISHED_REASON);
-    expect(attr(tags(html, 'input')[0] ?? '', 'value')).toBe('2160');
-    expect(html).toContain('Day 2, 12:00 PM');
-    expectAccessible(html);
-    expectReasons(html);
-  });
-
-  it('busy: every control disabled with one readable reason', () => {
-    const html = playback(clock({ timeMin: 1000 }), 1100, true);
-    expect(buttons(html).every(isDisabled)).toBe(true);
-    expect(tags(html, 'input')[0]).toContain('disabled');
-    expect(html).toContain('Waiting for the last control to finish.');
-    expectReasons(html);
-  });
-});
-
-describe('ScenarioControls static renders', () => {
-  const value = GenerateScenarioRequest.parse({ preset: 'random', seed: 42 });
-
-  for (const phase of ['planning', 'locked'] as const) {
-    it(`${phase}: preset select and four labelled numeric fields, no hubs, Generate enabled`, () => {
-      const onGenerate = vi.fn();
-      const html = renderToStaticMarkup(<ScenarioControls value={value} phase={phase} onGenerate={onGenerate} />);
-      const labels = [...html.matchAll(/<label for="[^"]+">([^<]+)<\/label>/g)].map((m) => m[1]);
-      expect(labels).toEqual(['Preset', 'Seed', 'Employees', 'Packages', 'Detour limit (min)']);
-      expect(html).not.toMatch(/hub/i);
-      const inputs = tags(html, 'input');
-      expect(inputs.map((t) => attr(t, 'value'))).toEqual(['42', '60', '24', '12']);
-      expect(tags(html, 'option').find((t) => t.includes('selected'))).toContain('value="random"');
-      expect(html).toContain('10 to 120');
-      expect(html).toContain('5 to 60');
-      expect(html).toContain('0 to 30');
-      const gen = button(html, 'Generate');
-      expect(isDisabled(gen)).toBe(false);
-      expect(attr(`<x${gen.attrs}>`, 'type')).toBe('submit');
-      expect(html).not.toContain('Generate new city'); // confirmation only appears after a click
-      expectAccessible(html);
-      expect(onGenerate).not.toHaveBeenCalled();
-    });
+/** The elements of a rendered tree with the given tag, depth first (no DOM needed). */
+function findAll(node: ReactNode, tag: string, out: ReactElement<Record<string, unknown>>[] = []) {
+  if (Array.isArray(node)) node.forEach((n) => findAll(n, tag, out));
+  else if (isValidElement<Record<string, unknown>>(node)) {
+    if (node.type === tag) out.push(node);
+    findAll(node.props.children as ReactNode, tag, out);
   }
+  return out;
+}
 
-  it('demo preset explains that Packages applies to Random; busy disables with a reason', () => {
-    const html = renderToStaticMarkup(<ScenarioControls value={{ ...value, preset: 'demo' }} phase="planning" busy onGenerate={vi.fn()} />);
-    expect(tags(html, 'option').find((t) => t.includes('selected'))).toContain('value="demo"');
-    expect(html).toContain('Packages count applies to Random');
-    expect(isDisabled(button(html, 'Generate'))).toBe(true);
-    expectAccessible(html);
-    expectReasons(html);
+describe('PlaybackControls', () => {
+  it('has exactly two buttons, in order: Play and Back to start', () => {
+    const html = render();
+    expect(buttons(html).map((b) => b.text)).toEqual(['Play', 'Back to start']);
+    expect(buttons(html).some(isDisabled)).toBe(false);
+  });
+
+  it('shows Pause when the view says so, still with one play button', () => {
+    const html = render({ button: PAUSE });
+    expect(buttons(html).map((b) => b.text)).toEqual(['Pause', 'Back to start']);
+  });
+
+  it('has no speed buttons, scrubber, Next event, Jump to morning, Finish or key hint', () => {
+    for (const html of [render(), render({ button: PAUSE, status: 'Step 1 of 4 next: Pickup at sender at Navy Yard Coffee.' })]) {
+      expect(html).not.toMatch(/<input|type="range"|aria-pressed|<select|<kbd/);
+      expect(html).not.toMatch(/Next event|Jump to morning|Finish|Reset playback|Speed|1x|4x|20x/);
+      expect(html).not.toMatch(/\bSpace\b|\bEsc\b|shortcut|keyboard/i);
+    }
+  });
+
+  it('a disabled Play is described by its visible note', () => {
+    const html = render({ button: { label: 'Play', action: null, note: FINISHED_REASON } });
+    const [play, reset] = buttons(html);
+    expect(isDisabled(play)).toBe(true);
+    expect(isDisabled(reset)).toBe(false);
+    expect(html).toContain(FINISHED_REASON);
+    expectDescribed(html);
+    expect(attr(`<x${play.attrs}>`, 'aria-describedby')).toBeTruthy();
+  });
+
+  it('busy: both buttons disabled, the shared reason is on the page once', () => {
+    const html = render({ button: { label: 'Play', action: null, note: BUSY_REASON }, resetDisabled: BUSY_REASON });
+    expect(buttons(html).every(isDisabled)).toBe(true);
+    expect(html.split(BUSY_REASON)).toHaveLength(2);
+    expectDescribed(html);
+  });
+
+  it('a journey plays while another control is open: only Back to start is disabled, with its own note', () => {
+    const html = render({ button: PAUSE, resetDisabled: BUSY_REASON });
+    const [pause, reset] = buttons(html);
+    expect(isDisabled(pause)).toBe(false);
+    expect(isDisabled(reset)).toBe(true);
+    expect(html.split(BUSY_REASON)).toHaveLength(2);
+    expectDescribed(html);
+  });
+
+  it('keeps one role="status" line in place, empty or with the step text', () => {
+    expect(render()).toMatch(/<p class="ctl-status" role="status"><\/p>/);
+    const html = render({ status: 'Journey paused.' });
+    expect(html.match(/role="status"/g)).toHaveLength(1);
+    expect(html).toContain('>Journey paused.</p>');
+  });
+
+  it('a refused step is an alert; no alert otherwise', () => {
+    expect(render()).not.toContain('role="alert"');
+    const html = render({ error: 'Play stopped: the simulator did not accept a step.' });
+    expect(html).toMatch(/role="alert">Play stopped: the simulator did not accept a step\.<\/p>/);
+  });
+
+  it('a click on each button calls its handler once', () => {
+    const onToggle = vi.fn();
+    const onReset = vi.fn();
+    const [play, reset] = findAll(PlaybackControls({ button: PLAY, onToggle, onReset }), 'button');
+    (play.props.onClick as () => void)();
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(onReset).not.toHaveBeenCalled();
+    (reset.props.onClick as () => void)();
+    expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  it('a disabled button has no click handler', () => {
+    const [play, reset] = findAll(
+      PlaybackControls({ button: { label: 'Play', action: null, note: BUSY_REASON }, resetDisabled: BUSY_REASON, onToggle: vi.fn(), onReset: vi.fn() }),
+      'button',
+    );
+    expect(play.props.onClick).toBeUndefined();
+    expect(reset.props.onClick).toBeUndefined();
   });
 });
 
-describe('PlanningControls static renders', () => {
-  it('planning: both buttons enabled and the lock note is shown', () => {
-    const html = renderToStaticMarkup(<PlanningControls phase="planning" onReset={vi.fn()} onRecompute={vi.fn()} />);
-    expect(isDisabled(button(html, 'Start new planning cycle'))).toBe(false);
-    expect(isDisabled(button(html, 'Recompute matches'))).toBe(false);
-    expect(html).toContain(PLANNING_NOTE);
-    expect(html).toContain('>Planning<');
-  });
-
-  it('locked: Recompute disabled with a visible reason, Start new planning cycle enabled even when busy', () => {
-    const html = renderToStaticMarkup(<PlanningControls phase="locked" busy onReset={vi.fn()} onRecompute={vi.fn()} />);
-    expect(isDisabled(button(html, 'Start new planning cycle'))).toBe(false);
-    expect(isDisabled(button(html, 'Recompute matches'))).toBe(true);
-    expect(html).toContain(LOCKED_RECOMPUTE_REASON);
-    expect(html).toContain('>Locked<');
-    expectReasons(html);
-    expectAccessible(html);
+describe('deleted with their code (#648, docs/mvp3.md P2)', () => {
+  it.each([
+    'controls/ScenarioControls.tsx', 'controls/PlanningControls.tsx', 'LayerToggles.tsx', 'compose/PlayJourneyButton.tsx',
+  ])('%s is not in the repo', (file) => {
+    expect(existsSync(`client/src/components/sim/v2/${file}`)).toBe(false);
   });
 });
 
@@ -198,7 +163,13 @@ describe('controls.css', () => {
   });
 
   it('every control class has a :focus-visible style and there is a reduced-motion rule', () => {
-    for (const c of ['.ctl-btn', '.ctl-input', '.ctl-range']) expect(noComments).toMatch(new RegExp(`\\${c}:focus-visible`));
+    for (const c of ['.ctl-btn']) expect(noComments).toMatch(new RegExp(`\\${c}:focus-visible`));
     expect(noComments).toMatch(/prefers-reduced-motion/);
+  });
+
+  it('has no rule left for the speed buttons, the scrubber or the scenario form (#648)', () => {
+    for (const c of ['.ctl-seg', '.ctl-range', '.ctl-input', '.ctl-fields', '.ctl-confirm', '.ctl-phase', '.ctl-grid']) {
+      expect(noComments, c).not.toContain(c);
+    }
   });
 });
