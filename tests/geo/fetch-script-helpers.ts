@@ -4,10 +4,17 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { LatLng } from '../../shared/v2/types';
+import { pairKey } from '../../shared/v2/types';
+import type { AssignmentResult, LatLng, NycDemoStoryFile, Scenario } from '../../shared/v2/types';
+import type { MatchContext } from '../../server/domain/v2/matching';
+import { explainShipment, formatExplain } from '../../server/domain/v2/storyExplain';
+import type { ExplainRow } from '../../server/domain/v2/storyExplain';
 import { straightLineM } from '../../server/geo/cacheReport';
-import { MATRIX_FILE, POLYLINES_FILE } from '../../server/geo/cache';
+import { MATRIX_FILE, POLYLINES_FILE, readTravelFiles } from '../../server/geo/cache';
+import type { TravelFiles } from '../../server/geo/cache';
+import { matchDefaultScenario } from '../../server/geo/fetchRoutes';
 import { BUSINESSES_FILE, NEIGHBORHOODS_FILE, STORY_FILE, runFetchScript } from '../../server/geo/fetchScript';
+import { createCachedProvider } from '../../server/geo/providers';
 import type { FetchClient } from '../../server/geo/fetchRunner';
 import type { GeocodeResult, RouteMatrixResult, RoutePolyline } from '../../server/geo/googleClient';
 import { BUSINESS_IDS, BUSINESS_POINTS, HOMES, KEY, KEY_ENCODED, fakeClient, repoRoot, storyFile } from './fetch-routes-helpers';
@@ -56,6 +63,78 @@ export function snapshot(dir: string): Record<string, string> {
 /** The three fixture files as they are in the repo: what a temp folder holds before any run. */
 export function fixturesOnly(): Record<string, string> {
   return Object.fromEntries([...FIXTURE_NAMES].sort().map((name) => [name, fs.readFileSync(path.join(REAL_FIXTURES_DIR, name), 'utf8')]));
+}
+
+/** Rewrites the folder's copy of demoStory.json and returns what it now holds. */
+export function editStory(dir: string, change: (story: NycDemoStoryFile) => void): NycDemoStoryFile {
+  const file = path.join(dir, STORY_FILE);
+  const story = JSON.parse(fs.readFileSync(file, 'utf8')) as NycDemoStoryFile;
+  change(story);
+  fs.writeFileSync(file, `${JSON.stringify(story, null, 2)}\n`);
+  return story;
+}
+
+// ---------- the explanation of a story row ----------
+
+/** One package of a printed explanation: its line, the option lines under it and the "… more" line, if any. */
+export interface ExplainedPackage {
+  title: string;
+  options: string[];
+  more: string | null;
+}
+
+/**
+ * The explanation a run or a dry run printed, without the indent: the `Why (` line and the packages under it.
+ * `header` is null when nothing was explained.
+ */
+export function explanationOf(lines: readonly string[]): { header: string | null; packages: ExplainedPackage[] } {
+  const start = lines.findIndex((line) => line.startsWith('  Why ('));
+  if (start === -1) return { header: null, packages: [] };
+  const packages: ExplainedPackage[] = [];
+  for (let i = start + 1; i < lines.length && lines[i].startsWith('  '); i++) {
+    const line = lines[i].slice(2);
+    if (!line.startsWith('  ')) packages.push({ title: line, options: [], more: null });
+    else if (line.startsWith('  … ')) packages[packages.length - 1].more = line.slice(2);
+    else packages[packages.length - 1].options.push(line.slice(2));
+  }
+  return { header: lines[start].slice(2), packages };
+}
+
+/** An option line without what the script adds to it from the matcher's result. */
+export const withoutOutcome = (option: string) => option.replace(/ — (the plan it got|not free: .*)$/, '');
+
+/**
+ * What the matcher and the explainer say on the folder's files, computed here and not by the script: the default
+ * scenario's plans, and for one package every option as `formatExplain` prints it with no limit.
+ */
+export function explainerOn(dir: string): {
+  scenario: Scenario;
+  assignments: AssignmentResult;
+  names: Record<string, string>;
+  options: (shipmentId: string) => { rows: ExplainRow[]; lines: string[] };
+} {
+  const read = <T>(name: string) => JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as T;
+  const files = readTravelFiles(dir);
+  if (files === null) throw new Error('fetch-script-helpers: no matrix.json');
+  const matched = matchDefaultScenario(
+    { files, businessesFile: read(BUSINESSES_FILE), neighborhoodsFile: read(NEIGHBORHOODS_FILE), storyFile: read(STORY_FILE) },
+    files,
+  );
+  if (!matched.ok) throw new Error(`fetch-script-helpers: the matcher cannot run on this folder (${matched.reason})`);
+  const { scenario, trips, assignments } = matched;
+  const ctx: MatchContext = { travel: createCachedProvider(files), trips, employees: scenario.employees, businesses: scenario.businesses, settings: scenario.settings };
+  const names = Object.fromEntries([...scenario.businesses, ...scenario.employees].map(({ id, name }) => [id, name]));
+  return {
+    scenario,
+    assignments,
+    names,
+    options: (shipmentId) => {
+      const shipment = scenario.shipments.find((candidate) => candidate.id === shipmentId);
+      if (!shipment) throw new Error(`fetch-script-helpers: no package ${shipmentId}`);
+      const rows = explainShipment(shipment, ctx);
+      return { rows, lines: formatExplain(rows, names, rows.length + 1) };
+    },
+  };
 }
 
 // ---------- a believable city for the fake Google ----------
@@ -108,6 +187,28 @@ export function cityTravel(from: string, to: string) {
   const distanceM = Math.round(straightLineM(a, b));
   const durationS = Math.round(distanceM / (CITY_SPEED_KMH / 3.6)) * (SLOW_STRETCHES.has(`${from}|${to}`) ? SLOW_STRETCH_FACTOR : 1);
   return { durationS, distanceM };
+}
+
+/**
+ * A copy of `files` with these homes the way a live commute save leaves them (a place, its pairs with every
+ * business in both directions, the two route lines of a commute), with the city's numbers: the straight line at
+ * CITY_SPEED_KMH. `withEnteredHomes` of cache-edit-helpers.ts has flat numbers that the cache report (rightly)
+ * flags as shorter than the straight line, so a run on them cannot exit 0.
+ */
+export function withCityEnteredHomes(files: TravelFiles, homes: readonly { id: string; lat: number; lng: number }[]): TravelFiles {
+  const out = structuredClone(files);
+  for (const home of homes) {
+    out.matrix.places[home.id] = { lat: home.lat, lng: home.lng };
+    for (const [business, point] of Object.entries(CITY_POINTS)) {
+      const distanceM = Math.round(straightLineM(home, point));
+      const pair = { durationS: Math.round(distanceM / (CITY_SPEED_KMH / 3.6)), distanceM };
+      out.matrix.pairs[pairKey(home.id, business)] = pair;
+      out.matrix.pairs[pairKey(business, home.id)] = { ...pair };
+    }
+    out.polylines.polylines[pairKey(home.id, BUSINESS_IDS[0])] = 'line(entered>work)';
+    out.polylines.polylines[pairKey(BUSINESS_IDS[0], home.id)] = 'line(work>entered)';
+  }
+  return out;
 }
 
 const pointKey = (point: LatLng) => `${point.lat},${point.lng}`;

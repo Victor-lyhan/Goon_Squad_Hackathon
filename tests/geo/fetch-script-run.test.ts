@@ -3,21 +3,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MATRIX_FILE, POLYLINES_FILE, readTravelFiles } from '../../server/geo/cache';
-import { CHECK_LINE, RESUME_LINE } from '../../server/geo/fetchScript';
+import { MATRIX_FILE, POLYLINES_FILE, readTravelFiles, writeTravelFiles } from '../../server/geo/cache';
+import { enteredHomes } from '../../server/geo/cacheEdit';
+import { CHECK_LINE, DROP_ENTERED_COMMAND, DROP_ENTERED_RUN_NOTE, EXPLAIN_OPTIONS, RESUME_LINE } from '../../server/geo/fetchScript';
+import { ENTERED_HOMES, ENTERED_HOME_IDS, ENTERED_ID_PATTERN } from './cache-edit-helpers';
 import { BUSINESS_IDS, KEY, KEY_ENCODED, fakeClient, neededPairs, storyFile, totalCalls } from './fetch-routes-helpers';
 import {
   CITY_POINTS,
   FIXTURE_NAMES,
   cityClient,
   cityTravel,
+  editStory,
+  explainerOn,
+  explanationOf,
   fixturesOnly,
   leakedLines,
   printedLineCount,
   removeTempDirs,
   script,
   snapshot,
+  tempDirWithCacheOf,
   tempFixturesDir,
+  withCityEnteredHomes,
+  withoutOutcome,
 } from './fetch-script-helpers';
 
 // A whole fetch runs the matcher on 60 employees and 24 packages; locally a run takes well under 2 s.
@@ -86,6 +94,15 @@ describe('runFetchScript: a first run on an empty cache, then a second run', () 
     expect(rows[0]).toBe(`  OK shp-1 ${storyFile.shipments[0].label}: expected direct, got direct`);
     expect(rows[3]).toBe(`  OK shp-4 ${storyFile.shipments[3].label}: expected relay, got relay`);
     expect(first.lines).toContain('  24 plans checked, 0 problems');
+  });
+
+  it('adds nothing when the story is as written and the cache holds no entered home', () => {
+    expect(explanationOf(first.lines).header).toBeNull();
+    expect(first.lines.some((line) => line.startsWith('Entered homes: '))).toBe(false);
+    expect(first.lines.join('\n')).not.toContain('--drop-entered');
+    // The plan check ends with its last story row: the next line is the blank one before the cache report.
+    const lastRow = first.lines.map((line) => /^ {2}(OK|FAIL) shp-/.test(line)).lastIndexOf(true);
+    expect(first.lines.slice(lastRow + 1, lastRow + 3)).toEqual(['', 'Travel cache report']);
   });
 
   it('exits 0 on warnings alone: only an error in the cache report fails a run', () => {
@@ -204,6 +221,132 @@ describe('runFetchScript: a run that fetches everything but gets flagged', () =>
     expect(Object.keys(matrix.pairs).sort()).toEqual(neededPairs().sort());
     expect(Object.keys(polylines.polylines).length).toBe(flagged.calls.polyline.length);
   });
+
+  it("explains each of the three story rows with the explainer's lines, at most 8 options each", () => {
+    const { header, packages } = explanationOf(flagged.lines);
+    expect(header).toMatch(/^Why \(3 story packages not as written\): /);
+    expect(packages.map((entry) => entry.title)).toEqual(
+      [3, 4, 5].map((row) => `shp-${row + 1} ${storyFile.shipments[row].label}: expected relay, got direct`),
+    );
+
+    const explainer = explainerOn(dir);
+    for (const [index, entry] of packages.entries()) {
+      const { rows, lines } = explainer.options(`shp-${index + 4}`);
+      expect(entry.options).toHaveLength(Math.min(EXPLAIN_OPTIONS, rows.length));
+      for (const option of entry.options) expect(lines).toContain(withoutOutcome(option));
+      expect(entry.more).toMatch(new RegExp(`^… ${rows.length - entry.options.length} more options? \\(\\d+ feasible, \\d+ ruled out\\)$`));
+      // Each got a direct plan, and that option says so.
+      const got = entry.options.filter((option) => option.endsWith(' — the plan it got'));
+      expect(got).toHaveLength(1);
+      expect(got[0]).toMatch(/^feasible: (evening|morning) direct: /);
+    }
+  });
+
+  it('says of an option that works when its commute carries another package in the result', () => {
+    const { assignments, names } = explainerOn(dir);
+    const taken = explanationOf(flagged.lines)
+      .packages.flatMap((entry) => entry.options.map((option) => ({ own: entry.title.split(' ')[0], option })))
+      .filter(({ option }) => option.includes(' — not free: '));
+    // In this tight cluster the packages compete for the same commutes, so there are such options.
+    expect(taken.length).toBeGreaterThan(0);
+
+    for (const { own, option } of taken) {
+      expect(option.startsWith('feasible: ')).toBe(true);
+      const claims = option.split(' — not free: ')[1].split(' and ');
+      for (const claim of claims) {
+        const [, direction, carrier, other] = claim.match(/^the (evening|morning) commute of (.+) carries (shp-\d+)$/)!;
+        expect(other).not.toBe(own);
+        expect(withoutOutcome(option)).toContain(`carrier ${carrier} `);
+        const plan = assignments.plans.find((candidate) => candidate.shipmentId === other)!;
+        expect(plan.legs.some((leg) => names[leg.employeeId] === carrier && leg.tripId.endsWith(direction === 'evening' ? '-eve' : '-morn'))).toBe(true);
+      }
+    }
+  });
+});
+
+describe('runFetchScript: the entered homes line of a run', () => {
+  // Homes typed into the commute editor: the live server writes them into the cache, and a run keeps them.
+  let seed: string;
+  const isEnteredLine = (line: string) => line.startsWith('Entered homes: ');
+  const withEntered = () => {
+    const dir = tempDirWithCacheOf(seed);
+    writeTravelFiles(dir, withCityEnteredHomes(cacheOf(dir), ENTERED_HOMES));
+    return dir;
+  };
+
+  beforeAll(async () => {
+    seed = tempFixturesDir();
+    expect((await script({ dir: seed })).code).toBe(0);
+  }, RUN_TIMEOUT_MS);
+
+  it(
+    'a complete run says how many there are, with the free command, right before the Done line, and exits 0',
+    async () => {
+      const dir = withEntered();
+      const run = await script({ dir });
+
+      expect(run.code).toBe(0);
+      expect(totalCalls(run.calls)).toBe(0);
+      expect(run.lines.at(-1)).toMatch(/^Done: the cache is complete and no error is flagged\./);
+      expect(run.lines.filter(isEnteredLine)).toHaveLength(1);
+      const line = run.lines.at(-2)!;
+      expect(line).toMatch(/^Entered homes: 2 \(addresses typed into the commute editor; their IDs hold their coordinates, so do not commit the cache with them\)\. /);
+      expect(line).toContain(`Free to remove: ${DROP_ENTERED_COMMAND}.`);
+      expect(line.endsWith(DROP_ENTERED_RUN_NOTE)).toBe(true);
+      expect(line).not.toMatch(ENTERED_ID_PATTERN);
+      // The run reports them and leaves them in: dropping is the human's command.
+      expect(enteredHomes(cacheOf(dir)).sort()).toEqual([...ENTERED_HOME_IDS].sort());
+    },
+    RUN_TIMEOUT_MS,
+  );
+
+  it(
+    'uses the singular for one home',
+    async () => {
+      const dir = tempDirWithCacheOf(seed);
+      writeTravelFiles(dir, withCityEnteredHomes(cacheOf(dir), ENTERED_HOMES.slice(1)));
+
+      const run = await script({ dir });
+
+      expect(run.lines.filter(isEnteredLine)).toHaveLength(1);
+      expect(run.lines.at(-2)).toMatch(/^Entered homes: 1 \(an address typed into the commute editor; its ID holds its coordinates, so do not commit the cache with it\)\. /);
+      expect(run.lines.at(-2)).not.toMatch(ENTERED_ID_PATTERN);
+    },
+    RUN_TIMEOUT_MS,
+  );
+
+  it(
+    'a run that is not complete says it too, before its reasons, and still ends with the check line',
+    async () => {
+      const dir = withEntered();
+      editStory(dir, (story) => (story.shipments[0].expect = 'relay'));
+
+      const run = await script({ dir });
+
+      expect(run.code).toBe(1);
+      expect(run.lines.at(-1)).toBe(CHECK_LINE);
+      expect(run.lines.filter(isEnteredLine)).toHaveLength(1);
+      expect(run.lines.findIndex(isEnteredLine)).toBe(run.lines.indexOf('NOT complete:') - 1);
+      expect(run.lines.find(isEnteredLine)).not.toMatch(ENTERED_ID_PATTERN);
+      // The explanation is about the default scenario, which uses no entered home.
+      const why = run.lines.findIndex((line) => line.startsWith('  Why ('));
+      expect(why).toBeGreaterThan(0);
+      for (const line of run.lines.slice(why, run.lines.indexOf('Travel cache report'))) expect(line).not.toMatch(ENTERED_ID_PATTERN);
+    },
+    RUN_TIMEOUT_MS,
+  );
+
+  it(
+    'prints no such line when the cache holds none',
+    async () => {
+      const run = await script({ dir: tempDirWithCacheOf(seed) });
+
+      expect(run.code).toBe(0);
+      expect(run.lines.filter(isEnteredLine)).toEqual([]);
+      expect(run.lines.join('\n')).not.toContain('--drop-entered');
+    },
+    RUN_TIMEOUT_MS,
+  );
 });
 
 describe('runFetchScript: a step that cannot be saved', () => {

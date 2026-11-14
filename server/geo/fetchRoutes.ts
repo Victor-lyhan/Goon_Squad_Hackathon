@@ -68,7 +68,7 @@ function idList(ids: readonly string[]): string {
   return ids.length <= 3 ? ids.join(', ') : `${ids.slice(0, 3).join(', ')} and ${ids.length - 3} more`;
 }
 
-type MatchOutcome =
+export type MatchOutcome =
   | { ok: true; scenario: Scenario; trips: Trip[]; assignments: AssignmentResult }
   | { ok: false; reason: string };
 
@@ -76,8 +76,9 @@ type MatchOutcome =
  * Step 3: the default scenario, its trips and the matcher's result, all read from the cache files.
  * Pure. When the files cannot answer (a business without coordinates, a pair without a time) it returns the
  * reason in one line; it never fills a gap with a guess.
+ * Exported for the `--dry-run` of fetchScript.ts, which explains the story rows that are not as written from it.
  */
-function matchDefaultScenario(input: FetchRoutesInput, files: TravelFiles): MatchOutcome {
+export function matchDefaultScenario(input: FetchRoutesInput, files: TravelFiles): MatchOutcome {
   const ungeocoded = businessesWithoutCoordinates(input.businessesFile, files.matrix);
   if (ungeocoded.length > 0) {
     const subject = ungeocoded.length === 1 ? '1 business has' : `${ungeocoded.length} businesses have`;
