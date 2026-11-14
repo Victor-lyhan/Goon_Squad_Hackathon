@@ -1,23 +1,45 @@
 #!/usr/bin/env bash
-# Reviewer + merger loop: review the oldest PR labeled needs-review, then merge it or send it back.
+# Reviewer + merger loop: review the oldest unclaimed PR labeled needs-review, then merge it or send it back.
+#
+# Several reviewers can run at once. Each claims a PR with its own label "review:<name>" before
+# reviewing, skips PRs another reviewer has claimed, and releases the claim afterwards.
+# PARITY=0|1 is optional: that reviewer prefers even/odd PR numbers but takes any free PR when
+# none of its own are waiting.
 #
 # usage:   scripts/reviewer.sh <claude|codex> [model] [name]
-# example: EFFORT=high caffeinate -i scripts/reviewer.sh claude opus
+# example: EFFORT=high caffeinate -i scripts/reviewer.sh claude opus reviewer-2
 set -u
 ENGINE=${1:?engine: claude|codex}; MODEL=${2:-}; NAME=${3:-reviewer}
 cd "$(dirname "$0")/.." || exit 1
 source scripts/lib.sh
 LOG="$REPO_ROOT/logs/$NAME.log"
 MAX_ROUNDS=3
+CLAIM="review:$NAME"
+
+release() { gh pr edit "$1" --remove-label "$CLAIM" >/dev/null 2>&1; }
 
 log "$NAME starting ($ENGINE ${MODEL:-default model})"
 
+# Make sure the claim label exists, and drop claims left over from a previous run of this reviewer.
+gh label create "$CLAIM" --color ededed --description "PR is being reviewed by $NAME" --force >/dev/null 2>&1
+for p in $(gh pr list --state open --label "$CLAIM" --json number --jq '.[].number' 2>/dev/null); do release "$p"; done
+
+PREF=${PARITY:+"(.number % 2 != $PARITY)"}; PREF=${PREF:-false}
+
 while ! halted; do
   git -C "$REPO_ROOT" fetch -q --prune origin || { backoff 60; continue; }
-  FILTER=${PARITY:+".number % 2 == $PARITY"}; FILTER=${FILTER:-true}
-  PR=$(gh pr list --state open --label needs-review --json number \
-        --jq "map(select($FILTER)) | sort_by(.number) | .[0].number // empty")
-  if [ -z "$PR" ]; then sleep 60; continue; fi
+  PR=$(gh pr list --state open --label needs-review --json number,labels \
+        --jq "map(select(([.labels[].name | startswith(\"review:\")] | any) | not)) | sort_by([$PREF, .number]) | .[0].number // empty")
+  if [ -z "$PR" ]; then sleep 30; continue; fi
+
+  # Claim it, then check nobody else claimed it in the same moment (alphabetically first name wins).
+  gh pr edit "$PR" --add-label "$CLAIM" >/dev/null 2>&1 || { sleep 5; continue; }
+  sleep 3
+  OTHERS=$(gh pr view "$PR" --json labels --jq '[.labels[].name | select(startswith("review:"))] | sort | .[]')
+  FIRST=$(printf '%s\n' "$OTHERS" | head -n 1)
+  if [ -n "$FIRST" ] && [ "$FIRST" != "$CLAIM" ]; then
+    release "$PR"; sleep 2; continue
+  fi
 
   BR=$(gh pr view "$PR" --json headRefName --jq .headRefName)
   DIR=$(prep_worktree "$NAME" "review-scratch" "origin/$BR")
@@ -41,6 +63,7 @@ The change to review is: git diff origin/main...HEAD"
   MAX_TURNS=30 TOOLS="Read,Glob,Grep,Bash,Write" run_agent "$ENGINE" "$MODEL" "$DIR" "$PROMPT"
 
   if [ ! -f "$DIR/REVIEW.md" ]; then
+    release "$PR"
     log "no REVIEW.md produced for #$PR (usage limit?)"
     [ $((SECONDS - START)) -lt 90 ] && backoff 900 || backoff 120
     continue
@@ -66,5 +89,6 @@ The change to review is: git diff origin/main...HEAD"
       log "PR #$PR needs changes (round $ROUNDS)"
     fi
   fi
+  release "$PR"
 done
 log "$NAME stopped"
