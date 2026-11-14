@@ -12,8 +12,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type express from 'express';
 import { createApp, errorLogLine } from '../../server/index';
-import { createStore, type Store } from '../../server/store';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
+import type { Store } from '../../server/store';
 import type { RunV2 } from '../../server/api/v2/router';
 import { TravelDataMissingError, type TravelProvider } from '../../shared/v2/types';
 import { startBootstrapApi, T, type BootstrapApi } from './v2-bootstrap-helper';
@@ -82,8 +81,7 @@ let base: string;
 
 beforeAll(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v2-error-log-'));
-  const store = createStore({ filePath: path.join(dir, 'state.json'), initial: () => createInitialRun(loadDefaultScenario()) });
-  const app = createApp(store, { clientDist: path.join(dir, 'no-dist'), v2: { travel: fakeTravel, store: fakeStore, extraRoutes: testRoutes } });
+  const app = createApp({ clientDist: path.join(dir, 'no-dist'), v2: { travel: fakeTravel, store: fakeStore, extraRoutes: testRoutes } });
   server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

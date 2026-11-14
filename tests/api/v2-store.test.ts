@@ -3,8 +3,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createStore, type Store } from '../../server/store';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
-import type { Run as RunV1 } from '../../shared/types';
 import type { Run as RunV2 } from '../../shared/v2/types';
 
 // A small, fully typed v2 run: places by ID, homes, no hubs, playing clock.
@@ -116,21 +114,5 @@ describe('store with the v2 run', () => {
       console.warn = warn;
     }
     expect(fs.readFileSync(`${file}.bad-1`, 'utf8')).toBe('{not json');
-  });
-
-  it('the v2 state file and the MVP 1 state file live side by side', async () => {
-    const v1File = path.join(dir, 'state.json');
-    const v1: Store<RunV1> = createStore({ filePath: v1File, initial: () => createInitialRun(loadDefaultScenario()) });
-    const v2 = createStore<RunV2>({ filePath: file, initial: mkRunV2 });
-    await v1.mutate((run) => {
-      run.clock.playing = true;
-    });
-    await v2.mutate((run) => {
-      run.clock.timeMin = 1200;
-    });
-    const v1Again = createStore({ filePath: v1File, initial: () => { throw new Error('should load the file'); } });
-    expect(v1Again.get().scenario.hubs.length).toBeGreaterThan(0); // still the MVP 1 shape, typed as the MVP 1 Run
-    expect(v1Again.get().clock.playing).toBe(false);
-    expect(createStore<RunV2>({ filePath: file, initial: noInitial }).get().clock.timeMin).toBe(1200);
   });
 });

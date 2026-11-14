@@ -1,6 +1,6 @@
 // The MVP II demo flow over HTTP on the bootstrapped server (server/api/v2/bootstrap.ts), the way
 // server/index.ts starts it: createV2Runtime on a folder with the NYC files and a travel cache, then
-// createApp(store, { v2: runtime.deps }). The cache is the made-up sample of v2-boot-sample.ts in a temp
+// createApp({ v2: runtime.deps }). The cache is the made-up sample of v2-boot-sample.ts in a temp
 // folder. No network (the injected fetch fails the test if it is called) and no key.
 // The tests run in order on one server: each step continues from the state the step before left.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -185,7 +185,6 @@ describe('MVP II demo flow on the bootstrapped server', () => {
     const mvp1 = await api.call('GET', '/api/simulator'); // an MVP 1 route until #628
     expect(mvp1.status).toBe(404);
     expect(mvp1.body).toStrictEqual({ error: 'Not found' });
-    expect(api.mvp1Store.get().version).toBe(0); // nothing in the v2 flow touched the MVP 1 run
     expect(fs.existsSync(api.repo.mvp1StatePath)).toBe(false);
   }, T);
 

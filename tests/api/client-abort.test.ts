@@ -6,15 +6,10 @@
 // not later" is checked on a fake clock (client-timeout-clock.ts). The tests on real sockets only check
 // the error, so a slow runner makes them slower, never red.
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import http from 'node:http';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../../server/index';
-import { createStore } from '../../server/store';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 import * as api from '../../client/src/api';
 import type { RequestOptions } from '../../client/src/api';
 import { hangingFetch, settledAtTimeout } from './client-timeout-clock';
@@ -36,10 +31,7 @@ let onHungRequest: (() => void) | undefined;
 const hungRequestArrives = () => new Promise<void>((resolve) => { onHungRequest = resolve; });
 
 beforeAll(async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'client-abort-'));
-  const run = createInitialRun(loadDefaultScenario());
-  const store = createStore({ filePath: path.join(dir, 'state.json'), initial: () => run });
-  server = createApp(store).listen(0);
+  server = createApp().listen(0);
   hung = http.createServer(() => { onHungRequest?.(); /* never answers */ }).listen(0);
   await Promise.all([server, hung].map((s) => new Promise((r) => s.once('listening', r))));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

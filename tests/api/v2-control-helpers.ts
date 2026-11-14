@@ -48,15 +48,6 @@ const travel: TravelProvider = {
   polyline: () => null,
 };
 
-// /api/v2 never reads the MVP 1 store.
-const noMvp1Store: Store = {
-  get: () => {
-    throw new Error('the MVP 1 store is not used by /api/v2');
-  },
-  mutate: () => Promise.reject(new Error('the MVP 1 store is not used by /api/v2')),
-  flush: async () => {},
-};
-
 export type ControlServer = {
   store: Store<Run>;
   stateFile: string;
@@ -80,7 +71,7 @@ export async function startControlServer(
   const stateFile = path.join(dir, 'state-v2.json');
   const store = createStore<Run>({ filePath: stateFile, initial: () => run });
   const { snapshotAt, calls } = recordingSnapshotAt();
-  const app = createApp(noMvp1Store, {
+  const app = createApp({
     clientDist: path.join(dir, 'no-dist'),
     v2: {
       travel,

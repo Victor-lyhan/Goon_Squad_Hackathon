@@ -7,8 +7,7 @@ import path from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../../server/index';
-import { createStore, type Store } from '../../server/store';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
+import type { Store } from '../../server/store';
 import type { RunV2 } from '../../server/api/v2/router';
 import { registerReadRoutes, type ReadDeps } from '../../server/api/v2/readRoutes';
 import type { Snapshot, TravelProvider } from '../../shared/v2/types';
@@ -79,10 +78,7 @@ export async function startReadApi(opts: {
     ...(opts.ensureLegPolylines ? { ensureLegPolylines: opts.ensureLegPolylines } : {}),
   };
 
-  // createApp needs an MVP 1 store for the MVP 1 routes; the v2 routes never touch it.
-  const mvp1Run = createInitialRun(loadDefaultScenario());
-  const mvp1Store = createStore({ filePath: path.join(dir, 'mvp1-state.json'), initial: () => mvp1Run });
-  const app = createApp(mvp1Store, {
+  const app = createApp({
     clientDist: dist,
     v2: { travel: deps.travel, store: deps.store, extraRoutes: (router) => registerReadRoutes(router, deps) },
   });

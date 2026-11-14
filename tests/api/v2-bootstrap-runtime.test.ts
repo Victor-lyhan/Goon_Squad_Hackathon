@@ -5,7 +5,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { shutdown } from '../../server/index';
 import { MATRIX_FILE, POLYLINES_FILE } from '../../server/geo/cache';
 import { pairKey, type Run as RunV2 } from '../../shared/v2/types';
 import {
@@ -23,7 +22,6 @@ afterEach(async () => {
 });
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const noTicker = { stop: () => undefined };
 
 describe('v2 runtime: ticker and shutdown', () => {
   it('the clock moves only after startTicker; shutdown stops it, pauses and saves; a restart resumes paused', async () => {
@@ -43,13 +41,11 @@ describe('v2 runtime: ticker and shutdown', () => {
     const moving = (await api.v2.get('/simulator')).body;
     expect(moving.clock.timeMin).toBeGreaterThan(start);
 
-    // What Ctrl-C runs in server/index.ts: MVP 1 and the v2 runtime together.
-    await shutdown(api.mvp1Store, noTicker, api.runtime);
+    // What Ctrl-C runs in server/index.ts (`stop()` calls the runtime's shutdown).
+    await api.runtime.shutdown();
     const stopped = api.store!.get();
     expect(stopped.clock.playing).toBe(false);
     expect(stopped.clock.timeMin).toBeGreaterThanOrEqual(moving.clock.timeMin);
-    expect(api.mvp1Store.get().clock.playing).toBe(false);
-    expect(fs.existsSync(api.repo.mvp1StatePath)).toBe(true);
     await wait(30); // the ticker is really stopped
     expect(api.store!.get().version).toBe(stopped.version);
     expect(await api.savedRun()).toStrictEqual(JSON.parse(JSON.stringify(stopped)));
@@ -83,13 +79,6 @@ describe('v2 runtime: ticker and shutdown', () => {
     expect(saved?.clock.playing).toBe(false);
     // the state file and its sidecar (the fingerprint of the default inputs, written at boot: #503)
     expect(fs.readdirSync(path.dirname(api.repo.statePath)).sort()).toStrictEqual(['state-v2.json', 'state-v2.source.json']);
-  }, T);
-
-  it('the MVP 1 state is saved even when the v2 save fails, and the failure is reported', async () => {
-    api = await startBootstrapApi({ cache: 'sample' });
-    const failing = { shutdown: () => Promise.reject(new Error('disk full')) };
-    await expect(shutdown(api.mvp1Store, noTicker, failing)).rejects.toThrow('disk full');
-    expect(JSON.parse(fs.readFileSync(api.repo.mvp1StatePath, 'utf8')).run.clock.playing).toBe(false);
   }, T);
 });
 

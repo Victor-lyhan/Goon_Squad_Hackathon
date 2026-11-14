@@ -18,7 +18,6 @@ import type { AddressInfo } from 'node:net';
 import { z } from 'zod';
 import { createApp } from '../../server/index';
 import { createStore, type Store } from '../../server/store';
-import { createInitialRun as createMvp1Run, loadDefaultScenario } from '../../server/api/initialRun';
 import { registerCommuteRoutes, type CommutePlaces } from '../../server/api/v2/commuteRoutes';
 import type { PlacePair } from '../../server/api/v2/commutePlan';
 import { createInitialRun } from '../../server/api/v2/initialRun';
@@ -146,9 +145,7 @@ export async function startCommuteApp(opts: { scenario?: Scenario } = {}): Promi
   });
   const places = fakePlaces(table, () => store.get());
 
-  const mvp1Run = createMvp1Run(loadDefaultScenario());
-  const mvp1Store = createStore({ filePath: path.join(dir, 'state.json'), initial: () => mvp1Run });
-  const app = createApp(mvp1Store, {
+  const app = createApp({
     clientDist: path.join(dir, 'no-client'),
     v2: {
       travel, store,
@@ -171,7 +168,6 @@ export async function startCommuteApp(opts: { scenario?: Scenario } = {}): Promi
     async close() {
       await new Promise((resolve) => server.close(resolve));
       await store.flush();
-      await mvp1Store.flush();
       fs.rmSync(dir, { recursive: true, force: true });
     },
   };
