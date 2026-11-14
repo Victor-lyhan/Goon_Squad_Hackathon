@@ -96,7 +96,7 @@ describe('business v2 CSS QA (#497)', () => {
   // anywhere in the file is covered too.
   const PREFIX: Record<string, string> = {
     'businessWorkspace.css': 'bw-', 'deliveryDetails.css': 'bd-', 'newDelivery.css': 'nd',
-    'activity/activity.css': 'ba-', 'page/businessPage.css': 'bp',
+    'activity/activity.css': 'ba-', 'page/businessPage.css': 'bp', 'route/deliveryRoute.css': 'bdr',
   };
   const short = (f: string) => f.replace(/^.*business\/v2\//, '');
 
