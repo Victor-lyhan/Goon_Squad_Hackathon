@@ -140,7 +140,7 @@ function nycFacts(s: NycSummary): SummaryFacts {
 }
 
 /** The same homepage on the NYC network: /api/v2 only, links to the /nyc preview pages. */
-function NycLanding({ initialSummary }: { initialSummary?: NycSummary }) {
+function NycLanding({ initialSummary, helpPath }: { initialSummary?: NycSummary; helpPath: string }) {
   const summary = useNycSummary(initialSummary);
   return (
     <div className="landing landing-nyc">
@@ -153,22 +153,24 @@ function NycLanding({ initialSummary }: { initialSummary?: NycSummary }) {
       <WorkspaceEntries paths={nycWorkspacePaths(summary)} />
       <footer className="landing-footer">
         <span>{NYC_ENV_TEXT}</span>
-        <Link to={HELP_PATH}>Guided demo</Link>
+        <Link to={helpPath}>Guided demo</Link>
       </footer>
     </div>
   );
 }
 
 export default function Landing(
-  { initial, initialFacts, dataset = 'synthetic', initialSummary }: {
+  { initial, initialFacts, dataset = 'synthetic', initialSummary, helpPath = HELP_PATH }: {
     initial?: Parameters<typeof useDirectory>[0]; initialFacts?: SummaryFacts;
     /** Which data the page shows. 'synthetic' (default) is the MVP 1 API; 'nyc' reads /api/v2 only. */
     dataset?: LandingDataset;
     /** NYC only: skip the /api/v2 requests and render this summary (tests). */
     initialSummary?: NycSummary;
+    /** NYC only: where "Guided demo" goes. /nyc mounts it with /nyc/help (pass 55); after the cutover the default. */
+    helpPath?: string;
   } = {},
 ) {
-  if (dataset === 'nyc') return <NycLanding initialSummary={initialSummary} />;
+  if (dataset === 'nyc') return <NycLanding initialSummary={initialSummary} helpPath={helpPath} />;
   return <SyntheticLanding initial={initial} initialFacts={initialFacts} />;
 }
 

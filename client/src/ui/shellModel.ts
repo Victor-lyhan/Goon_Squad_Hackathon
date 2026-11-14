@@ -55,6 +55,22 @@ export const PREVIEW_SIMULATOR_PATH = '/nyc/simulator';
 export const previewEmployeePath = (id: string) => `/nyc/employee/${encodeURIComponent(id)}`;
 export const previewBusinessPath = (id: string) => `/nyc/business/${encodeURIComponent(id)}`;
 
+/** The NYC homepage and Guided demo before the cutover (DECISIONS pass 55). */
+export const PREVIEW_HOME_PATH = '/nyc';
+export const PREVIEW_HELP_PATH = '/nyc/help';
+export const HOME_PATH = '/';
+export const HELP_PAGE_PATH = '/help';
+
+/** The header's brand link: /nyc on any preview path, / elsewhere. */
+export function homePathFor(pathname: string): string {
+  return isPreviewPath(pathname) ? PREVIEW_HOME_PATH : HOME_PATH;
+}
+
+/** The header's Help link: /nyc/help on any preview path, /help elsewhere. */
+export function helpPathFor(pathname: string): string {
+  return isPreviewPath(pathname) ? PREVIEW_HELP_PATH : HELP_PAGE_PATH;
+}
+
 /** True on any /nyc or /nyc/… path. */
 export function isPreviewPath(pathname: string): boolean {
   return /^\/nyc(?:\/|$)/.test(pathname);

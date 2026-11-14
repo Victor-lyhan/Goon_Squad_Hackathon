@@ -58,7 +58,7 @@ describe('route table', () => {
     expect(body).toMatch(marker);
     expect(body).not.toContain('Page not found');
   });
-  it.each(['/nyc', '/nyc/business', '/nyc/unknown', '/nyc/employee'])('%s is a 404', (path) => {
+  it.each(['/nyc/business', '/nyc/unknown', '/nyc/employee'])('%s is a 404', (path) => {
     expect(main(render(path))[2]).toContain('Page not found');
   });
   it('MVP 1 pages and v2 pages stay separate', () => {
