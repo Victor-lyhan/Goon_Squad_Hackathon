@@ -39,6 +39,33 @@ describe('JourneyTimeline', () => {
     assertClean(html);
   });
 
+  it('shows the extra minutes of a leg with their sign, in the step line and in the carrier line (#635)', () => {
+    const base = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight, { 'shp-2': 'at_hub' }), map }) as Journey;
+    const withExtra = (extraMin: number): Journey => ({
+      ...base,
+      carriers: base.carriers.map((c) => ({ ...c, extraMin })),
+      steps: base.steps.map((s) => ({ ...s, extraMin })),
+    });
+    const render = (extraMin: number) => renderToStaticMarkup(<JourneyTimeline journey={withExtra(extraMin)} onSeek={noop} />);
+    const lines = (html: string, re: RegExp) => (html.match(re) ?? []).map(text);
+    const cases: [number, string][] = [
+      [-3, '-3 min extra'], [0, '+0 min extra'], [6, '+6 min extra'], [-0.4, '+0 min extra'], [-2.6, '-3 min extra'],
+      [Number.NaN, 'Extra time unavailable'], [Number.POSITIVE_INFINITY, 'Extra time unavailable'],
+      [undefined as unknown as number, 'Extra time unavailable'], ['7' as unknown as number, 'Extra time unavailable'],
+    ];
+    for (const [extraMin, want] of cases) {
+      const html = render(extraMin);
+      const carrierLines = lines(html, /<span class="jt-leg__extra">.*?<\/span>/g);
+      // The step's meta line holds three spans: time, carrier, extra minutes.
+      const stepLines = lines(html, /<span class="jt-step__meta">.*?<\/span><\/span>/g);
+      expect(carrierLines, String(extraMin)).toEqual(base.carriers.map(() => want));
+      expect(stepLines.length).toBe(base.steps.length);
+      for (const line of stepLines) expect(line.endsWith(want), `${extraMin}: ${line}`).toBe(true);
+      expect(text(html)).not.toMatch(/NaN|undefined|Infinity/);
+      if (want.startsWith('-')) expect(text(html)).not.toContain('+0 min extra');
+    }
+  });
+
   it('after delivery: no step is current, still clean', () => {
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.afterDelivery, { 'shp-2': 'delivered' }), map }) as Journey;
     const html = renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />);
@@ -65,6 +92,7 @@ describe('JourneyTimeline', () => {
     const j = buildJourney({ shipmentId: 'shp-3', sim: simAt(T.overnight), map })!;
     const html = renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />);
     expect(text(html)).toContain('No commuter passes both businesses within their detour limit.');
+    expect(text(html)).toContain('Status Unmatched');
     expect(html).not.toContain('<button');
     assertClean(html);
   });
@@ -87,26 +115,34 @@ describe('JourneyTimeline', () => {
 });
 
 describe('JourneyLegend', () => {
-  it('names each carrier once, with its leg, plus the normal commute', () => {
+  it('relay: "A · <name>" and "B · <name>", each with its letter badge in its colour; no normal commute', () => {
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map }) as Journey;
     const html = renderToStaticMarkup(<JourneyLegend carriers={j.carriers} />);
     const t = text(html);
+    expect(t).toContain('A · Cy Lam');
+    expect(t).toContain('B · Ben Okafor');
     expect(t.match(/Cy Lam/g)).toHaveLength(1);
     expect(t.match(/Ben Okafor/g)).toHaveLength(1);
-    expect(t).toContain('Leg 1');
-    expect(t).toContain('Leg 2');
-    expect(t).toContain('Normal commute');
-    expect(html).toContain('#28618A');
-    expect(html).toContain('#C03A64');
+    expect(t).not.toContain('Normal commute');
+    expect(t).toContain('Thick: carrying the package');
+    expect(html).toContain('jl__badge--leg1" aria-hidden="true" style="background:#1D5075">A<');
+    expect(html).toContain('jl__badge--leg2" aria-hidden="true" style="background:#0F8A5F">B<');
     assertClean(html);
   });
 
-  it('the same person on both legs is named once', () => {
+  it('direct: only A', () => {
+    const j = buildJourney({ shipmentId: 'shp-1', sim: simAt(T.overnight), map }) as Journey;
+    const t = text(renderToStaticMarkup(<JourneyLegend carriers={j.carriers} />));
+    expect(t).toContain('A · Ana Ruiz');
+    expect(t).not.toMatch(/\bB · /);
+  });
+
+  it('the same person on both legs: one row per leg, A and B', () => {
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map }) as Journey;
     const same = j.carriers.map((c) => ({ ...c, employeeId: 'emp-3', name: 'Cy Lam' }));
     const t = text(renderToStaticMarkup(<JourneyLegend carriers={same} />));
-    expect(t.match(/Cy Lam/g)).toHaveLength(1);
-    expect(t).toContain('Legs 1 and 2');
+    expect(t).toContain('A · Cy Lam');
+    expect(t).toContain('B · Cy Lam');
   });
 });
 

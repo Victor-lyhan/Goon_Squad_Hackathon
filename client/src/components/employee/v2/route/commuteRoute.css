@@ -74,6 +74,14 @@
 .ecr__stops li {
   padding: 2px 0;
 }
+/* A caption for the two commute lines: one wrapping row, quieter than the commute card above. */
+.ecr__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4, 16px);
+  color: var(--muted, #5B6472);
+  font-size: var(--text-xs, 12px);
+}
 .ecr__stops {
   padding-top: var(--space-2, 8px);
   border-top: 1px solid var(--border, #D7DDE5);

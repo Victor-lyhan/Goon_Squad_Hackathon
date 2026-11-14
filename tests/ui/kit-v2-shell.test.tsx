@@ -52,17 +52,17 @@ describe('activeDestination', () => {
 describe('compact header', () => {
   const routes: [string, string | null][] = [
     ['/', null], [`/business/${bid}`, 'Business'], [`/employee/${eid}`, 'Employee'],
-    ['/simulator', 'Simulator'], ['/help', null],
+    ['/simulator', 'Simulator'],
   ];
   it.each(routes)('%s: three nav links in order, correct active one, indicator once', (path, active) => {
     const html = render(path);
     expect(navLabels(html)).toEqual(['Business', 'Employee', 'Simulator']);
     expect(nav(html).match(/<a /g)).toHaveLength(3);
     expect(current(html)).toEqual(active ? [active] : []);
-    // The header says it once; the NYC homepage and Guided demo repeat it in their own copy.
+    // The header says it once.
     expect(header(html).split(ENV_INDICATOR_TEXT)).toHaveLength(2);
     expect(header(html)).toMatch(/<a [^>]*class="shell-wordmark"[^>]*>Relay<|<a [^>]*href="\/"[^>]*class="shell-wordmark"/);
-    expect(header(html)).toContain('href="/help"');
+    expect(header(html)).not.toContain('href="/help"'); // the Help page is deleted (#623)
     expect(header(html)).toContain(`class="shell-env">${ENV_INDICATOR_TEXT}<`);
   });
   it('nav links point to the current identity portals', () => {
@@ -74,8 +74,11 @@ describe('compact header', () => {
   it('marks the section active even for a different account id', () => {
     expect(current(render(`/business/${businesses[1].id}`))).toEqual(['Business']);
   });
-  it('Help link is marked current on /help', () => {
-    expect(header(render('/help'))).toMatch(/<a [^>]*aria-current="page"[^>]*>Help</);
+  it('/help is not a page: no Help link, nothing marked current, the 404 below (#623)', () => {
+    const html = render('/help');
+    expect(header(html)).not.toMatch(/>Help</);
+    expect(html).not.toContain('aria-current="page"');
+    expect(html).toContain('Page not found');
   });
   it('without an identity, portal items render as disabled text', () => {
     const html = render('/', { businesses: [], employees: [] });
@@ -91,25 +94,28 @@ describe('compact header', () => {
 });
 
 describe('shell CSS', () => {
-  it('is flat: 1px bottom border, no shadow, gradient or radius over 4px', () => {
+  it('is flat: 1px bottom border, no shadow, gradient or radius over 6px', () => {
     expect(css).toMatch(/\.shell-header \{[^}]*border-bottom: 1px solid/);
     expect(css).not.toContain('box-shadow');
     expect(css).not.toMatch(/gradient/);
     for (const m of css.matchAll(/border-radius:\s*([^;]+);/g)) {
       for (const px of m[1].matchAll(/(\d+(?:\.\d+)?)(px|rem|%)/g)) {
         const v = px[2] === 'rem' ? Number(px[1]) * 16 : Number(px[1]);
-        expect(px[2] === '%' ? 0 : v).toBeLessThanOrEqual(4);
+        expect(px[2] === '%' ? 0 : v).toBeLessThanOrEqual(6);
       }
     }
   });
   it('uses tokens with fallbacks and a mono xs indicator', () => {
     expect(css).toMatch(/\.shell-env \{[^}]*var\(--font-mono, [^}]*var\(--text-xs, 12px\)/);
-    expect(css).toContain('var(--border, #D7DDE5)');
-    expect(css).toContain('var(--accent, #28618A)');
+    expect(css).toContain('var(--border, #E3E3DE)');
+    expect(css).toContain('var(--accent, #1D5075)');
+    expect(css).toContain("var(--font-sans, 'Inter', 'Geist', system-ui");
+    // No MVP II value is left as a fallback (#651).
+    expect(css).not.toMatch(/#151B26|#F7F8FA|#D7DDE5|#28618A|#1F4E70|IBM Plex Sans|var\(--radius, 2px\)/i);
   });
-  it('every nav item, the Help link and the selector have a focus-visible style', () => {
+  it('every nav item and the selector have a focus-visible style', () => {
     const focus = /([^{}]*)\{[^}]*outline: 2px solid/.exec(css.slice(css.indexOf('.shell-wordmark:focus-visible')))![1];
-    for (const sel of ['.shell-wordmark:focus-visible', '.shell-nav-link:focus-visible', '.shell-help:focus-visible', '.demo-account select:focus-visible']) {
+    for (const sel of ['.shell-wordmark:focus-visible', '.shell-nav-link:focus-visible', '.demo-account select:focus-visible']) {
       expect(focus).toContain(sel);
     }
   });

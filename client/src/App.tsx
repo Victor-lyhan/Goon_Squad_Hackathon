@@ -5,8 +5,8 @@ import {
   getBusinesses as getV2Businesses, getEmployees as getV2Employees, getSimulator as getV2Simulator, isTravelUnavailable,
 } from './api/v2';
 import {
-  activeDestination, cutoverPath, DESTINATIONS, employeeOptions, ENV_INDICATOR_TEXT, HELP_PAGE_PATH, HOME_PATH,
-  isFullWidthPath, isHelpPath, pickAccount, reconcileSelection, RUN_POLL_MS, runChanged, staleNote, workspaceHrefs,
+  activeDestination, cutoverPath, DESTINATIONS, employeeOptions, ENV_INDICATOR_TEXT, HOME_PATH, isFullWidthPath,
+  openAccount, pickAccount, reconcileSelection, RUN_POLL_MS, runChanged, staleNote, withOpenAccount, workspaceHrefs,
   type AccountOption,
 } from './ui/shellModel';
 import type { NycSummary } from './pages/landingModel';
@@ -20,7 +20,6 @@ import {
 import './styles/global.css';
 import './ui/shell.css';
 import Landing from './pages/Landing';
-import Help from './pages/Help';
 import SimulatorV2 from './pages/v2/SimulatorV2';
 import EmployeeV2 from './pages/v2/EmployeeV2';
 import BusinessV2 from './pages/v2/BusinessV2';
@@ -81,7 +80,8 @@ const idsOf = (d: V2Directory | V2BusinessDirectory): string[] | undefined =>
 
 /**
  * Demo account on /business/:id and /employee/:id: the /api/v2 accounts. Choosing one stores it as the demo
- * identity and opens its page (path only, so ?shipment= / ?job= and the hash are dropped). An employee reads
+ * identity and opens its page (path only, so ?shipment= / ?job= and the hash are dropped). The header stores
+ * the account of a page opened by URL or by a link in the app (`openAccount`). An employee reads
  * "Name · Employer" (`employeeOptions`); until the business list is ready it reads the name alone.
  */
 function DemoAccountSelector({ employees, businesses }: { employees: V2Directory; businesses: V2BusinessDirectory }) {
@@ -154,12 +154,26 @@ export function Header({ initialV2, initialV2Businesses }: ShellProps = {}) {
     setSeen(pathname);
     setStored(readIdentity());
   }
-  const hrefs = workspaceHrefs(
-    pickAccount(stored.businessId, idsOf(businesses)),
-    pickAccount(stored.employeeId, idsOf(employees)),
-  );
+  const businessIds = idsOf(businesses);
+  const employeeIds = idsOf(employees);
+  // Opening an account page counts as choosing that account (DECISIONS pass 62): the link of its kind points
+  // to it at once, and the effect stores it, so the links still point to it on / and /simulator. An ID that
+  // is not in the loaded list is not an open account: nothing is stored and the stale note offers "Switch".
+  const open = openAccount(pathname, businessIds, employeeIds);
+  const identity = withOpenAccount(stored, open);
+  const openKey = open?.key;
+  const openId = open?.id;
+  useEffect(() => {
+    if (openKey === undefined || openId === undefined) return;
+    // Against what is stored now, so the other kind keeps its value and an unchanged ID is not written again.
+    const now = readIdentity();
+    const next = withOpenAccount(now, { key: openKey, id: openId });
+    if (next === now) return;
+    writeIdentity(next);
+    setStored(next);
+  }, [openKey, openId]);
+  const hrefs = workspaceHrefs(pickAccount(identity.businessId, businessIds), pickAccount(identity.employeeId, employeeIds));
   const active = activeDestination(pathname);
-  const onHelp = isHelpPath(pathname);
   return (
     <header className="shell-header">
       <Link to={HOME_PATH} className="shell-wordmark">Relay</Link>
@@ -180,7 +194,6 @@ export function Header({ initialV2, initialV2Businesses }: ShellProps = {}) {
         <div className="demo-account-slot" data-slot="demo-account-selector">
           <DemoAccountSelector employees={employees} businesses={businesses} />
         </div>
-        <Link to={HELP_PAGE_PATH} className={onHelp ? 'shell-help active' : 'shell-help'} aria-current={onHelp ? 'page' : undefined}>Help</Link>
         <span className="shell-env">{ENV_INDICATOR_TEXT}</span>
       </div>
     </header>
@@ -203,7 +216,6 @@ export function AppShell({ initialV2, initialV2Businesses, initialNycSummary }: 
           <Route path="/business/:id" element={<BusinessV2 />} />
           <Route path="/employee/:id" element={<EmployeeV2 />} />
           <Route path="/simulator" element={<SimulatorV2 />} />
-          <Route path="/help" element={<Help dataset="nyc" initialEmployees={initialV2} initialBusinesses={initialV2Businesses} />} />
           {/* The old preview paths (DECISIONS pass 57). */}
           <Route path="/nyc/*" element={<CutoverRedirect />} />
           <Route path="*" element={<NotFoundPage initialEmployees={initialV2} initialBusinesses={initialV2Businesses} />} />

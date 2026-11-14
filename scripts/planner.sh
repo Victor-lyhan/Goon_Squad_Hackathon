@@ -35,7 +35,7 @@ $CTX"
 
   log "planning pass"
   START=$SECONDS
-  MAX_TURNS=40 \
+  MAX_TURNS=60 \
   TOOLS="Read,Edit,Write,Glob,Grep,Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh run view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(ls:*)" \
     run_agent claude "$MODEL" "$REPO_ROOT" "$PROMPT"
   [ $((SECONDS - START)) -lt 60 ] && log "planner pass was very short (usage limit?)"

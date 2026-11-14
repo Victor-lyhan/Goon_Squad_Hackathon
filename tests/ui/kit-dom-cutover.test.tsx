@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// #548: the MVP II cutover in a real DOM. The real AppShell and the real pages on the five main paths, against
+// #548: the MVP II cutover in a real DOM. The real AppShell and the real pages on the four main paths, against
 // a real /api/v2 on a copy of the committed fixtures/nyc (no key, no network; startRealApi). Checks that each
 // path shows its MVP II page, that no request goes to an MVP 1 route, that "Synthetic" and "hub" are never
 // rendered, that the header reads the NYC indicator everywhere, and that /nyc/... redirects (replace) to the
@@ -75,13 +75,12 @@ function shownText(root: HTMLElement): string {
 
 const PAGES = () => [
   { path: '/', marker: '.landing.landing-nyc', ready: '.op-summary-list', full: false },
-  { path: '/help', marker: '.help.help-nyc', ready: 'a.help-step-link[href^="/business/"]', full: false },
   { path: `/business/${bizId}`, marker: 'div.bp', ready: 'div.bp .bp-notices', full: false }, // no <main> of its own (#581)
   { path: `/employee/${empId}`, marker: 'div.ep', ready: 'div.ep h1', full: false }, // the shell has the only <main> (#584)
   { path: '/simulator', marker: '.sim-v2', ready: '.sim-v2 .sw-left', full: true },
 ];
 
-describe('the five main paths show the MVP II pages on the real NYC run', () => {
+describe('the four main paths show the MVP II pages on the real NYC run', () => {
   it('each page renders, the header reads the NYC indicator, nothing says Synthetic or hub, no MVP 1 request', async () => {
     for (const p of PAGES()) {
       const before = api.requests.length;
@@ -95,7 +94,7 @@ describe('the five main paths show the MVP II pages on the real NYC run', () => 
       expect(s.main().className, p.path).toBe(p.full ? 'app-main app-main--full' : 'app-main');
       expect(textOf(s.header().querySelector('.shell-env')!), p.path).toBe(ENV_LABELS.nyc);
       expect(link(s.header(), 'Relay').getAttribute('href')).toBe('/');
-      expect(link(s.header(), 'Help').getAttribute('href')).toBe('/help');
+      expect(s.header().querySelector('a[href="/help"]'), p.path).toBeNull();
       expect(link(s.header(), 'Business').getAttribute('href')).toBe(`/business/${bizId}`);
       expect(link(s.header(), 'Employee').getAttribute('href')).toBe(`/employee/${empId}`);
       expect(link(s.header(), 'Simulator').getAttribute('href')).toBe('/simulator');
@@ -113,15 +112,14 @@ describe('the five main paths show the MVP II pages on the real NYC run', () => 
     expect(api.googleCalls).toEqual([]);
   }, T);
 
-  it('the homepage and the Guided demo link only to main paths', async () => {
-    for (const path of ['/', '/help']) {
-      const s = await renderApp(path);
-      await s.until(() => s.main().querySelectorAll('a[href^="/business/"]').length > 0, `${path} links`);
-      const hrefs = [...s.main().querySelectorAll('a[href]')].map((a) => a.getAttribute('href')!);
-      expect(hrefs.length).toBeGreaterThan(3);
-      for (const h of hrefs) expect(h).toMatch(/^\/(help|simulator|business\/[^/]+|employee\/[^/]+)$/);
-      s.unmount();
-    }
+  it('the homepage links only to main paths', async () => {
+    const s = await renderApp('/');
+    await s.until(() => s.main().querySelectorAll('a[href^="/business/"]').length > 0, '/ links');
+    const hrefs = [...s.main().querySelectorAll('a[href]')].map((a) => a.getAttribute('href')!);
+    // the homepage has three links: "Watch a package" (with ?package=<id>&play=1, #652), Business, Employee.
+    // The Guided demo link is gone with the page (#623, #652).
+    expect(hrefs.length).toBeGreaterThanOrEqual(3);
+    for (const h of hrefs) expect(h).toMatch(/^\/(simulator(\?package=[^/&]+&play=1)?|business\/[^/]+|employee\/[^/]+)$/);
   }, T);
 
   it('the selector stores the chosen business; a stored ID not in the NYC lists falls back to the first', async () => {
@@ -161,21 +159,20 @@ describe('the five main paths show the MVP II pages on the real NYC run', () => 
 describe('/nyc/... redirects to the main paths', () => {
   const cases = () => [
     ['/nyc', '/', '', ''],
-    ['/nyc/help', '/help', '', '#step-2'],
     ['/nyc/simulator', '/simulator', '?package=shp-x', ''],
     [`/nyc/business/${bizId}`, `/business/${bizId}`, '?shipment=shp-x', '#top'],
     [`/nyc/employee/${empId}`, `/employee/${empId}`, '?job=job-x', ''],
   ] as const;
 
-  it('replaces the entry (Back skips it) and keeps the query string and hash, for all five', async () => {
+  it('replaces the entry (Back skips it) and keeps the query string and hash, for all four', async () => {
     for (const [from, to, search, hash] of cases()) {
-      const s = await renderApp(`${from}${search}${hash}`, ['/help']);
+      const s = await renderApp(`${from}${search}${hash}`, ['/nowhere']);
       expect({ path: s.where.path, search: s.where.search, hash: s.where.hash }, from).toEqual({ path: to, search, hash });
       expect(s.where.type, from).toBe('REPLACE');
       expect(s.main().querySelector('.not-found'), from).toBeNull();
       // Back goes to the entry before /nyc/..., not to the redirect again.
       act(() => { s.where.go!(-1); });
-      expect(s.where.path, from).toBe('/help');
+      expect(s.where.path, from).toBe('/nowhere');
       s.unmount();
     }
   }, T);

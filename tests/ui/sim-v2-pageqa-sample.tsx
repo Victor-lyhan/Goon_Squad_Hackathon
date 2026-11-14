@@ -71,19 +71,20 @@ export const renderBody = (s: PageState) => renderToStaticMarkup(
 );
 
 /**
- * The stateless layout of a state with a given Play journey state and panel state: the workspace
+ * The stateless layout of a state with a given journey play state and panel state: the workspace
  * element the layout returns, rendered with `initialPanels` (both open by default).
  */
 export function renderLayout(s: PageState, opts: { play?: PlayState; panels?: PanelState } = {}): string {
   const hook = hookFor(s);
   const view = simPageView({ data: hook, selection: s.selection, focus: s.focus, layers: DEFAULT_LAYERS });
   const handlers = createSimPageHandlers({
-    sim: hook, view, selection: s.selection, onSelectionChange: () => {}, setFocus: () => {}, setLayers: () => {},
+    sim: hook, view, selection: s.selection, onSelectionChange: () => {}, setFocus: () => {},
     setPanTo: () => {}, setLegendOpen: () => {}, compare: COMPARE_IDLE, setCompare: () => {}, nextPanSeq: () => 1,
-    journeyPlay: { play: () => {}, stop: () => false },
+    play: opts.play ?? PLAY_IDLE,
+    journeyPlay: { play: () => {}, pause: () => false, reset: () => {} },
   });
   const layout = SimPageLayout({
-    view, focus: s.focus, layers: DEFAULT_LAYERS, legendOpen: true, handlers,
+    view, focus: s.focus, legendOpen: true, handlers,
     compare: compareView(COMPARE_IDLE, view, hook.sim?.runId ?? null), play: opts.play ?? PLAY_IDLE,
   }) as ReactElement<Record<string, unknown>>;
   // SimPageLayout → ReadyLayout (hook-free) → <SimWorkspace …/>.

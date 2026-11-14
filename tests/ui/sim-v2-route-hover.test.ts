@@ -175,19 +175,20 @@ describe('journey: hovering a route', () => {
   const journeyOf = (shipmentId: string, map: MapResponse = journeyMap) =>
     buildJourney({ shipmentId, sim: simAt(T.onLeg1), map }) as Journey;
 
-  it('a direct package: "Leg 1" and the carrier; the faint line names the employee', () => {
+  it('a direct package: "Leg 1" and the carrier on the thick part; the thin whole commute names the employee', () => {
     const t = tooltips(journeyOf('shp-1').routes);
     expect(lines(t.get('journey-shp-1-L0-leg-0'))).toEqual(['Leg 1 · carried by Ana Ruiz', 'Delivery route']);
-    expect(lines(t.get('journey-shp-1-L0-baseline'))).toEqual(['Ana Ruiz · evening', 'Normal commute']);
+    expect(lines(t.get('journey-shp-1-L0-trip-0'))).toEqual(['Ana Ruiz · evening', 'Whole commute']);
   });
 
-  it('a relay package: each leg line names its leg and its carrier, each commute line its employee', () => {
+  it('a relay package: each carried line names its leg and its carrier, each commute line its employee', () => {
     const j = journeyOf('shp-2');
     const t = tooltips(j.routes);
     expect(lines(t.get('journey-shp-2-L0-leg-0'))).toEqual(['Leg 1 · carried by Cy Lam', 'Delivery route']);
-    expect(lines(t.get('journey-shp-2-L1-leg-0'))).toEqual(['Leg 2 · carried by Ben Okafor', 'Delivery route']);
-    expect(lines(t.get('journey-shp-2-L0-baseline'))).toEqual(['Cy Lam · evening', 'Normal commute']);
-    expect(lines(t.get('journey-shp-2-L1-baseline'))).toEqual(['Ben Okafor · morning', 'Normal commute']);
+    // Leg 2's carried pair (relay → recipient) has no cached polyline in the sample: no line is invented.
+    expect(t.has('journey-shp-2-L1-leg-0')).toBe(false);
+    expect(lines(t.get('journey-shp-2-L0-trip-0'))).toEqual(['Cy Lam · evening', 'Whole commute']);
+    expect(lines(t.get('journey-shp-2-L1-trip-0'))).toEqual(['Ben Okafor · morning', 'Whole commute']);
     expect(t.size).toBe(j.routes.length);
     for (const item of t.values()) expectClean(item);
   });
@@ -195,20 +196,22 @@ describe('journey: hovering a route', () => {
   it('uses the legend\'s words: the leg numbers and names of `journey.carriers`', () => {
     const j = journeyOf('shp-2');
     const t = tooltips(j.routes);
-    for (const c of j.carriers) {
-      const label = t.get(`journey-shp-2-L${c.legIndex}-leg-0`)!.label;
-      expect(label).toBe(`Leg ${c.legIndex + 1} · carried by ${c.name}`);
+    const carried = j.routes.filter((r) => r.carried);
+    expect(carried.length).toBeGreaterThan(0);
+    for (const r of carried) {
+      const c = j.carriers.find((x) => r.id.startsWith(`journey-shp-2-L${x.legIndex}-`))!;
+      expect(t.get(r.id)!.label).toBe(`Leg ${c.legIndex + 1} · carried by ${c.name}`);
     }
   });
 
-  it('every part of a leg line split by a missing polyline has the leg\'s text', () => {
+  it('every part of a line split by a missing polyline keeps the line\'s text', () => {
     const map: MapResponse = {
       ...journeyMap,
-      polylines: journeyMap.polylines.map((p) => (p.from === 'biz-dumbo' && p.to === 'biz-roast' ? { ...p, encoded: null } : p)),
+      polylines: journeyMap.polylines.map((p) => (p.from === 'biz-roast' && p.to === 'home-007' ? { ...p, encoded: null } : p)),
     };
-    const routes = journeyOf('shp-2', map).routes.filter((r) => r.id.startsWith('journey-shp-2-L0-leg'));
-    expect(routes.length).toBeGreaterThan(0);
-    for (const r of routes) expect(r.label).toBe('Leg 1 · carried by Cy Lam');
+    const routes = journeyOf('shp-2', map).routes.filter((r) => r.id.startsWith('journey-shp-2-L0-'));
+    expect(routes.filter((r) => r.carried).map((r) => r.label)).toEqual(['Leg 1 · carried by Cy Lam']);
+    expect(routes.filter((r) => r.carried === false).map((r) => r.label)).toEqual(['Cy Lam · evening']);
   });
 
   it('a carrier who is not in the map answer: the leg only, never "Unknown carrier" or an ID', () => {
@@ -216,9 +219,9 @@ describe('journey: hovering a route', () => {
     const j = journeyOf('shp-2', map);
     const t = tooltips(j.routes);
     expect(lines(t.get('journey-shp-2-L0-leg-0'))).toEqual(['Leg 1', 'Delivery route']);
-    expect(lines(t.get('journey-shp-2-L0-baseline'))).toEqual(['Commute', 'Normal commute']);
-    expect('label' in j.routes.find((r) => r.id === 'journey-shp-2-L0-baseline')!).toBe(false);
-    expect(lines(t.get('journey-shp-2-L1-leg-0'))).toEqual(['Leg 2 · carried by Ben Okafor', 'Delivery route']);
+    expect(lines(t.get('journey-shp-2-L0-trip-0'))).toEqual(['Commute', 'Whole commute']);
+    expect('label' in j.routes.find((r) => r.id === 'journey-shp-2-L0-trip-0')!).toBe(false);
+    expect(lines(t.get('journey-shp-2-L1-trip-0'))).toEqual(['Ben Okafor · morning', 'Whole commute']);
     for (const item of t.values()) {
       expectClean(item);
       expect(item.label).not.toMatch(/unknown/i);
@@ -231,7 +234,7 @@ describe('journey: hovering a route', () => {
     expect(v.mode).toBe('journey');
     const t = tooltips(v.map.routes);
     expect(t.get('journey-shp-2-L0-leg-0')!.label).toBe('Leg 1 · carried by Cy Lam');
-    expect(t.get('journey-shp-2-L1-baseline')!.label).toBe('Ben Okafor · morning');
+    expect(t.get('journey-shp-2-L1-trip-0')!.label).toBe('Ben Okafor · morning');
   });
 });
 

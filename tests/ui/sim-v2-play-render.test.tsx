@@ -149,8 +149,8 @@ describe('the one Play/Pause button in the page', () => {
       const { html } = layout(journeyHook(), selection);
       const left = leftOf(html);
       const titles = [...left.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map((m) => m[1]);
-      expect(titles).toEqual(['Playback', 'Packages', 'Focus', 'Direct-only vs relay']);
-      const order = ['ctl-playback', 'Back to start', 'Search packages', 'Focus on employee', 'Direct-only vs relay'].map((t) => left.indexOf(t));
+      expect(titles).toEqual(['Playback', 'Packages', 'Focus', 'Direct only vs relay points']);
+      const order = ['ctl-playback', 'Back to start', 'Search packages', 'Focus on employee', 'Direct only vs relay points'].map((t) => left.indexOf(t));
       expect(order.every((i) => i >= 0)).toBe(true);
       expect([...order].sort((x, y) => x - y)).toEqual(order);
       expect(text(left)).not.toMatch(/Scenario|Planning cycle|Layers|Random|Generate|Recompute|Start new planning cycle/);

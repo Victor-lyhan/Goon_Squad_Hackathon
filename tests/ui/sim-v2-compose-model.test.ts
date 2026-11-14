@@ -5,6 +5,7 @@ import {
   MISSING_EMPLOYEE_TEXT, MISSING_PACKAGE_TEXT, SIM_WINDOW, compareView, initialSelectionFromSearch, panTargetFor, selectionAfterMapClick, simPageView, type SimReadyView,
 } from '../../client/src/components/sim/v2/compose/simPageView';
 import { INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, type SimDataState } from '../../client/src/components/sim/v2/live/simDataModel';
+import { dayNightAt, dayNightClockText } from '../../client/src/components/map/dayNight';
 import { buildNetworkView } from '../../client/src/components/sim/v2/network/networkModel';
 import { businessInspector, employeeInspector } from '../../client/src/components/sim/v2/inspector/inspectorModel';
 import { relayGainCompare } from './sim-v2-compare-fixture';
@@ -72,6 +73,8 @@ describe('simPageView: network mode', () => {
     expect(v.journeyTitle).toBeNull();
     expect(v.map).toEqual({
       ...nv, visible: DEFAULT_LAYERS, stops: [], fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [],
+      // #649: day or night and the badge's time, from the polled clock.
+      dayNight: dayNightAt(data.sim!.clock.timeMin), clockText: dayNightClockText(data.sim!.clock.timeMin),
     });
     expect(v.right).toEqual({ kind: 'summary', metrics: data.sim!.snapshot.metrics });
     expect(v.right.kind === 'summary' && v.right.metrics).toBe(data.sim!.snapshot.metrics);

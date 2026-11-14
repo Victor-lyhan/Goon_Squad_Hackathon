@@ -13,6 +13,10 @@ import { BUSINESSES, DASHBOARD, HOME, JOB, MAP, TRIPS, WORK, withLine } from './
 
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
 const noop = () => {};
+/** How many times `piece` is in `whole`. */
+const count = (whole: string, piece: string) => whole.split(piece).length - 1;
+const legendOf = (html: string) => html.match(/<ul class="ecr__legend"[\s\S]*?<\/ul>/)![0];
+const previewOf = (html: string) => html.match(/<section class="ecr"[\s\S]*?<\/section>/)![0];
 const saveOk = async (): Promise<CommuteResponse> => ({ employee: DASHBOARD.employee, home: HOME, trips: TRIPS, rematchedShipmentIds: [] });
 const JOB_RESPONSE: JobResponse = { ...JOB, trip: TRIPS[0] };
 
@@ -45,13 +49,46 @@ describe('route preview in the Employee page', () => {
     const html = renderPage(ready(), null);
     const t = text(html);
     expect(html).toContain('aria-label="Your commute on the map"');
-    expect(t).toContain('Evening: leaves 5:30 p.m., 34 min, 9.8 km'); // the trip's own fields
-    expect(t).toContain('Morning: leaves 8:30 a.m., 31 min, 9.7 km');
+    expect(t).toContain('Evening: 34 min, 9.8 km'); // the trip's own fields
+    expect(t).toContain('Morning: 31 min, 9.7 km');
     expect(html).not.toContain('aria-label="Delivery stops"');
     expect(t).not.toContain('Route line not loaded yet');
     // The deliveries list keeps working next to the preview.
     expect(t).toContain('Sample boxes');
     expect(html).not.toMatch(/NaN|undefined/);
+  });
+
+  it('each commute departure is on the workspace once, as "5:30 PM", in the commute card (#626)', () => {
+    const html = renderPage(ready(), null);
+    const t = text(html);
+    expect(count(t, '5:30 PM')).toBe(1); // the evening departure
+    expect(count(t, '8:30 AM')).toBe(1); // the morning departure
+    expect(t).toContain('Departs 5:30 PM');
+    expect(t).toContain('Departs 8:30 AM');
+    expect(t).not.toMatch(/[ap]\.m\./);
+    expect(t).not.toContain('leaves');
+    // The card comes first; the preview below it repeats no clock time.
+    expect(html.indexOf('ew-commute-heading')).toBeLessThan(html.indexOf('class="ecr"'));
+    const preview = text(previewOf(html));
+    expect(preview).not.toMatch(/\d:\d\d/);
+    // The map cannot load here (no key): the text under it still names both directions.
+    expect(preview).toContain('Google Maps key missing.');
+    expect(preview).toContain('Evening: 34 min, 9.8 km');
+    expect(preview).toContain('Morning: 31 min, 9.7 km');
+  });
+
+  it('the legend lists "Delivery route" only when one is drawn: not on the workspace, yes with a job open (#626)', () => {
+    const workspace = renderPage(ready(), null);
+    expect(text(legendOf(workspace))).toBe('Your normal commute');
+    expect(text(previewOf(workspace))).not.toContain('Delivery route');
+
+    const open = renderPage(withJob(ready()), JOB.job.id);
+    expect(text(legendOf(open))).toBe('Your normal commute Delivery route');
+    expect(text(open)).not.toMatch(/[ap]\.m\./);
+
+    // A job is open but none of its lines is cached: nothing of it is drawn, so nothing is listed.
+    const noLines = renderPage(withJob(ready()), JOB.job.id, { kind: 'map', map: { ...MAP, polylines: MAP.polylines.slice(0, 2) } });
+    expect(text(legendOf(noLines))).toBe('Your normal commute');
   });
 
   it('numbers the open job stops on the map; closing the job removes them', () => {

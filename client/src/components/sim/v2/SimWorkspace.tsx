@@ -59,8 +59,9 @@ export function SimWorkspace({ map, left, right, onClearSelection, journey, init
   const [panels, dispatch] = useReducer(panelReducer, initialPanels ?? INITIAL_PANELS);
   const inJourney = !!journey;
 
-  // #631: the journey timeline and "Play journey" live only in the right panel, so entering a journey
-  // opens a collapsed Inspector. Adjusted during render, so no frame shows the journey without them.
+  // #631: the journey timeline lives only in the right panel, so entering a journey opens a collapsed
+  // Inspector (the one Play/Pause button is in the left panel since #648). Adjusted during render, so
+  // no frame shows the journey without its timeline.
   // Only the step from no journey to a journey opens it: another package, or a panel the user
   // collapses during the journey, is left as it is. The width change is the usual toggle's, so the
   // CSS transition (none with reduced motion) applies.

@@ -8,6 +8,7 @@ import type { Employee, Home, NetworkBusiness, StopKind, Trip } from '../../../.
 import { decodePath } from '../../../map/layers';
 import { placesBounds } from '../../../map/mapModel';
 import type { LatLngBounds, MapPlace, MapRoute, MapStop } from '../../../map/types';
+import { formatClock, formatDuration } from '../../../../ui/format';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 export const ROUTE_NOT_LOADED = 'Route line not loaded yet';
@@ -37,27 +38,18 @@ export type CommuteRoute = {
   /** Stop labels as text ("1 Pickup · Name"), listed under the map so they never depend on it loading. */
   stopLabels: string[];
   fitTo: LatLngBounds | null;
+  /**
+   * One line per commute direction, so both are named even when the map cannot load. On the
+   * workspace (no job) the commute card above the map already gives each departure, so the lines
+   * hold travel time and distance only; with a job open there is no card and they name it too.
+   */
   summary: string[];
+  /** True when a delivery leg is drawn, so the legend lists "Delivery route" only then. */
+  hasDeliveryRoute: boolean;
   notes: string[];
   /** True while the map response has not arrived. */
   loading: boolean;
 };
-
-/** "5:30 p.m." for minutes since Day 1 00:00 (day ignored). */
-export function clockText(min: number): string {
-  const m = ((Math.round(min) % 1440) + 1440) % 1440;
-  const h24 = Math.floor(m / 60);
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h12}:${String(m % 60).padStart(2, '0')} ${h24 < 12 ? 'a.m.' : 'p.m.'}`;
-}
-
-/** "34 min" / "1 h 5 min". */
-export function durationText(min: number): string {
-  const m = Math.round(min);
-  if (m < 60) return `${m} min`;
-  const r = m % 60;
-  return r === 0 ? `${Math.floor(m / 60)} h` : `${Math.floor(m / 60)} h ${r} min`;
-}
 
 /** "850 m" below 1 km, else "9.8 km". */
 export function distanceText(m: number): string {
@@ -67,10 +59,19 @@ export function distanceText(m: number): string {
   return `${Number.isInteger(km) ? km : km.toFixed(1)} km`;
 }
 
-/** "Evening: leaves 5:30 p.m., 34 min, 9.8 km" from the trip's own fields. */
-export function tripLine(trip: Trip, available = true): string {
+/**
+ * The text line of one commute direction, from the trip's own fields: "Evening: 34 min, 9.8 km".
+ * With `departure` it also names the daily departure in the one clock format (DECISIONS pass 60):
+ * "Evening: leaves 5:30 PM, 34 min, 9.8 km".
+ */
+export function tripLine(trip: Trip, { available = true, departure = false } = {}): string {
   const label = trip.direction === 'evening' ? 'Evening' : 'Morning';
-  const base = `${label}: leaves ${clockText(trip.departureMin)}, ${durationText(trip.baselineDurationMin)}, ${distanceText(trip.baselineDistanceM)}`;
+  const facts = [
+    ...(departure ? [`leaves ${formatClock(trip.departureMin)}`] : []),
+    formatDuration(trip.baselineDurationMin),
+    distanceText(trip.baselineDistanceM),
+  ];
+  const base = `${label}: ${facts.join(', ')}`;
   return available ? base : `${base} (not available for deliveries)`;
 }
 
@@ -118,8 +119,9 @@ export function buildCommuteRoute({ employee, home, trips, businesses, map, job 
     ?? trips.find((t) => t.direction === d);
   const evening = tripOf('evening');
   const morning = tripOf('morning');
-  if (evening) summary.push(tripLine(evening, employee.availableEvening));
-  if (morning) summary.push(tripLine(morning, employee.availableMorning));
+  const departure = job !== null; // the job view has no commute card; the workspace has one above the map
+  if (evening) summary.push(tripLine(evening, { available: employee.availableEvening, departure }));
+  if (morning) summary.push(tripLine(morning, { available: employee.availableMorning, departure }));
 
   // ---- Job stops (numbered within this job's leg, business names only) ----
   const leg = job ? job.plan.legs[job.job.legIndex] : undefined;
@@ -140,7 +142,7 @@ export function buildCommuteRoute({ employee, home, trips, businesses, map, job 
   const fitTo = placesBounds(places);
 
   if (!map) {
-    return { places, routes: [], stops, stopLabels, fitTo, summary, notes: [], loading: true };
+    return { places, routes: [], stops, stopLabels, fitTo, summary, hasDeliveryRoute: false, notes: [], loading: true };
   }
 
   // ---- Routes: faint commute lines, then the job's leg in the accent tone ----
@@ -164,5 +166,6 @@ export function buildCommuteRoute({ employee, home, trips, businesses, map, job 
     });
   }
 
-  return { places, routes, stops, stopLabels, fitTo, summary, notes: missing ? [ROUTE_NOT_LOADED] : [], loading: false };
+  const hasDeliveryRoute = routes.some((r) => r.kind === 'leg');
+  return { places, routes, stops, stopLabels, fitTo, summary, hasDeliveryRoute, notes: missing ? [ROUTE_NOT_LOADED] : [], loading: false };
 }

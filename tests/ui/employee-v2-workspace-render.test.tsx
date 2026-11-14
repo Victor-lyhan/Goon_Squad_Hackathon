@@ -47,7 +47,13 @@ describe('EmployeeWorkspace static render', () => {
     expect(t).toContain('Relay leg 2 of 2');
     expect(t).toContain('Direct');
     expect(html).toContain('href="/employee/emp-001?job=plan-shp-001-L0"');
-    expect(html).toContain('href="/simulator?package=shp-002"');
+    // "Watch in simulator" opens the package and plays its journey (DECISIONS pass 64); `&` is `&amp;` in markup.
+    expect(html).toContain('href="/simulator?package=shp-001&amp;play=1"');
+    expect(html).toContain('href="/simulator?package=shp-002&amp;play=1"');
+    // One link per row, the completed delivery included, and none without play=1.
+    expect(html.match(/href="\/simulator[^"]*"/g)).toStrictEqual(
+      ['shp-001', 'shp-002', 'shp-003'].map((id) => `href="/simulator?package=${id}&amp;play=1"`),
+    );
     expect(t).toContain('Earned $5.00');
     expect(t).toContain('Projected $20.00');
     expect(t).toContain('Signed contract');

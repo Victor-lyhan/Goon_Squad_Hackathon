@@ -3,7 +3,7 @@
 import type { EmployeeDashboard, EmployeeJobView } from '../../../../../shared/v2/api';
 import type { JobStatus, NetworkBusiness, Stop, Trip } from '../../../../../shared/v2/types';
 import { formatCents, formatClock, formatDuration } from '../../../ui/format';
-import { extraTimeText, momentText } from './jobDetailV2Model';
+import { extraTimeText, momentText, simulatorHref } from './jobDetailV2Model';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 
@@ -145,7 +145,7 @@ export function deliveryRows(
       legKind: isRelay ? `Relay leg ${job.legIndex + 1} of ${legs}` : 'Direct',
       commute: morning ? `Morning commute from ${nbh}` : `Evening commute to ${nbh}`,
       jobHref: `/employee/${encodeURIComponent(job.employeeId)}?job=${encodeURIComponent(job.id)}`,
-      simulatorHref: `/simulator?package=${encodeURIComponent(job.shipmentId)}`,
+      simulatorHref: simulatorHref(job.shipmentId),
     };
   });
 }

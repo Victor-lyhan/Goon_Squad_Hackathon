@@ -14,10 +14,11 @@ You need no key to run the app or the demo. Two optional Google keys add the map
 | **Server key** (`GOOGLE_MAPS_SERVER_KEY`) | Adds the live Google calls: the address search and a commute save with a new address (its travel times are fetched and added to the cache), the route lines of a new delivery (without the key its legs have no route line and the vehicle moves straight from stop to stop), and the fetch command `npm run fetch:routes`. |
 
 ## Requirements
-- Node.js 22 or newer (`engines` in `package.json`)
+- Node.js 22.12 or newer to run the app (`npm run dev`, `npm run build`, `npm start`). Node 22.0 to 22.11 is too old for Vite (its `engines` in `package-lock.json`).
+- Node.js 22.22.2 or newer to run the tests (`npm test`, `bash scripts/test.sh`): vitest and jsdom ask for more than Vite (their `engines` in `package-lock.json`). On Node 24 that is 24.15 or newer; vitest does not list Node 23 or 25.
 - npm
 
-No API key or environment variable is needed. `PORT` is optional (default `3001`). The two Google keys are optional and live in `.env` ([Google setup](#google-setup-keys-and-travel-data)).
+No API key or environment variable is needed. `PORT` is optional and applies to `npm start` only (default `3001`); leave it unset for `npm run dev` ([Setup and run](#setup-and-run)). The two Google keys are optional and live in `.env` ([Google setup](#google-setup-keys-and-travel-data)).
 
 ## Setup and run
 ```bash
@@ -25,6 +26,8 @@ npm install
 npm run dev
 ```
 `npm run dev` starts the API on **http://localhost:3001** and Vite on **http://localhost:5173**; Vite proxies `/api` to the API. Open http://localhost:5173.
+
+`npm run dev` needs ports 3001 and 5173 free. Do not set `PORT` for it, in the shell or in `.env`: Vite sends `/api` to port 3001 whatever `PORT` says, so with another port every API call of the page fails. If the server says a port is already in use, stop the other server.
 
 The main paths:
 
@@ -41,7 +44,9 @@ The main paths:
 npm run build   # builds the client into client/dist (the server is not compiled)
 npm start       # runs the server with tsx and serves client/dist
 ```
-Open **http://localhost:3001** (override with `PORT`). One process serves the API under `/api` and the built client; there is no Vite proxy. Refreshing a deep link such as `/business/<id>?shipment=<id>`, `/employee/<id>?job=<id>` or `/simulator?package=<id>` returns the app shell, while unknown `/api/*` paths return JSON `404 { "error": ... }`. If `client/dist` is missing, only the API is served.
+Open **http://localhost:3001**. To use another port, set `PORT`, for example `PORT=3002 npm start`. One process serves the API under `/api` and the built client; there is no Vite proxy. Refreshing a deep link such as `/business/<id>?shipment=<id>`, `/employee/<id>?job=<id>` or `/simulator?package=<id>` returns the app shell, while unknown `/api/*` paths return JSON `404 { "error": ... }`. If `client/dist` is missing, only the API is served.
+
+When it starts, `npm start` prints one line about the built client ("Serving the built client from client/dist", or "client/dist not found: run npm run build, or use npm run dev") and one about the Google server key ("Google server key: set", or "Google server key: not set (address search and a commute save with a new address answer 503)"); the key itself is never printed. `npm run dev` prints the same two lines, and there "client/dist not found" is expected, because Vite serves the page.
 
 ## Tests
 ```bash
@@ -167,11 +172,14 @@ Replace each placeholder, angle brackets included, with the key from the console
 
 ### 4. Fetch the travel data
 ```bash
-npm run fetch:routes -- --dry-run   # free: calls nothing, writes nothing, needs no key
-npm run fetch:routes                # paid: calls Google with the server key
+npm run fetch:routes -- --dry-run     # free: calls nothing, writes nothing, needs no key
+npm run fetch:routes -- --check-key   # three small billable calls: is the key set up right?
+npm run fetch:routes                  # paid: calls Google with the server key
 ```
 
 **The dry run comes first.** It prints a "Fetch estimate": the businesses to geocode, the matrix pairs to fetch and in how many requests, the route lines to fetch, and a `Google requests:` line with the total. Take the numbers from that output. They are computed from the files in `fixtures/nyc/` and from what is already cached, so they are not repeated here. On a first run the route lines of the matched plans are shown as "at most", because the matcher can only run once the travel times are there. The dry run also says whether `GOOGLE_MAPS_SERVER_KEY` was found; it never prints the key.
+
+**Then check the key**, before the paid run: `npm run fetch:routes -- --check-key` makes three small calls with the server key (one geocode, one route matrix of a single pair, one route line) and prints one row for each of the three calls: "ok", or what is wrong and the Google Cloud setting to change (the API is not enabled, the key is restricted, billing is off). It reads no cache file and writes nothing. Exit code 0 and the last line "All three Google APIs answered." mean the paid run can start; after "Fix the rows above, then run the check again." change the setting (step 1 or 2) and check again.
 
 **What the real run does**, in this order (`server/geo/fetchScript.ts`, `server/geo/fetchRoutes.ts`):
 
@@ -194,18 +202,30 @@ Good to know:
 | Code | Meaning | What to do |
 | --- | --- | --- |
 | `0` | Complete, and no error flagged: no failed request, no skipped step, a clean plan check, every story package matched as written, no gap and no error in the cache report. Warnings do not count. A dry run and `--help` also exit 0. | Read the two reports, warnings too, then go to step 5. |
-| `1` | Not complete, or an error flagged. This includes a run that could not start. Everything fetched so far is saved. | Read the last line. "Run again to resume." means fix what the lines above name (key, API, network) and run the same command again. "Check the flagged rows above." means the data is all there but a plan or a number needs a human look before anything is committed. A run that could not start names the file or the setting to fix. |
+| `1` | Not complete, or an error flagged. This includes a run that could not start. Everything fetched so far is saved. | Read the last line. The table below has the four that name a next step. A run that could not start says so and names the file or the setting to fix. |
 | `2` | Wrong usage: an unknown flag or a misused one. Nothing was read, called or written. | Read the usage text it printed. |
 
+The last line of a run that exits 1:
+
+| Last line | What happened | What to do |
+| --- | --- | --- |
+| "Run again to resume." | A request or a step failed. What was fetched is saved. | Fix what the lines above name (key, API, network) and run the same command again. If the run had `--refetch`, leave it out this time; the line before says so. |
+| "Check the flagged rows above." | The data is all there, but a plan or a number is flagged. | A human looks at the flagged rows before anything is committed. |
+| "Run `npm run fetch:routes -- --check-key` to see which setting is wrong." | Google refused the first request the run made to one of the APIs (the API is not enabled, the key is restricted, billing is off). The run stopped there; the steps that finished before are saved. | Run that check, change the setting its row names (step 1 or 2), then run the fetch again. |
+| `npm run fetch:routes -- --refetch <placeId>`, after "Moved homes:" | A home in the fixtures is no longer where its cached travel times were fetched for. Nothing was dropped or written, and no Google call was made. | Run the printed command, which names every moved home. It drops those places with their pairs and route lines, then fetches only what is missing. |
+
 ### 5. Commit the cache and restart the server
-After an exit code 0:
+After an exit code 0, stop the server (Ctrl-C) and run:
 
 ```bash
+npm run fetch:routes -- --drop-entered   # free: no key, no Google call
 git add fixtures/nyc/matrix.json fixtures/nyc/polylines.json
 git commit -m "NYC travel cache from Google"
 ```
 
-The two files hold coordinates, seconds, meters and encoded route lines, and no key. Then **restart the server** (stop `npm run dev` with Ctrl-C and start it again): the cache is read when the server starts.
+**Why the drop comes first:** a commute saved with a typed address writes that home into the cache under an ID made of its coordinates (`home-c-<lat>_<lng>`), and an address somebody typed must never be committed. `--drop-entered` removes those homes with their pairs and route lines and prints how many it removed, never an ID; with nothing to drop it says so and writes nothing. The server has to be stopped, because a running one still holds these homes in memory and writes them back. A saved run that uses one of them starts fresh afterwards (its state file is set aside, not deleted). A fetch and a dry run say "Entered homes:" with the count when the cache holds one, and `bash scripts/test.sh` fails while `fixtures/nyc/` does.
+
+After the drop the two files hold the coordinates of the businesses and of the made-up homes, seconds, meters and encoded route lines, and no key. Then **start the server again** (`npm run dev`): the cache is read when the server starts.
 
 ### What you see
 - **The map**, once the browser key is in `.env` and `npm run dev` was restarted:
@@ -214,7 +234,7 @@ The two files hold coordinates, seconds, meters and encoded route lines, and no 
   - `/business/<id>`, for example `/business/biz-brooklyn-roasting`: a delivery's route next to its details, with the sender, the relay point and the recipient.
   - `/` and `/help` have no map and look the same with and without a key.
 - **Without the browser key** each map area says "Google Maps key missing." and the lists, forms and panels around it work as before. If the key is there but wrong, the map area says "Google rejected the browser key."; check its restrictions (step 2) and reload the page.
-- **With the server key**, **Edit commute** on the Employee page finds a new address and saves it. Without it the search says "Address search needs the Google key on the server. Your saved home is unchanged.", and a save that keeps the home still works.
+- **With the server key**, **Edit commute** on the Employee page finds a new address and saves it. That home is written into `fixtures/nyc/matrix.json`: remove it before you commit the cache (step 5). Without it the search says "Address search needs the Google key on the server. Your saved home is unchanged.", and a save that keeps the home still works.
 - **If the cache is missing** from your checkout (`fixtures/nyc/matrix.json`), every `/api/v2` request answers `503` with the code `travel_data_missing`, and the pages show "NYC travel data is not loaded on this server yet." The server prints the reason when it starts.
 - **Old links.** The preview paths `/nyc/...` redirect to the main paths above.
 - **State.** The run is in `data/state-v2.json`; see [State file and reset](#state-file-and-reset).

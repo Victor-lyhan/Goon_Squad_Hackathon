@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as layers from '../../client/src/components/map/layers';
+import { MVP2_TOKEN_COLORS } from './kit-v2-legacy-tokens';
 
 const root = resolve(__dirname, '../..');
 export const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
@@ -88,7 +89,9 @@ export const key = (c: RGB) => c.join(',');
 const tokenColors = [...TOKENS.values()].filter((v) => /^#[0-9a-f]+$/i.test(v)).map((v) => hexToRgb(v)!);
 const isRgba = (v: unknown): v is number[] => Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === 'number');
 const layerColors = Object.values(layers as Record<string, unknown>).filter(isRgba).map((c) => [c[0], c[1], c[2]] as RGB);
-export const ALLOWED_COLORS = new Set([...tokenColors, ...layerColors].map(key));
+/** MVP II token colours: still allowed as var() fallbacks until the simulator's restyle pass (#651). */
+const legacyColors = MVP2_TOKEN_COLORS.map((v) => hexToRgb(v)!);
+export const ALLOWED_COLORS = new Set([...tokenColors, ...legacyColors, ...layerColors].map(key));
 
 /** Every colour literal in a value: hex, rgb()/rgba(), hsl()/hsla(). */
 export function colorLiterals(value: string): { text: string; rgb: RGB | null }[] {

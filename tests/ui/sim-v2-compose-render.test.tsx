@@ -1,5 +1,7 @@
 // #426: render of the simulator page body with an injected hook value, the wiring of every control
-// to the hook's actions, and the CSS rules of compose.css.
+// to the hook's actions, and the CSS rules of compose.css. #648: the left panel is Playback (one
+// Play/Pause button and Back to start), Packages, Focus and the comparison; the cases of the deleted
+// speed buttons, scrubber, Next event, Scenario, Planning cycle and Layers went with them.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -11,22 +13,18 @@ import {
   SimPageBody, SimPageLayout, createSimPageHandlers, type SimPageHandlers,
 } from '../../client/src/components/sim/v2/compose/SimPageBody';
 import { RECONNECTING_TEXT, simPageView } from '../../client/src/components/sim/v2/compose/simPageView';
-import { PlanningControls } from '../../client/src/components/sim/v2/controls/PlanningControls';
 import { PlaybackControls } from '../../client/src/components/sim/v2/controls/PlaybackControls';
-import { ScenarioControls } from '../../client/src/components/sim/v2/controls/ScenarioControls';
-import { SPEED_OPTIONS, playbackRequest, speedRequest, type PlaybackAction } from '../../client/src/components/sim/v2/controls/controlsModel';
+import { PAUSE_REQUEST, RESET_REQUEST, type PlayButtonView } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { FocusSelector } from '../../client/src/components/sim/v2/FocusSelector';
 import { JourneyTimeline } from '../../client/src/components/sim/v2/journey/JourneyTimeline';
-import { LayerToggles } from '../../client/src/components/sim/v2/LayerToggles';
 import { INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, type SimDataState } from '../../client/src/components/sim/v2/live/simDataModel';
 import type { SimulatorV2 } from '../../client/src/components/sim/v2/live/useSimulatorV2';
 import type { Selection } from '../../client/src/components/sim/v2/network/selectionModel';
 import { PackageList } from '../../client/src/components/sim/v2/PackageList';
 import { SimWorkspace } from '../../client/src/components/sim/v2/SimWorkspace';
-import { DEFAULT_LAYERS, NO_FOCUS, type Focus, type LayerVisibility } from '../../client/src/components/sim/v2/workspaceModel';
+import { DEFAULT_LAYERS, NO_FOCUS, type Focus } from '../../client/src/components/sim/v2/workspaceModel';
 import { GoogleBaseMap } from '../../client/src/components/map/GoogleBaseMap';
 import SimulatorV2Page from '../../client/src/pages/v2/SimulatorV2';
-import type { Clock } from '../../shared/v2/types';
 import { makeMap, makeSim } from './sim-v2-network-fixture';
 import { relayGainCompare } from './sim-v2-compare-fixture';
 import { BusinessInspector } from '../../client/src/components/sim/v2/inspector/BusinessInspector';
@@ -107,7 +105,7 @@ describe('SimPageBody render', () => {
     expect(t).toContain(RECONNECTING_TEXT);
     expect(t).toContain('Run summary');
     expect(t).toContain('Astoria product proofs');
-    expect(t).toContain('Generate');
+    expect(t).toContain('Back to start');
     assertClean(html);
   });
 
@@ -115,45 +113,53 @@ describe('SimPageBody render', () => {
     const html = render(networkHook());
     const t = text(html);
     for (const s of [
-      'Playback', 'Play', 'Pause', 'Next event', 'Jump to morning', 'Finish', 'Reset playback', 'Simulation time',
-      'Scenario', 'Preset', 'Seed', 'Generate',
-      'Planning cycle', 'Start new planning cycle', 'Recompute matches',
-      'Layers', 'Routes', 'Businesses', 'Homes',
+      'Playback', 'Pause', 'Back to start', // the clock in the fixture is playing
       'Focus', 'Focus on employee', 'Focus on business', 'Maya Ortiz', 'Sunrise Bakery',
       'Packages', 'Astoria product proofs', 'Chelsea Print Studio → Sunrise Bakery', 'Unmatched',
       'Run summary', 'Delivered / requested', '0 / 3', 'Matched / requested', '2 / 3', '9 min',
     ]) {
-      if (s === 'Pause') expect(t).toContain('Pause'); // the clock in the fixture is playing
-      else expect(t).toContain(s);
+      expect(t).toContain(s);
     }
+    // Deleted in #648 (docs/mvp3.md P2).
+    for (const s of [
+      'Next event', 'Jump to morning', 'Finish', 'Reset playback', 'Simulation time', 'Speed',
+      'Scenario', 'Preset', 'Seed', 'Generate', 'Planning cycle', 'Start new planning cycle', 'Recompute matches', 'Layers',
+    ]) {
+      expect(t).not.toContain(s);
+    }
+    expect(html).not.toContain('type="range"');
+    expect(html).not.toContain('type="checkbox"');
     expect(t).not.toContain('Back to network');
     expect(t).not.toContain('Package journey');
     assertClean(html);
   });
 
-  // #607 (pass 61): the list that opens a journey is directly under Playback, above the Scenario form.
+  // #607 (pass 61): the list that opens a journey is directly under Playback. #648: then Focus and the comparison.
   describe('the order of the left panel', () => {
     const leftOf = (html: string) => html.slice(0, html.indexOf('class="sw-map"'));
     const sectionTitles = (html: string) =>
       [...leftOf(html).matchAll(/class="sw-section-title"[^>]*>([^<]+)</g)].map((m) => m[1]);
-    const scenarioHeading = (html: string) => html.indexOf('id="sw-section-scenario"');
-    const LEFT_ORDER = ['Playback', 'Packages', 'Scenario', 'Planning cycle', 'Layers', 'Focus', 'Direct only vs relay points'];
+    const playback = (html: string) => html.indexOf('id="sw-section-playback"');
+    const focusHeading = (html: string) => html.indexOf('id="sw-section-focus"');
+    const LEFT_ORDER = ['Playback', 'Packages', 'Focus', 'Direct only vs relay points'];
 
-    it('network mode: Playback, Packages, then the rest; the search field comes before the Scenario heading', () => {
+    it('network mode: Playback, Packages, then the rest; the search field comes right after the playback buttons', () => {
       const html = render(networkHook());
       expect(sectionTitles(html)).toEqual(LEFT_ORDER);
       const left = leftOf(html);
-      expect(scenarioHeading(left)).toBeGreaterThan(0);
-      expect(left.indexOf('Search packages')).toBeGreaterThan(left.indexOf('Simulation time'));
-      expect(left.indexOf('Search packages')).toBeLessThan(scenarioHeading(left));
-      expect(left.indexOf('Astoria product proofs')).toBeLessThan(scenarioHeading(left)); // the rows too
-      expect(left.indexOf('Direct only vs relay points')).toBeGreaterThan(left.indexOf('id="sw-section-focus"'));
+      expect(playback(left)).toBeGreaterThan(0);
+      expect(left.indexOf('Back to start')).toBeGreaterThan(playback(left));
+      expect(left.indexOf('Search packages')).toBeGreaterThan(left.indexOf('Back to start'));
+      expect(left.indexOf('Search packages')).toBeLessThan(focusHeading(left));
+      expect(left.indexOf('Astoria product proofs')).toBeLessThan(focusHeading(left)); // the rows too
+      expect(left.indexOf('Direct only vs relay points')).toBeGreaterThan(focusHeading(left));
     });
 
     it('before the map arrives the plain package list is in the same place', () => {
       const html = render(networkHook({ map: null }));
       expect(sectionTitles(html)).toEqual(LEFT_ORDER);
-      expect(leftOf(html).indexOf('Loading places…')).toBeLessThan(scenarioHeading(html));
+      expect(leftOf(html).indexOf('Loading places…')).toBeGreaterThan(playback(html));
+      expect(leftOf(html).indexOf('Loading places…')).toBeLessThan(focusHeading(html));
     });
 
     it('journey mode: the journey header stays on top, then Playback and Packages', () => {
@@ -163,15 +169,15 @@ describe('SimPageBody render', () => {
       const header = left.indexOf('class="sw-journey"');
       expect(header).toBeGreaterThan(0);
       expect(left.indexOf('Back to network')).toBeGreaterThan(header);
-      expect(left.indexOf('Back to network')).toBeLessThan(left.indexOf('id="sw-section-playback"'));
-      expect(left.indexOf('id="sw-section-playback"')).toBeLessThan(left.indexOf('Search packages'));
-      expect(left.indexOf('Search packages')).toBeLessThan(scenarioHeading(left));
+      expect(left.indexOf('Back to network')).toBeLessThan(playback(left));
+      expect(playback(left)).toBeLessThan(left.indexOf('Search packages'));
+      expect(left.indexOf('Search packages')).toBeLessThan(focusHeading(left));
     });
 
     it('an action error stays above Playback', () => {
       const left = leftOf(render(networkHook({ actionError: 'Playback has started. Start a new planning cycle to recompute.' })));
       expect(left.indexOf('spc-action-error')).toBeGreaterThan(0);
-      expect(left.indexOf('spc-action-error')).toBeLessThan(left.indexOf('id="sw-section-playback"'));
+      expect(left.indexOf('spc-action-error')).toBeLessThan(playback(left));
     });
   });
 
@@ -266,11 +272,6 @@ describe('SimPageBody render', () => {
     expect(journey).toContain('data-legend-mode="journey"');
     expect(text(journey)).toContain('Numbered stop, in journey order');
     expect(text(journey)).toContain('Leg 2 route');
-    const hidden = renderToStaticMarkup(
-      <SimPageBody sim={networkHook()} selection={null} onSelectionChange={() => {}}
-        initialLayers={{ routes: false, businesses: false, homes: false, packages: false }} />,
-    );
-    expect(text(hidden)).toContain('All map layers are hidden.');
   });
 
   it('the comparison section is in the left panel, idle, with Compare', () => {
@@ -362,7 +363,6 @@ function collect(node: ReactNode, out: El[] = []): El[] {
 function setup(hook: SimulatorV2, selection: Selection = null, opts: { compare?: CompareState; legendOpen?: boolean } = {}) {
   const onSelectionChange = vi.fn();
   const setFocus = vi.fn<(f: Focus) => void>();
-  const setLayers = vi.fn<(u: (l: LayerVisibility) => LayerVisibility) => void>();
   const setPanTo = vi.fn();
   const setLegendOpen = vi.fn<(open: boolean) => void>();
   const setCompare = vi.fn<(c: CompareState) => void>();
@@ -371,11 +371,11 @@ function setup(hook: SimulatorV2, selection: Selection = null, opts: { compare?:
   let seq = 0;
   const view = simPageView({ data: hook, selection, focus: NO_FOCUS, layers: DEFAULT_LAYERS });
   const handlers: SimPageHandlers = createSimPageHandlers({
-    sim: hook, view, selection, onSelectionChange, setFocus, setLayers, setPanTo, setLegendOpen, compare, setCompare,
+    sim: hook, view, selection, onSelectionChange, setFocus, setPanTo, setLegendOpen, compare, setCompare,
     nextPanSeq: () => ++seq,
   });
   const layout = SimPageLayout({
-    view, focus: NO_FOCUS, layers: DEFAULT_LAYERS, legendOpen, compare: compareView(compare, view, hook.sim?.runId ?? null), handlers,
+    view, focus: NO_FOCUS, legendOpen, compare: compareView(compare, view, hook.sim?.runId ?? null), handlers,
   });
   const tree = collect(layout);
   const find = <P,>(type: unknown) => {
@@ -385,42 +385,26 @@ function setup(hook: SimulatorV2, selection: Selection = null, opts: { compare?:
   };
   const buttons = (label: string) => tree.filter((e) => e.type === 'button' && text(renderToStaticMarkup(e)).includes(label));
   const html = () => renderToStaticMarkup(<>{layout}</>);
-  return { hook, view, tree, find, buttons, html, onSelectionChange, setFocus, setLayers, setPanTo, setLegendOpen, setCompare };
+  return { hook, view, tree, find, buttons, html, onSelectionChange, setFocus, setPanTo, setLegendOpen, setCompare };
 }
 
 describe('SimPageBody wiring', () => {
-  it('each playback control calls the hook control action with its request', () => {
+  it('the two playback buttons call the hook control action with their requests', () => {
     const s = setup(networkHook());
-    const { onControl, clock } = s.find<{ onControl: (r: unknown) => void; clock: Clock }>(PlaybackControls);
-    const actions: PlaybackAction[] = ['playPause', 'nextEvent', 'jumpToMorning', 'finish', 'reset'];
-    const requests = [
-      ...actions.map((a) => playbackRequest(a, clock)),
-      ...SPEED_OPTIONS.map((o) => speedRequest(o.speed)),
-      { action: 'seek', timeMin: 1200 } as const,
-    ];
-    for (const r of requests) onControl(r);
-    expect(s.hook.control).toHaveBeenCalledTimes(requests.length);
-    requests.forEach((r, i) => expect(s.hook.control).toHaveBeenNthCalledWith(i + 1, r));
-    expect(requests[0]).toEqual({ action: 'pause' }); // the fixture clock is playing
+    const playback = s.find<{ button: PlayButtonView; onToggle: () => void; onReset: () => void }>(PlaybackControls);
+    expect(playback.button).toEqual({ label: 'Pause', action: 'pause_clock', note: null }); // the fixture clock is playing
+    playback.onToggle();
+    expect(s.hook.control).toHaveBeenCalledTimes(1);
+    expect(s.hook.control).toHaveBeenLastCalledWith(PAUSE_REQUEST);
+    playback.onReset();
+    expect(s.hook.control).toHaveBeenCalledTimes(2);
+    expect(s.hook.control).toHaveBeenLastCalledWith(RESET_REQUEST);
+    // Nothing on the page generates a scenario or starts a planning cycle any more (#648).
+    for (const gone of [s.hook.generate, s.hook.resetPlanning, s.hook.recompute]) expect(gone).not.toHaveBeenCalled();
   });
 
-  it('scenario and planning controls call generate, resetPlanning and recompute', () => {
+  it('focus and the package list update the page state', () => {
     const s = setup(networkHook());
-    const req = { preset: 'random' as const, seed: 7, employees: 40, packages: 12, maxExtraMin: 6 };
-    s.find<{ onGenerate: (r: typeof req) => void }>(ScenarioControls).onGenerate(req);
-    expect(s.hook.generate).toHaveBeenCalledWith(req);
-    const planning = s.find<{ onReset: () => void; onRecompute: () => void }>(PlanningControls);
-    planning.onReset();
-    planning.onRecompute();
-    expect(s.hook.resetPlanning).toHaveBeenCalledTimes(1);
-    expect(s.hook.recompute).toHaveBeenCalledTimes(1);
-  });
-
-  it('layers, focus and the package list update the page state', () => {
-    const s = setup(networkHook());
-    s.find<{ onToggle: (k: string) => void }>(LayerToggles).onToggle('homes');
-    const update = s.setLayers.mock.calls[0][0];
-    expect(update(DEFAULT_LAYERS)).toEqual({ ...DEFAULT_LAYERS, homes: false });
     s.find<{ onChange: (f: Focus) => void }>(FocusSelector).onChange({ kind: 'business', id: 'biz-etsy' });
     expect(s.setFocus).toHaveBeenCalledWith({ kind: 'business', id: 'biz-etsy' });
     s.find<{ onSelect: (id: string) => void }>(PackagePanel).onSelect('shp-1');
@@ -579,10 +563,10 @@ describe('#460 wiring: the package panel', () => {
 describe('#460 wiring: the map legend', () => {
   it('the legend is controlled by the page: collapse calls setLegendOpen, closed renders collapsed', () => {
     const s = setup(networkHook());
-    const legend = s.find<{ open: boolean; onOpenChange: (o: boolean) => void; mode: string; layers: LayerVisibility }>(MapLegend);
+    const legend = s.find<{ open: boolean; onOpenChange: (o: boolean) => void; mode: string }>(MapLegend);
     expect(legend.open).toBe(true);
     expect(legend.mode).toBe('network');
-    expect(legend.layers).toEqual(DEFAULT_LAYERS);
+    expect(legend).not.toHaveProperty('layers'); // the layer checkboxes are gone (#648)
     legend.onOpenChange(false);
     expect(s.setLegendOpen).toHaveBeenCalledWith(false);
 

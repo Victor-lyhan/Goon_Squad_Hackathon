@@ -4,7 +4,9 @@
 // there (`matrix.json`, `polylines.json`) and prints. The fetch itself is server/geo/fetchRoutes.ts.
 // Rules it keeps (SPEC "MVP II" rules 2-3, DECISIONS pass 46 and 48):
 // - nothing is printed except through `out`, and every line is scrubbed of anything that looks like a key and
-//   of the key itself; the key is never part of a message;
+//   of the key itself; the key is never part of a message. The same wrapper takes the ID of an entered home out
+//   of every line (`hideEntered`), on every path and for every flag: a cache reader error quotes the entry it
+//   could not read, and such an ID is an address (SPEC "MVP II" rule 6);
 // - `--dry-run` calls nothing, writes nothing and needs no key;
 // - every paid step is on disk before the next one starts;
 // - a place that moved is never patched (DECISIONS pass 50): `--refetch <placeId>` drops it with all its pairs and
@@ -34,7 +36,7 @@ import { explainShipment, formatExplain } from '../domain/v2/storyExplain';
 import type { ExplainRow } from '../domain/v2/storyExplain';
 import { MATRIX_FILE, POLYLINES_FILE, emptyTravelFiles, readTravelFiles, writeTravelFiles } from './cache';
 import type { TravelFiles } from './cache';
-import { dropEnteredHomes, dropPlaces, enteredHomes, formatCacheEdit, formatEnteredDrop, hideEnteredIds, movedHomes } from './cacheEdit';
+import { ENTERED_HOME_PREFIX, dropEnteredHomes, dropPlaces, enteredHomes, formatCacheEdit, formatEnteredDrop, hideEnteredIds, movedHomes } from './cacheEdit';
 import type { CacheEditResult, MovedHome } from './cacheEdit';
 import { coverage, formatCacheReport, sanity } from './cacheReport';
 import { DEFAULT_ENV_PATH, SERVER_KEY_NAME, loadDotEnv, serverKey } from './env';
@@ -394,6 +396,27 @@ function movedHomeLines(moved: readonly MovedHome[], alsoRefetch: readonly strin
 
 // ---------- homes entered in the commute editor ----------
 
+/** What `hideEnteredIds` leaves in the place of an ID. */
+const HIDDEN_ENTERED_ID = hideEnteredIds(ENTERED_HOME_PREFIX);
+
+/**
+ * `line` without entered-home IDs: `hideEnteredIds` for every `home-c-` in it. Used by the print wrapper of
+ * `runFetchScript` and nowhere else, so no path can print an ID.
+ * One thing stays as written: the prefix with nothing of an ID after it, which is how the usage text names these
+ * homes ("place IDs that start with home-c-"). It holds no coordinates, and `hideEnteredIds` would turn it into
+ * "home-c (entered address)". Whatever follows such a prefix is what `hideEnteredIds` leaves there too, so this
+ * hides exactly as much as that function does.
+ */
+export function hideEntered(line: string): string {
+  const [start, ...rest] = line.split(ENTERED_HOME_PREFIX);
+  const parts = rest.map((after) => {
+    const hidden = hideEnteredIds(ENTERED_HOME_PREFIX + after);
+    // Equal when nothing after the prefix was taken as part of an ID: the prefix stood alone.
+    return hidden === HIDDEN_ENTERED_ID + after ? ENTERED_HOME_PREFIX + after : hidden;
+  });
+  return start + parts.join('');
+}
+
 /**
  * The one line a run and a dry run add when the cache holds entered homes: a run before its `Done:` or
  * `NOT complete:` lines, because the first of them tells the human to commit. A count and the command: never an ID.
@@ -410,41 +433,40 @@ function enteredHomesLine(entered: number): string {
  * `--drop-entered`, the whole command: read the two cache files, drop the entered homes, save. It reads no
  * fixture file, no `.env` and no key, and builds no client, so a broken story file or a missing key does not
  * stand in the way of taking addresses out of the cache.
- * Every line goes through `hideEnteredIds`, because a reader error quotes the entry it could not read.
+ * A reader error quotes the entry it could not read: `print` (the wrapper of `runFetchScript`) hides the ID.
  * Exit 0: dropped and saved, or nothing to drop (then nothing is written). Exit 1: the cache could not be read or saved.
  */
 function runDropEntered(dir: string, dryRun: boolean, print: (line: string) => void): number {
-  const say = (line: string) => print(hideEnteredIds(line));
   const untouched = 'Nothing was dropped or written.';
 
   let cached: TravelFiles | null;
   try {
     cached = readTravelFiles(dir);
   } catch (err) {
-    say(`Cannot start: ${messageOf(err)} ${untouched}`);
+    print(`Cannot start: ${messageOf(err)} ${untouched}`);
     return EXIT_INCOMPLETE;
   }
   if (cached === null) {
     // Route lines without a matrix cannot be read through the cache reader, so "none" would be a guess.
     if (fs.existsSync(path.join(dir, POLYLINES_FILE))) {
-      say(
+      print(
         `Cannot start: ${shownPath(path.join(dir, POLYLINES_FILE))} exists but ${MATRIX_FILE} does not, so its route lines cannot be checked. ` +
           `Restore ${MATRIX_FILE} or delete ${POLYLINES_FILE}, then run again. ${untouched}`,
       );
       return EXIT_INCOMPLETE;
     }
-    say(`Entered homes: none. There is no travel cache in ${shownPath(dir)}. ${untouched}`);
+    print(`Entered homes: none. There is no travel cache in ${shownPath(dir)}. ${untouched}`);
     return EXIT_OK;
   }
 
   const edit = dropEnteredHomes(cached);
   if (edit.dropped.length === 0) {
-    say(`Entered homes: none in the travel cache (${shownPath(dir)}). ${untouched}`);
+    print(`Entered homes: none in the travel cache (${shownPath(dir)}). ${untouched}`);
     return EXIT_OK;
   }
   if (dryRun) {
-    say(formatEnteredDrop(edit, 'Would drop'));
-    say(`${DROP_ENTERED_RUN_NOTE} Nothing was written. Cache folder: ${shownPath(dir)}`);
+    print(formatEnteredDrop(edit, 'Would drop'));
+    print(`${DROP_ENTERED_RUN_NOTE} Nothing was written. Cache folder: ${shownPath(dir)}`);
     return EXIT_OK;
   }
   try {
@@ -452,13 +474,13 @@ function runDropEntered(dir: string, dryRun: boolean, print: (line: string) => v
     // the homes in the matrix and the same command drops them again.
     writeTravelFiles(dir, edit.files);
   } catch (err) {
-    say(`Stopped: ${messageOf(err)}`);
-    say('The drop may be half saved: fix the problem above, then run the same command again.');
+    print(`Stopped: ${messageOf(err)}`);
+    print('The drop may be half saved: fix the problem above, then run the same command again.');
     return EXIT_INCOMPLETE;
   }
-  say(formatEnteredDrop(edit));
-  say(`The drop is saved in ${shownPath(dir)}. No Google call was made, and nothing has to be fetched again.`);
-  say(`${DROP_ENTERED_RUN_NOTE} If the server is running, restart it: it still holds these homes in memory and writes them back with its next live answer.`);
+  print(formatEnteredDrop(edit));
+  print(`The drop is saved in ${shownPath(dir)}. No Google call was made, and nothing has to be fetched again.`);
+  print(`${DROP_ENTERED_RUN_NOTE} If the server is running, restart it: it still holds these homes in memory and writes them back with its next live answer.`);
   return EXIT_OK;
 }
 
@@ -572,7 +594,8 @@ function bestOptions(options: readonly ExplainRow[], expect: StoryExpectation['e
  * The explainer looks at one package alone. A package can also lose an option to another package: the matcher gives
  * a commute to one package only. So a feasible option says when one of its commutes carries another package in the
  * matcher's result, and which option is the plan the package got.
- * The lines hold names, minutes and times of day: no place ID, no coordinates. Nothing here changes a plan.
+ * The lines hold names, minutes and times of day: no place ID, no coordinates (an error message may quote an ID;
+ * the print wrapper hides it). Nothing here changes a plan.
  */
 function explainStory(matched: Matched, rows: readonly StoryRow[]): string[] {
   const { scenario, trips, assignments, files } = matched;
@@ -657,8 +680,7 @@ function explainStory(matched: Matched, rows: readonly StoryRow[]): string[] {
       lines.push(`  … ${count(left, 'more option')} (${feasibleLeft} feasible, ${left - feasibleLeft} ruled out)`);
     }
   }
-  // No place ID is printed above. This is for an error message, which may quote one.
-  return lines.map(hideEnteredIds);
+  return lines;
 }
 
 // ---------- the reports after a run ----------
@@ -794,12 +816,13 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
   const out = args.out ?? ((line: string) => console.log(line));
 
   // Every line goes through here. `scrubKeys` removes what looks like a key; once the real key is known, its
-  // exact text (raw and URL-encoded) is removed too, whatever it looks like.
+  // exact text (raw and URL-encoded) is removed too, whatever it looks like. Then the entered-home IDs go
+  // (`hideEntered`): keys first, so a key is taken out whole before anything else changes the line.
   let secrets: string[] = [];
   const print = (line: string) => {
     let safe = scrubKeys(line);
     for (const secret of secrets) safe = safe.split(secret).join('[redacted]');
-    out(safe);
+    out(hideEntered(safe));
   };
 
   try {
@@ -862,7 +885,8 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       orphanLines = cached === null && fs.existsSync(path.join(dir, POLYLINES_FILE));
       input = { files: cached ?? emptyTravelFiles(), businessesFile, neighborhoodsFile, storyFile };
     } catch (err) {
-      // A FixtureFileError or a TravelCacheError: both messages name the file.
+      // A FixtureFileError or a TravelCacheError: both messages name the file. The second also quotes the bad
+      // place ID or pair key, which may be an entered home: `print` hides it.
       print(`Cannot start: ${messageOf(err)} No Google call was made.`);
       return EXIT_INCOMPLETE;
     }
