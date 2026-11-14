@@ -86,8 +86,6 @@ a.workspace-entry:focus-visible {
 .workspace-entry.is-disabled { cursor: progress; }
 .workspace-entry.is-disabled .workspace-action { color: var(--muted, #5B6472); }
 
-.landing-status { margin: var(--space-3, 12px) 0 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-
 /* 4. Footer */
 .landing-footer {
   display: flex;
@@ -113,7 +111,7 @@ a.workspace-entry:focus-visible {
   .op-summary-list { gap: var(--space-2, 8px) var(--space-4, 16px); }
 }
 
-/* NYC data source (dataset="nyc"): the indicator line under the introduction */
+/* The indicator line under the introduction */
 .landing-intro p.landing-indicator {
   margin-top: var(--space-2, 8px);
   font-family: var(--font-mono, ui-monospace, monospace);

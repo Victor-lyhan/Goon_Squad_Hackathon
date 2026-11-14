@@ -1,34 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Business, Employee } from '../../../shared/types';
-import { portalPaths, readIdentity, resolveIdentity, useDirectory } from '../demoIdentity';
+import { readIdentity, type DemoIdentity } from '../demoIdentity';
 import { getBusinesses, getEmployees, isTravelUnavailable } from '../api/v2';
 import {
   startV2BusinessDirectory, startV2Directory, type V2BusinessDirectory, type V2Directory,
 } from '../ui/shell';
 import { ENV_LABELS, pickAccount, workspaceHrefs } from '../ui/shellModel';
-import type { DemoIdentity } from '../demoIdentity';
 import '../styles/help.css';
 
 type Target = 'business' | 'employee' | 'simulator';
 
-/** The six steps of SPEC.md "The 2-minute demo". Kept here on purpose (not shared with Landing). */
-export const HELP_STEPS: readonly { title: string; text: string; target: Target; action: string }[] = [
-  { title: 'Check a commute', text: 'Open the Employee workspace: the saved commute, departure times and added-time limit.', target: 'employee', action: 'Open Employee' },
-  { title: 'Request a delivery', text: 'In Business, pick a recipient, describe the package, set times and choose Find a delivery match.', target: 'business', action: 'Open Business' },
-  { title: 'Read the match', text: 'The backend returns a Delivery arranged card with shipment ID, ETA, price, carriers and relay point.', target: 'business', action: 'Open Business' },
-  { title: 'See the new job', text: 'Back in Employee, without refreshing, the new job is already listed with its stops and reward.', target: 'employee', action: 'Open Employee' },
-  { title: 'Run the simulation', text: 'In Simulator, play the evening leg, watch the package wait overnight, Jump to morning, then see it delivered.', target: 'simulator', action: 'Open Simulator' },
-  { title: 'Check the results', text: 'Sender and recipient tracking and employee earnings update from the same run.', target: 'business', action: 'Open Business' },
-];
-
-export const HELP_SIMULATOR_PATH = '/simulator';
-
-type Step = (typeof HELP_STEPS)[number];
+type Step = { title: string; text: string; target: Target; action: string };
 
 /**
- * The same six steps on the NYC network (/help since the cutover, #548). "Relay point", never "hub";
- * the simulator step names only controls that are on main (Play journey is #496, merged).
+ * The six steps of SPEC.md "The 2-minute demo" on the NYC network. Kept here on purpose (not shared with
+ * Landing). "Relay point", never "hub"; the simulator step names only controls that are on main.
  */
 export const NYC_HELP_STEPS: readonly Step[] = [
   { title: 'Check a commute', text: 'Open the Employee workspace: the home neighborhood, the commute on the map, departure times and the added-time limit.', target: 'employee', action: 'Open Employee' },
@@ -117,7 +103,17 @@ function Steps({ steps, href }: { steps: readonly Step[]; href: (t: Target) => s
   );
 }
 
-function NycHelp({ initialEmployees, initialBusinesses }: { initialEmployees?: V2Directory; initialBusinesses?: V2BusinessDirectory }) {
+/** /help: the Guided demo on the NYC network (/api/v2 lists, main paths). */
+export default function Help({ initialEmployees, initialBusinesses }: {
+  /**
+   * Accepted and ignored: the NYC page is the only one. `App.tsx` still passes `dataset="nyc"` and is not
+   * edited by the deletion issue (#565); remove the prop together with that attribute.
+   */
+  dataset?: 'nyc';
+  /** Skip the /api/v2 requests and use these lists (tests). */
+  initialEmployees?: V2Directory;
+  initialBusinesses?: V2BusinessDirectory;
+}) {
   const { employees, businesses } = useNycLists(initialEmployees, initialBusinesses);
   const { links, note } = nycHelpView(employees, businesses, readIdentity());
   return (
@@ -138,41 +134,6 @@ function NycHelp({ initialEmployees, initialBusinesses }: { initialEmployees?: V
           either directly or through one relay point overnight. The businesses are real NYC locations, and the
           travel times between them come from Google and are cached. Employees, their homes and the deliveries
           are simulated by the backend, and homes are shown by neighborhood only.
-        </p>
-      </section>
-    </div>
-  );
-}
-
-export default function Help({ initial, dataset = 'synthetic', initialEmployees, initialBusinesses }: {
-  initial?: { businesses: Business[]; employees: Employee[] };
-  /** The app mounts 'nyc' (/api/v2, main paths); 'synthetic' is the MVP 1 page, no longer mounted. */
-  dataset?: 'synthetic' | 'nyc';
-  /** NYC only: skip the /api/v2 requests and use these lists (tests). */
-  initialEmployees?: V2Directory;
-  initialBusinesses?: V2BusinessDirectory;
-}) {
-  if (dataset === 'nyc') return <NycHelp initialEmployees={initialEmployees} initialBusinesses={initialBusinesses} />;
-  return <SyntheticHelp initial={initial} />;
-}
-
-function SyntheticHelp({ initial }: { initial?: { businesses: Business[]; employees: Employee[] } }) {
-  const dir = useDirectory(initial);
-  const paths = portalPaths(
-    dir.status === 'ready' ? resolveIdentity(readIdentity(), dir.businesses, dir.employees) : null,
-  );
-  const href = (t: Target) => (t === 'simulator' ? HELP_SIMULATOR_PATH : paths[t]);
-  return (
-    <div className="help">
-      <h1>Guided demo</h1>
-      <p className="help-lead">Six steps, about two minutes. Each step opens the workspace it happens in.</p>
-      <Steps steps={HELP_STEPS} href={href} />
-      <section className="help-about" aria-labelledby="help-about-title">
-        <h2 id="help-about-title">What you are looking at</h2>
-        <p>
-          Relay matches business packages to employees who already commute past the pickup and drop-off,
-          either directly or through one relay point overnight. Every business, employee and delivery here
-          is demo data, and deliveries are simulated by the backend: the pages only show what it returns.
         </p>
       </section>
     </div>

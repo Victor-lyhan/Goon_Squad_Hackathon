@@ -1,11 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import Landing, { type SummaryFacts } from '../../client/src/pages/Landing';
+import Landing from '../../client/src/pages/Landing';
 import { nycSummaryFrom, nycSummaryFromError, type NycSummary } from '../../client/src/pages/landingModel';
 import { ApiRequestError } from '../../client/src/api/v2';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
-import { snapshotAt } from '../../server/domain/simulation';
 import { businesses, employees, simulator } from './landing-nyc-sample';
 
 const page = (props: Parameters<typeof Landing>[0]) =>
@@ -20,26 +18,6 @@ const values = (html: string) => [...html.matchAll(/<dd class="op-summary-value"
 
 const ready = nycSummaryFrom(businesses, employees, simulator);
 const unavailable = nycSummaryFromError(new ApiRequestError(503, 'x', undefined, 'http', 'travel_data_missing'));
-
-describe('default dataset is unchanged', () => {
-  const run = createInitialRun(loadDefaultScenario());
-  const { businesses: b, employees: e, hubs } = run.scenario;
-  const m = snapshotAt(run, run.clock.timeMin).metrics;
-  const facts: SummaryFacts = {
-    status: 'ready', businesses: b.length, commuters: e.length, relayPoints: hubs.length, matched: m.matched, requested: m.requested,
-  };
-  it('dataset="synthetic" renders exactly what no prop renders', () => {
-    for (const props of [{}, { initial: { businesses: b, employees: e }, initialFacts: facts }]) {
-      expect(page({ ...props, dataset: 'synthetic' })).toBe(page(props));
-    }
-  });
-  it('keeps the MVP 1 links and footer', () => {
-    const h = page({ initial: { businesses: b, employees: e }, initialFacts: facts });
-    expect(workspaceLinks(h)).toEqual([`/business/${encodeURIComponent(b[0].id)}`, `/employee/${encodeURIComponent(e[0].id)}`, '/simulator']);
-    expect(h).toContain('Simulated environment. No real deliveries are made.');
-    expect(h).not.toContain('Real NYC locations');
-  });
-});
 
 describe('dataset="nyc" with sample /api/v2 responses', () => {
   const h = page({ dataset: 'nyc', initialSummary: ready });
