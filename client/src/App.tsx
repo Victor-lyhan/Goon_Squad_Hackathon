@@ -6,6 +6,9 @@ import {
   type Directory,
 } from './demoIdentity';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
+import NotFoundPage from './ui/NotFoundPage';
+import { switchIdentityPath } from './ui/shell';
+import './ui/shell.css';
 import './styles/global.css';
 import Landing, { SIMULATOR_PATH } from './pages/Landing';
 import BusinessPortal from './pages/BusinessPortal';
@@ -31,14 +34,10 @@ function DemoAccountSelector({ dir }: { dir: Directory }) {
   }
 
   const choose = (id: string) => {
-    if (!id) return;
-    if (bizMatch) {
-      writeIdentity({ ...readIdentity(), businessId: id });
-      navigate(`/business/${encodeURIComponent(id)}`);
-    } else {
-      writeIdentity({ ...readIdentity(), employeeId: id });
-      navigate(`/employee/${encodeURIComponent(id)}`);
-    }
+    const next = switchIdentityPath(pathname, id);
+    if (!next) return;
+    writeIdentity({ ...readIdentity(), [next.kind === 'business' ? 'businessId' : 'employeeId']: id });
+    navigate(next.path); // path only: drops ?shipment=/?job= and hash
   };
 
   if (bizMatch) {
@@ -96,28 +95,20 @@ export function Header({ initial }: { initial?: DirectoryData } = {}) {
   );
 }
 
-function NotFound() {
-  return (
-    <div className="panel">
-      <h1>Page not found</h1>
-      <p><Link to="/">Back to the Relay home page</Link></p>
-    </div>
-  );
-}
-
 /** Header + routes, without a router, so tests can wrap it in MemoryRouter. */
 export function AppShell({ initial }: { initial?: DirectoryData } = {}) {
   return (
     <>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <ConnectionMonitor />
       <Header initial={initial} />
-      <main className="app-main">
+      <main className="app-main" id="main-content" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<Landing initial={initial} />} />
           <Route path="/business/:id" element={<BusinessPortal />} />
           <Route path="/employee/:id" element={<EmployeePortal />} />
           <Route path="/simulator" element={<Simulator />} />
-          <Route path="*" element={<NotFound />} />
+          <Route path="*" element={<NotFoundPage initial={initial} />} />
         </Routes>
       </main>
     </>
