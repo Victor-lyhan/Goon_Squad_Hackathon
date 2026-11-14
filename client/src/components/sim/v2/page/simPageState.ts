@@ -12,7 +12,7 @@ import { SIM_WINDOW } from '../compose/simPageView';
 import { playbackRequest, toPlaybackView } from '../controls/controlsModel';
 import type { SimDataState } from '../live/simDataModel';
 import type { Selection } from '../network/selectionModel';
-import { simKeyAction, type SimKeyEvent, type SimKeyState } from './keyMap';
+import { isControlTarget, simKeyAction, type SimKeyEvent, type SimKeyState } from './keyMap';
 import { parseSimUrl, simUrlFor } from './urlState';
 
 // ---------- URL <-> selection ----------
@@ -99,9 +99,19 @@ export type SimKeyHandlers = {
   context: () => SimKeyContext;
   select: (selection: Selection) => void;
   control: (request: SimControlRequest) => void;
+  /**
+   * Asked first on Esc (#496): returns true when it used the key (a running Play journey stopped),
+   * so the first Esc stops the journey and the next one goes back to the network. It is asked from
+   * a focused button too (the Stop button has focus after a click), never from a text field.
+   */
+  escape?: () => boolean;
 };
 
 const isEscape = (key: string) => key === 'Escape' || key === 'Esc';
+
+/** A control that keeps Esc for itself (typing, choosing); a button is not one. */
+const isTextField = (target: SimKeyEvent['target']) =>
+  isControlTarget(target) && (target?.tagName ?? '').toUpperCase() !== 'BUTTON';
 
 /**
  * Attaches the page's keydown listener to `target` (the window) and returns the function that
@@ -116,6 +126,10 @@ const isEscape = (key: string) => key === 'Escape' || key === 'Esc';
  */
 export function attachSimKeys(target: SimKeyTarget, h: SimKeyHandlers): () => void {
   const listener = (e: SimKeyboardEvent) => {
+    if (h.escape && isEscape(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !isTextField(e.target) && h.escape()) {
+      e.preventDefault();
+      return;
+    }
     const effect = simKeyEffect(e, h.context());
     if (!effect) {
       if (isEscape(e.key) && (e.target?.tagName ?? '').toUpperCase() === 'BUTTON') e.preventDefault();

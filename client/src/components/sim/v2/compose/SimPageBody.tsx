@@ -6,11 +6,15 @@
 // value and the selection as props, so tests pass a hand-built hook value. `SimPageLayout` is the
 // stateless render of one `simPageView`, so tests can call it and reach every handler without a DOM.
 // Nothing about a delivery is computed here: every control calls the hook's actions.
-import { useMemo, useRef, useState } from 'react';
+//
+// #496: the map's movers are tweened between polls along their route lines (motion/useTweenedMovers,
+// lines from moverPaths.ts), and the journey panel has "Play journey" (journeyPlay.ts), which steps
+// the server clock with `seek`. Every position on screen is a polled one or a point between two.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SimControlRequest } from '../../../../../../shared/v2/schemas';
 import { Button, Spinner } from '../../../../ui';
 import { GoogleBaseMap } from '../../../map/GoogleBaseMap';
-import type { MapPanTarget } from '../../../map/types';
+import type { MapMover, MapPanTarget } from '../../../map/types';
 import { FocusSelector } from '../FocusSelector';
 import { LayerToggles } from '../LayerToggles';
 import { PackageList } from '../PackageList';
@@ -30,13 +34,23 @@ import { PlaybackControls } from '../controls/PlaybackControls';
 import { ScenarioControls } from '../controls/ScenarioControls';
 import { JourneyLegend } from '../journey/JourneyLegend';
 import { JourneyTimeline } from '../journey/JourneyTimeline';
+import type { JourneyResult } from '../journey/journeyModel';
 import type { GenerateRequest, SimulatorV2 } from '../live/useSimulatorV2';
+import { mapKey } from '../live/simDataModel';
+import { useTweenedMovers } from '../motion/useTweenedMovers';
+import type { TweenClock } from '../motion/routeTween';
 import type { Selection } from '../network/selectionModel';
 import {
   BACK_TO_NETWORK, COMPARE_IDLE, LOADING_TEXT, MAP_PENDING_TEXT, RECONNECTING_TEXT, compareView, panTargetFor,
   selectionAfterMapClick, simPageView,
   type CompareState, type SimCompareView, type SimPageView, type SimReadyView, type SimRightView,
 } from './simPageView';
+import {
+  PLAY_IDLE, playButtonView, playErrorText, playStatusText, type PlayState,
+} from './journeyPlay';
+import { buildMoverLines, pathForMovers } from './moverPaths';
+import { PlayJourneyButton } from './PlayJourneyButton';
+import { useJourneyPlay } from './useJourneyPlay';
 import './compose.css';
 
 // ---------- Handlers ----------
@@ -61,7 +75,13 @@ export type SimPageHandlers = {
   clearSelection: () => void;
   backToNetwork: () => void;
   stepSeek: (timeMin: number, placeId: string) => void;
+  /** Play journey (#496); absent where the body has no player (tests of the layout alone). */
+  playJourney?: () => void;
+  stopJourney?: () => void;
 };
+
+/** The Play journey player as the handlers see it. */
+export type JourneyPlayControls = { play: () => void; stop: () => boolean };
 
 export type SimPageHandlerDeps = {
   sim: SimulatorV2;
@@ -76,6 +96,8 @@ export type SimPageHandlerDeps = {
   setCompare: (state: CompareState) => void;
   /** A new number per call; makes each pan request unique. */
   nextPanSeq: () => number;
+  /** Any other clock or run action stops a running Play journey first, so the two never fight. */
+  journeyPlay?: JourneyPlayControls;
 };
 
 /** Every handler of the page. Plain functions over the hook's actions and the page's setters. */
@@ -87,11 +109,12 @@ export function createSimPageHandlers(d: SimPageHandlerDeps): SimPageHandlers {
     d.setPanTo(undefined);
     select(null);
   };
+  const stopPlay = () => void d.journeyPlay?.stop();
   return {
-    control: (req) => void d.sim.control(req),
-    generate: (req) => void d.sim.generate(req),
-    resetPlanning: () => void d.sim.resetPlanning(),
-    recompute: () => void d.sim.recompute(),
+    control: (req) => { stopPlay(); void d.sim.control(req); },
+    generate: (req) => { stopPlay(); void d.sim.generate(req); },
+    resetPlanning: () => { stopPlay(); void d.sim.resetPlanning(); },
+    recompute: () => { stopPlay(); void d.sim.recompute(); },
     retry: () => d.sim.refetch(),
     dismissActionError: () => d.sim.dismissActionError(),
     toggleLayer: (key) => d.setLayers((v) => toggleLayer(v, key)),
@@ -114,10 +137,12 @@ export function createSimPageHandlers(d: SimPageHandlerDeps): SimPageHandlers {
     clearSelection: toNetwork,
     backToNetwork: toNetwork,
     stepSeek: (timeMin, placeId) => {
+      stopPlay();
       void d.sim.control({ action: 'seek', timeMin });
       const target = panTargetFor(d.view, placeId, d.nextPanSeq());
       if (target) d.setPanTo(target);
     },
+    ...(d.journeyPlay ? { playJourney: d.journeyPlay.play, stopJourney: stopPlay } : {}),
   };
 }
 
@@ -130,6 +155,10 @@ export type SimPageLayoutProps = {
   legendOpen: boolean;
   compare: SimCompareView;
   handlers: SimPageHandlers;
+  /** The movers to draw this frame (tweened); defaults to the polled `view.map.movers`. */
+  movers?: MapMover[];
+  /** Play journey state for the package on screen; defaults to idle. */
+  play?: PlayState;
 };
 
 function StateScreen({ title, message, reconnecting, onRetry }: { title: string; message: string; reconnecting: boolean; onRetry: () => void }) {
@@ -153,7 +182,24 @@ function BackButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function RightPanel({ right, handlers }: { right: SimRightView; handlers: SimPageHandlers }) {
+const noop = () => {};
+
+type RightPanelProps = { right: SimRightView; handlers: SimPageHandlers; play: PlayState; actionError: string | null };
+
+/** The Play journey button, its step line and its error, next to the timeline. */
+function PlayBlock({ journey, handlers, play, actionError }: Omit<RightPanelProps, 'right'> & { journey: JourneyResult }) {
+  return (
+    <PlayJourneyButton
+      button={playButtonView(journey, play)}
+      status={playStatusText(journey, play)}
+      error={playErrorText(play, actionError)}
+      onPlay={handlers.playJourney ?? noop}
+      onStop={handlers.stopJourney ?? noop}
+    />
+  );
+}
+
+function RightPanel({ right, handlers, play, actionError }: RightPanelProps) {
   switch (right.kind) {
     case 'summary':
       return <RunSummary metrics={right.metrics} />;
@@ -190,13 +236,15 @@ function RightPanel({ right, handlers }: { right: SimRightView; handlers: SimPag
       return (
         <div className="spc-journey">
           <JourneyTimeline journey={right.journey} onSeek={handlers.stepSeek} />
+          <PlayBlock journey={right.journey} handlers={handlers} play={play} actionError={actionError} />
           <div className="spc-journey__foot"><BackButton onClick={handlers.backToNetwork} /></div>
         </div>
       );
     case 'journey':
       return (
-        <div className="spc-journey">
+        <div className={`spc-journey${play.status === 'running' ? ' spc-journey--playing' : ''}`}>
           <JourneyLegend carriers={right.journey.carriers} />
+          <PlayBlock journey={right.journey} handlers={handlers} play={play} actionError={actionError} />
           <JourneyTimeline journey={right.journey} onSeek={handlers.stepSeek} />
           <div className="spc-journey__foot"><BackButton onClick={handlers.backToNetwork} /></div>
         </div>
@@ -204,7 +252,9 @@ function RightPanel({ right, handlers }: { right: SimRightView; handlers: SimPag
   }
 }
 
-function ReadyLayout({ view, focus, layers, panTo, legendOpen, compare, handlers }: SimPageLayoutProps & { view: SimReadyView }) {
+function ReadyLayout({
+  view, focus, layers, panTo, legendOpen, compare, handlers, movers, play,
+}: SimPageLayoutProps & { view: SimReadyView }) {
   const c = view.controls;
   const pk = view.packageList;
   const left = (
@@ -245,7 +295,7 @@ function ReadyLayout({ view, focus, layers, panTo, legendOpen, compare, handlers
   );
   const map = (
     <div className="spc-map">
-      <GoogleBaseMap {...view.map} panTo={panTo} onSelect={handlers.mapSelect} />
+      <GoogleBaseMap {...view.map} movers={movers ?? view.map.movers} panTo={panTo} onSelect={handlers.mapSelect} />
       <div className="spc-legend" data-legend-mode={view.legend.label}>
         <MapLegend mode={view.legend.mode} layers={layers} hasSelection={view.legend.hasSelection}
           focus={view.legend.focus} open={legendOpen} onOpenChange={handlers.setLegendOpen} />
@@ -258,7 +308,7 @@ function ReadyLayout({ view, focus, layers, panTo, legendOpen, compare, handlers
     <SimWorkspace
       left={left}
       map={map}
-      right={<RightPanel right={view.right} handlers={handlers} />}
+      right={<RightPanel right={view.right} handlers={handlers} play={play ?? PLAY_IDLE} actionError={view.actionError} />}
       onClearSelection={handlers.clearSelection}
       journey={view.mode === 'journey' ? { title: view.journeyTitle ?? 'Package', onExit: handlers.backToNetwork } : undefined}
     />
@@ -295,9 +345,17 @@ export type SimPageBodyProps = {
   onSelectionChange: (selection: Selection) => void;
   initialFocus?: Focus;
   initialLayers?: LayerVisibility;
+  /**
+   * The page's Esc key asks this first (#496): it stops a running Play journey and returns true, so
+   * the first Esc stops the journey and the next one goes back to the network.
+   */
+  escapeRef?: { current: (() => boolean) | null };
 };
 
-export function SimPageBody({ sim, selection, onSelectionChange, initialFocus, initialLayers }: SimPageBodyProps) {
+const NO_MOVERS: MapMover[] = [];
+const NO_CLOCK: TweenClock = { runId: '', timeMin: 0, playing: false, speed: 0 };
+
+export function SimPageBody({ sim, selection, onSelectionChange, initialFocus, initialLayers, escapeRef }: SimPageBodyProps) {
   const [focus, setFocus] = useState<Focus>(initialFocus ?? NO_FOCUS);
   const [layers, setLayers] = useState<LayerVisibility>(initialLayers ?? DEFAULT_LAYERS);
   const [panTo, setPanTo] = useState<MapPanTarget | undefined>(undefined);
@@ -307,12 +365,46 @@ export function SimPageBody({ sim, selection, onSelectionChange, initialFocus, i
   const panSeq = useRef(0);
 
   const view = useMemo(() => simPageView({ data: sim, selection, focus, layers }), [sim, selection, focus, layers]);
+  const ready = view.view === 'ready' ? view : null;
+  const polled = sim.sim;
+
+  // ---- Play journey ----
+  const journeyPlay = useJourneyPlay({
+    control: sim.control,
+    runId: polled?.runId ?? null,
+    clockPlaying: polled?.clock.playing ?? false,
+    shipmentId: selection?.kind === 'package' ? selection.id : null,
+    journey: ready?.right.kind === 'journey' ? ready.right.journey : null,
+  });
+  const stopJourney = journeyPlay.stop;
+  useEffect(() => {
+    if (!escapeRef) return undefined;
+    escapeRef.current = stopJourney;
+    return () => {
+      if (escapeRef.current === stopJourney) escapeRef.current = null;
+    };
+  }, [escapeRef, stopJourney]);
+
+  // ---- Movers between polls, along their route lines ----
+  const linesKey = polled ? mapKey(polled) : '';
+  // The lines change only with the map or the set of plans, so routeTween's per-path cache holds.
+  const lines = useMemo(() => buildMoverLines(polled?.plans ?? [], sim.map), [sim.map, linesKey]);
+  const clock: TweenClock = polled
+    ? { runId: polled.runId, timeMin: polled.clock.timeMin, playing: polled.clock.playing, speed: polled.clock.speed }
+    : NO_CLOCK;
+  const movers = useTweenedMovers(
+    ready ? ready.map.movers : NO_MOVERS, clock, pathForMovers(lines, clock.timeMin),
+    { journey: journeyPlay.state.status === 'running' },
+  );
+
   const handlers = createSimPageHandlers({
     sim, view, selection, onSelectionChange, setFocus, setLayers, setPanTo, setLegendOpen, compare, setCompare,
     nextPanSeq: () => ++panSeq.current,
+    journeyPlay: { play: journeyPlay.play, stop: stopJourney },
   });
   return (
     <SimPageLayout view={view} focus={focus} layers={layers} panTo={panTo} legendOpen={legendOpen}
-      compare={compareView(compare, view, sim.sim?.runId ?? null)} handlers={handlers} />
+      compare={compareView(compare, view, polled?.runId ?? null)} handlers={handlers}
+      movers={movers} play={journeyPlay.state} />
   );
 }
