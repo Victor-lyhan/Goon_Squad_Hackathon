@@ -1,10 +1,38 @@
 import { expect, it } from 'vitest';
 import { snapshotAt } from '../../server/domain/v2/simulation.js';
-import { buildDay, deepFreeze } from './sim-v2-day-helper.js';
+import { readFileSync } from 'node:fs';
+import { buildDay, deepFreeze, DAY_EXPECTED_OUTCOMES } from './sim-v2-day-helper.js';
 
 const first = buildDay();
 const second = buildDay();
 const minutes = [930, 960, 1020, 1050, 1080, 1200, 1440, 1900, 1950, 2160];
+
+it('builds its own scenario and never reads the NYC fixtures, so a story retune cannot change it', () => {
+  const source = readFileSync(new URL('./sim-v2-day-helper.ts', import.meta.url), 'utf8');
+  expect(source).not.toMatch(/fixtures\/nyc/);
+  expect(source).not.toMatch(/node:fs|readFileSync|demoStory/);
+  expect(first.run.scenario.businesses.every(business => /^biz-[a-z0-9-]+$/.test(business.id))).toBe(true);
+  expect(first.run.scenario.homes.every(home => /^home-\d{3}$/.test(home.id))).toBe(true);
+  expect(first.run.scenario.employees.map(employee => employee.id))
+    .toEqual(Array.from({ length: 12 }, (_, index) => `emp-${index + 1}`));
+  expect(first.run.scenario.shipments.map(shipment => shipment.id))
+    .toEqual(Array.from({ length: 8 }, (_, index) => `shp-${index + 1}`));
+});
+
+it('gives the sweep direct plans in both directions, relay plans and an unmatched package', () => {
+  const { plans, unmatched } = first.run.assignments;
+  const outcomes = Object.fromEntries([
+    ...plans.map(plan => [plan.shipmentId, plan.kind]),
+    ...unmatched.map(reason => [reason.shipmentId, 'unmatched']),
+  ]);
+  expect(outcomes).toEqual(DAY_EXPECTED_OUTCOMES);
+  const direct = plans.filter(plan => plan.kind === 'direct');
+  const directions = new Set(direct.map(plan => first.run.trips.find(trip => trip.id === plan.legs[0].tripId)!.direction));
+  expect(directions).toEqual(new Set(['evening', 'morning']));
+  expect(direct.length).toBeGreaterThanOrEqual(2);
+  expect(plans.filter(plan => plan.kind === 'relay').length).toBeGreaterThanOrEqual(2);
+  expect(unmatched.length).toBeGreaterThanOrEqual(1);
+});
 
 it('independent builds produce deeply equal, byte-identical snapshots, including after rewinding', () => {
   const expected = minutes.map(minute => snapshotAt(first.run, minute, first.travel));

@@ -15,10 +15,11 @@ const eventStatus: Record<SimEventKind, ShipmentProgress> = {
   pickup: 'picked_up', hub_drop: 'at_hub', hub_pickup: 'out_for_delivery', delivered: 'delivered',
 };
 
-it('keeps custody, progress, markers and money consistent for every minute of the NYC day', () => {
-  expect(run.scenario.employees).toHaveLength(60);
-  expect(run.scenario.shipments).toHaveLength(24);
-  expect(run.scenario.businesses).toHaveLength(18);
+it('keeps custody, progress, markers and money consistent for every minute of the simulated day', () => {
+  // The helper's own scenario (#540), not the NYC demo story.
+  expect(run.scenario.employees).toHaveLength(12);
+  expect(run.scenario.shipments).toHaveLength(8);
+  expect(run.scenario.businesses).toHaveLength(6);
   const previous: Record<string, number> = {};
   let previousDelivered = 0;
   let totalMs = 0;
@@ -107,7 +108,7 @@ it('keeps custody, progress, markers and money consistent for every minute of th
     }
   }
   const wallMs = performance.now() - started;
-  console.info(`NYC day: ${snapshots} snapshots, total ${totalMs.toFixed(1)} ms, slowest ${slowestMs.toFixed(2)} ms at ${slowestMinute}; sweep including assertions ${wallMs.toFixed(1)} ms`);
+  console.info(`Simulated day: ${snapshots} snapshots, total ${totalMs.toFixed(1)} ms, slowest ${slowestMs.toFixed(2)} ms at ${slowestMinute}; sweep including assertions ${wallMs.toFixed(1)} ms`);
   expect(snapshots).toBe(1231);
   // Parallel suite workers can pause a single sample for GC or scheduling.
   // Keep the raw sweep report above; confirm each outlier on the same minute.
