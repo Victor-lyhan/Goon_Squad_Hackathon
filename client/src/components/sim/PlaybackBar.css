@@ -1,0 +1,10 @@
+.playback-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; background: #fff; border-top: 1px solid #e2e8f0; }
+.playback-bar .pb-time { font: 700 16px system-ui, sans-serif; min-width: 130px; font-variant-numeric: tabular-nums; }
+.playback-bar .pb-speed { display: inline-flex; gap: 0; }
+.playback-bar .pb-btn { font: 600 14px system-ui, sans-serif; padding: 6px 12px; border: 1px solid #cbd5e1; background: #f8fafc; color: #0f172a; border-radius: 6px; cursor: pointer; }
+.playback-bar .pb-speed .pb-btn { border-radius: 0; margin-left: -1px; }
+.playback-bar .pb-speed .pb-btn:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+.playback-bar .pb-speed .pb-btn:last-child { border-radius: 0 6px 6px 0; }
+.playback-bar .pb-btn[aria-pressed='true'], .playback-bar .pb-primary { background: #0f172a; color: #fff; border-color: #0f172a; }
+.playback-bar .pb-btn:focus-visible { outline: 3px solid var(--accent, #f97316); outline-offset: 2px; }
+.playback-bar .pb-btn:disabled { opacity: .45; cursor: not-allowed; }
