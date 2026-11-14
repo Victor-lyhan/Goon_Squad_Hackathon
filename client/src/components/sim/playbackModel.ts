@@ -40,3 +40,12 @@ export function toPlaybackModel(
     },
   };
 }
+
+/** Clamp a raw scrub value to the sim window and round to an integer minute. */
+export function clampScrub(
+  raw: number,
+  settings: Pick<Settings, 'simStartMin' | 'simEndMin'>,
+): number {
+  if (!Number.isFinite(raw)) return settings.simStartMin;
+  return Math.min(settings.simEndMin, Math.max(settings.simStartMin, Math.round(raw)));
+}

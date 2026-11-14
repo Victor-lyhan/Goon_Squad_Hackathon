@@ -41,3 +41,11 @@ describe('shouldSnap', () => {
     expect(shouldSnap(a, { runId: 'r1', timeMin: 400 }, { speed: 120 })).toBe(true);
   });
 });
+
+import { shouldTween } from '../../client/src/components/sim/markerTween';
+describe('shouldTween', () => {
+  it('disables tweening under reduced motion', () => {
+    expect(shouldTween(true)).toBe(false);
+    expect(shouldTween(false)).toBe(true);
+  });
+});

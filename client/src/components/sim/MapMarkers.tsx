@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Clock, Graph, Snapshot } from '../../../../shared/types';
 import { pointProjector } from './mapGeometry';
-import { shouldSnap, tweenMarkers, tweenPackages } from './markerTween';
+import { REDUCED_MOTION_QUERY, shouldSnap, shouldTween, tweenMarkers, tweenPackages } from './markerTween';
 import './MapMarkers.css';
 
 export type MapMarkersProps = {
@@ -16,7 +16,7 @@ type Frame = Pick<Snapshot, 'runId' | 'timeMin' | 'markers' | 'packagePositions'
 
 const prefersReducedMotion = (): boolean =>
   typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-  && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  && window.matchMedia(REDUCED_MOTION_QUERY).matches;
 
 export function MapMarkers({ graph, snapshot, clock, pollMs = 1000 }: MapMarkersProps) {
   const [alpha, setAlpha] = useState(1);
@@ -29,7 +29,7 @@ export function MapMarkers({ graph, snapshot, clock, pollMs = 1000 }: MapMarkers
     const last = nextRef.current;
     nextRef.current = snapshot;
     prevRef.current = last;
-    if (prefersReducedMotion() || shouldSnap(last, snapshot, clock)) {
+    if (!shouldTween(prefersReducedMotion()) || shouldSnap(last, snapshot, clock)) {
       prevRef.current = snapshot;
       setAlpha(1);
       return;

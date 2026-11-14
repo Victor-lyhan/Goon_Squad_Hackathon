@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { Clock, Settings } from '../../../../shared/types';
 import type { SimControlRequest } from '../../../../shared/schemas';
-import { SPEEDS, toPlaybackModel } from './playbackModel';
+import { formatMin } from '../../ui/format';
+import { SPEEDS, clampScrub, toPlaybackModel } from './playbackModel';
 import './PlaybackBar.css';
 
 export type PlaybackBarProps = {
@@ -13,9 +15,24 @@ export type PlaybackBarProps = {
 
 export function PlaybackBar({ clock, nextEventMin, settings, busy = false, onControl }: PlaybackBarProps) {
   const m = toPlaybackModel(clock, nextEventMin, settings, busy);
+  // Local value while dragging; one seek is sent on release / key press, not per pixel.
+  const [draft, setDraft] = useState<number | null>(null);
+  const shown = draft ?? clampScrub(clock.timeMin, settings);
+  const commit = () => {
+    if (draft === null) return;
+    const t = clampScrub(draft, settings);
+    setDraft(null);
+    if (t !== clock.timeMin) onControl({ action: 'seek', timeMin: t });
+  };
   return (
     <div className="playback-bar" role="toolbar" aria-label="Simulation playback">
-      <span className="pb-time" aria-live="off">{m.timeLabel}</span>
+      <span className="pb-time" aria-live="off">{draft === null ? m.timeLabel : formatMin(shown)}</span>
+      <input type="range" className="pb-scrub" aria-label="Simulation time"
+        min={settings.simStartMin} max={settings.simEndMin} step={1} value={shown}
+        aria-valuetext={formatMin(shown)} disabled={busy}
+        onChange={(e) => setDraft(clampScrub(Number(e.target.value), settings))}
+        onPointerUp={commit}
+        onKeyUp={(e) => { if (e.key !== 'Tab' && e.key !== 'Shift') commit(); }} />
       <button type="button" className="pb-btn pb-primary" aria-label={m.playLabel === 'Play' ? 'Play simulation' : 'Pause simulation'}
         disabled={m.disabled.play} onClick={() => onControl({ action: clock.playing ? 'pause' : 'play' })}>
         {m.playLabel}
