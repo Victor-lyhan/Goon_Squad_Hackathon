@@ -31,7 +31,9 @@ describe('JobDetailV2 render', () => {
       const html = render(make(status));
       expectClean(html);
       expect(html).toContain('Back to deliveries');
-      expect(html).toContain('href="/simulator?package=');
+      // "Watch this package" opens the package and plays its journey (DECISIONS pass 64); `&` is `&amp;` in markup.
+      expect(html).toContain(`href="/simulator?package=${make(status).shipment.id}&amp;play=1"`);
+      expect(html.match(/href="\/simulator[^"]*"/g)).toHaveLength(1);
       expect(html).toContain('Watch this package');
       expect(html).toMatch(/<h2[^>]*tabindex="-1"/);
       expect(html).toContain('<dl');

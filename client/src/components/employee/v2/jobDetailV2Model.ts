@@ -189,8 +189,14 @@ export function extraTimeText(minutes: number | null | undefined): string {
   return minutes < 0 ? `${Math.abs(minutes)} min shorter` : `+${minutes} min`;
 }
 
-/** Simulator deep link with this package selected (DECISIONS pass 8). */
-export const watchHref = (job: JobResponse) => `/simulator?package=${encodeURIComponent(job.shipment.id)}`;
+/**
+ * The Employee page's one "watch" link: the simulator opens on this package and plays its journey once
+ * (DECISIONS pass 8, 63 and 64). The delivery list and the job view both build their link here.
+ */
+export const simulatorHref = (shipmentId: string) => `/simulator?package=${encodeURIComponent(shipmentId)}&play=1`;
+
+/** The job view's "Watch this package" link. */
+export const watchHref = (job: JobResponse) => simulatorHref(job.shipment.id);
 
 export function jobDetail(job: JobResponse, businesses: NetworkBusiness[], homeNeighborhood: string): JobDetailV2Model {
   const leg = job.plan.legs[job.job.legIndex];
