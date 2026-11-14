@@ -355,10 +355,10 @@ describe('runFetchScript --refetch: the command line', () => {
   it(
     'parseArgs: repeated, with = and with commas, each ID once in the order given',
     () => {
-      expect(parseArgs(['--refetch', 'biz-etsy'])).toEqual({ ok: true, options: { dryRun: false, help: false, refetch: ['biz-etsy'] } });
+      expect(parseArgs(['--refetch', 'biz-etsy'])).toEqual({ ok: true, options: { dryRun: false, help: false, refetch: ['biz-etsy'], checkKey: false } });
       expect(parseArgs(['--refetch', 'b', '--dry-run', '--refetch=a,c', '--refetch', 'b , d'])).toEqual({
         ok: true,
-        options: { dryRun: true, help: false, refetch: ['b', 'a', 'c', 'd'] },
+        options: { dryRun: true, help: false, refetch: ['b', 'a', 'c', 'd'], checkKey: false },
       });
     },
     TEST_TIMEOUT_MS,

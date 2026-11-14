@@ -156,7 +156,7 @@ describe('runFetchScript: the command line', () => {
   it.each([
     [['--nope'], 'Unknown flag --nope.'],
     [['--dry-run', '--nope'], 'Unknown flag --nope.'],
-    [['--check-key'], 'Unknown flag --check-key.'],
+    [['--check'], 'Unknown flag --check.'],
     [['--dry-run=yes'], '--dry-run takes no value.'],
     [['--help', '--dry-run'], '--help is used alone.'],
     [['fixtures/nyc'], 'Unexpected argument: this command takes only flags.'],
@@ -201,10 +201,10 @@ describe('runFetchScript: the command line', () => {
   });
 
   it('parseArgs: no flag is a real run, --dry-run may be repeated', () => {
-    expect(parseArgs([])).toEqual({ ok: true, options: { dryRun: false, help: false, refetch: [] } });
-    expect(parseArgs(['--dry-run'])).toEqual({ ok: true, options: { dryRun: true, help: false, refetch: [] } });
-    expect(parseArgs(['--dry-run', '--dry-run'])).toEqual({ ok: true, options: { dryRun: true, help: false, refetch: [] } });
-    expect(parseArgs(['--help'])).toEqual({ ok: true, options: { dryRun: false, help: true, refetch: [] } });
+    expect(parseArgs([])).toEqual({ ok: true, options: { dryRun: false, help: false, refetch: [], checkKey: false } });
+    expect(parseArgs(['--dry-run'])).toEqual({ ok: true, options: { dryRun: true, help: false, refetch: [], checkKey: false } });
+    expect(parseArgs(['--dry-run', '--dry-run'])).toEqual({ ok: true, options: { dryRun: true, help: false, refetch: [], checkKey: false } });
+    expect(parseArgs(['--help'])).toEqual({ ok: true, options: { dryRun: false, help: true, refetch: [], checkKey: false } });
   });
 });
 

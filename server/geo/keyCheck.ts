@@ -182,7 +182,8 @@ function problemRow(api: KeyCheckApi, verdict: Verdict, detail: string): KeyChec
   return { api, ok: false, problem: verdict.problem, detail: clean(detail), remedy: scrubKeys(remedyFor(api, verdict)) };
 }
 
-function failedRow(api: KeyCheckApi, err: unknown): KeyCheckRow {
+/** The row for a call that threw. Exported for the fetch command, which shows it when a run's first call is refused. */
+export function failedRow(api: KeyCheckApi, err: unknown): KeyCheckRow {
   return problemRow(api, classify(err), detailOf(err));
 }
 

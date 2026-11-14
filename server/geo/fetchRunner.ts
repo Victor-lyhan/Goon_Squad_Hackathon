@@ -63,6 +63,18 @@ export type Log = (line: string) => void;
  */
 export const MAX_FAILED_REQUESTS_IN_A_ROW = 3;
 
+/**
+ * A client throws this to end the whole run at once (the fetch command does, when Google refuses the first request
+ * to an API). The steps below do not count it as a failed request and do not catch it: it leaves `runGeocodes`,
+ * `runMatrix` or `runPolylines` as it is. Whatever an earlier step fetched was already handed to the caller.
+ */
+export class FetchStopError extends Error {
+  constructor(message = 'the fetch was stopped') {
+    super(message);
+    this.name = 'FetchStopError';
+  }
+}
+
 const REDACTED = '[redacted]';
 const MAX_REASON_LENGTH = 300;
 
@@ -145,6 +157,7 @@ export async function runGeocodes(args: {
     try {
       results = await client.geocodeAddress(address);
     } catch (err) {
+      if (err instanceof FetchStopError) throw err;
       const reason = reasonOf(err);
       summary.failures.push({ kind: 'geocode', placeId: id, reason });
       log(`${label}: FAILED: ${reason}`);
@@ -239,6 +252,7 @@ export async function runMatrix(args: {
         destinationIds.map((id) => ({ lat: places[id].lat, lng: places[id].lng })),
       );
     } catch (err) {
+      if (err instanceof FetchStopError) throw err;
       const reason = reasonOf(err);
       summary.failures.push({ kind: 'matrix-batch', originIds, destinationIds, reason });
       log(`${label}: FAILED: ${reason}`);
@@ -331,6 +345,7 @@ export async function runPolylines(args: {
     try {
       route = await client.computeRoutePolyline({ lat: origin.lat, lng: origin.lng }, { lat: destination.lat, lng: destination.lng });
     } catch (err) {
+      if (err instanceof FetchStopError) throw err;
       fail(reasonOf(err));
       if (isNoRoute(err)) {
         failedInARow = 0;

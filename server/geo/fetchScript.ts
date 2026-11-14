@@ -11,6 +11,8 @@
 //   route lines and saves that before the first Google call. A home that is not where its cached point is stops a
 //   run before any Google call, because every time fetched for the old point would be a stale one;
 // - the plan check and the cache report only report: no number is changed, estimated or filled in;
+// - `--check-key` is the three calls of server/geo/keyCheck.ts and nothing else: no cache file is read or written.
+//   A run points at it when Google refuses the first request to an API, and stops there (DECISIONS pass 51 and 52);
 // - exit 0 means "complete and no error flagged", so a human can commit `fixtures/nyc/` after reading the reports.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,8 +31,12 @@ import { DEFAULT_ENV_PATH, SERVER_KEY_NAME, loadDotEnv, serverKey } from './env'
 import { commutePairs, planLegPairs } from './fetchPlan';
 import { estimateFetch, formatEstimate, runFetchRoutes } from './fetchRoutes';
 import type { FetchEstimate, FetchRoutesInput, FetchRoutesResult, SkippedStep } from './fetchRoutes';
-import { bindGoogleClient, formatSummary, scrubKeys } from './fetchRunner';
+import { FetchStopError, bindGoogleClient, formatSummary, scrubKeys } from './fetchRunner';
 import type { FetchClient } from './fetchRunner';
+import { GoogleApiError } from './googleClient';
+import type { LatLng } from './googleClient';
+import { checkGoogleAccess, failedRow, formatKeyCheck, keyCheckPassed } from './keyCheck';
+import type { KeyCheckApi, KeyCheckProblem, KeyCheckRow } from './keyCheck';
 import { createCachedProvider } from './providers';
 
 /** `<repo root>/fixtures/nyc`, resolved from this file so it does not depend on the working directory. */
@@ -53,8 +59,24 @@ export const CHECK_LINE = 'Check the flagged rows above.';
 export const RESUME_WITHOUT_REFETCH_LINE =
   'Leave --refetch out when you run again: those places are already dropped, and a plain run fetches what is missing.';
 
+/** The last line of a run that Google refused. The check tells all three APIs apart; the run saw only one call. */
+export const CHECK_KEY_LINE = 'Run `npm run fetch:routes -- --check-key` to see which setting is wrong.';
+
+/**
+ * The two points of the check's 1x1 matrix and route line: Midtown Manhattan (near 5th Avenue and 34th Street)
+ * and Downtown Brooklyn (near Borough Hall). They are only asked about. Nothing Google says about them is cached
+ * or shown on a map, so they need not be exact: Google snaps each to the nearest road.
+ */
+export const KEY_CHECK_FROM: LatLng = { lat: 40.7484, lng: -73.9857 };
+export const KEY_CHECK_TO: LatLng = { lat: 40.6928, lng: -73.9903 };
+
+export const KEY_CHECK_HEADER =
+  `Google access check: three billable calls with the key in ${SERVER_KEY_NAME} ` +
+  '(one geocode, one 1x1 route matrix, one route line). Nothing is written.';
+
 export const USAGE: readonly string[] = [
   'Usage: npm run fetch:routes -- [--dry-run] [--refetch <placeId>]... [--help]',
+  '       npm run fetch:routes -- --check-key',
   '',
   'Fills fixtures/nyc/matrix.json and fixtures/nyc/polylines.json from Google, in four steps:',
   '  1. geocodes the businesses of businesses.json;',
@@ -72,6 +94,12 @@ export const USAGE: readonly string[] = [
   '              refills only what is missing. Repeatable; --refetch=a,b works too. A place ID that is not in the',
   '              cache changes nothing and exits 1. With --dry-run: shows the estimate as it would be after the',
   '              drop and writes nothing.',
+  '  --check-key',
+  '              Checks the key before a paid run, with three small Google calls: one geocode (the first address of',
+  '              businesses.json), one 1x1 route matrix and one route line between two fixed points in New York.',
+  '              Prints one row per API: ok, or what is wrong and the Google Cloud setting to change. Costs three',
+  '              billable calls. Reads no cache file, writes nothing and fetches nothing else. Used alone, without',
+  '              --dry-run or --refetch. Exits 0 when all three calls worked, 1 when one did not or no key is set.',
   '  --help      Show this text.',
   '',
   `The key is read from ${SERVER_KEY_NAME}, in the environment or in .env at the repo root. It is never printed.`,
@@ -79,6 +107,8 @@ export const USAGE: readonly string[] = [
   'next one starts, so a run that stopped half way resumes where it was.',
   'A run never drops a place by itself. When a home is no longer where its cached point is, the run stops before',
   'any Google call, lists those homes and prints the --refetch command for them.',
+  'When Google refuses the first request a run makes to an API (the API is not enabled, the key is restricted,',
+  'billing is off), the run stops there, prints that row and points at --check-key. What was fetched is saved.',
   '',
   'Exit codes: 0 = complete and no error flagged (warnings do not count); 1 = not complete, or an error flagged',
   '(the last line says what to do); 2 = wrong usage.',
@@ -91,16 +121,16 @@ export interface FetchScriptOptions {
   help: boolean;
   /** The place IDs of every `--refetch`, each once, in the order given. Empty for a plain run. */
   refetch: string[];
+  /** `--check-key`: only the three-call Google access check. Never together with `dryRun` or `refetch`. */
+  checkKey: boolean;
 }
 
 export type ParsedArgs = { ok: true; options: FetchScriptOptions } | { ok: false; problem: string };
 
-/**
- * The flags, one line each. `set` returns true when the value was usable. `--check-key` (DECISIONS pass 52) goes
- * here as `{ takesValue: false, ... }` with a field in FetchScriptOptions.
- */
+/** The flags, one line each. `set` returns true when the value was usable. */
 const FLAGS: Record<string, { takesValue: boolean; set: (options: FetchScriptOptions, value: string) => boolean }> = {
   '--dry-run': { takesValue: false, set: (options) => (options.dryRun = true) },
+  '--check-key': { takesValue: false, set: (options) => (options.checkKey = true) },
   '--help': { takesValue: false, set: (options) => (options.help = true) },
   '-h': { takesValue: false, set: (options) => (options.help = true) },
   // `--refetch a --refetch b` and `--refetch=a,b` mean the same. An empty ID between commas is a typing mistake.
@@ -120,7 +150,7 @@ const FLAGS: Record<string, { takesValue: boolean; set: (options: FetchScriptOpt
  * A wrong argument is echoed only when it looks like a flag name: a key pasted on the command line is not repeated.
  */
 export function parseArgs(argv: readonly string[]): ParsedArgs {
-  const options: FetchScriptOptions = { dryRun: false, help: false, refetch: [] };
+  const options: FetchScriptOptions = { dryRun: false, help: false, refetch: [], checkKey: false };
   const shown = (name: string) => (/^--?[a-z][a-z-]{0,30}$/.test(name) ? ` ${name}` : '');
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -140,6 +170,12 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
   }
   if (options.help && argv.length > 1) return { ok: false, problem: '--help is used alone.' };
+  if (options.checkKey && options.dryRun) {
+    return { ok: false, problem: '--check-key cannot be used with --dry-run: the check is three Google calls, and a dry run makes none.' };
+  }
+  if (options.checkKey && options.refetch.length > 0) {
+    return { ok: false, problem: '--check-key cannot be used with --refetch: the check writes nothing, and --refetch changes the cache.' };
+  }
   return { ok: true, options };
 }
 
@@ -297,6 +333,62 @@ function movedHomeLines(moved: readonly MovedHome[], alsoRefetch: readonly strin
   ];
 }
 
+// ---------- a run that Google refuses ----------
+
+/** The problems of keyCheck.ts that mean "Google refuses this key for this API". Each has one setting to change. */
+const ACCESS_PROBLEMS: ReadonlySet<KeyCheckProblem> = new Set<KeyCheckProblem>(['key_invalid', 'api_not_enabled', 'billing_off', 'key_restricted']);
+/** Google's statuses for a refused call. They say that access was refused, not why. */
+const DENIED_STATUSES = new Set(['REQUEST_DENIED', 'PERMISSION_DENIED', 'UNAUTHENTICATED']);
+
+/**
+ * The key-check row of a failed call when the failure is an access error, else null (a quota, a dead network, a
+ * server error or "no route" are left to the run, which retries and resumes).
+ * A refusal whose message names no cause is still a refusal: its row says `unknown` with Google's status
+ * (DECISIONS pass 51), never a guessed cause.
+ */
+function accessRefusal(api: KeyCheckApi, err: unknown): KeyCheckRow | null {
+  const row = failedRow(api, err);
+  if (ACCESS_PROBLEMS.has(row.problem)) return row;
+  const denied =
+    err instanceof GoogleApiError && (err.status === 401 || err.status === 403 || (err.googleStatus !== null && DENIED_STATUSES.has(err.googleStatus)));
+  return row.problem === 'unknown' && denied ? row : null;
+}
+
+/** Ends the run (fetchRunner.ts lets a FetchStopError through). `row` is what the command prints. */
+class AccessRefusedError extends FetchStopError {
+  constructor(readonly row: KeyCheckRow) {
+    super('Google refused the request');
+    this.name = 'AccessRefusedError';
+  }
+}
+
+/**
+ * The client of a run. It makes the same calls, but when the first call to one of the three (geocode, route
+ * matrix, route line) fails with an access error it throws AccessRefusedError, which stops the run before the
+ * next request. Every later request to that API would be refused the same way: for the matrix alone that is three
+ * failed requests, each retried, before the step gives up.
+ * Only the first call of each kind: once a call has worked, a failure is a matter for the run's own retry rules.
+ */
+function stopWhenRefused(client: FetchClient): FetchClient {
+  const called = new Set<KeyCheckApi>();
+  const guard = async <T>(api: KeyCheckApi, call: () => Promise<T>): Promise<T> => {
+    const first = !called.has(api);
+    called.add(api);
+    try {
+      return await call();
+    } catch (err) {
+      const row = first ? accessRefusal(api, err) : null;
+      if (row === null) throw err;
+      throw new AccessRefusedError(row);
+    }
+  };
+  return {
+    geocodeAddress: (address) => guard('geocoding', () => client.geocodeAddress(address)),
+    computeRouteMatrix: (origins, destinations) => guard('route_matrix', () => client.computeRouteMatrix(origins, destinations)),
+    computeRoutePolyline: (origin, destination) => guard('routes', () => client.computeRoutePolyline(origin, destination)),
+  };
+}
+
 const STEP_NAMES: Record<SkippedStep['step'], string> = {
   match: 'default scenario and matcher',
   polylines: 'route lines',
@@ -420,9 +512,12 @@ export interface FetchScriptArgs {
  *   step, no plan-check problem, every story package matched as written and no error in the cache report;
  * - 1: anything else that ran. The last line is RESUME_LINE or CHECK_LINE. What was fetched is saved either way.
  *   Also: a `--refetch` ID the cache does not hold (nothing is changed, with or without `--dry-run`), and a run
- *   that finds moved homes (nothing is dropped; the last line is the `--refetch` command);
+ *   that finds moved homes (nothing is dropped; the last line is the `--refetch` command), and a run that Google
+ *   refuses at the first request to an API (it stops there; the last line is CHECK_KEY_LINE);
  * - 2: an unknown flag or a misused one. The usage text is printed; nothing is read, called or written.
  * With `--refetch` the order is: drop in memory, save, print, and only then the first Google call.
+ * `--check-key` is its own command: exactly the three calls of `checkGoogleAccess`, 0 when all three rows are ok,
+ * 1 when one is not or there is no key (then no call is made). It reads `.env` and businesses.json and writes nothing.
  */
 export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
   const env = args.env ?? process.env;
@@ -451,12 +546,35 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       for (const line of USAGE) print(line);
       return EXIT_OK;
     }
-    const { dryRun, refetch } = parsed.options;
+    const { dryRun, refetch, checkKey } = parsed.options;
 
     loadDotEnv(args.envPath ?? DEFAULT_ENV_PATH, env);
     const key = serverKey(env);
     if (key !== null) {
       secrets = [...new Set([key, encodeURIComponent(key), new URLSearchParams({ k: key }).toString().slice(2)])];
+    }
+
+    // --check-key: the three calls and their rows. Only businesses.json is read (for the address to geocode); the
+    // cache files are not opened, so a cache that cannot be read does not stand in the way of checking the key.
+    if (checkKey) {
+      if (key === null) {
+        print(
+          `${SERVER_KEY_NAME} is not set, so there is no key to check. It is read from the environment or from .env at the repo root: ` +
+            `put ${SERVER_KEY_NAME}=<your server key> in .env, then run the check again. No Google call was made.`,
+        );
+        return EXIT_INCOMPLETE;
+      }
+      let address: string;
+      try {
+        address = readFixtureFile<NycBusinessesFile>(dir, BUSINESSES_FILE, BusinessesFileSchema).businesses[0].address;
+      } catch (err) {
+        print(`Cannot start: ${messageOf(err)} No Google call was made.`);
+        return EXIT_INCOMPLETE;
+      }
+      print(KEY_CHECK_HEADER);
+      const rows = await checkGoogleAccess({ client: makeClient(key), address, from: KEY_CHECK_FROM, to: KEY_CHECK_TO });
+      for (const line of formatKeyCheck(rows)) print(line);
+      return keyCheckPassed(rows) ? EXIT_OK : EXIT_INCOMPLETE;
     }
 
     // Inputs. A file that cannot be used stops the command before any Google call.
@@ -574,11 +692,22 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
     try {
       result = await runFetchRoutes({
         ...input,
-        client: makeClient(key),
+        client: stopWhenRefused(makeClient(key)),
         log: print,
         save: (files) => writeTravelFiles(dir, files),
       });
     } catch (err) {
+      if (err instanceof AccessRefusedError) {
+        // The first request to an API was refused, so the rest of the run would be refused too. Same row as
+        // --check-key prints for that call; the check itself is the last line.
+        print('');
+        print('Stopped: Google refused the request below, the first one this run made to that API. No request was made after it.');
+        print(formatKeyCheck([err.row])[0]);
+        print(`Every step that finished before this is saved in ${shownPath(dir)}.`);
+        if (edit !== null) print(RESUME_WITHOUT_REFETCH_LINE);
+        print(CHECK_KEY_LINE);
+        return EXIT_INCOMPLETE;
+      }
       // A save that failed, or fixture files that do not fit together. Steps saved before this are on disk.
       print('');
       print(`Stopped: ${messageOf(err)}`);
