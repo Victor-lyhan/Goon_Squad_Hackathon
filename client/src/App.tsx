@@ -6,14 +6,17 @@ import {
   type Directory,
 } from './demoIdentity';
 import { getBusinesses, getEmployees, getSimulator } from './api';
-import { getEmployees as getV2Employees, isTravelUnavailable } from './api/v2';
+import { getBusinesses as getV2Businesses, getEmployees as getV2Employees, isTravelUnavailable } from './api/v2';
 import {
   activeDestination, DESTINATIONS, ENV_INDICATOR_TEXT, RUN_POLL_MS, reconcileSelection, runChanged, staleNote,
   envIndicatorFor, isFullWidthPath, isPreviewPath, previewDestination, previewHrefs,
 } from './ui/shellModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
 import NotFoundPage from './ui/NotFoundPage';
-import { startV2Directory, switchIdentityPath, switchPreviewEmployeePath, type V2Directory } from './ui/shell';
+import {
+  startV2BusinessDirectory, startV2Directory, switchIdentityPath, switchPreviewBusinessPath, switchPreviewEmployeePath,
+  type V2BusinessDirectory, type V2Directory,
+} from './ui/shell';
 import './styles/global.css';
 import './ui/shell.css';
 import Landing, { SIMULATOR_PATH } from './pages/Landing';
@@ -23,6 +26,7 @@ import Simulator from './pages/Simulator';
 import Help from './pages/Help';
 import SimulatorV2 from './pages/v2/SimulatorV2';
 import EmployeeV2 from './pages/v2/EmployeeV2';
+import BusinessV2 from './pages/v2/BusinessV2';
 
 /** Header environment indicator (kept for existing imports; the source is ENV_INDICATOR_TEXT). */
 export const BADGE_TEXT = ENV_INDICATOR_TEXT;
@@ -77,12 +81,41 @@ function useV2Directory(preview: boolean, initial?: V2Directory): V2Directory {
   return dir;
 }
 
-/** Demo account on /nyc/employee/:id: v2 employees, navigates inside the preview, never stores the identity. */
-function PreviewAccountSelector({ dir }: { dir: V2Directory }) {
+/** The v2 business list for the header: same rules as useV2Directory (only on /nyc/…, aborted on leaving). */
+function useV2BusinessDirectory(preview: boolean, initial?: V2BusinessDirectory): V2BusinessDirectory {
+  const [dir, setDir] = useState<V2BusinessDirectory>(initial ?? { status: 'loading' });
+  useEffect(() => {
+    if (initial || !preview) return;
+    setDir({ status: 'loading' });
+    return startV2BusinessDirectory(getV2Businesses, isTravelUnavailable, setDir);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview]);
+  return dir;
+}
+
+/** The selector list for a preview page: v2 businesses or v2 employees, with the same load states. */
+type PreviewAccounts =
+  | { status: 'loading' } | { status: 'unavailable' } | { status: 'error'; message: string }
+  | { status: 'ready'; accounts: { id: string; name: string }[] };
+
+function previewAccounts(dir: V2Directory | V2BusinessDirectory): PreviewAccounts {
+  if (dir.status !== 'ready') return dir;
+  return { status: 'ready', accounts: 'businesses' in dir ? dir.businesses : dir.employees };
+}
+
+/**
+ * Demo account on /nyc/business/:id and /nyc/employee/:id: v2 accounts, navigates inside the preview
+ * (path only, so ?shipment= is dropped), never stores the identity (DECISIONS pass 52).
+ */
+function PreviewAccountSelector({ employees, businesses }: { employees: V2Directory; businesses: V2BusinessDirectory }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const m = matchPath('/nyc/employee/:id', pathname);
+  const bizMatch = matchPath('/nyc/business/:id', pathname);
+  const m = bizMatch ?? matchPath('/nyc/employee/:id', pathname);
   if (!m) return null;
+  const kind = bizMatch ? 'business' : 'employee';
+  const switchPath = bizMatch ? switchPreviewBusinessPath : switchPreviewEmployeePath;
+  const dir = previewAccounts(bizMatch ? businesses : employees);
   // 503 (no travel data yet): no selector; the page below explains it.
   if (dir.status === 'unavailable') return null;
   if (dir.status === 'loading') return <span className="demo-account-status">Loading accounts…</span>;
@@ -90,13 +123,13 @@ function PreviewAccountSelector({ dir }: { dir: V2Directory }) {
     return <span className="demo-account-status demo-account-error" role="alert">Accounts unavailable</span>;
   }
   const choose = (id: string) => {
-    const next = switchPreviewEmployeePath(pathname, id);
+    const next = switchPath(pathname, id);
     if (next) navigate(next);
   };
-  const options = dir.employees.map((e) => ({ id: e.id, text: e.name }));
+  const options = dir.accounts.map((a) => ({ id: a.id, text: a.name }));
   const sel = reconcileSelection(m.params.id, options.map((o) => o.id));
   const fallback = options.find((o) => o.id === sel.id);
-  const fallbackPath = fallback ? switchPreviewEmployeePath(pathname, fallback.id) : null;
+  const fallbackPath = fallback ? switchPath(pathname, fallback.id) : null;
   return (
     <>
       <label className="demo-account">
@@ -107,7 +140,7 @@ function PreviewAccountSelector({ dir }: { dir: V2Directory }) {
       </label>
       {sel.stale && (
         <span className="demo-account-status" role="status">
-          {staleNote('employee', fallback?.text ?? null)}{' '}
+          {staleNote(kind, fallback?.text ?? null)}{' '}
           {fallbackPath && <Link to={fallbackPath}>Switch</Link>}
         </span>
       )}
@@ -161,13 +194,16 @@ function DemoAccountSelector({ dir }: { dir: Directory }) {
   );
 }
 
-/** `initial` / `initialV2` skip the API loads (used by tests). */
-export function Header({ initial, initialV2 }: { initial?: DirectoryData; initialV2?: V2Directory } = {}) {
+type ShellProps = { initial?: DirectoryData; initialV2?: V2Directory; initialV2Businesses?: V2BusinessDirectory };
+
+/** `initial` / `initialV2` / `initialV2Businesses` skip the API loads (used by tests). */
+export function Header({ initial, initialV2, initialV2Businesses }: ShellProps = {}) {
   const dir = useLiveDirectory(initial);
   // Re-read after route changes so a fresh choice is reflected in the portal links.
   const { pathname } = useLocation();
   const preview = isPreviewPath(pathname);
   const v2dir = useV2Directory(preview, initialV2);
+  const v2biz = useV2BusinessDirectory(preview, initialV2Businesses);
   const [stored, setStored] = useState(readIdentity);
   const [seen, setSeen] = useState(pathname);
   if (seen !== pathname) {
@@ -179,7 +215,10 @@ export function Header({ initial, initialV2 }: { initial?: DirectoryData; initia
   );
   const active = preview ? previewDestination(pathname) : activeDestination(pathname);
   const hrefs: Record<string, string | null> = preview
-    ? previewHrefs(v2dir.status === 'ready' ? v2dir.employees[0]?.id : undefined)
+    ? previewHrefs(
+      v2dir.status === 'ready' ? v2dir.employees[0]?.id : undefined,
+      v2biz.status === 'ready' ? v2biz.businesses[0]?.id : undefined,
+    )
     : { business: paths.business, employee: paths.employee, simulator: SIMULATOR_PATH };
   return (
     <header className="shell-header">
@@ -199,7 +238,7 @@ export function Header({ initial, initialV2 }: { initial?: DirectoryData; initia
       </nav>
       <div className="shell-tools">
         <div className="demo-account-slot" data-slot="demo-account-selector">
-          {preview ? <PreviewAccountSelector dir={v2dir} /> : <DemoAccountSelector dir={dir} />}
+          {preview ? <PreviewAccountSelector employees={v2dir} businesses={v2biz} /> : <DemoAccountSelector dir={dir} />}
         </div>
         <Link to="/help" className={pathname === '/help' ? 'shell-help active' : 'shell-help'} aria-current={pathname === '/help' ? 'page' : undefined}>Help</Link>
         <span className="shell-env">{envIndicatorFor(pathname)}</span>
@@ -209,13 +248,13 @@ export function Header({ initial, initialV2 }: { initial?: DirectoryData; initia
 }
 
 /** Header + routes, without a router, so tests can wrap it in MemoryRouter. */
-export function AppShell({ initial, initialV2 }: { initial?: DirectoryData; initialV2?: V2Directory } = {}) {
+export function AppShell({ initial, initialV2, initialV2Businesses }: ShellProps = {}) {
   const { pathname } = useLocation();
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <ConnectionMonitor />
-      <Header initial={initial} initialV2={initialV2} />
+      <Header initial={initial} initialV2={initialV2} initialV2Businesses={initialV2Businesses} />
       <main className={isFullWidthPath(pathname) ? 'app-main app-main--full' : 'app-main'} id="main-content" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<Landing initial={initial} />} />
@@ -223,7 +262,8 @@ export function AppShell({ initial, initialV2 }: { initial?: DirectoryData; init
           <Route path="/employee/:id" element={<EmployeePortal />} />
           <Route path="/simulator" element={<Simulator />} />
           <Route path="/help" element={<Help initial={initial} />} />
-          {/* MVP II preview (DECISIONS pass 46); /nyc/business/:id follows once BusinessV2 is on main. */}
+          {/* MVP II preview (DECISIONS pass 46, pass 52). */}
+          <Route path="/nyc/business/:id" element={<BusinessV2 />} />
           <Route path="/nyc/simulator" element={<SimulatorV2 />} />
           <Route path="/nyc/employee/:id" element={<EmployeeV2 />} />
           <Route path="*" element={<NotFoundPage initial={initial} />} />
