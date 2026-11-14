@@ -245,7 +245,7 @@ describe('New delivery on the real server', () => {
     }
     expect(arranged, `no recipient of ${origin.name} could be matched on the default run`).not.toBeNull();
     expectArrangedCard(status(), arranged!);
-    expect(form().querySelector('.nd-arranged a')!.getAttribute('href')).toBe(`/simulator?package=${arranged!.shipment.id}`);
+    expect(form().querySelector('.nd-arranged a')!.getAttribute('href')).toBe(`/simulator?package=${encodeURIComponent(arranged!.shipment.id)}&play=1`);
     expect(forbiddenIn(form().innerHTML)).toEqual([]);
     expect(api.googleCalls).toEqual([]);
     m.unmount();

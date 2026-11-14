@@ -40,7 +40,7 @@ function checkPanel(api: ShipmentView, panel: string, side: Side) {
   expect(t).toContain(id);
   expect(t).toContain(nameOf(api.shipment.originBusinessId));
   expect(t).toContain(nameOf(api.shipment.destinationBusinessId));
-  expect(panel).toContain(`href="/simulator?package=${encodeURIComponent(id)}"`);
+  expect(panel).toContain(`href="/simulator?package=${encodeURIComponent(id)}&amp;play=1"`);
   expect(forbiddenIn(panel), id).toEqual([]);
 
   if (!api.plan) {

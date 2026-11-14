@@ -95,8 +95,8 @@ export function siblingBusinessPath(pathname: string, businessId: string): strin
   return `${base || '/business'}/${encodeURIComponent(businessId)}`;
 }
 
-/** Final-path simulator link for a package (DECISIONS pass 46). */
-export const simulatorHref = (shipmentId: string) => `/simulator?package=${encodeURIComponent(shipmentId)}`;
+/** Simulator link for a package, `/simulator?package=<id>&play=1`: the delivery details' one helper, not a second copy. */
+export { simulatorHref } from '../../trackingModel';
 
 /** Query string with `?shipment=` set (or removed for null), keeping every other parameter. */
 export function withShipment(params: URLSearchParams, shipmentId: string | null): URLSearchParams {
