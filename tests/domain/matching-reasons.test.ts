@@ -86,9 +86,9 @@ describe('user-facing unmatched reasons', () => {
     expect(assignShipments([second], ctx, { existing: first.plans }).unmatched).toEqual(expected);
   });
 
-  it('keeps a general explanation for an unreachable destination', () => {
+  it('explains an unreachable destination', () => {
     const { ctx, shipment } = inputs();
     ctx.businesses[1].nodeId = 'disconnected';
-    expectReason(shipment, ctx, 'No commute can carry this package within its times and added-time limits');
+    expectReason(shipment, ctx, 'No road route connects the sender to the recipient');
   });
 });

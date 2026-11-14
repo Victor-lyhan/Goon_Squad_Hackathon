@@ -62,11 +62,27 @@ export function assignShipments(
 
 /** Diagnose only failed shipments, using the same scheduling rules as matching.
  * Prefer a deadline fix, then readiness, then a larger added-time allowance.
- * Disconnected routes and invalid business pairs retain the general fallback.
+ * Check structural failures first, then relax constraints to explain feasibility.
  */
 function unmatchedReason(shipment: Shipment, ctx: MatchContext, mode?: MatchMode): string {
-  const fallback = 'No commute can carry this package within its times and added-time limits';
-  if (shipment.originBusinessId === shipment.destinationBusinessId) return fallback;
+  if (shipment.originBusinessId === shipment.destinationBusinessId) {
+    return 'Sender and recipient must be different businesses';
+  }
+  const origin = ctx.businesses.find(business => business.id === shipment.originBusinessId);
+  const destination = ctx.businesses.find(business => business.id === shipment.destinationBusinessId);
+  if (!origin || !destination) return 'Sender or recipient business is missing';
+  if (!ctx.router.shortestPath(origin.nodeId, destination.nodeId)) {
+    return 'No road route connects the sender to the recipient';
+  }
+  if (ctx.employees.length === 0) return 'No employees are available to carry packages';
+  if (ctx.trips.length === 0) return 'No commute is available after the package is ready';
+  if (!ctx.trips.some(trip => ctx.employees.some(employee => employee.id === trip.employeeId &&
+    employee.businessId === (trip.direction === 'evening' ? origin.id : destination.id)))) {
+    return 'No sender evening commute or recipient morning commute is available';
+  }
+  if (shipment.deadlineMin - shipment.readyMin < 2 * ctx.settings.handlingMin) {
+    return 'The delivery window is too short for pickup and delivery handling';
+  }
   if (generateCandidates({ ...shipment, deadlineMin: Infinity }, ctx, mode).length) {
     return 'No commute can arrive before the deadline';
   }
@@ -77,8 +93,10 @@ function unmatchedReason(shipment: Shipment, ctx: MatchContext, mode?: MatchMode
   if (generateCandidates(shipment, relaxed, mode).length) {
     return "Every route would exceed the employees' added-time limit";
   }
-  if (ctx.trips.length === 0) return 'No commute is available after the package is ready';
-  return fallback;
+  if (generateCandidates({ ...shipment, deadlineMin: Infinity }, relaxed, mode).length) {
+    return 'Delivery requires both a later deadline and a larger added-time limit';
+  }
+  return 'No available commute route can visit the required pickup and drop-off stops';
 }
 
 /** Compare fresh allocations without reserving trips from any live assignments. */
