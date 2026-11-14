@@ -12,8 +12,8 @@ import { generateHomePool } from '../../server/domain/v2/generator';
 import { decodePolyline, pathLengthM } from '../../server/domain/v2/polyline';
 import { MATRIX_FILE, POLYLINES_FILE, readTravelFiles } from '../../server/geo/cache';
 import type { TravelFiles } from '../../server/geo/cache';
-import { dropPlaces } from '../../server/geo/cacheEdit';
-import { NYC_BOX, straightLineM } from '../../server/geo/cacheReport';
+import { dropPlaces, hideEnteredIds } from '../../server/geo/cacheEdit';
+import { NYC_BOX, STRAIGHT_LINE_SLACK_M, straightLineM } from '../../server/geo/cacheReport';
 import { refetchCommand } from '../../server/geo/fetchScript';
 
 /**
@@ -29,10 +29,24 @@ export const COMMITTED_CACHE_TEST_TIMEOUT_MS = 10_000;
 export const MAX_LINE_END_OFFSET_M = 300;
 /**
  * The line's own length against the pair's `distanceM`. The two come from different Google calls (the route
- * matrix and computeRoutes), which may pick slightly different roads, so they are close but not equal.
+ * matrix and computeRoutes), which usually pick the same road (when this was written, 262 of the 263 committed
+ * lines were within 0.95x to 1.16x) but not always: for one committed pair the matrix says 20.6 km and the
+ * line is 12.7 km (0.62x), about what the matrix says for the way back (13.5 km). That line joins its two
+ * places and is 1.37 times the straight line between them, so it is a real route and the lower limit is 0.5
+ * (issue #554, DECISIONS pass 58; it was 0.7). The simulation moves a marker along the line in proportion to
+ * the pair's travel time, so a short line changes the marker's speed and no time, status or price.
  */
-export const MIN_LINE_LENGTH_RATIO = 0.7;
+export const MIN_LINE_LENGTH_RATIO = 0.5;
 export const MAX_LINE_LENGTH_RATIO = 1.5;
+/** A line under this ratio passes, but the printed report lists it with both directions' `distanceM`. */
+export const LISTED_LINE_LENGTH_RATIO = 0.7;
+/**
+ * The second half of the length rule: a line is not shorter than the straight line between its two places.
+ * Both ends are snapped to the road, so a real line can be a few meters short of the line between the two
+ * cached points (two committed lines are 8 m short, with ends 28 m and 40 m off their places). "Shorter" is
+ * therefore the cache report's meaning for a driving distance: shorter by more than `STRAIGHT_LINE_SLACK_M`.
+ */
+export const LINE_STRAIGHT_SLACK_M = STRAIGHT_LINE_SLACK_M;
 
 /** A failure message lists at most this many problems, then "... and N more". */
 export const MAX_LISTED_PROBLEMS = 20;
@@ -286,6 +300,10 @@ export interface LineStat {
   distanceM: number;
   /** `lengthM / distanceM`. */
   ratio: number;
+  /** The straight line between the two cached places, in meters. */
+  straightM: number;
+  /** `distanceM` of the pair the other way round, or null when the matrix does not hold it. */
+  reverseDistanceM: number | null;
 }
 
 export interface LineReport {
@@ -356,29 +374,54 @@ export function lineReport(files: TravelFiles): LineReport {
 
     const lengthM = pathLengthM(points);
     const ratio = lengthM / pair.distanceM;
-    // `!(a && b)` and not `a || b`: a NaN ratio (a pair with no usable distance) must count as a problem.
+    const straightM = straightLineM(places[from], places[to]);
+    const reverseKey = pairKey(to, from);
+    const reverse = has(pairs, reverseKey) ? (pairs[reverseKey] as { distanceM?: unknown } | null) : null;
+    const reverseDistanceM = typeof reverse?.distanceM === 'number' ? reverse.distanceM : null;
+    // One problem per line, with every reason. `!(a && b)` and not `a || b`: a NaN (a pair with no usable
+    // distance) must count as a problem.
+    const reasons: string[] = [];
+    if (!(lengthM + LINE_STRAIGHT_SLACK_M >= straightM)) {
+      reasons.push(
+        `its two places are ${meters(straightM)} apart in a straight line, and a road cannot be shorter ` +
+          `(${LINE_STRAIGHT_SLACK_M} m is allowed for the two ends on the road)`,
+      );
+    }
     if (!(ratio >= MIN_LINE_LENGTH_RATIO && ratio <= MAX_LINE_LENGTH_RATIO)) {
-      problems.push({
-        check: 'line-length',
-        subject: key,
-        what:
-          `${route} is ${meters(lengthM)} long but the pair's distanceM is ${String(pair.distanceM)} ` +
-          `(${ratio.toFixed(2)}x; allowed ${MIN_LINE_LENGTH_RATIO} to ${MAX_LINE_LENGTH_RATIO})`,
-        refetch: drop,
-      });
+      reasons.push(
+        `the pair's distanceM is ${String(pair.distanceM)} (${ratio.toFixed(2)}x; allowed ${MIN_LINE_LENGTH_RATIO} to ${MAX_LINE_LENGTH_RATIO}` +
+          `${reverseDistanceM === null ? '' : `; the way back's distanceM is ${reverseDistanceM}`})`,
+      );
+    }
+    if (reasons.length > 0) {
+      problems.push({ check: 'line-length', subject: key, what: `${route} is ${meters(lengthM)} long but ${reasons.join(', and ')}`, refetch: drop });
     }
 
-    stats.push({ key, points: points.length, startM, endM, lengthM, distanceM: pair.distanceM, ratio });
+    stats.push({ key, points: points.length, startM, endM, lengthM, distanceM: pair.distanceM, ratio, straightM, reverseDistanceM });
   }
   return { problems, stats };
 }
 
-/** The lines closest to each limit, as text lines: what a human looks at first when a limit is ever crossed. */
+/**
+ * The lines closest to each limit, as text lines: what a human looks at first when a limit is ever crossed.
+ * Then every line that passes under `LISTED_LINE_LENGTH_RATIO`, with both directions' `distanceM` and the
+ * straight line: the lines where Google's matrix and its route line took different roads. A measured line is
+ * never under an entered home's ID in the committed cache (its own guard test), and if one ever is, the ID is
+ * not printed here: it holds the coordinates.
+ */
 export function formatLineOutliers(stats: readonly LineStat[], listed = 3): string[] {
   if (stats.length === 0) return ['Route lines: none stored, so there is nothing to measure.'];
-  const top = (score: (stat: LineStat) => number) => [...stats].sort((a, b) => score(b) - score(a) || (a.key < b.key ? -1 : 1)).slice(0, listed);
+  const byKey = (a: LineStat, b: LineStat) => (a.key < b.key ? -1 : 1);
+  const top = (score: (stat: LineStat) => number) => [...stats].sort((a, b) => score(b) - score(a) || byKey(a, b)).slice(0, listed);
   const length = (stat: LineStat) => `${stat.key}  ${stat.ratio.toFixed(3)}x  (line ${Math.round(stat.lengthM)} m, distanceM ${stat.distanceM})`;
-  return [
+  const short = stats.filter((stat) => stat.ratio < LISTED_LINE_LENGTH_RATIO).sort((a, b) => a.ratio - b.ratio || byKey(a, b));
+  const shortRows = short.slice(0, MAX_LISTED_PROBLEMS).map(
+    (stat) =>
+      `    ${stat.key}  ${stat.ratio.toFixed(3)}x  (line ${Math.round(stat.lengthM)} m, distanceM ${stat.distanceM}, ` +
+      `the way back's distanceM ${stat.reverseDistanceM ?? 'not cached'}, straight line ${Math.round(stat.straightM)} m)`,
+  );
+  if (short.length > MAX_LISTED_PROBLEMS) shortRows.push(`    ... and ${short.length - MAX_LISTED_PROBLEMS} more`);
+  const lines = [
     `Route lines: ${stats.length} measured. Closest to each limit:`,
     `  farthest end from its place (limit ${MAX_LINE_END_OFFSET_M} m):`,
     ...top((stat) => Math.max(stat.startM, stat.endM)).map((stat) => `    ${stat.key}  start ${meters(stat.startM)}, end ${meters(stat.endM)}`),
@@ -386,9 +429,17 @@ export function formatLineOutliers(stats: readonly LineStat[], listed = 3): stri
     ...top((stat) => stat.ratio).map((stat) => `    ${length(stat)}`),
     `  shortest against distanceM (limit ${MIN_LINE_LENGTH_RATIO}x):`,
     ...top((stat) => -stat.ratio).map((stat) => `    ${length(stat)}`),
+    `  shortest against the straight line between its two places (limit: the straight line less ${LINE_STRAIGHT_SLACK_M} m):`,
+    ...top((stat) => stat.straightM - stat.lengthM).map((stat) => `    ${stat.key}  line ${Math.round(stat.lengthM)} m, straight line ${Math.round(stat.straightM)} m`),
     '  fewest points (limit 2):',
     ...top((stat) => -stat.points).map((stat) => `    ${stat.key}  ${stat.points} points`),
+    short.length === 0
+      ? `  under ${LISTED_LINE_LENGTH_RATIO}x of distanceM (these pass; the limit is ${MIN_LINE_LENGTH_RATIO}x): none`
+      : `  under ${LISTED_LINE_LENGTH_RATIO}x of distanceM (these pass; the limit is ${MIN_LINE_LENGTH_RATIO}x): ${short.length}. ` +
+        "Google's matrix and its route line took different roads:",
+    ...shortRows,
   ];
+  return lines.map(hideEnteredIds);
 }
 
 // ---------- The failure message ----------
