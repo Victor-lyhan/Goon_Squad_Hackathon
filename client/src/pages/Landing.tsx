@@ -17,7 +17,7 @@ const STEPS = [
 export type GuideFacts =
   | { status: 'loading' }
   | { status: 'error' }
-  | { status: 'ready'; businesses: number; commuters: number; matched: number; requested: number };
+  | { status: 'ready'; businesses: number; commuters: number; matched: number; requested: number; hubs?: number };
 
 export type GuidePaths = { business: string | null; employee: string | null };
 
@@ -65,6 +65,26 @@ export function DemoGuide({ paths, facts }: { paths: GuidePaths; facts: GuideFac
   );
 }
 
+/** One-line "Current city" strip: live counts, spinner while loading, hidden on error. */
+export function CityStrip({ facts }: { facts: GuideFacts }) {
+  if (facts.status === 'error') return null;
+  return (
+    <section className="panel city-strip" aria-label="Current city">
+      <span className="city-strip-label">Current city</span>
+      {facts.status === 'loading'
+        ? <span className="city-strip-loading"><Spinner label="Loading current city" /> Loading…</span>
+        : (
+          <ul className="city-strip-facts">
+            <li><strong>{facts.businesses}</strong> businesses</li>
+            <li><strong>{facts.commuters}</strong> commuters</li>
+            {facts.hubs !== undefined && <li><strong>{facts.hubs}</strong> hubs</li>}
+            <li><strong>{facts.matched} / {facts.requested}</strong> packages matched / requested</li>
+          </ul>
+        )}
+    </section>
+  );
+}
+
 function useGuideFacts(): GuideFacts {
   const [facts, setFacts] = useState<GuideFacts>({ status: 'loading' });
   useEffect(() => {
@@ -75,6 +95,7 @@ function useGuideFacts(): GuideFacts {
         setFacts({
           status: 'ready',
           businesses: b.businesses.length,
+          hubs: b.hubs.length,
           commuters: e.employees.length,
           matched: sim.snapshot.metrics.matched,
           requested: sim.snapshot.metrics.requested,
@@ -111,6 +132,7 @@ export default function Landing({ initial }: { initial?: Parameters<typeof useDi
         {dir.status === 'loading' && <p className="demo-account-status">Loading demo accounts…</p>}
         {dir.status === 'error' && <p className="demo-account-status demo-account-error" role="alert">Could not load demo accounts. Is the API running?</p>}
       </section>
+      <CityStrip facts={facts} />
       <section aria-label="How it works">
         <ol className="steps">
           {STEPS.map((s, i) => (
