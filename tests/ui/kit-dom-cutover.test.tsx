@@ -116,9 +116,10 @@ describe('the four main paths show the MVP II pages on the real NYC run', () => 
     const s = await renderApp('/');
     await s.until(() => s.main().querySelectorAll('a[href^="/business/"]').length > 0, '/ links');
     const hrefs = [...s.main().querySelectorAll('a[href]')].map((a) => a.getAttribute('href')!);
-    expect(hrefs.length).toBeGreaterThan(3);
-    // `help` is the homepage's Guided demo link, which the homepage issue removes (the page is gone, #623).
-    for (const h of hrefs) expect(h).toMatch(/^\/(help|simulator|business\/[^/]+|employee\/[^/]+)$/);
+    // the homepage has three links: "Watch a package" (with ?package=<id>&play=1, #652), Business, Employee.
+    // The Guided demo link is gone with the page (#623, #652).
+    expect(hrefs.length).toBeGreaterThanOrEqual(3);
+    for (const h of hrefs) expect(h).toMatch(/^\/(simulator(\?package=[^/&]+&play=1)?|business\/[^/]+|employee\/[^/]+)$/);
   }, T);
 
   it('the selector stores the chosen business; a stored ID not in the NYC lists falls back to the first', async () => {

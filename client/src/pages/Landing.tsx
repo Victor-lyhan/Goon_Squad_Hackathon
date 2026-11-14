@@ -3,87 +3,88 @@ import { Link } from 'react-router-dom';
 
 import { readIdentity } from '../demoIdentity';
 import {
-  NYC_ENV_TEXT, NYC_UNAVAILABLE_TEXT, RELAY_POINTS_NOTE, nycWorkspacePaths, startNycSummary, type NycSummary,
+  NYC_ENV_TEXT, NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, watchPackageHref, type NycSummary,
 } from './landingModel';
 import '../styles/landing.css';
 
-export const SIMULATOR_PATH = '/simulator';
-export const HELP_PATH = '/help';
+/** The one sentence of the homepage (docs/mvp3.md P4). */
+export const LANDING_SENTENCE = 'Relay moves packages between businesses on employees’ existing commutes.';
+export const WATCH_LABEL = 'Watch a package';
 
-/** Live counts for the operational summary. Every number comes from an API response. */
+/** Live counts for the stats line. Every number comes from an API response. */
 export type SummaryFacts =
   | { status: 'loading' }
   | { status: 'error' }
   /** /api/v2 answered 503 (travel data not loaded). One line, no numbers. */
   | { status: 'unavailable' }
-  | { status: 'ready'; businesses: number; commuters: number; relayPoints: number; matched: number; requested: number };
+  | { status: 'ready'; businesses: number; commuters: number; matched: number; requested: number };
 
-type WorkspaceKey = 'business' | 'employee' | 'simulator';
+type WorkspaceKey = 'business' | 'employee';
 
-export const WORKSPACES: { key: WorkspaceKey; id: string; title: string; text: string }[] = [
-  { key: 'business', id: '01 / BUSINESS', title: 'Business', text: 'Create shipment requests, find delivery matches and manage deliveries.' },
-  { key: 'employee', id: '02 / EMPLOYEE', title: 'Employee', text: 'Manage your commute, departure times, maximum detour and assigned packages.' },
-  { key: 'simulator', id: '03 / SIMULATOR', title: 'Simulator', text: 'Watch the delivery network, matched routes and relay points run.' },
+export const WORKSPACES: { key: WorkspaceKey; title: string; text: string }[] = [
+  { key: 'business', title: 'Business', text: 'Send a package and track it' },
+  { key: 'employee', title: 'Employee', text: 'Set a commute and see your deliveries' },
 ];
 
 const num = (n: number) => (Number.isFinite(n) ? String(n) : '–');
 
+/** The stats strip, as one line: "18 businesses · 60 commuters · 24 of 24 packages matched". */
 export function OperationalSummary({ facts }: { facts: SummaryFacts }) {
-  if (facts.status === 'unavailable') {
+  if (facts.status === 'unavailable' || facts.status === 'error') {
     return (
-      <section className="op-summary" aria-label="Operational summary">
-        <p className="op-summary-note" role="status">{NYC_UNAVAILABLE_TEXT}</p>
+      <section className="op-summary" aria-label="Network summary">
+        <p className="op-summary-note" role={facts.status === 'unavailable' ? 'status' : undefined}>
+          {facts.status === 'unavailable' ? NYC_UNAVAILABLE_TEXT : 'Live numbers unavailable'}
+        </p>
       </section>
     );
   }
-  if (facts.status === 'error') {
-    return (
-      <section className="op-summary" aria-label="Operational summary">
-        <p className="op-summary-note">Live numbers unavailable</p>
-      </section>
-    );
-  }
-  const ready = facts.status === 'ready';
-  // The third entry is a note in words; the number itself is the API's (pass 61).
-  const items: [string, string, string?][] = [
-    ['Businesses', ready ? num(facts.businesses) : '–'],
-    ['Commuters', ready ? num(facts.commuters) : '–'],
-    ['Relay points', ready ? num(facts.relayPoints) : '–', RELAY_POINTS_NOTE],
-    ['Matched / requested', ready ? `${num(facts.matched)} / ${num(facts.requested)}` : '– / –'],
-  ];
+  const ready = facts.status === 'ready' ? facts : null;
+  /** One number of the line, or a dash while it is loading. */
+  const value = (n: number | undefined) => (
+    <span className={ready ? 'op-summary-value' : 'op-summary-value is-placeholder'}>{n === undefined ? '–' : num(n)}</span>
+  );
   return (
-    <section className="op-summary" aria-label="Operational summary" aria-busy={ready ? undefined : true}>
-      <dl className="op-summary-list">
-        {items.map(([label, value, note]) => (
-          <div className="op-summary-item" key={label}>
-            <dt>{label}</dt>
-            <dd className={ready ? 'op-summary-value' : 'op-summary-value is-placeholder'}>{value}</dd>
-            {note && <dd className="op-summary-hint">{note}</dd>}
-          </div>
-        ))}
-      </dl>
+    <section className="op-summary" aria-label="Network summary" aria-busy={ready ? undefined : true}>
+      <ul className="op-summary-list">
+        <li>{value(ready?.businesses)} businesses</li>
+        <li>{value(ready?.commuters)} commuters</li>
+        <li>{value(ready?.matched)} of {value(ready?.requested)} packages matched</li>
+      </ul>
     </section>
   );
 }
 
-function EntryBody({ id, title, text }: { id: string; title: string; text: string }) {
+/** The large primary button: a link, so it works with the keyboard and before the run has loaded. */
+export function WatchButton({ to }: { to: string }) {
+  return (
+    <Link className="watch-button" to={to}>
+      <svg className="watch-button-icon" viewBox="0 0 12 12" width="14" height="14" aria-hidden="true" focusable="false">
+        <path d="M2 1l9 5-9 5z" fill="currentColor" />
+      </svg>
+      {WATCH_LABEL}
+    </Link>
+  );
+}
+
+function EntryBody({ title, text }: { title: string; text: string }) {
   return (
     <>
-      <span className="workspace-id">{id}</span>
-      <h2 className="workspace-title">{title}</h2>
-      <p className="workspace-text">{text}</p>
-      <span className="workspace-action">Open workspace <span aria-hidden="true">→</span></span>
+      <span className="workspace-body">
+        <span className="workspace-title">{title}</span>
+        <span className="workspace-text">{text}</span>
+      </span>
+      <span className="workspace-arrow" aria-hidden="true">→</span>
     </>
   );
 }
 
-export function WorkspaceEntries({ paths }: {
-  paths: { business: string | null; employee: string | null; simulator?: string | null };
-}) {
+/** Business and Employee, the two smaller entries. An entry whose account list is not loaded is not a link yet. */
+export function WorkspaceEntries({ paths }: { paths: { business: string | null; employee: string | null } }) {
   return (
     <ul className="workspaces" aria-label="Workspaces">
       {WORKSPACES.map((w) => {
-        const to = w.key === 'simulator' ? (paths.simulator === undefined ? SIMULATOR_PATH : paths.simulator) : paths[w.key];
+        const to = paths[w.key];
         return (
           <li key={w.key}>
             {to
@@ -116,34 +117,34 @@ function useNycSummary(initial?: NycSummary): NycSummary {
 
 function nycFacts(s: NycSummary): SummaryFacts {
   if (s.status !== 'ready') return s;
-  const { businessIds: _b, employeeIds: _e, ...counts } = s;
-  return counts;
+  const { businesses, commuters, matched, requested } = s;
+  return { status: 'ready', businesses, commuters, matched, requested };
 }
 
-/** The homepage on the NYC network: /api/v2 only, links to the main paths. */
-export default function Landing({ initialSummary, helpPath = HELP_PATH }: {
+/**
+ * The homepage (docs/mvp3.md P4): one sentence, one large "Watch a package" button that opens the simulator
+ * on the story package and plays it, Business and Employee as two smaller entries, one stats line.
+ */
+export default function Landing({ initialSummary }: {
   /**
    * Accepted and ignored: the NYC page is the only one. `App.tsx` still passes `dataset="nyc"` and is not
-   * edited by the deletion issue (#565); remove the prop together with that attribute.
+   * edited by this issue; remove the prop together with that attribute.
    */
   dataset?: 'nyc';
   /** Skip the /api/v2 requests and render this summary (tests). */
   initialSummary?: NycSummary;
-  /** Where "Guided demo" goes (default /help). */
-  helpPath?: string;
 } = {}) {
   const summary = useNycSummary(initialSummary);
   return (
     <div className="landing landing-nyc">
       <section className="landing-intro">
-        <h1>Delivery infrastructure, powered by existing commutes.</h1>
-        <p>Relay matches business packages to the trips employees already make, direct or through one relay point.</p>
+        <h1>{LANDING_SENTENCE}</h1>
+        <WatchButton to={watchPackageHref(summary)} />
       </section>
-      <OperationalSummary facts={nycFacts(summary)} />
       <WorkspaceEntries paths={nycWorkspacePaths(summary, readIdentity())} />
+      <OperationalSummary facts={nycFacts(summary)} />
       <footer className="landing-footer">
         <span>{NYC_ENV_TEXT}</span>
-        <Link to={helpPath}>Guided demo</Link>
       </footer>
     </div>
   );

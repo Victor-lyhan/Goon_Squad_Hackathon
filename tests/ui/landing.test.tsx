@@ -13,9 +13,12 @@ const render = (path: string) =>
 describe('landing page', () => {
   const html = render('/');
 
-  it('shows the three workspace entries', () => {
-    for (const t of ['01 / BUSINESS', '02 / EMPLOYEE', '03 / SIMULATOR']) expect(html).toContain(t);
-    expect(html).toContain('href="/simulator"');
+  const body = /<main[^>]*>([\s\S]*)<\/main>/.exec(html)![1];
+
+  it('shows the Watch a package button and the Business and Employee entries (#652)', () => {
+    expect(body).toMatch(/<a [^>]*href="\/simulator"[^>]*>[\s\S]*?Watch a package<\/a>/);
+    for (const t of ['Business', 'Employee']) expect(body).toContain(`<span class="workspace-title">${t}</span>`);
+    expect(body).not.toContain('Guided demo');
   });
 
   it('shows the badge and no how-it-works step cards', () => {
