@@ -110,7 +110,7 @@ describe('compare.css fits a 280 px panel', () => {
     const table = css.match(/\.cmp-table\s*\{([^}]*)\}/)![1];
     expect(table).toMatch(/width:\s*100%/);
     expect(table).toMatch(/border:\s*1px solid var\(--border/);
-    expect(table).toMatch(/border-radius:\s*var\(--radius,\s*2px\)/);
+    expect(table).toMatch(/border-radius:\s*var\(--radius,\s*4px\)/);
     const num = css.match(/\.cmp-num\s*\{([^}]*)\}/)![1];
     expect(num).toMatch(/font-family:\s*var\(--font-mono,\s*'IBM Plex Mono'/);
   });

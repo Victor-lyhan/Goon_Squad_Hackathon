@@ -1,6 +1,7 @@
-/* MVP II simulator page (#426, #460): page states, the map banners, the map legend's corner and the
-   right-panel message blocks. The inspector, package panel, legend and comparison bring their own CSS. Square corners (radius ≤ 4px), 1px borders, flat fills, no shadows, no gradients.
-   Tokens as var(--name, fallback). */
+/* Simulator page (#426, #460): page states, the map banners, the map legend's corner and the
+   right-panel message blocks. The inspector, package panel, legend and comparison bring their own CSS.
+   MVP III look (docs/mvp3.md P4, #701): token colours as var(--name, fallback), hairline borders,
+   radius 4px, flat fills, no shadows, no gradients. */
 
 /* ---------- Loading, unavailable (503) and error: the whole workspace area ---------- */
 .spc-state {
@@ -13,9 +14,9 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-6, 24px);
-  background: var(--bg, #F7F8FA);
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  background: var(--bg, #F7F7F4);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
 }
 .spc-state__panel {
@@ -25,8 +26,8 @@
   justify-items: start;
   padding: var(--space-4, 16px) var(--space-6, 24px);
   background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
 }
 .spc-state__panel--loading {
   display: flex;
@@ -50,12 +51,12 @@
   padding: var(--space-1, 4px) var(--space-3, 12px);
   background: var(--panel, #FFFFFF);
   border: 1px solid var(--warn, #8A5A00);
-  border-radius: var(--radius, 2px);
-  color: var(--text, #151B26);
+  border-radius: var(--radius, 4px);
+  color: var(--text, #171C24);
   font-size: var(--text-xs, 12px);
   white-space: nowrap;
 }
-.spc-banner--quiet { border-color: var(--border, #D7DDE5); color: var(--muted, #5B6472); }
+.spc-banner--quiet { border-color: var(--border, #E3E3DE); color: var(--muted, #5B6472); }
 .spc-banner + .spc-banner { top: calc(var(--space-3, 12px) + 32px); }
 
 /* The legend sits in the bottom-left corner, above the Google logo; the zoom buttons are bottom-right. */
@@ -77,7 +78,7 @@
   padding: var(--space-2, 8px) var(--space-3, 12px);
   border: 1px solid var(--danger, #A4322A);
   border-left-width: 3px;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 .spc-action-error p { margin: 0; color: var(--danger, #A4322A); }
@@ -95,7 +96,9 @@
 .spc-journey__foot { padding: 0 var(--space-4, 16px) var(--space-3, 12px); }
 
 /* ---------- Map: the overnight card of a relay journey (#648) ---------- */
-/* In place of the night: centered over the map for about 1 s, dark like the night it stands for. */
+/* In place of the night: centered over the map for about 1 s, dark like the night it stands for.
+   White on ink (the --panel and --text tokens), about 17:1. Its text is "Overnight at <relay point>",
+   a name and no time, so it stays in the UI font. */
 .spc-overnight {
   position: absolute;
   top: 50%;
@@ -108,9 +111,9 @@
   max-width: calc(100% - 48px);
   margin: 0;
   padding: var(--space-3, 12px) var(--space-4, 16px);
-  background: var(--text, #151B26);
-  border: 1px solid var(--text, #151B26);
-  border-radius: var(--radius, 2px);
+  background: var(--text, #171C24);
+  border: 1px solid var(--text, #171C24);
+  border-radius: var(--radius, 4px);
   color: var(--panel, #FFFFFF);
   font-size: var(--text-lg, 18px);
   font-weight: 600;

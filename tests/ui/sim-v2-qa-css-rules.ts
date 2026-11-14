@@ -89,7 +89,9 @@ export const key = (c: RGB) => c.join(',');
 const tokenColors = [...TOKENS.values()].filter((v) => /^#[0-9a-f]+$/i.test(v)).map((v) => hexToRgb(v)!);
 const isRgba = (v: unknown): v is number[] => Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === 'number');
 const layerColors = Object.values(layers as Record<string, unknown>).filter(isRgba).map((c) => [c[0], c[1], c[2]] as RGB);
-/** MVP II token colours: still allowed as var() fallbacks until the simulator's restyle pass (#651). */
+/** MVP II token colours: still allowed as var() fallbacks in legend.css and journey.css until #699
+ *  restyles them. The other simulator files and map.css moved to the MVP III values in #701
+ *  (sim-v2-mvp3-css.test.ts fails on an MVP II value there). */
 const legacyColors = MVP2_TOKEN_COLORS.map((v) => hexToRgb(v)!);
 export const ALLOWED_COLORS = new Set([...tokenColors, ...legacyColors, ...layerColors].map(key));
 
