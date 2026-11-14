@@ -153,11 +153,17 @@ describe('generated-city simulation invariants', () => {
     const run = runs.get(16)!;
     assertRunInvariants(run);
 
+    let slowestMs = 0;
+    // assertRunInvariants above warms the snapshot caches before timing.
     for (let timeMin = run.scenario.settings.simStartMin;
       timeMin <= run.scenario.settings.simEndMin; timeMin += 15) {
       const startedAt = performance.now();
       snapshotAt(run, timeMin);
-      expect(performance.now() - startedAt).toBeLessThan(50);
+      slowestMs = Math.max(slowestMs, performance.now() - startedAt);
     }
+    console.info(`Maximum city invariants: slowest ${slowestMs.toFixed(3)} ms per snapshot`);
+    // Preserve the existing 50 ms poll budget per DECISIONS pass 52.
+    // Local slowest: 0.155 ms; concurrent-suite outlier 14.040 ms (2026-11-14), reported in SUMMARY.md.
+    expect(slowestMs).toBeLessThan(50);
   }, 30_000);
 });

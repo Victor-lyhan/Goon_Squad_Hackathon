@@ -74,7 +74,9 @@ describe('v2 polyline geometry', () => {
     }
     const elapsedMs = performance.now() - startedAt;
 
-    // Measured locally at under 30 ms; 100 ms leaves more than 3x headroom.
-    expect(elapsedMs).toBeLessThan(100);
-  }, 10_000);
+    console.info(`Cached polyline: 10,000 positions in ${elapsedMs.toFixed(3)} ms`);
+    // Local batch: 2.897 ms, up to 36.960 ms with concurrent suite load (2026-11-14).
+    // 500 ms gives >10x headroom even for the loaded measurement (DECISIONS pass 52).
+    expect(elapsedMs).toBeLessThan(500);
+  }, 20_000);
 });
