@@ -1,5 +1,5 @@
-// #477: visual QA of the UI kit and global styles against docs/mvp2-ui-redesign.md §2.
-// Reads ui.css, global.css and tokens.css and fails on: radius above 4px, shadows other than a focus ring,
+// #477: visual QA of the UI kit and global styles; since #651 against docs/mvp3.md P4 (the MVP III look).
+// Reads ui.css, global.css and tokens.css and fails on: radius above 6px, shadows other than a focus ring,
 // gradients, and colours / font families / spacing that are not tokens. Also checks focus rings,
 // disabled states that are not colour-only, reduced motion per animating selector, and the StatusPill shape.
 import { readFileSync } from 'node:fs';
@@ -55,9 +55,11 @@ const resolve = (v: string): string => {
   return m ? resolve(TOKENS.get(m[1])!) : v.trim();
 };
 
-/** The doc's five colours (§2 "Visual direction"); white may be written as a keyword or hex. */
-const DOC_COLOURS = ['#151b26', '#f7f8fa', '#d7dde5', '#28618a', '#ffffff', '#fff', 'white'];
-/** Selectors allowed a full circle (spinner ring, status dot). Everything else stays at 2-4px. */
+/** The doc's base colours (docs/mvp3.md P4) plus the white panel; white may be written as a keyword or hex. */
+const DOC_COLOURS = ['#171c24', '#f7f7f4', '#e3e3de', '#1d5075', '#ffffff', '#fff', 'white'];
+/** Selectors allowed a full circle (spinner ring, status dot). Everything else stays at 6px or less. */
+/** docs/mvp3.md P4: 6px radius max. */
+const MAX_RADIUS_PX = 6;
 const FULL_CIRCLE_OK = ['.ui-spinner', '.ui-pill::before'];
 
 const COLOUR_PROP = /^(color|background(-color)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|fill|stroke|caret-color|accent-color|text-decoration(-color)?|column-rule(-color)?)$/;
@@ -95,7 +97,7 @@ function auditRules(rules: Rule[], tokens: Map<string, string>): Problem[] {
           }
           for (const m of v.replace(/var\([^)]*\)/g, '').matchAll(/(\d*\.?\d+)(px|rem|em)/g)) {
             const px = m[2] === 'px' ? Number(m[1]) : Number(m[1]) * 16;
-            if (px > 4) problems.push(`${where}: border-radius ${v} above 4px`);
+            if (px > MAX_RADIUS_PX) problems.push(`${where}: border-radius ${v} above ${MAX_RADIUS_PX}px`);
           }
         }
       }
@@ -130,7 +132,7 @@ describe('kit and global styles use only design tokens (#477)', () => {
       font-family:Arial;padding:3px var(--space-2);border:1px solid tomato;margin:var(--space-5)}
       .y{border-radius:50%} .z:focus-visible{box-shadow:0 0 0 2px var(--accent)}`);
     const p = auditRules(bad, TOKENS).join('\n');
-    for (const s of ['above 4px', 'box-shadow outside', 'gradient', '#123456', 'font-family Arial', 'padding 3px', '"tomato"', 'unknown var --space-5', '.y: full-circle']) {
+    for (const s of ['above 6px', 'box-shadow outside', 'gradient', '#123456', 'font-family Arial', 'padding 3px', '"tomato"', 'unknown var --space-5', '.y: full-circle']) {
       expect(p).toContain(s);
     }
     expect(p).not.toContain('.z:focus-visible');
@@ -144,16 +146,17 @@ describe('kit and global styles use only design tokens (#477)', () => {
     expect(auditRules(RULES.global, TOKENS)).toEqual([]);
   });
 
-  it('tokens.css only defines tokens in :root, with radius <= 4px, a 4px spacing scale and the token fonts', () => {
+  it('tokens.css only defines tokens in :root, with radius <= 6px, a 4px spacing scale and the token fonts', () => {
     expect(RULES.tokens.map((r) => r.selectors.join(','))).toEqual([':root']);
-    expect(Number.parseFloat(TOKENS.get('--radius')!)).toBeLessThanOrEqual(4);
-    expect(Number.parseFloat(TOKENS.get('--radius-lg')!)).toBeLessThanOrEqual(4);
+    expect(Number.parseFloat(TOKENS.get('--radius')!)).toBeLessThanOrEqual(MAX_RADIUS_PX);
+    expect(Number.parseFloat(TOKENS.get('--radius-lg')!)).toBeLessThanOrEqual(MAX_RADIUS_PX);
+    expect(Number.parseFloat(TOKENS.get('--radius')!)).toBeLessThanOrEqual(Number.parseFloat(TOKENS.get('--radius-lg')!));
     for (const [k, v] of TOKENS) if (/^--space-\d+$/.test(k)) expect(Number.parseFloat(v) % 4, `${k}: ${v}`).toBe(0);
-    expect(TOKENS.get('--font-sans')).toMatch(/^"IBM Plex Sans"/);
+    expect(TOKENS.get('--font-sans')).toMatch(/^"Inter", "Geist", system-ui/);
     expect(TOKENS.get('--font-mono')).toMatch(/^"IBM Plex Mono"/);
     // Non-token declarations in :root are limited to color-scheme.
     expect(rootDecls.filter((d) => !d.prop.startsWith('--')).map((d) => d.prop)).toEqual(['color-scheme']);
-    for (const c of ['#151B26', '#F7F8FA', '#FFFFFF', '#D7DDE5', '#28618A']) expect([...TOKENS.values()]).toContain(c);
+    for (const c of ['#171C24', '#F7F7F4', '#FFFFFF', '#E3E3DE', '#1D5075']) expect([...TOKENS.values()]).toContain(c);
     expect(read(FILES.tokens)).not.toMatch(/gradient\(|box-shadow/);
   });
 });
@@ -288,10 +291,10 @@ describe('StatusPill: no pill-shaped everything (#477)', () => {
   const pill = RULES.ui.find((r) => r.selectors.includes('.ui-pill'))!;
   const get = (p: string) => pill.decls.find((d) => d.prop === p)?.value;
 
-  it('radius is 2 to 4px', () => {
+  it('radius is 2 to 6px', () => {
     const px = Number.parseFloat(resolve(get('border-radius')!));
     expect(px).toBeGreaterThanOrEqual(2);
-    expect(px).toBeLessThanOrEqual(4);
+    expect(px).toBeLessThanOrEqual(MAX_RADIUS_PX);
   });
 
   it('label is set in IBM Plex Mono at a loaded weight (Mono ships 400/500)', () => {

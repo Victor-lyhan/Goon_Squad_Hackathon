@@ -1,118 +1,119 @@
-/* Homepage (MVP II): intro, operational summary, three workspace entries, footer.
+/* Homepage (MVP III, docs/mvp3.md P4): one sentence, one large "Watch a package" button, two smaller
+   entries (Business, Employee), one stats line, footer.
    Tokens are read with fallbacks so the page works before/after the token issue lands. */
 .landing {
   max-width: 100%;
   overflow-wrap: anywhere;
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font-family: var(--font-sans, inherit);
 }
 
-/* 1. Introduction */
-.landing-intro { padding: var(--space-6, 32px) 0 var(--space-4, 16px); }
+/* 1. The sentence and the primary button */
+.landing-intro { padding: var(--space-8, 32px) 0; }
 .landing-intro h1 {
-  margin: 0 0 var(--space-2, 8px);
-  font-size: var(--text-xl, 28px);
-  line-height: 1.2;
+  margin: 0 0 var(--space-6, 24px);
+  max-width: 20ch;
+  font-size: clamp(28px, 5.5vw, 44px);
+  line-height: 1.12;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text, #151B26);
+  letter-spacing: -0.02em;
+  color: var(--text, #171C24);
 }
-.landing-intro p { margin: 0; max-width: 60ch; color: var(--muted, #5B6472); }
+.watch-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3, 12px);
+  min-height: 56px;
+  padding: var(--space-3, 12px) var(--space-8, 32px);
+  background: var(--accent, #1D5075);
+  border: 1px solid var(--accent, #1D5075);
+  border-radius: var(--radius-lg, 6px);
+  color: #FFFFFF;
+  font-size: var(--text-lg, 18px);
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.watch-button-icon { flex: none; }
+.watch-button:hover { background: var(--accent-dark, #163F5C); border-color: var(--accent-dark, #163F5C); }
+/* The ring is ink, not the button's own blue, and sits off the button so it shows on the page background */
+.watch-button:focus-visible {
+  outline: 3px solid var(--text, #171C24);
+  outline-offset: 3px;
+  border-radius: var(--radius-lg, 6px);
+}
 
-/* 2. Operational summary: one understated row */
-.op-summary {
-  padding: var(--space-3, 12px) 0;
-  border-top: 1px solid var(--border, #D7DDE5);
-  border-bottom: 1px solid var(--border, #D7DDE5);
-  margin-bottom: var(--space-5, 24px);
-}
-.op-summary-list { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px) var(--space-6, 32px); margin: 0; }
-.op-summary-item { display: flex; align-items: baseline; gap: var(--space-2, 8px); }
-.op-summary-item dt {
-  font-size: var(--text-xs, 12px);
-  color: var(--muted, #5B6472);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.op-summary-item dd { margin: 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 14px; color: var(--text, #151B26); }
-.op-summary-value.is-placeholder { color: var(--muted, #5B6472); }
-/* A note in words after a number ("every network business"): quiet, not a second value */
-.op-summary-item dd.op-summary-hint {
-  font-family: var(--font-sans, inherit);
-  font-size: var(--text-xs, 12px);
-  color: var(--muted, #5B6472);
-}
-.op-summary-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-
-/* 3. Workspace entries: three equal columns, whole surface is the link */
+/* 2. Business and Employee: two smaller entries, the whole surface is the link */
 .workspaces {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4, 16px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3, 12px);
+  max-width: 560px;
 }
 .workspaces > li { display: flex; }
 .workspace-entry {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2, 8px);
-  min-height: 200px;
-  padding: var(--space-5, 24px);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
   background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
-  color: var(--text, #151B26);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  color: var(--text, #171C24);
   text-decoration: none;
-  transition: border-color 120ms ease, background-color 120ms ease;
+  transition: border-color 120ms ease;
 }
-.workspace-id {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--text-xs, 12px);
-  letter-spacing: 0.06em;
-  color: var(--muted, #5B6472);
-}
-.workspace-title { margin: var(--space-2, 8px) 0 0; font-size: var(--text-xl, 28px); line-height: 1.15; font-weight: 600; }
-.workspace-text { margin: 0; flex: 1; color: var(--muted, #5B6472); }
-.workspace-action {
-  margin-top: var(--space-3, 12px);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--accent, #28618A);
-}
-a.workspace-entry:hover { border-color: var(--accent, #28618A); background: var(--bg, #F7F8FA); }
-a.workspace-entry:hover .workspace-action { text-decoration: underline; text-underline-offset: 3px; }
+.workspace-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.workspace-title { font-size: var(--text-md, 14px); font-weight: 600; }
+.workspace-text { font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.workspace-arrow { flex: none; color: var(--accent, #1D5075); }
+a.workspace-entry:hover { border-color: var(--accent, #1D5075); }
 a.workspace-entry:focus-visible {
-  outline: 2px solid var(--accent, #28618A);
+  outline: 2px solid var(--accent, #1D5075);
   outline-offset: 2px;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
 }
 .workspace-entry.is-disabled { cursor: progress; }
-.workspace-entry.is-disabled .workspace-action { color: var(--muted, #5B6472); }
+.workspace-entry.is-disabled .workspace-title,
+.workspace-entry.is-disabled .workspace-arrow { color: var(--muted, #5B6472); }
 
-/* 4. Footer */
+/* 3. Stats: one line */
+.op-summary {
+  margin-top: var(--space-8, 32px);
+  padding-top: var(--space-4, 16px);
+  border-top: 1px solid var(--border, #E3E3DE);
+  font-size: var(--text-sm, 13px);
+  color: var(--muted, #5B6472);
+}
+.op-summary-list { list-style: none; display: flex; flex-wrap: wrap; margin: 0; padding: 0; }
+.op-summary-list li { white-space: nowrap; }
+.op-summary-list li + li::before { content: "·"; margin: 0 var(--space-2, 8px); }
+.op-summary-value { font-family: var(--font-mono, ui-monospace, monospace); color: var(--text, #171C24); }
+.op-summary-value.is-placeholder { color: var(--muted, #5B6472); }
+.op-summary-note { margin: 0; }
+
+/* 4. Footer: the environment line, once */
 .landing-footer {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
   gap: var(--space-2, 8px) var(--space-4, 16px);
-  margin-top: var(--space-8, 64px);
-  padding: var(--space-4, 16px) 0;
-  border-top: 1px solid var(--border, #D7DDE5);
+  padding: var(--space-2, 8px) 0 var(--space-4, 16px);
   font-size: var(--text-xs, 12px);
   color: var(--muted, #5B6472);
 }
-.landing-footer a { color: var(--accent, #28618A); }
-.landing-footer a:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
 
-@media (max-width: 860px) {
-  .workspaces { grid-template-columns: 1fr; }
-  .workspace-entry { min-height: 0; }
-}
 @media (max-width: 480px) {
-  .landing-intro { padding-top: var(--space-4, 16px); }
-  .workspace-entry { padding: var(--space-4, 16px); }
-  .op-summary-list { gap: var(--space-2, 8px) var(--space-4, 16px); }
+  .landing-intro { padding: var(--space-4, 16px) 0 var(--space-6, 24px); }
+  .watch-button { display: flex; }
+  .workspaces { grid-template-columns: 1fr; }
+  /* so the three facts stay on one line at 390 px */
+  .op-summary { font-size: var(--text-xs, 12px); }
+  .op-summary-list li + li::before { margin: 0 var(--space-1, 4px); }
 }

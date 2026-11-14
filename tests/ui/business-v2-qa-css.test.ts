@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseCss, readTokens, v2CssFiles, type CssRule } from './employee-v2-qa-helpers';
+import { isMvp2Fallback } from './kit-v2-legacy-tokens';
 
 const files = v2CssFiles('client/src/components/business/v2');
 const tokens = readTokens();
@@ -67,13 +68,14 @@ describe('business v2 CSS QA (#497)', () => {
     expect(bad).toEqual([]);
   });
 
+  // A fallback may still be the MVP II value until this module's restyle pass (kit-v2-legacy-tokens.ts, #651).
   it('every var() is a design token, and a colour fallback equals that token', () => {
     const bad: string[] = [];
     for (const [file, rules] of parsed) for (const r of rules) for (const d of r.decls) {
       for (const [, name, fb] of d.value.matchAll(VAR_RE)) {
         const token = tokens.get(name);
         if (token === undefined) { bad.push(`${where(file, r, d)} (${name} is not in tokens.css)`); continue; }
-        if (fb && (COLOR_LITERAL.test(fb) || NAMED_COLOR.test(fb)) && norm(fb) !== norm(token)) {
+        if (fb && (COLOR_LITERAL.test(fb) || NAMED_COLOR.test(fb)) && norm(fb) !== norm(token) && !isMvp2Fallback(name, fb)) {
           bad.push(`${where(file, r, d)} (${name} is ${token}, fallback ${fb})`);
         }
       }

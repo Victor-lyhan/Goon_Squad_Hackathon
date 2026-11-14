@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ACCENT,
+  LEG1,
   DIM_ALPHA,
   buildLayerSpecs,
   decodePath,
@@ -66,13 +66,13 @@ describe('buildLayerSpecs', () => {
     expect(legs.type === 'path' && legs.data[0].path[0]).toEqual([-73.98, 40.7]);
   });
 
-  it('draws leg routes in the accent color #28618A and baselines quieter', () => {
+  it("draws leg routes in carrier A's blue #1D5075 and baselines quieter", () => {
     const specs = buildLayerSpecs({ places, routes, movers, visible: all });
     const leg = byId(specs, 'routes-leg');
     const base = byId(specs, 'routes-baseline');
     if (leg.type !== 'path' || base.type !== 'path') throw new Error('expected path layers');
-    expect(leg.data[0].color.slice(0, 3)).toEqual([0x28, 0x61, 0x8a]);
-    expect(leg.data[0].color).toEqual(ACCENT);
+    expect(leg.data[0].color.slice(0, 3)).toEqual([0x1d, 0x50, 0x75]);
+    expect(leg.data[0].color).toEqual(LEG1);
     expect(base.data[0].width).toBeLessThan(leg.data[0].width);
   });
 

@@ -45,14 +45,13 @@ describe('route table', () => {
     ['/employee/emp-01', /<div class="ep">/], // EmployeeV2 (no <main> of its own, #584)
     ['/business/biz-01', /<div class="bp">/], // BusinessV2 (loading state; no <main> of its own, #581)
     ['/', /class="landing landing-nyc"/],
-    ['/help', /class="help help-nyc"/],
   ];
   it.each(table)('%s renders its MVP II page', (path, marker) => {
     const body = main(render(path))[2];
     expect(body).toMatch(marker);
     expect(body).not.toContain('Page not found');
   });
-  it.each(['/business', '/unknown', '/employee'])('%s is a 404', (path) => {
+  it.each(['/business', '/unknown', '/employee', '/help', '/help/'])('%s is a 404', (path) => {
     expect(main(render(path))[2]).toContain('Page not found');
   });
   it('no MVP 1 page markup on the main paths', () => {
@@ -77,7 +76,7 @@ describe('header on /simulator', () => {
   it('is full width; other pages keep the 960 px column', () => {
     expect(main(render('/simulator'))[1]).toBe('app-main app-main--full');
     expect(main(render('/simulator/'))[1]).toBe('app-main app-main--full');
-    for (const p of ['/', '/employee/emp-01', '/business/biz-01', '/help']) {
+    for (const p of ['/', '/employee/emp-01', '/business/biz-01']) {
       expect(main(render(p))[1]).toBe('app-main');
     }
     const css = readFileSync('client/src/styles/global.css', 'utf8');
@@ -155,7 +154,6 @@ describe('helpers', () => {
   it('cutoverPath strips /nyc and nothing else', () => {
     expect(cutoverPath('/nyc')).toBe('/');
     expect(cutoverPath('/nyc/')).toBe('/');
-    expect(cutoverPath('/nyc/help')).toBe('/help');
     expect(cutoverPath('/nyc/simulator')).toBe('/simulator');
     expect(cutoverPath('/nyc/business/biz-01')).toBe('/business/biz-01');
     expect(cutoverPath('/nyc/employee/a%20b')).toBe('/employee/a%20b');

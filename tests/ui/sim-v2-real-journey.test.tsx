@@ -10,7 +10,8 @@ import {
 import { journeyDurationMs } from '../../client/src/components/sim/v2/motion/journeyPlayback';
 import { UNKNOWN_CARRIER, UNKNOWN_PLACE, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
 import { DEFAULT_LAYERS } from '../../client/src/components/sim/v2/workspaceModel';
-import { formatCents, formatMin } from '../../client/src/ui/format';
+import { formatCents, formatClock, formatMin } from '../../client/src/ui/format';
+import { CARRIED_WIDTH, COMMUTE_WIDTH, LEG1, LEG2, buildLayerSpecs, type PathSpec, type ScatterSpec, type TextSpec } from '../../client/src/components/map/layers';
 import { T, elements, escaped, forbiddenIn, realSim, renderBody, text } from './sim-v2-real-helper';
 
 vi.setConfig({ testTimeout: T, hookTimeout: T });
@@ -70,7 +71,7 @@ describe.each(real.moments)('every package selected at $name', (moment) => {
       expect(sorted(j.places.filter((p) => p.kind === 'business').map((p) => p.id))).toEqual(sorted(wantBiz));
       expect(sorted(j.places.filter((p) => p.kind === 'home').map((p) => p.id))).toEqual(sorted(wantHomes));
       expect(j.places.length).toBe(wantBiz.size + wantHomes.size);
-      // The map draws only this journey: its places, its numbered stops, the package and its carriers.
+      // The map draws only this journey: its places, its stop symbols, the package and its carriers.
       expect(view.map.places).toBe(j.places);
       expect(view.map.stops.length).toBe(j.steps.length);
       const moverIds = new Set([s.id, ...carrierIds]);
@@ -230,5 +231,81 @@ describe.each(real.moments)('every package selected at $name', (moment) => {
       expect({ id: s.id, words: forbiddenIn(html) }).toEqual({ id: s.id, words: [] });
       expect(text(html)).not.toMatch(/\b(biz|home|shp|plan)-[\w-]+/);
     }
+  });
+});
+
+// #659 (docs/mvp3.md P1 + P4): one relay of the committed NYC cache, as the judge sees it on the map.
+describe('a relay of the committed NYC cache on the map: whole commutes, symbols, letters, package on top', () => {
+  const night = real.at(1440);
+  const plan = night.sim.plans.find((p) => p.kind === 'relay' && night.sim.snapshot.shipmentStatus[p.shipmentId] === 'at_hub');
+  const selection = { kind: 'package' as const, id: plan?.shipmentId ?? '' };
+  const viewAt = (moment: typeof night) => {
+    const v = simPageView({ data: moment.data, selection, layers: DEFAULT_LAYERS });
+    if (v.view !== 'ready' || v.right.kind !== 'journey') throw new Error('expected a journey');
+    return { v, j: v.right.journey };
+  };
+  const biz = (id: string) => night.map.businesses.find((b) => b.id === id)!;
+  const person = (id: string) => night.map.employees.find((e) => e.id === id)!.name;
+
+  it('the default run has a package waiting overnight at a relay business', () => {
+    expect(plan).toBeTruthy();
+    expect(plan!.legs).toHaveLength(2);
+  });
+
+  it('sender square, relay diamond, swap "Handed to <B>" and recipient flag, at their businesses', () => {
+    const { v } = viewAt(night);
+    const shipment = night.sim.shipments.find((x) => x.id === plan!.shipmentId)!;
+    const [sender, relay, recipient] = [biz(shipment.originBusinessId), biz(plan!.relayBusinessId!), biz(shipment.destinationBusinessId)];
+    expect(v.map.stops.map((st) => [st.symbol, st.label, st.lat, st.lng])).toEqual([
+      ['sender', sender.name, sender.lat, sender.lng],
+      ['relay', `Overnight · ${relay.name}`, relay.lat, relay.lng],
+      ['swap', `Handed to ${person(plan!.legs[1].employeeId)}`, relay.lat, relay.lng],
+      ['recipient', `To ${recipient.name}`, recipient.lat, recipient.lng],
+    ]);
+    // Next afternoon: the flag says when, as a clock time read from the snapshot.
+    const later = real.at(2160);
+    const delivered = later.sim.snapshot.deliveredAtMin[plan!.shipmentId];
+    expect(typeof delivered).toBe('number');
+    expect(viewAt(later).v.map.stops.at(-1)!.label).toBe(`Delivered ${formatClock(delivered)}`);
+  });
+
+  it('each carrier\'s whole commute is thin in its colour, the carried part thick on top of it; no grey baseline', () => {
+    const { v } = viewAt(night);
+    expect(v.map.routes.filter((r) => r.kind === 'baseline')).toEqual([]);
+    const specs = buildLayerSpecs({ ...v.map });
+    const ids = specs.map((x) => x.id);
+    expect(ids).not.toContain('routes-baseline');
+    expect(ids.indexOf('routes-commute')).toBeLessThan(ids.indexOf('routes-leg'));
+    const thin = (specs.find((x) => x.id === 'routes-commute') as PathSpec).data;
+    const thick = (specs.find((x) => x.id === 'routes-leg') as PathSpec).data;
+    for (const [tone, color] of [['leg1', LEG1], ['leg2', LEG2]] as const) {
+      const mine = (r: { id: string }) => v.map.routes.find((x) => x.id === r.id)!.tone === tone;
+      const t = thin.filter(mine);
+      const k = thick.filter(mine);
+      expect(t.length).toBeGreaterThan(0);
+      expect(k.length).toBeGreaterThan(0);
+      for (const d of [...t, ...k]) expect(d.color).toEqual(color);
+      for (const d of t) expect(d.width).toBe(COMMUTE_WIDTH);
+      for (const d of k) expect(d.width).toBe(CARRIED_WIDTH);
+      // The carried part lies on the whole commute, which is longer.
+      const onCommute = new Set(t.flatMap((d) => d.path.map((pt) => pt.join(','))));
+      for (const d of k) for (const pt of d.path) expect(onCommute.has(pt.join(','))).toBe(true);
+      expect(t.reduce((n, d) => n + d.path.length, 0)).toBeGreaterThan(k.reduce((n, d) => n + d.path.length, 0));
+    }
+  });
+
+  it('the carriers carry A and B, and the package ring is drawn last, around the relay diamond', () => {
+    const { v, j } = viewAt(night);
+    const specs = buildLayerSpecs({ ...v.map });
+    expect(j.carriers.map((c) => c.letter)).toEqual(['A', 'B']);
+    const badges = (specs.find((x) => x.id === 'movers-vehicle-badge') as TextSpec | undefined)?.data ?? [];
+    for (const b of badges) expect(b.text).toBe(j.carriers.find((c) => c.employeeId === b.id)!.letter);
+    expect(specs.slice(-2).map((x) => x.id)).toEqual(['movers-package-halo', 'movers-package']);
+    const ring = (specs.at(-1) as ScatterSpec).data[0];
+    const relay = biz(plan!.relayBusinessId!);
+    expect(ring.position[0]).toBeCloseTo(relay.lng, 5);
+    expect(ring.position[1]).toBeCloseTo(relay.lat, 5);
+    const glyphs = (specs.find((x) => x.id === 'stops-symbol') as TextSpec).data.map((d) => d.text);
+    expect(glyphs).toEqual(['\u25A0', '\u25C6', '\u21C4', '\u2691']);
   });
 });

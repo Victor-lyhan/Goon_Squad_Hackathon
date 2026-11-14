@@ -5,11 +5,9 @@ import { describe, expect, it } from 'vitest';
 import Landing from '../../client/src/pages/Landing';
 
 describe('landing headings', () => {
-  it('one h1 and ordered headings', () => {
+  it('one h1, the sentence, and no other heading (#652)', () => {
     const h = renderToStaticMarkup(<MemoryRouter><Landing /></MemoryRouter>);
-    expect(h.match(/<h1/g)).toHaveLength(1);
-    expect(h.indexOf('<h1')).toBeLessThan(h.indexOf('<h2'));
-    expect(h).not.toMatch(/<h3/);
+    expect(h.match(/<h[1-6]/g)).toEqual(['<h1']);
   });
 });
 

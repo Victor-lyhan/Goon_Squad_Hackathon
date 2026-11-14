@@ -63,7 +63,7 @@ describe('deliveryRows', () => {
       pickup: 'Day 1, 5:30 PM · Acme Studio', dropoff: 'Day 1, 6:06 PM · Cafe Luna',
       pickupTime: 'Day 1, 5:30 PM', dropoffTime: 'Day 1, 6:06 PM',
       extraMin: '+7 min', reward: '$8.00', legKind: 'Direct', commute: 'Evening commute to Astoria',
-      jobHref: '/employee/emp-001?job=plan-shp-001-L0', simulatorHref: '/simulator?package=shp-001',
+      jobHref: '/employee/emp-001?job=plan-shp-001-L0', simulatorHref: '/simulator?package=shp-001&play=1',
     });
   });
 
@@ -72,7 +72,7 @@ describe('deliveryRows', () => {
       pickup: 'Day 2, 8:40 AM · Relay point: Corner Books', dropoff: 'Day 2, 9:10 AM · Acme Studio',
       pickupTime: 'Day 2, 8:40 AM', dropoffTime: 'Day 2, 9:10 AM',
       extraMin: '+4 min', reward: '$7.00', legKind: 'Relay leg 2 of 2', commute: 'Morning commute from Astoria',
-      jobHref: '/employee/emp-001?job=plan-shp-002-L1', simulatorHref: '/simulator?package=shp-002',
+      jobHref: '/employee/emp-001?job=plan-shp-002-L1', simulatorHref: '/simulator?package=shp-002&play=1',
     });
   });
 

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { createRng } from '../../server/domain/generator';
+import { createRng } from '../../server/domain/v2/rng';
 import { assignShipments } from '../../server/domain/v2/matching';
 import { buildTrips } from '../../server/domain/v2/trips';
 import { checkPlans, checkStory, formatCheckReport, type PlanCheckInput, type PlanIssueCode } from '../../server/domain/v2/planCheck';

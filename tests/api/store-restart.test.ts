@@ -3,15 +3,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createStore } from '../../server/store';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
-import type { Run } from '../../shared/types';
+import type { Run } from '../../shared/v2/types';
+import { sampleRun } from './v2-sample';
 
-// CI-safe (DECISIONS pass 17/19): generated cities and real servers get 3x+ headroom over local time.
+// CI-safe (DECISIONS pass 17/19): real file writes get headroom on a loaded runner.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
-const initial = () => createInitialRun(loadDefaultScenario());
-// computeMs is wall-clock timing, so ignore it when comparing two builds of the demo city
-const norm = (r: Run) => ({ ...r, assignments: { ...r.assignments, computeMs: 0 } });
+// The small hand-built v2 run of v2-sample.ts (delivery requests, plans and jobs included). A fresh copy per call.
+const initial = (): Run => structuredClone(sampleRun);
 let dir: string;
 let file: string;
 let warn: ReturnType<typeof vi.spyOn>;
@@ -29,9 +28,9 @@ afterEach(() => {
 const bads = () => fs.readdirSync(dir).filter((f) => f.startsWith('state.json.bad-'));
 
 describe('store restart cases', () => {
-  it('missing file loads the demo city without warning', () => {
+  it('missing file loads the initial run without warning', () => {
     const run = createStore({ filePath: file, initial }).get();
-    expect(norm(run)).toEqual(norm(initial()));
+    expect(run).toEqual(initial());
     expect(warn).not.toHaveBeenCalled();
     expect(bads()).toEqual([]);
   });
@@ -42,10 +41,10 @@ describe('store restart cases', () => {
     ['wrong schemaVersion', JSON.stringify({ schemaVersion: 2, run: { runId: 'old', clock: {} } })],
   ];
   for (const [name, content] of badCases) {
-    it(`${name}: loads the demo city, warns once, keeps a copy`, () => {
+    it(`${name}: loads the initial run, warns once, keeps a copy`, () => {
       fs.writeFileSync(file, content);
       const run = createStore({ filePath: file, initial }).get();
-      expect(norm(run)).toEqual(norm(initial()));
+      expect(run).toEqual(initial());
       expect(warn).toHaveBeenCalledTimes(1);
       expect(bads()).toEqual(['state.json.bad-1']);
       expect(fs.readFileSync(path.join(dir, 'state.json.bad-1'), 'utf8')).toBe(content);
@@ -101,6 +100,6 @@ describe('store restart cases', () => {
     );
     expect(order).toEqual(Array.from({ length: 20 }, (_, i) => i));
     expect(parsedTimes).toEqual(Array.from({ length: 20 }, (_, i) => start + i + 1));
-    expect(store.get().version).toBe(20);
+    expect(store.get().version).toBe(initial().version + 20);
   });
 });

@@ -226,7 +226,7 @@ describe('README demo request on the default NYC run, no key', () => {
     expect(card.journeyLabel).toBe('View journey');
     expect(card.journeyHref).toBe(`/simulator?package=${created.shipment.id}`);
     expect(step(5)).toContain('`/simulator?package=<shipment ID>`');
-    expect(source('client/src/components/employee/v2/employeeWorkspaceModel.ts')).toContain('`/simulator?package=${');
+    expect(source('client/src/components/employee/v2/jobDetailV2Model.ts')).toContain('`/simulator?package=${');
   }, T);
 
   it('step 4: the employee page lists the new job at once, on the same server', async () => {

@@ -1,6 +1,6 @@
 // Helper for the v2 bootstrap tests (tests/api/v2-bootstrap-*.test.ts).
-// Starts the real app the way server/index.ts does: an MVP 1 store, `createV2Runtime` on a temp folder,
-// `createApp(store, { v2: runtime.deps })`. The temp folder holds copies of the three committed NYC fixture
+// Starts the real app the way server/index.ts does: `createV2Runtime` on a temp folder, then
+// `createApp({ v2: runtime.deps })`. The temp folder holds copies of the three committed NYC fixture
 // files and, for the "sample" cache, the made-up travel cache of v2-boot-sample.ts written as matrix.json
 // and polylines.json. Nothing touches fixtures/nyc/, data/ or .env. No network beyond localhost, no real key.
 import fs from 'node:fs';
@@ -10,8 +10,6 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import polyline from '@mapbox/polyline';
 import { createApp } from '../../server/index';
-import { createStore, type Store } from '../../server/store';
-import { createInitialRun as createMvp1Run, loadDefaultScenario } from '../../server/api/initialRun';
 import { createV2Runtime, type V2Runtime } from '../../server/api/v2/bootstrap';
 import { writeTravelFiles } from '../../server/geo/cache';
 import { GEOCODE_URL, ROUTES_URL, ROUTE_MATRIX_URL, type FetchLike } from '../../server/geo/googleClient';
@@ -41,6 +39,7 @@ export function tempRepo(cache: CacheKind) {
     root,
     fixturesDir,
     statePath: path.join(root, 'data', 'state-v2.json'),
+    /** Where the MVP 1 state file used to be. Nothing writes it any more; tests assert it stays absent. */
     mvp1StatePath: path.join(root, 'data', 'state.json'),
     remove: () => fs.rmSync(root, { recursive: true, force: true }),
   };
@@ -124,13 +123,9 @@ export type BootstrapApiOptions = {
 
 export type BootstrapApi = Awaited<ReturnType<typeof startBootstrapApi>>;
 
-/** The whole server on a free port: MVP 1 on its own temp state file, MVP II from `createV2Runtime`. */
+/** The whole server on a free port, with /api/v2 from `createV2Runtime`. */
 export async function startBootstrapApi(opts: BootstrapApiOptions) {
   const repo = opts.repo ?? tempRepo(opts.cache);
-  const mvp1Store: Store = createStore({
-    filePath: repo.mvp1StatePath,
-    initial: () => createMvp1Run(loadDefaultScenario()),
-  });
   const runtime: V2Runtime = createV2Runtime({
     fixturesDir: repo.fixturesDir,
     statePath: repo.statePath,
@@ -138,7 +133,7 @@ export async function startBootstrapApi(opts: BootstrapApiOptions) {
     fetch: opts.fetch ?? noNetwork().fetch,
   });
 
-  const app = createApp(mvp1Store, { clientDist: path.join(repo.root, 'no-dist'), v2: runtime.deps });
+  const app = createApp({ clientDist: path.join(repo.root, 'no-dist'), v2: runtime.deps });
   const server: Server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -156,7 +151,6 @@ export async function startBootstrapApi(opts: BootstrapApiOptions) {
   return {
     repo,
     runtime,
-    mvp1Store,
     /** The v2 store, or null while /api/v2 is not loaded. */
     store: runtime.deps.store,
     call,
@@ -175,7 +169,6 @@ export async function startBootstrapApi(opts: BootstrapApiOptions) {
     close: async () => {
       await new Promise((resolve) => server.close(resolve));
       await runtime.shutdown();
-      await mvp1Store.flush();
       if (!opts.repo) repo.remove();
     },
   };

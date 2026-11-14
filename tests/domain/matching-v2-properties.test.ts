@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { expect, it } from 'vitest';
-import { createRng } from '../../server/domain/generator';
+import { createRng } from '../../server/domain/v2/rng';
 import { assignShipments } from '../../server/domain/v2/matching';
 import { context, employee, shipment } from './matching-v2-helpers';
 

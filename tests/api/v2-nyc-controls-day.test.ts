@@ -296,7 +296,8 @@ describe('Jump to morning and Finish without Play', () => {
     const res = await api.post<ShipmentResponse>('/shipments', deliveryRequest('controls-day-no-play', origin, destination, city.settings));
     expect(res.status).toBe(201);
     const after = await api.simulator();
-    expect(after.clock).toStrictEqual(end.clock);
+    // A delivery stored in planning puts the clock back at the start, paused (DECISIONS pass 62, #624).
+    expect(after.clock).toStrictEqual({ ...end.clock, timeMin: city.settings.simStartMin });
     expectRunAdds(after);
     await expectMapOfRun(api, after, 'a request after Finish without Play');
   }, T);

@@ -1,5 +1,5 @@
 // #504, #548: / renders the NYC homepage (Landing dataset="nyc") through the router since the cutover;
-// its links go to the main paths, never /nyc/....
+// its links go to the main paths, never /nyc/.... #652: the button, Business and Employee; no Guided demo link.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
@@ -8,7 +8,7 @@ import Landing from '../../client/src/pages/Landing';
 import { nycSummaryFrom, nycWorkspacePaths, NYC_UNAVAILABLE_TEXT, type NycSummary } from '../../client/src/pages/landingModel';
 import type { V2BusinessDirectory, V2Directory } from '../../client/src/ui/shell';
 import { ENV_LABELS } from '../../client/src/ui/shellModel';
-import { businesses as v2b, employees as v2e, simulator } from './landing-nyc-sample';
+import { businesses as v2b, employees as v2e, simulator, storySimulator } from './landing-nyc-sample';
 
 const v2: V2Directory = { status: 'ready', employees: [{ id: 'emp-7', name: 'Employee 7' }] };
 const v2Biz: V2BusinessDirectory = { status: 'ready', businesses: [{ id: 'biz-a', name: 'Alpha' }] };
@@ -34,11 +34,12 @@ describe('/', () => {
     const body = main(html);
     expect(body).toContain('class="landing landing-nyc"');
     expect(body).not.toContain('Page not found');
-    expect(body).toContain('19 / 24');
+    expect(body.replace(/<[^>]+>/g, '')).toContain('19 of 24 packages matched');
     expect(body).toContain(`href="/business/${firstBiz}"`);
     expect(body).toContain(`href="/employee/${firstEmp}"`);
-    expect(body).toContain('href="/simulator"');
-    expect(body).toMatch(/<a [^>]*href="\/help"[^>]*>Guided demo<\/a>/);
+    expect(body).toContain('href="/simulator"'); // the sample run has no plans: the button opens the plain simulator
+    expect(body).not.toContain('Guided demo');
+    expect(body).not.toContain('href="/help"');
     expect(body).toContain(ENV_LABELS.nyc);
     expect(body).not.toMatch(/hub|synthetic/i);
     expect(body).not.toContain('nav-pending');
@@ -52,13 +53,17 @@ describe('/', () => {
     const html = render('/', summary);
     expect(main(html)).toContain('landing-nyc');
     expect(main(html)).toMatch(marker);
-    expect(main(html)).toContain('href="/help"');
-    expect(main(html)).toContain('href="/simulator"');
+    expect(main(html)).not.toContain('href="/help"');
+    expect(hrefs(main(html))).toEqual(['/simulator']); // the button works before and without the answer
     noPreviewLinks(html);
   });
-  it('Landing dataset="nyc" links to /help by default', () => {
+  it('through the router, the button opens the story package of the run and plays it (#652)', () => {
+    const body = main(render('/', nycSummaryFrom(v2b, v2e, storySimulator)));
+    expect(hrefs(body)).toEqual(['/simulator?package=shp-3&amp;play=1', `/business/${firstBiz}`, `/employee/${firstEmp}`]);
+  });
+  it('Landing has no link to /help', () => {
     const h = renderToStaticMarkup(<MemoryRouter><Landing dataset="nyc" initialSummary={ready} /></MemoryRouter>);
-    expect(h).toMatch(/<a [^>]*href="\/help"[^>]*>Guided demo<\/a>/);
+    expect(h).not.toContain('/help');
   });
 });
 

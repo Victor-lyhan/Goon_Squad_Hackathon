@@ -1,6 +1,6 @@
 // Helper for the MVP II poll budget tests (tests/api/v2-poll-budget-*.test.ts, issue #495).
 // Starts the real app the way server/index.ts does, on the COMMITTED fixtures/nyc (the real Google cache with
-// its route lines): `createV2Runtime` with a temp state file and no key, then `createApp(store, { v2 })`.
+// its route lines): `createV2Runtime` with a temp state file and no key, then `createApp({ v2 })`.
 // - Nothing is written to fixtures/nyc or data/: with no key the travel service only reads the cache, and the
 //   state file and its sidecar live in a temp folder that `close` removes.
 // - `fetch` for Google is a function that throws, so a test can never reach the network.
@@ -57,15 +57,6 @@ export const LARGEST_RANDOM: GenerateScenarioRequest = { preset: 'random', seed:
 
 // ---------- The server ----------
 
-// /api/v2 never reads the MVP 1 store (same stub as v2-planning-routes-helper.ts).
-const noMvp1Store: Store = {
-  get: () => {
-    throw new Error('the MVP 1 store is not used by /api/v2');
-  },
-  mutate: () => Promise.reject(new Error('the MVP 1 store is not used by /api/v2')),
-  flush: async () => {},
-};
-
 export type Timed = { median: number; bytes: number; text: string };
 export type PollApi = Awaited<ReturnType<typeof startPollApi>>;
 
@@ -85,7 +76,7 @@ export async function startPollApi() {
   }
   const store: Store<Run> = runtime.deps.store;
 
-  const app = createApp(noMvp1Store, { clientDist: path.join(dir, 'no-dist'), v2: runtime.deps });
+  const app = createApp({ clientDist: path.join(dir, 'no-dist'), v2: runtime.deps });
   const server: Server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;

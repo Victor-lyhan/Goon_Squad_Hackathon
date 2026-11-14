@@ -13,7 +13,6 @@ const { page } = vi.hoisted(() => ({
   page: (name: string) => async () => ({ default: (await import('./kit-dom-shell-pages')).stubPage(name) }),
 }));
 vi.mock('../../client/src/pages/Landing', page('Landing'));
-vi.mock('../../client/src/pages/Help', page('Help'));
 vi.mock('../../client/src/pages/v2/SimulatorV2', page('SimulatorV2'));
 vi.mock('../../client/src/pages/v2/EmployeeV2', page('EmployeeV2'));
 vi.mock('../../client/src/pages/v2/BusinessV2', page('BusinessV2'));
@@ -107,7 +106,7 @@ describe('workspace links use the stored identity', () => {
   }, T);
 
   it('the header never calls an MVP 1 route', async () => {
-    for (const p of ['/', '/help', '/simulator', '/business/biz-01', '/employee/emp-01', '/nowhere']) {
+    for (const p of ['/', '/simulator', '/business/biz-01', '/employee/emp-01', '/nowhere']) {
       const s = await renderShell(p);
       expect(textOf(s.header())).toContain(ENV_LABELS.nyc);
       s.unmount();
@@ -122,12 +121,12 @@ describe('keyboard order and current page', () => {
   const headerStops = (header: HTMLElement) =>
     tabOrder(header).map((el) => (el instanceof HTMLSelectElement ? 'select' : textOf(el)));
 
-  it('on /employee/<id>: skip link, brand, three destinations, selector, Help, then the page', async () => {
+  it('on /employee/<id>: skip link, brand, three destinations, selector, then the page', async () => {
     const s = await renderShell('/employee/emp-01');
     const all = tabOrder(document.body);
     expect(all[0].className).toBe('skip-link');
     expect(all[1]).toBe(link(s.header(), 'Relay'));
-    expect(headerStops(s.header())).toEqual(['Relay', 'Business', 'Employee', 'Simulator', 'select', 'Help']);
+    expect(headerStops(s.header())).toEqual(['Relay', 'Business', 'Employee', 'Simulator', 'select']);
     // Each stop really takes focus (nothing is hidden from the keyboard).
     for (const el of tabOrder(s.header())) {
       el.focus();
@@ -136,33 +135,24 @@ describe('keyboard order and current page', () => {
     const current = [...s.header().querySelectorAll('[aria-current="page"]')].map((el) => textOf(el));
     expect(current).toEqual(['Employee']);
     expect(link(s.header(), 'Relay').getAttribute('href')).toBe('/');
-    expect(link(s.header(), 'Help').getAttribute('href')).toBe('/help');
   }, T);
 
-  it('a stale note adds its Switch link between the selector and Help', async () => {
+  it('a stale note adds its Switch link after the selector', async () => {
     const s = await renderShell('/business/biz-gone');
-    expect(headerStops(s.header())).toEqual(['Relay', 'Business', 'Employee', 'Simulator', 'select', 'Switch', 'Help']);
+    expect(headerStops(s.header())).toEqual(['Relay', 'Business', 'Employee', 'Simulator', 'select', 'Switch']);
     const current = [...s.header().querySelectorAll('[aria-current="page"]')].map((el) => textOf(el));
     expect(current).toEqual(['Business']);
   }, T);
 
-  it('brand goes to / and Help to /help by click', async () => {
+  it('brand goes to / by click; the header has no Help link (#623)', async () => {
     const s = await renderShell('/simulator');
-    expect(headerStops(s.header())).toEqual(['Relay', 'Business', 'Employee', 'Simulator', 'Help']);
-    click(link(s.header(), 'Help'));
-    expect(s.where.path).toBe('/help');
-    expect(link(s.header(), 'Help').getAttribute('aria-current')).toBe('page');
+    expect(headerStops(s.header())).toEqual(['Relay', 'Business', 'Employee', 'Simulator']);
+    expect(s.header().querySelector('a[href="/help"], .shell-help')).toBeNull();
     expect(s.header().querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     click(link(s.header(), 'Relay'));
     expect(s.where.path).toBe('/');
     expect(s.header().querySelectorAll('[aria-current="page"]')).toHaveLength(0);
     expect(textOf(s.main())).toBe('Landing at /');
-  }, T);
-
-  it('Help is the current page on /help/ (trailing slash)', async () => {
-    const s = await renderShell('/help/');
-    expect(textOf(s.main())).toBe('Help at /help/');
-    expect(link(s.header(), 'Help').getAttribute('aria-current')).toBe('page');
   }, T);
 
   it('the skip link moves focus to the main region', async () => {

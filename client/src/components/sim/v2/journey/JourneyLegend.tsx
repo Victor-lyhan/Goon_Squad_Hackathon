@@ -1,58 +1,38 @@
-// Legend of package journey mode: which line color and which vehicle dot is which carrier, plus the
-// faint normal commute. Colors come from the map's layer palette, so the legend always matches what
-// the map draws (each carrier's route and vehicle are in its leg's colour).
-import { BASELINE, toneLabelColor, vehicleLabelColor } from '../../../map/layers';
-import type { RouteTone } from '../../../map/types';
+// Legend of package journey mode: which carrier is A and which is B, in the colour of their line and
+// vehicle, with the letter their vehicle carries on the map (docs/mvp3.md P4: never colour alone).
+// Colors come from the map's layer palette, so the legend always matches what the map draws. A direct
+// journey has one carrier, so it lists only A.
+import { toneLabelColor } from '../../../map/layers';
 import type { JourneyCarrier } from './journeyModel';
 import './journey.css';
 
 export type JourneyLegendProps = { carriers: JourneyCarrier[] };
 
-type Entry = { employeeId: string; name: string; homeNeighborhood: string; legs: number[]; tones: RouteTone[] };
-
-/** One entry per carrier, even if the same person carries both legs. */
-function entries(carriers: JourneyCarrier[]): Entry[] {
-  const out: Entry[] = [];
-  for (const c of carriers) {
-    const hit = out.find((e) => e.employeeId === c.employeeId);
-    if (hit) {
-      hit.legs.push(c.legIndex + 1);
-      hit.tones.push(c.tone);
-    } else {
-      out.push({ employeeId: c.employeeId, name: c.name, homeNeighborhood: c.homeNeighborhood, legs: [c.legIndex + 1], tones: [c.tone] });
-    }
-  }
-  return out;
-}
-
-const BASELINE_CSS = `rgba(${BASELINE[0]}, ${BASELINE[1]}, ${BASELINE[2]}, ${(BASELINE[3] / 255).toFixed(2)})`;
-
 export function JourneyLegend({ carriers }: JourneyLegendProps) {
   return (
     <section className="jl" aria-label="Journey legend">
       <ul className="jl__list">
-        {entries(carriers).map((e) => (
-          <li key={e.employeeId} className="jl__item">
-            <span className="jl__swatches" aria-hidden="true">
-              {e.tones.map((t) => (
-                <span key={t} className={`jl__swatch jl__swatch--${t}`} style={{ background: toneLabelColor(t) }} />
-              ))}
+        {carriers.map((c) => (
+          <li key={c.legIndex} className="jl__item">
+            {/* The vehicle's letter badge, in the carrier's colour (the map draws the same letter). */}
+            <span className={`jl__badge jl__badge--${c.tone}`} aria-hidden="true" style={{ background: toneLabelColor(c.tone) }}>
+              {c.letter}
             </span>
-            {/* The carrier's vehicle: journeyModel gives it the tone of the carrier's first leg. */}
-            <span className={`jl__dot jl__dot--${e.tones[0]}`} aria-hidden="true" style={{ background: vehicleLabelColor(e.tones[0]) }} />
             <span className="jl__text">
-              <span className="jl__leg">{e.legs.length > 1 ? `Legs ${e.legs.join(' and ')}` : `Leg ${e.legs[0]}`}</span>
-              <span className="jl__name">{e.name}</span>
-              <span className="jl__sub">from {e.homeNeighborhood}</span>
+              <span className="jl__name">
+                {c.letter} · {c.name}
+              </span>
+              <span className="jl__sub">from {c.homeNeighborhood}</span>
             </span>
           </li>
         ))}
-        <li className="jl__item jl__item--baseline">
+        <li className="jl__item jl__item--key">
           <span className="jl__swatches" aria-hidden="true">
-            <span className="jl__swatch jl__swatch--baseline" style={{ background: BASELINE_CSS }} />
+            <span className="jl__swatch jl__swatch--thick" />
+            <span className="jl__swatch jl__swatch--thin" />
           </span>
           <span className="jl__text">
-            <span className="jl__name">Normal commute</span>
+            <span className="jl__sub">Thick: carrying the package · thin: rest of the commute</span>
           </span>
         </li>
       </ul>

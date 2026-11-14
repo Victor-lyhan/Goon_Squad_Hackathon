@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ACCENT,
   DIM_ALPHA,
   LEG1,
   LEG2,
@@ -65,43 +64,39 @@ function hue([r, g, b]: RGBA): number {
 }
 const WHITE: [number, number, number] = [255, 255, 255];
 
-describe('journey leg colors', () => {
-  it('leg 1 is the accent and leg 2 a clearly different color', () => {
-    expect(LEG1).toEqual(ACCENT);
-    expect(LEG2.slice(0, 3)).not.toEqual(LEG1.slice(0, 3));
+describe('journey leg colors (docs/mvp3.md P4)', () => {
+  it('carrier A is #1D5075 and carrier B #0F8A5F, clearly different', () => {
+    expect(LEG1.slice(0, 3)).toEqual([0x1d, 0x50, 0x75]);
+    expect(LEG2.slice(0, 3)).toEqual([0x0f, 0x8a, 0x5f]);
     const dh = Math.abs(hue(LEG1) - hue(LEG2));
-    expect(Math.min(dh, 360 - dh)).toBeGreaterThan(90);
+    expect(Math.min(dh, 360 - dh)).toBeGreaterThan(40);
   });
 
-  it('both legs have at least 3:1 contrast against white; leg vs leg contrast is computed', () => {
+  it('both carriers have at least 3:1 contrast against white and differ in lightness too', () => {
     const c1 = contrast(LEG1, WHITE);
     const c2 = contrast(LEG2, WHITE);
-    const c12 = contrast(LEG1, LEG2);
     expect(c1).toBeGreaterThanOrEqual(3);
     expect(c2).toBeGreaterThanOrEqual(3);
-    // Similar lightness on purpose (both read as strong lines); they differ in hue, checked above.
-    expect(c1).toBeCloseTo(6.65, 1);
-    expect(c2).toBeCloseTo(5.21, 1);
-    expect(c12).toBeGreaterThan(1.2);
-    expect(c12).toBeLessThan(1.4);
+    // Not only hue: blue is much darker than green, which helps colour-blind viewers (letters do the rest).
+    expect(contrast(LEG1, LEG2)).toBeGreaterThan(1.5);
   });
 
   it('toneLabelColor gives the same color as the map, as CSS hex', () => {
-    expect(toneLabelColor('leg1')).toBe('#28618A');
-    expect(toneLabelColor(undefined)).toBe('#28618A');
-    expect(toneLabelColor('leg2')).toBe('#C03A64');
+    expect(toneLabelColor('leg1')).toBe('#1D5075');
+    expect(toneLabelColor(undefined)).toBe('#1D5075');
+    expect(toneLabelColor('leg2')).toBe('#0F8A5F');
     const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
     expect(hex(toneLabelColor('leg2'))).toEqual(LEG2.slice(0, 3));
   });
 });
 
 describe('buildLayerSpecs: journey routes', () => {
-  it('colors leg routes by tone (leg2 = LEG2; leg1 and untoned = accent)', () => {
+  it('colors leg routes by tone (leg2 = LEG2; leg1 and untoned = LEG1)', () => {
     const legs = byId<PathSpec>(buildLayerSpecs({ places, routes, movers, visible: all }), 'routes-leg');
     const color = (id: string) => legs.data.find((d) => d.id === id)!.color;
     expect(color('leg-2')).toEqual(LEG2);
-    expect(color('leg-1')).toEqual(ACCENT);
-    expect(color('leg-x')).toEqual(ACCENT);
+    expect(color('leg-1')).toEqual(LEG1);
+    expect(color('leg-x')).toEqual(LEG1);
   });
 
   it('draws baselines below, thinner and fainter than legs, with and without a selection', () => {
@@ -137,7 +132,7 @@ describe('buildLayerSpecs: journey routes', () => {
 describe('buildLayerSpecs: stops', () => {
   it('draws one circle per stop and the numbers 1, 2, 3 above everything but the package', () => {
     const specs = buildLayerSpecs({ places, routes, movers, visible: all, stops });
-    expect(ids(specs).slice(-3)).toEqual(['stops', 'stops-number', 'movers-package']);
+    expect(ids(specs).slice(-4)).toEqual(['stops', 'stops-number', 'movers-package-halo', 'movers-package']);
     expect(ids(buildLayerSpecs({ places, routes, movers: [], visible: all, stops })).slice(-2)).toEqual(['stops', 'stops-number']);
     const circles = byId<ScatterSpec>(specs, 'stops');
     const numbers = byId<TextSpec>(specs, 'stops-number');
@@ -169,7 +164,7 @@ describe('buildLayerSpecs: stops', () => {
 
   it('stays on top and is never dimmed with a selection', () => {
     const specs = buildLayerSpecs({ places, routes, movers, visible: all, selectedIds: ['emp-1'], stops });
-    expect(ids(specs).slice(-4)).toEqual(['labels-selected', 'stops', 'stops-number', 'movers-package']);
+    expect(ids(specs).slice(-5)).toEqual(['labels-selected', 'stops', 'stops-number', 'movers-package-halo', 'movers-package']);
     for (const d of byId<ScatterSpec>(specs, 'stops').data) {
       expect(d.fillColor[3]).toBe(255);
       expect(d.lineColor[3]).toBe(255);

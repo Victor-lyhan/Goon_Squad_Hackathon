@@ -1,6 +1,6 @@
 // Helper for the end-to-end tests on the committed NYC cache (tests/api/v2-e2e-nyc-*.test.ts, SPEC M8).
 // Starts the whole server the way server/index.ts does: `createV2Runtime` on the real `fixtures/nyc`
-// with no key, then `createApp(store, { v2: runtime.deps })` on a free local port. Both state files are
+// with no key, then `createApp({ v2: runtime.deps })` on a free local port. The state file is
 // in a temp folder, so the repo's `data/` folder is never used.
 // These tests assert rules only. They never pin a story ID or a count (DECISIONS pass 54), so the story
 // in fixtures/nyc/demoStory.json can be retuned without touching them.
@@ -12,11 +12,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect } from 'vitest';
-import { createInitialRun as createMvp1Run, loadDefaultScenario } from '../../server/api/initialRun';
 import { createV2Runtime, type V2Runtime } from '../../server/api/v2/bootstrap';
 import { NYC_BOUNDS } from '../../server/api/v2/commutePlan';
 import { createApp } from '../../server/index';
-import { createStore } from '../../server/store';
 import type {
   BusinessesResponse, EmployeesResponse, ExportFile, ShipmentResponse, SimulatorResponse,
 } from '../../shared/v2/api';
@@ -140,11 +138,7 @@ export async function startNycApi(net: FetchRecorder, opts: { stateDir?: string;
   const nycBefore = nycFilesState();
 
   const runtime: V2Runtime = createV2Runtime({ fixturesDir: opts.fixturesDir ?? NYC_DIR, statePath, key: undefined });
-  const mvp1Store = createStore({
-    filePath: path.join(stateDir, 'state.json'),
-    initial: () => createMvp1Run(loadDefaultScenario()),
-  });
-  const app = createApp(mvp1Store, { clientDist: path.join(stateDir, 'no-dist'), v2: runtime.deps });
+  const app = createApp({ clientDist: path.join(stateDir, 'no-dist'), v2: runtime.deps });
   const server: Server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -206,7 +200,6 @@ export async function startNycApi(net: FetchRecorder, opts: { stateDir?: string;
       await new Promise((resolve) => server.close(resolve));
       if (how.crash) await runtime.deps.store?.flush();
       else await runtime.shutdown();
-      await mvp1Store.flush();
       if (!opts.stateDir) fs.rmSync(stateDir, { recursive: true, force: true });
     },
   };

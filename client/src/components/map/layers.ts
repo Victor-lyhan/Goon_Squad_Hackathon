@@ -2,7 +2,7 @@
 // WebGL. GoogleBaseMap.tsx turns each descriptor into a PathLayer / ScatterplotLayer / TextLayer.
 import polyline from '@mapbox/polyline';
 import { NYC_ZOOM } from './mapStyle';
-import type { LayerVisibility, MapItem, MapMover, MapPlace, MapRoute, MapStop, RouteTone } from './types';
+import type { LayerVisibility, MapItem, MapMover, MapPlace, MapRoute, MapStop, RouteTone, StopSymbol } from './types';
 
 export type RGBA = [number, number, number, number];
 
@@ -16,8 +16,18 @@ export type ScatterDatum = {
   lineWidth: number;
   item: MapItem;
 };
-/** `offset`: pixel offset from `position` (x right, y down); none = centred on it. */
-export type TextDatum = { id: string; position: [number, number]; text: string; color: RGBA; offset?: [number, number] };
+/**
+ * `offset`: pixel offset from `position` (x right, y down); none = centred on it. `item`: what a pickable
+ * text layer (the journey symbols) reports on hover and click.
+ */
+export type TextDatum = {
+  id: string;
+  position: [number, number];
+  text: string;
+  color: RGBA;
+  offset?: [number, number];
+  item?: MapItem;
+};
 
 export type PathSpec = { type: 'path'; id: string; data: PathDatum[]; props: Record<string, unknown> };
 export type ScatterSpec = { type: 'scatter'; id: string; data: ScatterDatum[]; props: Record<string, unknown> };
@@ -44,15 +54,24 @@ export type BuildLayerInput = {
   zoom?: number;
 };
 
-// Palette: accent for routes, everything else quiet (docs/mvp2-ui-redesign.md §1).
+// Palette (docs/mvp3.md P4): carriers blue and green, the package orange, relay points ink, background
+// items grey. Chosen to stay apart for colour-blind viewers too; shapes and letter badges back them up.
+/** The UI accent token (#28618A): network vehicles keep it. */
 export const ACCENT: RGBA = [40, 97, 138, 235]; // #28618A
-/** Journey leg colors: leg 1 is the accent, leg 2 a raspberry far from it in hue (both ≥ 3:1 on white). */
-export const LEG1: RGBA = ACCENT; // #28618A
-export const LEG2: RGBA = [192, 58, 100, 235]; // #C03A64
-/** Normal commute: thinner, fainter and drawn below the legs, so it reads as background. */
-export const BASELINE: RGBA = [138, 148, 160, 120];
+/** Carrier A (leg 1) and every untoned delivery route, also in the Business and Employee previews. */
+export const LEG1: RGBA = [29, 80, 117, 235]; // #1D5075
+/** Carrier B (leg 2). */
+export const LEG2: RGBA = [15, 138, 95, 235]; // #0F8A5F
+/** Faded / background items: homes and normal commutes. */
+export const FADED: RGBA = [168, 171, 178, 255]; // #A8ABB2
+/** Normal commute: thinner, fainter and drawn below the legs, so it reads as background. Not drawn in a journey. */
+export const BASELINE: RGBA = [FADED[0], FADED[1], FADED[2], 170];
 export const BASELINE_WIDTH = 2;
 export const LEG_WIDTH = 4;
+/** Journey: a carrier's whole commute of that trip, thin, in the carrier's colour. */
+export const COMMUTE_WIDTH = 3;
+/** Journey: the part of the commute where the carrier has the package, thick. */
+export const CARRIED_WIDTH = 7;
 export const STOP_FILL: RGBA = [21, 27, 38, 255]; // #151B26
 export const STOP_TEXT: RGBA = [255, 255, 255, 255];
 export const STOP_RADIUS = 10;
@@ -60,15 +79,36 @@ export const STOP_RADIUS = 10;
 export const STOP_SHARED_GROWTH = 5;
 /** Horizontal distance between two stop numbers drawn in one shared circle. */
 export const STOP_NUMBER_SPACING = 12;
-/** The journey package ring: this far outside the stop circle it surrounds, and its line width. */
-export const PACKAGE_RING_GAP = 6;
-export const PACKAGE_RING_WIDTH = 3;
-/** Ring radius of a journey package that is not at a stop (it surrounds its carrier's dot). */
-export const PACKAGE_RING_ALONE = 10;
+/** Ink of the relay diamond and of every journey symbol (sender square, swap, flag). */
+export const RELAY_INK: RGBA = [23, 28, 36, 255]; // #171C24
+/** Font size in pixels of a journey symbol glyph. */
+export const SYMBOL_SIZE = 26;
+/** The glyph drawn for each journey symbol: shapes differ, so colour is never the only cue. */
+export const SYMBOL_GLYPH: Record<StopSymbol, string> = { sender: '\u25A0', relay: '\u25C6', swap: '\u21C4', recipient: '\u2691' };
+/** Tooltip role of a journey symbol without a `detail`. */
+const SYMBOL_ROLE: Record<StopSymbol, string> = { sender: 'Sender', relay: 'Relay point', swap: 'Handoff', recipient: 'Recipient' };
+/** The journey package: a thick ring with a white halo, about twice the size of the old ring. */
+export const PACKAGE_RING_WIDTH = 6;
+/** Ring radius of a journey package that is not at a stop (it surrounds its carrier's badge). */
+export const PACKAGE_RING_ALONE = 18;
+/** The ring this far outside a numbered stop circle it surrounds. */
+export const PACKAGE_RING_GAP = 8;
+/** Ring radius around a journey symbol (outside the glyph). */
+export const PACKAGE_RING_AT_SYMBOL = 22;
+/** The soft white halo: this many pixels on each side of the ring. */
+export const PACKAGE_HALO_WIDTH = 4;
+export const PACKAGE_HALO: RGBA = [255, 255, 255, 200];
+/** The swap symbol sits this far right of the relay diamond (outside the package ring and its halo). */
+export const SWAP_DX = 42;
+/** Pixels between a symbol's centre and the near edge of its label: outside the package ring and halo. */
+export const SYMBOL_LABEL_GAP = PACKAGE_RING_AT_SYMBOL + PACKAGE_RING_WIDTH / 2 + PACKAGE_HALO_WIDTH + 2;
 export const BUSINESS_FILL: RGBA = [21, 27, 38, 235]; // #151B26
-export const HOME_FILL: RGBA = [146, 155, 168, 210];
+export const HOME_FILL: RGBA = [FADED[0], FADED[1], FADED[2], 230];
 export const VEHICLE_FILL: RGBA = [40, 97, 138, 255];
-export const PACKAGE_FILL: RGBA = [196, 122, 26, 255];
+/** A vehicle with a letter badge is drawn larger, so the letter fits. */
+export const BADGED_VEHICLE_RADIUS = 10;
+export const BADGE_TEXT: RGBA = [255, 255, 255, 255];
+export const PACKAGE_FILL: RGBA = [232, 89, 12, 255]; // #E8590C
 export const OUTLINE: RGBA = [255, 255, 255, 255];
 export const LABEL: RGBA = [21, 27, 38, 255];
 /** Alpha for items outside the current selection. */
@@ -127,8 +167,12 @@ export type NameCandidate = {
   lat: number;
   /** Pixels between the marker's centre and the near edge of the box. */
   gap: number;
-  /** Drawn even when there is no free spot (then above the marker). */
+  /** Drawn even when there is no free spot (then at its first side). */
   always?: boolean;
+  /** Horizontal pixel offset of the box's centre from the marker (the swap symbol's label). Default 0. */
+  dx?: number;
+  /** Sides to try, in order: -1 above, 1 below. Default above, then below. */
+  sides?: readonly (-1 | 1)[];
 };
 export type PlacedName = { id: string; text: string; position: [number, number]; offset: [number, number]; box: NameBox };
 
@@ -136,11 +180,14 @@ export function boxesOverlap(a: NameBox, b: NameBox): boolean {
   return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 }
 
+/** Rows an `always` name may try on each side: next to its marker, then one and two box heights out. */
+export const ALWAYS_ROWS = 3;
+
 /**
  * Which names are drawn, and where, at this zoom. Each name tries above its marker, then below; it is
  * drawn at the first spot whose box overlaps no name already placed, so no two drawn boxes overlap.
- * `always` names go first and are drawn even without a free spot. The rest follow in input order and
- * are dropped when both spots are taken. Zooming in spreads the markers apart while the boxes keep
+ * `always` names go first, may also try ALWAYS_ROWS - 1 rows further out, and are drawn even without a
+ * free spot (then at the first spot). The rest follow in input order and are dropped when both spots are taken. Zooming in spreads the markers apart while the boxes keep
  * their size, so a dropped name comes back. Pure: boxes are in world pixels at `zoom`.
  */
 export function placeNames(candidates: readonly NameCandidate[], zoom: number): PlacedName[] {
@@ -153,10 +200,18 @@ export function placeNames(candidates: readonly NameCandidate[], zoom: number): 
     const [x, y] = projectPx(c.lng, c.lat, zoom);
     const w = nameWidthPx(text);
     const h = NAME_BOX_HEIGHT;
-    const spots = [-1, 1].map((side) => {
-      const dy = side * (c.gap + h / 2);
-      return { offset: [0, dy] as [number, number], box: { x0: x - w / 2, x1: x + w / 2, y0: y + dy - h / 2, y1: y + dy + h / 2 } };
-    });
+    const dx = c.dx ?? 0;
+    // An `always` name may also move one or two rows further out before it gives up on a free spot.
+    const rows = c.always ? ALWAYS_ROWS : 1;
+    const spots = Array.from({ length: rows }, (_, row) => row).flatMap((row) =>
+      (c.sides ?? [-1, 1]).map((side) => {
+        const dy = side * (c.gap + h / 2 + row * h);
+        return {
+          offset: [dx, dy] as [number, number],
+          box: { x0: x + dx - w / 2, x1: x + dx + w / 2, y0: y + dy - h / 2, y1: y + dy + h / 2 },
+        };
+      }),
+    );
     const spot = spots.find((s) => !placed.some((p) => boxesOverlap(p.box, s.box))) ?? (c.always ? spots[0] : null);
     if (!spot) continue;
     seen.add(c.id);
@@ -184,9 +239,14 @@ export function decodePath(encoded: string): [number, number][] {
   return polyline.decode(encoded).map(([lat, lng]) => [lng, lat] as [number, number]);
 }
 
-/** Map color for a route tone (no tone = leg 1 = accent). */
+/** Map color for a route tone (no tone = leg 1 = carrier A's blue). */
 export function toneColor(tone: RouteTone | undefined): RGBA {
   return tone === 'leg2' ? LEG2 : LEG1;
+}
+
+/** The carrier letter of a tone: A for leg 1, B for leg 2. */
+export function toneLetter(tone: RouteTone): 'A' | 'B' {
+  return tone === 'leg2' ? 'B' : 'A';
 }
 
 /** CSS color for a tone, so the journey legend shows exactly the map's colors. */
@@ -195,11 +255,11 @@ export function toneLabelColor(tone: RouteTone | undefined): string {
 }
 
 /**
- * Vehicle fill for a tone: `leg2` = LEG2, so a journey's second carrier has its leg's colour;
- * `leg1` or no tone = VEHICLE_FILL (the network view is unchanged).
+ * Vehicle fill for a tone: `leg1` = LEG1 and `leg2` = LEG2, so a journey's carriers have their routes'
+ * colours; no tone = VEHICLE_FILL (the network view).
  */
 export function vehicleColor(tone: RouteTone | undefined): RGBA {
-  return tone === 'leg2' ? LEG2 : VEHICLE_FILL;
+  return tone === 'leg2' ? LEG2 : tone === 'leg1' ? LEG1 : VEHICLE_FILL;
 }
 
 /** CSS color of a vehicle with this tone (the journey legend's vehicle dot). */
@@ -216,19 +276,22 @@ function dim(c: RGBA): RGBA {
 }
 
 type Group = {
-  key: 'routes-baseline' | 'routes-leg' | 'businesses' | 'homes' | 'vehicles' | 'packages';
+  key: 'routes-baseline' | 'routes-commute' | 'routes-leg' | 'businesses' | 'homes' | 'vehicles' | 'packages';
   build(selected: boolean): LayerSpec | null;
 };
 
 /**
- * Layer specs in draw order: baseline routes, leg routes, businesses, homes, vehicles, packages.
- * With a non-empty selection, items that are not selected (and, for routes, not owned by a selected
- * ID) are dimmed, and the selected items are drawn again as `<id>-selected` layers on top, followed
- * by a text layer labelling the selected places and movers. Hidden layers and empty layers are omitted.
+ * Layer specs in draw order: baseline routes, journey commutes (thin), leg routes (thick), businesses,
+ * homes, vehicles, packages. With a non-empty selection, items that are not selected (and, for routes,
+ * not owned by a selected ID) are dimmed, and the selected items are drawn again as `<id>-selected`
+ * layers on top, followed by a text layer labelling the selected places and movers. Hidden layers and
+ * empty layers are omitted. Then `movers-vehicle-badge`: the letter on each badged vehicle.
  * Then `labels-places`: the `alwaysLabelIds` places, and with `labelBusinesses` the businesses that are
  * not dimmed, as many as `placeNames` fits at `zoom` (homes, vehicles and packages get no name).
- * Journey stops (`stops`, `stops-number`) come next, are never dimmed and ignore `visible`. With stops,
- * the package layer (`movers-package`) is drawn after them as a ring around the stop it waits at.
+ * Journey stops come next, are never dimmed and ignore `visible`: numbered stops (`stops`,
+ * `stops-number`), then symbols (`stops-symbol`) and their short labels (`stops-label`). With stops,
+ * the package (`movers-package-halo`, `movers-package`) is drawn last, as a ring around the stop or the
+ * carrier it is with, so it is on top of everything.
  */
 export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const { places, routes, movers, visible } = input;
@@ -242,23 +305,35 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const inPass = (sel: boolean, id: string, ownerIds?: string[]) =>
     hasSelection ? isSelected(id, ownerIds) === sel : !sel;
 
-  const pathSpec = (kind: MapRoute['kind'], colorOf: (r: MapRoute) => RGBA, width: number) => (
-    sel: boolean,
-  ): LayerSpec | null => {
+  const pathSpec = (
+    id: string,
+    which: (r: MapRoute) => boolean,
+    colorOf: (r: MapRoute) => RGBA,
+    widthOf: (r: MapRoute) => number,
+    roleOfRoute: (r: MapRoute) => string,
+  ) => (sel: boolean): LayerSpec | null => {
     if (!visible.routes) return null;
     const data: PathDatum[] = routes
-      .filter((r) => r.kind === kind && r.path.length >= 2 && inPass(sel, r.id, r.ownerIds))
-      .map((r) => ({
-        id: r.id,
-        path: r.path,
-        color: hasSelection && !sel ? dim(colorOf(r)) : colorOf(r),
-        width: r.id === hoveredId ? width + 2 : width,
-        // Tooltip: the route's own label (package and carrier names) when its builder knows them.
-        item: { id: r.id, kind: r.kind, label: r.label?.trim() || (kind === 'leg' ? 'Delivery route' : 'Commute'), role: roleOf(r.kind) },
-      }));
+      .filter((r) => which(r) && r.path.length >= 2 && inPass(sel, r.id, r.ownerIds))
+      .map((r) => {
+        const width = widthOf(r);
+        return {
+          id: r.id,
+          path: r.path,
+          color: hasSelection && !sel ? dim(colorOf(r)) : colorOf(r),
+          width: r.id === hoveredId ? width + 2 : width,
+          // Tooltip: the route's own label (package and carrier names) when its builder knows them.
+          item: {
+            id: r.id,
+            kind: r.kind,
+            label: r.label?.trim() || (r.kind === 'leg' && r.carried !== false ? 'Delivery route' : 'Commute'),
+            role: roleOfRoute(r),
+          },
+        };
+      });
     return {
       type: 'path',
-      id: `routes-${kind}`,
+      id,
       data,
       props: { widthUnits: 'pixels', capRounded: true, jointRounded: true, pickable: true },
     };
@@ -269,7 +344,7 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
     items: T[],
     shown: boolean,
     fillOf: RGBA | ((item: T) => RGBA),
-    radius: number,
+    radiusOf: number | ((item: T) => number),
   ) => (sel: boolean): LayerSpec | null => {
     if (!shown) return null;
     const data: ScatterDatum[] = items
@@ -279,6 +354,7 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
         const hovered = p.id === hoveredId;
         const sublabel = (p as MapPlace).sublabel;
         const fill = typeof fillOf === 'function' ? fillOf(p) : fillOf;
+        const radius = typeof radiusOf === 'function' ? radiusOf(p) : radiusOf;
         return {
           id: p.id,
           position: [p.lng, p.lat],
@@ -302,9 +378,22 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
     };
   };
 
+  const isCommute = (r: MapRoute) => r.kind === 'leg' && r.carried === false;
+  const vehicles = movers.filter((m) => m.kind === 'vehicle');
   const groups: Group[] = [
-    { key: 'routes-baseline', build: pathSpec('baseline', () => BASELINE, BASELINE_WIDTH) },
-    { key: 'routes-leg', build: pathSpec('leg', (r) => toneColor(r.tone), LEG_WIDTH) },
+    { key: 'routes-baseline', build: pathSpec('routes-baseline', (r) => r.kind === 'baseline', () => BASELINE, () => BASELINE_WIDTH, () => roleOf('baseline')) },
+    // A journey carrier's whole commute: thin, in its colour, below the thick carried part.
+    { key: 'routes-commute', build: pathSpec('routes-commute', isCommute, (r) => toneColor(r.tone), () => COMMUTE_WIDTH, () => 'Whole commute') },
+    {
+      key: 'routes-leg',
+      build: pathSpec(
+        'routes-leg',
+        (r) => r.kind === 'leg' && !isCommute(r),
+        (r) => toneColor(r.tone),
+        (r) => (r.carried ? CARRIED_WIDTH : LEG_WIDTH),
+        () => roleOf('leg'),
+      ),
+    },
     {
       key: 'businesses',
       build: scatterSpec('places-business', places.filter((p) => p.kind === 'business'), visible.businesses, BUSINESS_FILL, 6),
@@ -313,22 +402,32 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
       key: 'homes',
       build: scatterSpec('places-home', places.filter((p) => p.kind === 'home'), visible.homes, HOME_FILL, 4),
     },
-    { key: 'vehicles', build: scatterSpec('movers-vehicle', movers.filter((m) => m.kind === 'vehicle'), true, (m: MapMover) => vehicleColor(m.tone), 6) },
+    {
+      key: 'vehicles',
+      build: scatterSpec('movers-vehicle', vehicles, true, (m: MapMover) => vehicleColor(m.tone), (m: MapMover) => (m.badge ? BADGED_VEHICLE_RADIUS : 6)),
+    },
   ];
   const packages = movers.filter((m) => m.kind === 'package');
-  const groupsOfStops = stopGroups(input.stops ?? []);
+  const allStops = (input.stops ?? []).filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  const groupsOfStops = stopGroups(allStops.filter((s) => !s.symbol));
+  const symbols = allStops.filter((s) => s.symbol).sort((a, b) => a.n - b.n);
+  const journey = allStops.length > 0;
   // With journey stops the package is drawn after them (a ring), so it never hides under a stop.
-  if (groupsOfStops.length === 0) {
+  if (!journey) {
     groups.push({ key: 'packages', build: scatterSpec('movers-package', packages, visible.packages, PACKAGE_FILL, 5) });
   }
 
   const nonEmpty = (s: LayerSpec | null): s is LayerSpec => s !== null && s.data.length > 0;
   const base = groups.map((g) => g.build(false)).filter(nonEmpty);
-  const stops = stopSpecs(groupsOfStops, hoveredId);
-  const ring = groupsOfStops.length && visible.packages ? packageRingSpec(packages, groupsOfStops, hoveredId) : [];
-  const names = (alreadyNamed: ReadonlySet<string>): LayerSpec[] =>
-    nameSpecs(input, groupsOfStops, alreadyNamed, (id) => !hasSelection || selected.has(id));
-  if (!hasSelection) return [...base, ...names(new Set()), ...stops, ...ring];
+  const badges = badgeSpecs(vehicles, (id) => hasSelection && !selected.has(id));
+  const stops = [...stopSpecs(groupsOfStops, hoveredId), ...symbolSpecs(symbols)];
+  const ring = journey && visible.packages ? packageRingSpecs(packages, groupsOfStops, symbols, hoveredId) : [];
+  const names = (alreadyNamed: ReadonlySet<string>) =>
+    nameSpecs(input, groupsOfStops, symbols, alreadyNamed, (id) => !hasSelection || selected.has(id));
+  if (!hasSelection) {
+    const n = names(new Set());
+    return [...base, ...badges, ...n.places, ...stops, ...n.symbols, ...ring];
+  }
 
   const top = groups
     .map((g) => g.build(true))
@@ -349,40 +448,98 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
       ]
     : [];
 
-  return [...base, ...top, ...labelSpec, ...names(new Set(labels.map((l) => l.id))), ...stops, ...ring];
+  const n = names(new Set(labels.map((l) => l.id)));
+  return [...base, ...top, ...badges, ...labelSpec, ...n.places, ...stops, ...n.symbols, ...ring];
 }
 
 /**
- * The `labels-places` layer: the `alwaysLabelIds` places, then (with `labelBusinesses`) the visible
- * businesses for which `keep` holds, minus those `alreadyNamed`, placed by `placeNames` at the zoom.
- * A name at a journey stop sits outside the stop circle and the package ring around it.
+ * The letter on each vehicle that has a `badge` (journey carriers: A, B), white and centred on the dot.
+ * Dimmed with its vehicle. Empty without badges, so the network view is unchanged.
+ */
+function badgeSpecs(vehicles: MapMover[], dimmed: (id: string) => boolean): TextSpec[] {
+  const data: TextDatum[] = vehicles
+    .filter((m) => m.badge?.trim() && Number.isFinite(m.lat) && Number.isFinite(m.lng))
+    .map((m) => ({ id: m.id, position: [m.lng, m.lat], text: m.badge!.trim(), color: dimmed(m.id) ? dim(BADGE_TEXT) : BADGE_TEXT }));
+  if (data.length === 0) return [];
+  return [
+    {
+      type: 'text',
+      id: 'movers-vehicle-badge',
+      data,
+      props: {
+        sizeUnits: 'pixels',
+        getSize: 12,
+        getTextAnchor: 'middle',
+        getAlignmentBaseline: 'center',
+        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        fontWeight: 700,
+        // The vehicle underneath is pickable; the letter must not steal its hover/click.
+        pickable: false,
+      },
+    },
+  ];
+}
+
+/**
+ * The `labels-places` layer (names) and the `stops-label` layer (the journey symbols' short labels),
+ * placed together by `placeNames` so they never overlap. Names: the `alwaysLabelIds` places, then (with
+ * `labelBusinesses`) the visible businesses for which `keep` holds, minus those `alreadyNamed`. A place
+ * whose symbol label already carries its name ("Overnight · Roastery") is not named again. A name or
+ * label at a journey stop sits outside the stop and the package ring around it. The swap label goes
+ * below the swap symbol, the other symbol labels above their symbol when there is room.
  */
 function nameSpecs(
   input: BuildLayerInput,
   groups: StopGroup[],
+  symbols: MapStop[],
   alreadyNamed: ReadonlySet<string>,
   keep: (id: string) => boolean,
-): TextSpec[] {
+): { places: TextSpec[]; symbols: TextSpec[] } {
   const always = new Set(input.alwaysLabelIds ?? []);
-  const gapAt = (p: MapPlace) => {
-    const g = groupAt([p.lng, p.lat], groups);
-    return g ? g.radius + PACKAGE_RING_GAP + PACKAGE_RING_WIDTH + 2 : NAME_GAP;
+  const symbolsAt = (pos: [number, number]) => symbols.filter((s) => samePlace([s.lng, s.lat], pos));
+  const gapAt = (pos: [number, number]) => {
+    if (symbolsAt(pos).length) return SYMBOL_LABEL_GAP;
+    const g = groupAt(pos, groups);
+    return g ? g.radius + PACKAGE_RING_GAP + PACKAGE_RING_WIDTH / 2 + PACKAGE_HALO_WIDTH + 2 : NAME_GAP;
   };
-  const candidates: NameCandidate[] = input.places
-    .filter((p) => !alreadyNamed.has(p.id))
+  const symbolCandidates: NameCandidate[] = symbols.map((s) => {
+    const pos: [number, number] = [s.lng, s.lat];
+    const shared = symbolsAt(pos).length > 1;
+    return s.symbol === 'swap'
+      ? { id: s.id, text: s.label, lng: s.lng, lat: s.lat, gap: SYMBOL_LABEL_GAP, always: true, dx: shared ? SWAP_DX : 0, sides: [1, -1] }
+      : { id: s.id, text: s.label, lng: s.lng, lat: s.lat, gap: SYMBOL_LABEL_GAP, always: true };
+  });
+  // The swap labels first, so they claim the spot below the relay before the relay's own label looks.
+  symbolCandidates.sort((a, b) => Number(b.dx !== undefined) - Number(a.dx !== undefined));
+  const namedBySymbol = (p: MapPlace) => symbolsAt([p.lng, p.lat]).some((s) => p.label.trim() && s.label.includes(p.label.trim()));
+  const placeCandidates: NameCandidate[] = input.places
+    .filter((p) => !alreadyNamed.has(p.id) && !namedBySymbol(p))
     .filter((p) => always.has(p.id) || (input.labelBusinesses && input.visible.businesses && p.kind === 'business' && keep(p.id)))
-    .map((p) => ({ id: p.id, text: p.label, lng: p.lng, lat: p.lat, gap: gapAt(p), always: always.has(p.id) }));
-  if (candidates.length === 0) return [];
+    .map((p) => ({ id: p.id, text: p.label, lng: p.lng, lat: p.lat, gap: gapAt([p.lng, p.lat]), always: always.has(p.id) }));
+  const candidates = [...symbolCandidates, ...placeCandidates];
+  if (candidates.length === 0) return { places: [], symbols: [] };
   const placed = placeNames(candidates, input.zoom ?? NYC_ZOOM);
-  if (placed.length === 0) return [];
-  return [
-    {
-      type: 'text',
-      id: 'labels-places',
-      data: placed.map((n) => ({ id: n.id, position: n.position, text: n.text, color: LABEL, offset: n.offset })),
-      props: { ...NAME_TEXT_PROPS, getAlignmentBaseline: 'center' },
-    },
-  ];
+  const symbolIds = new Set(symbols.map((s) => s.id));
+  const datum = (n: PlacedName): TextDatum => ({ id: n.id, position: n.position, text: n.text, color: LABEL, offset: n.offset });
+  const placeData = placed.filter((n) => !symbolIds.has(n.id)).map(datum);
+  // Symbol labels in stop order, whatever order they were placed in.
+  const symbolData = symbols.flatMap((s) => placed.filter((n) => n.id === s.id).map(datum));
+  return {
+    places: placeData.length
+      ? [{ type: 'text', id: 'labels-places', data: placeData, props: { ...NAME_TEXT_PROPS, getAlignmentBaseline: 'center' } }]
+      : [],
+    symbols: symbolData.length
+      ? [
+          {
+            type: 'text',
+            id: 'stops-label',
+            data: symbolData,
+            // `auto`: the labels carry "·" and names with accents, outside deck.gl's default ASCII set.
+            props: { ...NAME_TEXT_PROPS, getAlignmentBaseline: 'center', fontWeight: 600, characterSet: 'auto' },
+          },
+        ]
+      : [],
+  };
 }
 
 /** Stops sharing one place, in stop order. One circle size per place, larger when stops share it. */
@@ -477,35 +634,86 @@ function stopSpecs(groups: StopGroup[], hoveredId: string | null): LayerSpec[] {
 }
 
 /**
- * The journey package, drawn after the stops: a ring in the package colour around the stop it waits
- * at (outside the circle, so the numbers stay readable), or around its carrier's dot on the way.
- * Hollow, so the stop under it stays pickable.
+ * The journey symbols as glyphs (`SYMBOL_GLYPH`) in ink with a white outline, in stop order: sender
+ * square, relay diamond, swap, recipient flag. A swap that shares its place with another symbol (the
+ * relay diamond) sits SWAP_DX to the right of it, so both stay visible. Pickable: the tooltip is the
+ * stop's label and `detail`.
  */
-function packageRingSpec(packages: MapMover[], groups: StopGroup[], hoveredId: string | null): LayerSpec[] {
-  const data: ScatterDatum[] = packages
+function symbolSpecs(symbols: MapStop[]): TextSpec[] {
+  if (symbols.length === 0) return [];
+  const data: TextDatum[] = symbols.map((s) => {
+    const position: [number, number] = [s.lng, s.lat];
+    const shared = symbols.some((o) => o.id !== s.id && samePlace([o.lng, o.lat], position));
+    return {
+      id: s.id,
+      position,
+      text: SYMBOL_GLYPH[s.symbol!],
+      color: RELAY_INK,
+      offset: s.symbol === 'swap' && shared ? [SWAP_DX, 0] : [0, 0],
+      item: { id: s.id, kind: 'stop', label: s.label, role: s.detail?.trim() || SYMBOL_ROLE[s.symbol!] },
+    };
+  });
+  return [
+    {
+      type: 'text',
+      id: 'stops-symbol',
+      data,
+      props: {
+        sizeUnits: 'pixels',
+        getSize: SYMBOL_SIZE,
+        getTextAnchor: 'middle',
+        getAlignmentBaseline: 'center',
+        // The glyphs are not in IBM Plex Sans; the browser falls back to a system symbol font.
+        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        characterSet: Object.values(SYMBOL_GLYPH),
+        outlineWidth: 3,
+        outlineColor: [255, 255, 255, 255],
+        fontSettings: { sdf: true },
+        pickable: true,
+      },
+    },
+  ];
+}
+
+/**
+ * The journey package, drawn after everything else and never dimmed: a soft white halo ring
+ * (`movers-package-halo`), then a thick orange ring (`movers-package`) around the symbol or numbered stop
+ * it waits at (outside the glyph or circle, so it stays readable), or around its carrier's badge on the
+ * way. Hollow, so what is under it stays visible and pickable.
+ */
+function packageRingSpecs(packages: MapMover[], groups: StopGroup[], symbols: MapStop[], hoveredId: string | null): LayerSpec[] {
+  const rings = packages
     .filter((m) => Number.isFinite(m.lat) && Number.isFinite(m.lng))
     .map((m) => {
       const position: [number, number] = [m.lng, m.lat];
       const g = groupAt(position, groups);
-      const hovered = m.id === hoveredId || !!g?.stops.some((s) => s.id === hoveredId);
-      const radius = (g ? g.radius + PACKAGE_RING_GAP : PACKAGE_RING_ALONE) + (hovered ? 2 : 0);
-      return {
-        id: m.id,
-        position,
-        fillColor: PACKAGE_FILL,
-        lineColor: PACKAGE_FILL,
-        radius,
-        lineWidth: PACKAGE_RING_WIDTH,
-        item: { id: m.id, kind: m.kind, label: m.label, role: roleOf(m.kind) },
-      };
+      const atSymbol = symbols.filter((s) => samePlace([s.lng, s.lat], position));
+      const hovered = m.id === hoveredId || !!g?.stops.some((s) => s.id === hoveredId) || atSymbol.some((s) => s.id === hoveredId);
+      const radius = (atSymbol.length ? PACKAGE_RING_AT_SYMBOL : g ? g.radius + PACKAGE_RING_GAP : PACKAGE_RING_ALONE) + (hovered ? 2 : 0);
+      return { m, position, radius };
     });
-  if (data.length === 0) return [];
+  if (rings.length === 0) return [];
+  const props = { radiusUnits: 'pixels', lineWidthUnits: 'pixels', stroked: true, filled: false };
+  const halo: ScatterDatum[] = rings.map(({ m, position, radius }) => ({
+    id: m.id,
+    position,
+    fillColor: PACKAGE_HALO,
+    lineColor: PACKAGE_HALO,
+    radius,
+    lineWidth: PACKAGE_RING_WIDTH + 2 * PACKAGE_HALO_WIDTH,
+    item: { id: m.id, kind: m.kind, label: m.label, role: roleOf(m.kind) },
+  }));
+  const ring: ScatterDatum[] = rings.map(({ m, position, radius }) => ({
+    id: m.id,
+    position,
+    fillColor: PACKAGE_FILL,
+    lineColor: PACKAGE_FILL,
+    radius,
+    lineWidth: PACKAGE_RING_WIDTH,
+    item: { id: m.id, kind: m.kind, label: m.label, role: roleOf(m.kind) },
+  }));
   return [
-    {
-      type: 'scatter',
-      id: 'movers-package',
-      data,
-      props: { radiusUnits: 'pixels', lineWidthUnits: 'pixels', stroked: true, filled: false, pickable: true },
-    },
+    { type: 'scatter', id: 'movers-package-halo', data: halo, props: { ...props, pickable: false } },
+    { type: 'scatter', id: 'movers-package', data: ring, props: { ...props, pickable: true } },
   ];
 }

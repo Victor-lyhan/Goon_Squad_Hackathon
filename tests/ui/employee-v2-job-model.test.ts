@@ -23,7 +23,7 @@ describe('jobDetail (v2 model)', () => {
     expect(m.route[1].address).toBe('55 Water St, Brooklyn');
     expect(m.route[3].address).toBe('');
     expect(m.relay).toBeNull();
-    expect(m.watchHref).toBe('/simulator?package=shp-0001');
+    expect(m.watchHref).toBe('/simulator?package=shp-0001&play=1');
     expect(m.numbers).toEqual([
       { key: 'reward', label: 'Reward', value: '$4.50' },
       { key: 'extra-time', label: 'Extra time', value: '+8 min' },

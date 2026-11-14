@@ -26,7 +26,6 @@ import { readTravelFiles } from '../../server/geo/cache';
 import { createCachedProvider } from '../../server/geo/providers';
 import { snapshotAt } from '../../server/domain/v2/simulation';
 import { createApp } from '../../server/index';
-import type { Store } from '../../server/store';
 import {
   businessWorkspaceReducer, initialBusinessWorkspaceState, toDirectoryEmployees, type BusinessWorkspaceState,
 } from '../../client/src/components/business/v2/live/businessWorkspaceState';
@@ -164,13 +163,6 @@ export function elements(html: string, tag: string, attr: string): string[] {
 
 // ---------- A real server on a copy of fixtures/nyc ----------
 
-// /api/v2 never reads the MVP 1 store (same stub as tests/api/v2-poll-budget-helper.ts).
-const noMvp1Store: Store = {
-  get: () => { throw new Error('the MVP 1 store is not used by /api/v2'); },
-  mutate: () => Promise.reject(new Error('the MVP 1 store is not used by /api/v2')),
-  flush: async () => {},
-};
-
 export type RealApi = Awaited<ReturnType<typeof startRealApi>>;
 
 /**
@@ -198,7 +190,7 @@ export async function startRealApi() {
   if (runtime.status !== 'ready' || !runtime.deps.store) {
     throw new Error(`/api/v2 did not load on the copy of fixtures/nyc: ${runtime.reason ?? 'no store'}`);
   }
-  const app = createApp(noMvp1Store, { clientDist: path.join(root, 'no-dist'), v2: runtime.deps });
+  const app = createApp({ clientDist: path.join(root, 'no-dist'), v2: runtime.deps });
   const server: Server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

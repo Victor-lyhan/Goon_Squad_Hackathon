@@ -8,12 +8,13 @@ import {
   ALLOWED_COLORS, COLOR_PROPS, FOCUS_SELECTORS, LOCAL_VARS, NAMED_COLORS, QA_CSS_FILES, ROUND_SELECTORS, RULES, TOKENS,
   colorLiterals, key, read, resolveVars, splitTop, where,
 } from './sim-v2-qa-css-rules';
+import { isMvp2Fallback } from './kit-v2-legacy-tokens';
 
 describe('sim v2 + map CSS: the redesign rules', () => {
   it('reads every file and finds rules in each', () => {
     for (const f of QA_CSS_FILES) expect(RULES.some((r) => r.file === f), f).toBe(true);
     expect(ALLOWED_COLORS.has('40,97,138')).toBe(true); // accent
-    expect(ALLOWED_COLORS.has('192,58,100')).toBe(true); // LEG2 from layers.ts
+    expect(ALLOWED_COLORS.has('15,138,95')).toBe(true); // LEG2 from layers.ts
   });
 
   it('border-radius is at most 4px; 50% only on the listed round markers and status dots', () => {
@@ -65,6 +66,7 @@ describe('sim v2 + map CSS: the redesign rules', () => {
     expect(bad).toEqual([]);
   });
 
+  // A fallback may still be the MVP II value until this module's restyle pass (kit-v2-legacy-tokens.ts, #651).
   it('every var() names a real token, and a fallback equals the token value', () => {
     const bad: string[] = [];
     for (const r of RULES) {
@@ -77,7 +79,7 @@ describe('sim v2 + map CSS: the redesign rules', () => {
           // Font stacks are shortened on purpose; every other fallback must match exactly.
           if (fallback === undefined || name.startsWith('--font-')) continue;
           const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
-          if (norm(fallback) !== norm(token)) bad.push(`${where(r)}: ${prop}: ${name} fallback ${fallback} ≠ ${token}`);
+          if (norm(fallback) !== norm(token) && !isMvp2Fallback(name, fallback)) bad.push(`${where(r)}: ${prop}: ${name} fallback ${fallback} ≠ ${token}`);
         }
       }
     }

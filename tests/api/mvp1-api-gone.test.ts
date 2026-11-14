@@ -139,7 +139,7 @@ describe('the MVP 1 paths on the running server', () => {
     const dist = path.join(repo.root, 'client', 'dist');
     fs.mkdirSync(dist, { recursive: true });
     fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html><html><body>relay-shell</body></html>');
-    const server = createApp(undefined, { clientDist: dist }).listen(0);
+    const server = createApp({ clientDist: dist }).listen(0);
     try {
       await new Promise((resolve) => server.once('listening', resolve));
       const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -207,10 +207,10 @@ describe('no MVP 1 run', () => {
   it('server/index.ts loads nothing of server/api/ outside v2/, and the MVP 1 route files it registered are gone', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'server/index.ts'), 'utf8');
     const imported = [...source.matchAll(/from '(\.\/[^']+)'/g)].map((m) => m[1]).sort();
-    expect(imported).toStrictEqual(['./api/v2/bootRun', './api/v2/bootstrap', './api/v2/router', './geo/env', './geo/googleClient', './store']);
+    expect(imported).toStrictEqual(['./api/v2/bootRun', './api/v2/bootstrap', './api/v2/router', './geo/env', './geo/googleClient']);
     expect(source).not.toMatch(/createStore|startClockTicker|createInitialRun/);
 
-    for (const gone of ['businesses', 'commute', 'employees', 'planning', 'portals', 'scenario', 'shipments', 'ticker']) {
+    for (const gone of ['businesses', 'commute', 'employees', 'map', 'planning', 'portals', 'scenario', 'shipments', 'simulator', 'ticker']) {
       expect([gone, fs.existsSync(path.join(repoRoot, 'server/api', `${gone}.ts`))]).toStrictEqual([gone, false]);
     }
   });

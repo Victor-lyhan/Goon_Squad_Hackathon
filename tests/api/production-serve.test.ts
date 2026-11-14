@@ -5,8 +5,6 @@ import path from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../../server/index';
-import { createStore } from '../../server/store';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 
 // CI-safe (DECISIONS pass 17/19): generated cities and real servers get 3x+ headroom over local time.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
@@ -17,17 +15,15 @@ const JS = 'console.log("relay-asset");';
 let server: Server | undefined;
 let base = '';
 let tmp = '';
-let store: ReturnType<typeof createStore>;
 
 async function start(clientDist: string) {
-  server = createApp(store, { clientDist }).listen(0);
+  server = createApp({ clientDist }).listen(0);
   await new Promise((r) => server!.once('listening', r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'prod-serve-'));
-  store = createStore({ filePath: path.join(tmp, 'state.json'), initial: () => createInitialRun(loadDefaultScenario()) });
 });
 afterEach(() => new Promise((r) => (server ? server.close(r) : r(undefined))));
 
@@ -43,16 +39,12 @@ describe('production serving with client/dist', () => {
   beforeEach(() => start(makeDist()));
 
   it('serves index.html for client routes and deep links', async () => {
-    const run = store.get();
-    const businessId = run.scenario.businesses[0].id;
-    const employeeId = run.scenario.employees[0].id;
-    const shipmentId = run.scenario.shipments[0].id;
-    const jobId = run.jobs[0]?.id ?? "job-x";
+    // The SPA fallback does not look at the IDs, so made-up ones in the real ID formats are enough.
     const paths = [
       '/',
-      `/business/${businessId}?shipment=${shipmentId}`,
-      `/employee/${employeeId}?job=${jobId}`,
-      `/simulator?package=${shipmentId}`,
+      '/business/biz-1?shipment=shp-1',
+      '/employee/emp-1?job=job-pln-shp-1-0',
+      '/simulator?package=shp-1',
       '/nope',
     ];
     for (const p of paths) {

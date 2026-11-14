@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '../../client/src/api/v2';
 import {
   NYC_RETRY_DELAYS_MS, NYC_RETRY_EVERY_MS, nycRetryDelayMs, nycSummaryFrom, nycWorkspacePaths, startNycSummary,
-  type NycSummary,
+  watchPackageHref, type NycSummary,
 } from '../../client/src/pages/landingModel';
-import { businesses, employees, simulator, travelMissingBody } from './landing-nyc-sample';
+import { businesses, employees, simulator, storySimulator, travelMissingBody } from './landing-nyc-sample';
 
 const BODIES: Record<string, unknown> = {
   '/api/v2/businesses': businesses, '/api/v2/employees': employees, '/api/v2/simulator': simulator,
@@ -43,13 +43,23 @@ describe('startNycSummary', () => {
     expect(calls.map((c) => c.url).sort()).toEqual(['/api/v2/businesses', '/api/v2/employees', '/api/v2/simulator']);
     for (const c of calls) { expect(c.url.startsWith('/api/v2/')).toBe(true); expect(c.init.method).toBe('GET'); }
     expect(seen).toEqual([{
-      status: 'ready', businesses: 5, commuters: 3, relayPoints: 5, matched: 19, requested: 24,
+      status: 'ready', businesses: 5, commuters: 3, matched: 19, requested: 24,
       businessIds: businesses.businesses.map((b) => b.id), employeeIds: employees.employees.map((e) => e.id),
+      watchPackageId: null, // the sample run has no plans
     }]);
     expect(seen[0].status === 'ready' && seen[0].employeeIds[0]).toBe('emp-7');
     expect(nycWorkspacePaths(seen[0])).toEqual({
       business: `/business/${businesses.businesses[0].id}`, employee: '/employee/emp-7', simulator: '/simulator',
     });
+  });
+
+  it('carries the package "Watch a package" opens, picked from the simulator answer (#652)', async () => {
+    stubFetch(async (url) => json(url === '/api/v2/simulator' ? storySimulator : BODIES[url]));
+    const seen: NycSummary[] = [];
+    start((s) => seen.push(s));
+    await until(() => seen.length > 0);
+    expect(seen[0]).toMatchObject({ status: 'ready', watchPackageId: 'shp-3', matched: 19, requested: 24 });
+    expect(watchPackageHref(seen[0])).toBe('/simulator?package=shp-3&play=1');
   });
 
   it('503 travel_data_missing gives the unavailable state', async () => {

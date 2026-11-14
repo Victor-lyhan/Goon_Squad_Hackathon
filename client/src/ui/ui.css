@@ -1,5 +1,5 @@
 @import '../styles/tokens.css';
-/* UI kit styles (plain CSS). Only design tokens from tokens.css: no hex colors, radius <= 4px, 1px borders, no shadows or gradients.
+/* UI kit styles (plain CSS). Only design tokens from tokens.css: no hex colors, radius <= 6px, 1px hairline borders, no shadows or gradients.
    A disabled control always gets a dashed border, so "unavailable" is not shown by colour alone.
    Checked by tests/ui/kit-v2-tokens-audit.test.ts. */
 .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
