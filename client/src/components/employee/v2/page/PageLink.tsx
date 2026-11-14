@@ -9,7 +9,7 @@ import { Link, useInRouterContext, useLocation } from 'react-router-dom';
 export const SHELL_MAIN_ID = 'main-content';
 
 export type PageLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
-  /** An in-app path with its query string, e.g. `/employee/emp-1?job=job-1` or `/simulator?package=shp-1`. */
+  /** An in-app path with its query string, e.g. `/employee/emp-1?job=job-1` or `/simulator?package=shp-1&play=1`. */
   to: string;
 };
 

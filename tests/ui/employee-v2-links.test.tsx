@@ -153,7 +153,7 @@ describe('Employee page links in the app router', () => {
     // The same job, on the same mounted page: no second first load.
     const model = jobDetail(jobResponseFor(relayView), businesses, dashboard.home.neighborhood);
     expect(textOf(p.heading()!)).toBe(model.title);
-    expect(link(p.c, 'Watch this package').getAttribute('href')).toBe(`/simulator?package=${relayView.shipment.id}`);
+    expect(link(p.c, 'Watch this package').getAttribute('href')).toBe(`/simulator?package=${relayView.shipment.id}&play=1`);
     expect(document.activeElement).toBe(p.heading());
     expect(p.row(relayView.job.id)).toBeNull();
     expect(p.page()).toBe(pageNode);
@@ -186,11 +186,11 @@ describe('Employee page links in the app router', () => {
     await until(() => !!p.row(directView.job.id), 'the delivery list');
     const mainNode = p.main();
     const watch = link(p.row(directView.job.id)!, 'Watch in simulator');
-    expect(watch.getAttribute('href')).toBe(`/simulator?package=${directView.shipment.id}`);
+    expect(watch.getAttribute('href')).toBe(`/simulator?package=${directView.shipment.id}&play=1`);
 
     expect(clickLink(watch)).toBe(true);
     await until(() => !!p.c.querySelector('[data-page="simulator"]'), 'the simulator page');
-    expect(where()).toBe(`/simulator?package=${directView.shipment.id}`);
+    expect(where()).toBe(`/simulator?package=${directView.shipment.id}&play=1`);
     expect(p.main()).toBe(mainNode); // the shell was not rebuilt
     expect(p.page()).toBeNull();
     expect(document.activeElement).toBe(mainNode); // not left on <body> after the clicked link is gone
@@ -204,12 +204,12 @@ describe('Employee page links in the app router', () => {
     const p = await open(`/employee/${ME}?job=${directView.job.id}`);
     await until(() => !!p.heading(), 'the job view');
     const watch = link(p.c, 'Watch this package');
-    expect(watch.getAttribute('href')).toBe(`/simulator?package=${directView.shipment.id}`);
+    expect(watch.getAttribute('href')).toBe(`/simulator?package=${directView.shipment.id}&play=1`);
     expect(watch.className).toBe('job-v2__link');
 
     expect(clickLink(watch)).toBe(true);
     await until(() => !!p.c.querySelector('[data-page="simulator"]'), 'the simulator page');
-    expect(where()).toBe(`/simulator?package=${directView.shipment.id}`);
+    expect(where()).toBe(`/simulator?package=${directView.shipment.id}&play=1`);
     expect(document.activeElement).toBe(p.main());
 
     // Back shows the same job again.
