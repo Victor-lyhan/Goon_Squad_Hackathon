@@ -7,6 +7,9 @@
 //   of the key itself; the key is never part of a message;
 // - `--dry-run` calls nothing, writes nothing and needs no key;
 // - every paid step is on disk before the next one starts;
+// - a place that moved is never patched (DECISIONS pass 50): `--refetch <placeId>` drops it with all its pairs and
+//   route lines and saves that before the first Google call. A home that is not where its cached point is stops a
+//   run before any Google call, because every time fetched for the old point would be a stale one;
 // - the plan check and the cache report only report: no number is changed, estimated or filled in;
 // - exit 0 means "complete and no error flagged", so a human can commit `fixtures/nyc/` after reading the reports.
 import fs from 'node:fs';
@@ -19,6 +22,8 @@ import { checkPlans, checkStory, formatCheckReport } from '../domain/v2/planChec
 import type { StoryExpectation } from '../domain/v2/planCheck';
 import { MATRIX_FILE, POLYLINES_FILE, emptyTravelFiles, readTravelFiles, writeTravelFiles } from './cache';
 import type { TravelFiles } from './cache';
+import { dropPlaces, formatCacheEdit, movedHomes } from './cacheEdit';
+import type { CacheEditResult, MovedHome } from './cacheEdit';
 import { coverage, formatCacheReport, sanity } from './cacheReport';
 import { DEFAULT_ENV_PATH, SERVER_KEY_NAME, loadDotEnv, serverKey } from './env';
 import { commutePairs, planLegPairs } from './fetchPlan';
@@ -44,8 +49,12 @@ export const EXIT_USAGE = 2;
 export const RESUME_LINE = 'Run again to resume.';
 export const CHECK_LINE = 'Check the flagged rows above.';
 
+/** Printed before RESUME_LINE when the run that stopped had `--refetch`: the drop is done, so the next run is a plain one. */
+export const RESUME_WITHOUT_REFETCH_LINE =
+  'Leave --refetch out when you run again: those places are already dropped, and a plain run fetches what is missing.';
+
 export const USAGE: readonly string[] = [
-  'Usage: npm run fetch:routes -- [--dry-run] [--help]',
+  'Usage: npm run fetch:routes -- [--dry-run] [--refetch <placeId>]... [--help]',
   '',
   'Fills fixtures/nyc/matrix.json and fixtures/nyc/polylines.json from Google, in four steps:',
   '  1. geocodes the businesses of businesses.json;',
@@ -55,12 +64,21 @@ export const USAGE: readonly string[] = [
   'Then it prints the fetch summary, the plan check and the travel cache report.',
   '',
   'Flags:',
-  '  --dry-run   Show how many Google requests a run would make. Calls nothing, writes nothing, needs no key.',
+  '  --dry-run   Show how many Google requests a run would make, and list the homes that moved since their travel',
+  '              times were fetched, with the command that fixes it. Calls nothing, writes nothing, needs no key.',
+  '  --refetch <placeId>',
+  '              For a home that moved or a business whose address was corrected after the fetch. Drops the place',
+  '              from the cache with all its pairs and route lines, saves that, then runs the normal fetch, which',
+  '              refills only what is missing. Repeatable; --refetch=a,b works too. A place ID that is not in the',
+  '              cache changes nothing and exits 1. With --dry-run: shows the estimate as it would be after the',
+  '              drop and writes nothing.',
   '  --help      Show this text.',
   '',
   `The key is read from ${SERVER_KEY_NAME}, in the environment or in .env at the repo root. It is never printed.`,
   'Re-running is safe: whatever is already in the two cache files is skipped, and every step is saved before the',
   'next one starts, so a run that stopped half way resumes where it was.',
+  'A run never drops a place by itself. When a home is no longer where its cached point is, the run stops before',
+  'any Google call, lists those homes and prints the --refetch command for them.',
   '',
   'Exit codes: 0 = complete and no error flagged (warnings do not count); 1 = not complete, or an error flagged',
   '(the last line says what to do); 2 = wrong usage.',
@@ -71,18 +89,30 @@ export const USAGE: readonly string[] = [
 export interface FetchScriptOptions {
   dryRun: boolean;
   help: boolean;
+  /** The place IDs of every `--refetch`, each once, in the order given. Empty for a plain run. */
+  refetch: string[];
 }
 
 export type ParsedArgs = { ok: true; options: FetchScriptOptions } | { ok: false; problem: string };
 
 /**
- * The flags, one line each. `--refetch <placeId>` (DECISIONS pass 50) goes here as `{ takesValue: true, ... }`
- * with a field in FetchScriptOptions; the loop below already reads `--flag value` and `--flag=value`.
+ * The flags, one line each. `set` returns true when the value was usable. `--check-key` (DECISIONS pass 52) goes
+ * here as `{ takesValue: false, ... }` with a field in FetchScriptOptions.
  */
-const FLAGS: Record<string, { takesValue: boolean; set: (options: FetchScriptOptions, value: string) => void }> = {
-  '--dry-run': { takesValue: false, set: (options) => void (options.dryRun = true) },
-  '--help': { takesValue: false, set: (options) => void (options.help = true) },
-  '-h': { takesValue: false, set: (options) => void (options.help = true) },
+const FLAGS: Record<string, { takesValue: boolean; set: (options: FetchScriptOptions, value: string) => boolean }> = {
+  '--dry-run': { takesValue: false, set: (options) => (options.dryRun = true) },
+  '--help': { takesValue: false, set: (options) => (options.help = true) },
+  '-h': { takesValue: false, set: (options) => (options.help = true) },
+  // `--refetch a --refetch b` and `--refetch=a,b` mean the same. An empty ID between commas is a typing mistake.
+  '--refetch': {
+    takesValue: true,
+    set: (options, value) => {
+      const ids = value.split(',').map((id) => id.trim());
+      if (ids.some((id) => id === '' || id.startsWith('-'))) return false;
+      for (const id of ids) if (!options.refetch.includes(id)) options.refetch.push(id);
+      return true;
+    },
+  },
 };
 
 /**
@@ -90,7 +120,7 @@ const FLAGS: Record<string, { takesValue: boolean; set: (options: FetchScriptOpt
  * A wrong argument is echoed only when it looks like a flag name: a key pasted on the command line is not repeated.
  */
 export function parseArgs(argv: readonly string[]): ParsedArgs {
-  const options: FetchScriptOptions = { dryRun: false, help: false };
+  const options: FetchScriptOptions = { dryRun: false, help: false, refetch: [] };
   const shown = (name: string) => (/^--?[a-z][a-z-]{0,30}$/.test(name) ? ` ${name}` : '');
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -105,8 +135,9 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       continue;
     }
     const value = cut !== -1 ? arg.slice(cut + 1) : argv[++i];
-    if (value === undefined || value === '' || value.startsWith('-')) return { ok: false, problem: `${name} needs a value.` };
-    flag.set(options, value);
+    if (value === undefined || value === '' || value.startsWith('-') || !flag.set(options, value)) {
+      return { ok: false, problem: `${name} needs a value.` };
+    }
   }
   if (options.help && argv.length > 1) return { ok: false, problem: '--help is used alone.' };
   return { ok: true, options };
@@ -239,6 +270,33 @@ function fetchedHomes(input: Pick<FetchRoutesInput, 'neighborhoodsFile' | 'story
   return [...byId.values()];
 }
 
+// ---------- places that moved after the fetch ----------
+
+/** A place ID as one shell word. The IDs of the fixtures need no quotes; anything else gets single quotes. */
+const shellWord = (id: string) => (/^[\w.-]+$/.test(id) ? id : `'${id.replace(/'/g, `'\\''`)}'`);
+
+/** The exact command that drops these places and fetches them again: each ID once, in code-unit order. */
+export function refetchCommand(placeIds: readonly string[]): string {
+  return `npm run fetch:routes --${[...new Set(placeIds)].sort().map((id) => ` --refetch ${shellWord(id)}`).join('')}`;
+}
+
+const movedDistance = (movedM: number) => (movedM < 1 ? 'less than 1 m' : `${Math.round(movedM)} m`);
+
+/**
+ * The homes whose cached point is not the fixtures' point, and the command that fixes it. A dry run and a real
+ * run print the same lines. Only IDs and distances: no coordinates.
+ * `alsoRefetch` holds the IDs of this command line's own `--refetch`, so the printed command does both.
+ */
+function movedHomeLines(moved: readonly MovedHome[], alsoRefetch: readonly string[]): string[] {
+  if (moved.length === 0) return ['Moved homes: none (every cached home is where the fixtures put it).'];
+  return [
+    `Moved homes: ${moved.length} (the fixtures no longer have ${moved.length === 1 ? 'it' : 'them'} where the cached travel times were fetched for)`,
+    ...moved.map(({ id, movedM }) => `  - ${id}: moved ${movedDistance(movedM)}`),
+    `To drop ${moved.length === 1 ? 'it' : 'them'} and fetch only what is then missing, run:`,
+    `  ${refetchCommand([...alsoRefetch, ...moved.map((home) => home.id)])}`,
+  ];
+}
+
 const STEP_NAMES: Record<SkippedStep['step'], string> = {
   match: 'default scenario and matcher',
   polylines: 'route lines',
@@ -358,10 +416,13 @@ export interface FetchScriptArgs {
 
 /**
  * The whole command. Returns the exit code and never throws:
- * - 0: `--help`; a `--dry-run`; or a run with no failed request, no skipped step, no plan-check problem,
- *   every story package matched as written and no error in the cache report;
- * - 1: anything else that ran. The last line is RESUME_LINE or CHECK_LINE. What was fetched is saved either way;
+ * - 0: `--help`; a `--dry-run` (moved homes are listed, not counted); or a run with no failed request, no skipped
+ *   step, no plan-check problem, every story package matched as written and no error in the cache report;
+ * - 1: anything else that ran. The last line is RESUME_LINE or CHECK_LINE. What was fetched is saved either way.
+ *   Also: a `--refetch` ID the cache does not hold (nothing is changed, with or without `--dry-run`), and a run
+ *   that finds moved homes (nothing is dropped; the last line is the `--refetch` command);
  * - 2: an unknown flag or a misused one. The usage text is printed; nothing is read, called or written.
+ * With `--refetch` the order is: drop in memory, save, print, and only then the first Google call.
  */
 export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
   const env = args.env ?? process.env;
@@ -390,7 +451,7 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       for (const line of USAGE) print(line);
       return EXIT_OK;
     }
-    const { dryRun } = parsed.options;
+    const { dryRun, refetch } = parsed.options;
 
     loadDotEnv(args.envPath ?? DEFAULT_ENV_PATH, env);
     const key = serverKey(env);
@@ -417,22 +478,54 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       return EXIT_INCOMPLETE;
     }
 
+    const orphanProblem =
+      `${shownPath(path.join(dir, POLYLINES_FILE))} exists but ${MATRIX_FILE} does not, and a run would replace it. ` +
+      `Restore ${MATRIX_FILE} or delete ${POLYLINES_FILE}, then run again.`;
+    if (orphanLines && !dryRun) {
+      print(`Cannot start: ${orphanProblem} No Google call was made.`);
+      return EXIT_INCOMPLETE;
+    }
+
+    // --refetch: the drop, in memory only. Everything below (the estimate, the moved homes, the fetch) reads the
+    // cache as it is after the drop; the disk is touched further down, once nothing else can stop the run.
+    let edit: CacheEditResult | null = null;
+    if (refetch.length > 0) {
+      edit = dropPlaces(input.files, refetch);
+      if (edit.unknown.length > 0) {
+        // All or nothing: one mistyped ID must not leave the other places dropped behind a failed command.
+        for (const line of formatCacheEdit({ dropped: [], removed: { places: 0, pairs: 0, polylines: 0 }, unknown: edit.unknown })) print(line);
+        print(
+          'Nothing was dropped or written, and no Google call was made. ' +
+            `A place ID is a key of "places" in ${shownPath(path.join(dir, MATRIX_FILE))}. ` +
+            'A place that is not in the cache needs no --refetch: a run without it fetches whatever is missing.',
+        );
+        return EXIT_INCOMPLETE;
+      }
+      input = { ...input, files: edit.files };
+    }
+
     // The estimate is free and builds the default scenario's commuters, so fixture files that parse but that
-    // the generator cannot use stop here, before a paid call.
+    // the generator cannot use stop here, before a paid call. The same goes for the moved homes.
     let estimate: FetchEstimate;
+    let moved: MovedHome[];
     try {
       estimate = estimateFetch(input);
+      // Tolerance 0: any difference counts, as in the matrix step, which refuses a home that is not exactly on its cached point.
+      moved = movedHomes({ files: input.files, homes: fetchedHomes(input), toleranceM: 0 });
     } catch (err) {
       print(`Cannot start: the files in ${shownPath(dir)} do not fit together (${messageOf(err)}). No Google call was made.`);
       return EXIT_INCOMPLETE;
     }
 
-    const orphanProblem =
-      `${shownPath(path.join(dir, POLYLINES_FILE))} exists but ${MATRIX_FILE} does not, and a run would replace it. ` +
-      `Restore ${MATRIX_FILE} or delete ${POLYLINES_FILE}, then run again.`;
-
     if (dryRun) {
+      if (edit !== null) {
+        print('--refetch in a dry run: nothing is dropped. A run would first drop and report:');
+        for (const line of formatCacheEdit(edit)) print(`  ${line}`);
+        print('The estimate below is for the cache as it would be after that drop.');
+        print('');
+      }
       for (const line of formatEstimate(estimate)) print(line);
+      for (const line of movedHomeLines(moved, refetch)) print(line);
       if (orphanLines) print(`A run would stop: ${orphanProblem}`);
       print(
         key === null
@@ -443,8 +536,11 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       return EXIT_OK;
     }
 
-    if (orphanLines) {
-      print(`Cannot start: ${orphanProblem} No Google call was made.`);
+    if (moved.length > 0) {
+      // Not dropped by a run on its own (DECISIONS pass 52), and not fetched around either: a route line or a
+      // plan fetched now would be for the old point. The command is the last line.
+      print('Cannot start: the travel cache no longer matches the fixtures. Nothing was dropped or written, and no Google call was made.');
+      for (const line of movedHomeLines(moved, refetch)) print(line);
       return EXIT_INCOMPLETE;
     }
     if (key === null) {
@@ -454,6 +550,25 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       );
       return EXIT_INCOMPLETE;
     }
+
+    // The drop goes to disk before the client exists. writeTravelFiles replaces polylines.json first and
+    // matrix.json last, so a save that fails half way leaves the place in the matrix and the same command drops it again.
+    if (edit !== null) {
+      try {
+        writeTravelFiles(dir, edit.files);
+      } catch (err) {
+        print(`Stopped: ${messageOf(err)}`);
+        print('No Google call was made. The drop may be half saved: fix the problem above, then run the same command again, with --refetch.');
+        return EXIT_INCOMPLETE;
+      }
+      for (const line of formatCacheEdit(edit)) print(line);
+      print(`The drop is saved in ${shownPath(dir)}. The fetch below refills what is now missing.`);
+      print('');
+    }
+    const resume = () => {
+      if (edit !== null) print(RESUME_WITHOUT_REFETCH_LINE);
+      print(RESUME_LINE);
+    };
 
     let result: FetchRoutesResult;
     try {
@@ -468,7 +583,7 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
       print('');
       print(`Stopped: ${messageOf(err)}`);
       print(`Every step that finished before this is saved in ${shownPath(dir)}. Fix the problem above first.`);
-      print(RESUME_LINE);
+      resume();
       return EXIT_INCOMPLETE;
     }
 
@@ -483,7 +598,8 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
     print('NOT complete:');
     for (const reason of verdict.reasons) print(`  - ${reason}`);
     print(`Everything fetched so far is saved in ${shownPath(dir)}.`);
-    print(verdict.resume ? RESUME_LINE : CHECK_LINE);
+    if (verdict.resume) resume();
+    else print(CHECK_LINE);
     return EXIT_INCOMPLETE;
   } catch (err) {
     // Nothing above is expected to land here. A stack trace could hold request text, so only the message is shown.

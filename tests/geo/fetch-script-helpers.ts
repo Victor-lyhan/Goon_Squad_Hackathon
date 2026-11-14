@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { LatLng } from '../../shared/v2/types';
 import { straightLineM } from '../../server/geo/cacheReport';
+import { MATRIX_FILE, POLYLINES_FILE } from '../../server/geo/cache';
 import { BUSINESSES_FILE, NEIGHBORHOODS_FILE, STORY_FILE, runFetchScript } from '../../server/geo/fetchScript';
 import type { FetchClient } from '../../server/geo/fetchRunner';
 import type { GeocodeResult, RouteMatrixResult, RoutePolyline } from '../../server/geo/googleClient';
@@ -24,6 +25,16 @@ export function tempFixturesDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-fetch-script-'));
   tempDirs.push(dir);
   for (const name of FIXTURE_NAMES) fs.copyFileSync(path.join(REAL_FIXTURES_DIR, name), path.join(dir, name));
+  return dir;
+}
+
+/**
+ * A new temp folder with the three fixture files and a copy of the two cache files of `seedDir` (a folder a
+ * complete run was made on). One paid-for cache per test file, a fresh copy per test.
+ */
+export function tempDirWithCacheOf(seedDir: string): string {
+  const dir = tempFixturesDir();
+  for (const name of [MATRIX_FILE, POLYLINES_FILE]) fs.copyFileSync(path.join(seedDir, name), path.join(dir, name));
   return dir;
 }
 
