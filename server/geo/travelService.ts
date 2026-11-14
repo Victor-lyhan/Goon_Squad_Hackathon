@@ -6,8 +6,12 @@
 //   Every answer is written back to the cache files (SPEC "MVP II" rule 3).
 // - A refused pair fetch leaves nothing behind: a place registered here that has no travel pair is taken out
 //   again, and is never written to the cache files while it has none (SPEC rule 6, DECISIONS pass 56).
+// - A live action has its own, short Google limits (the LIVE_* numbers below), because a page waits for it:
+//   4 s per attempt and one retry, and one deadline per call, counted from the moment the call is made:
+//   10 s for `ensurePairs`, 5 s for `ensurePolylines`. The fetch command keeps the client's bulk defaults.
 // Rules:
 // - nothing is ever estimated; a missing key is GoogleKeyMissingError before any request (rule 2);
+// - a deadline is a failure like any other Google failure (a GoogleApiError), never a guessed time;
 // - the key is an argument (the caller reads the environment) and lives only inside the bound Google
 //   client, whose errors are redacted in googleClient.ts. This file logs nothing;
 // - errors built here hold place IDs and fixed text only, never a latitude or a longitude.
@@ -18,8 +22,21 @@ import type { TravelFiles } from './cache';
 import { GoogleKeyMissingError } from './googleClient';
 import type { FetchLike } from './googleClient';
 import { bindGoogleClient, createGoogleTravel } from './googleProvider';
-import type { PlacePair } from './googleProvider';
+import type { GoogleTravelClient, PlacePair } from './googleProvider';
 import type { CachedProvider } from './providers';
+
+// The limits of a live action (DECISIONS pass 57 and 58). They are the service's own: nothing sets them from
+// outside, and `npm run fetch:routes` does not use this file (it keeps 15 s per attempt and 3 retries).
+/** One Google attempt of a live action may take this long. */
+export const LIVE_ATTEMPT_TIMEOUT_MS = 4_000;
+/** A live action retries a failed Google request once (after the client's 0.5 s backoff). */
+export const LIVE_MAX_RETRIES = 1;
+/** `ensurePairs` settles within this time of being called: the pair fetch of a commute save. */
+export const LIVE_PAIRS_DEADLINE_MS = 10_000;
+/** `ensurePolylines` settles within this time of being called: the two route lines of a commute save. */
+export const LIVE_LINES_DEADLINE_MS = 5_000;
+/** `ensureLegPolylines` stops asking after this time, so a new delivery's lines never hold the queue longer than a pair fetch may. */
+export const LIVE_LEG_LINES_DEADLINE_MS = 10_000;
 
 export interface TravelServiceOptions {
   /** The cache directory, e.g. `fixtures/nyc`. */
@@ -32,6 +49,8 @@ export interface TravelServiceOptions {
   persist?: (files: TravelFiles) => void | Promise<void>;
   /** Backoff sleep between Google retries. Tests pass a no-op. */
   sleep?: (ms: number) => Promise<void>;
+  /** The clock of the deadlines, in ms. Only differences are used. Defaults to `performance.now()`; tests pass a virtual clock. */
+  now?: () => number;
 }
 
 export interface TravelService {
@@ -54,6 +73,11 @@ export interface TravelService {
    * Something missing and no key: rejects with GoogleKeyMissingError before any request. Otherwise the missing
    * pairs are fetched and the cache files are written. Google's errors pass through unchanged, and pairs that
    * did get an answer stay cached (in memory and on disk).
+   * It settles within LIVE_PAIRS_DEADLINE_MS of the call: a Google attempt gets at most LIVE_ATTEMPT_TIMEOUT_MS
+   * and LIVE_MAX_RETRIES retries, and the deadline cuts the last attempt, skips a backoff that would cross it,
+   * and sends nothing once it has passed. Then it rejects with a GoogleApiError: the one of the last attempt,
+   * or the client's "not sent" one. The time a call waits for an earlier call counts too, so a second save is
+   * never held up longer than the first one's deadline. (Not counted: the cache write, which is local.)
    * When it rejects, every place that `addPlaces` registered in this process, that is not on disk yet and that
    * has no pair at all is removed from `files.matrix.places` (with any route line of it) before the caller sees
    * the rejection, so the same point can be registered and fetched again. A place that got some of its pairs
@@ -61,12 +85,16 @@ export interface TravelService {
    * too; that call decides. Places from the cache files are never removed.
    */
   ensurePairs(pairs: readonly PlacePair[]): Promise<{ fetched: number }>;
-  /** The same for encoded route lines. */
+  /**
+   * The same for encoded route lines, within LIVE_LINES_DEADLINE_MS of the call. Only a call that is still
+   * waiting for an earlier `ensurePairs` when its own deadline passes settles later: when that one ends.
+   */
   ensurePolylines(pairs: readonly PlacePair[]): Promise<{ fetched: number }>;
   /**
    * Route lines for the neighbouring pairs of each leg's `placeIds`. Best effort, for the map only: it never
    * rejects. `fetched` and `failed` count the distinct pairs that had no line when it was called: the ones
    * that have a line now, and the ones that still have none (those legs stay on the straight-line fallback).
+   * It has the live limits too and stops asking LIVE_LEG_LINES_DEADLINE_MS after the call.
    */
   ensureLegPolylines(legs: readonly Pick<Leg, 'placeIds'>[]): Promise<{ fetched: number; failed: number }>;
 }
@@ -159,13 +187,27 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
     }
   };
 
+  const now = options.now ?? (() => performance.now());
+  /**
+   * The Google client of one call: the live limits, and a deadline `budgetMs` from now. Call it when the
+   * service method is called, not in its turn in the queue, so the wait for an earlier call counts.
+   */
+  const clientFor = (budgetMs: number): GoogleTravelClient => {
+    const endMs = now() + budgetMs;
+    return bindGoogleClient({
+      apiKey,
+      fetchImpl: options.fetch,
+      sleep: options.sleep,
+      timeoutMs: LIVE_ATTEMPT_TIMEOUT_MS,
+      maxRetries: LIVE_MAX_RETRIES,
+      msLeft: () => endMs - now(),
+    });
+  };
+
   // One GoogleTravel for everything, so there is one queue: one Google fetch at a time across all methods.
-  // With an empty key the client is never called: `ensure` rejects first.
-  const google = createGoogleTravel({
-    files,
-    client: bindGoogleClient({ apiKey, fetchImpl: options.fetch, sleep: options.sleep }),
-    persist,
-  });
+  // Every call brings its own client (`clientFor`); the one given here is never used.
+  // With an empty key no client is ever called: `ensure` rejects first.
+  const google = createGoogleTravel({ files, client: clientFor(Infinity), persist });
 
   /** The distinct pairs of different places that `cached` does not hold. */
   const missingFrom = (pairs: readonly PlacePair[], cached: Record<string, unknown>): PlacePair[] => {
@@ -180,12 +222,14 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
   const ensure = async (
     pairs: readonly PlacePair[],
     cached: Record<string, unknown>,
-    fetchMissing: (pairs: PlacePair[]) => Promise<{ fetched: number }>,
+    fetchMissing: (pairs: PlacePair[], via: GoogleTravelClient) => Promise<{ fetched: number }>,
+    budgetMs: number,
   ): Promise<{ fetched: number }> => {
     if (!ready) throw new TravelNotLoadedError();
     if (apiKey === '' && missingFrom(pairs, cached).length > 0) throw new GoogleKeyMissingError();
     // Checks the cache again in its turn in the queue, so an overlapping call never buys the same pair twice.
-    return fetchMissing([...pairs]);
+    // No await above: the deadline starts when the method is called.
+    return fetchMissing([...pairs], clientFor(budgetMs));
   };
 
   const hasPlace = (placeId: string) => Object.hasOwn(files.matrix.places, placeId);
@@ -229,7 +273,7 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
         }
       };
       try {
-        const result = await ensure(pairs, files.matrix.pairs, google.ensurePairs);
+        const result = await ensure(pairs, files.matrix.pairs, google.ensurePairs, LIVE_PAIRS_DEADLINE_MS);
         release();
         return result;
       } catch (err) {
@@ -238,7 +282,7 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
         throw err;
       }
     },
-    ensurePolylines: (pairs) => ensure(pairs, files.polylines.polylines, google.ensurePolylines),
+    ensurePolylines: (pairs) => ensure(pairs, files.polylines.polylines, google.ensurePolylines, LIVE_LINES_DEADLINE_MS),
 
     async ensureLegPolylines(legs) {
       let wanted: PlacePair[] = [];
@@ -249,7 +293,7 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
         const fetchable = wanted.filter(({ from, to }) => hasPlace(from) && hasPlace(to));
         if (ready && apiKey !== '' && fetchable.length > 0) {
           // Lines fetched before a failure are already in `files` (and on disk); the count below sees them.
-          await google.ensurePolylines(fetchable).catch(() => undefined);
+          await google.ensurePolylines(fetchable, clientFor(LIVE_LEG_LINES_DEADLINE_MS)).catch(() => undefined);
         }
         const fetched = wanted.filter(({ from, to }) => Object.hasOwn(lines, pairKey(from, to))).length;
         return { fetched, failed: wanted.length - fetched };

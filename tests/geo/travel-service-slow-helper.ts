@@ -5,12 +5,14 @@
 // - the fake `fetch` adds each request's answer time to a counter, and the injected `sleep` adds each backoff;
 // - an attempt that never answers counts as its timeout. The timeout is not assumed: the helper records the
 //   number the client passes to `AbortSignal.timeout(ms)` for that very request;
+// - the service reads the same counter as its clock (`now`), so its deadlines (#555: 10 s for the pair fetch,
+//   5 s for the two lines) run on the virtual clock too;
 // - setTimeout, setInterval and setImmediate are frozen while the replay runs. A replay that needed real time
 //   would never settle, and a timer left behind is counted in `pendingTimers`.
 // So no test here waits in real time and none has a wall-clock limit (DECISIONS pass 52): the numbers are the
 // same on a laptop and on a slow CI runner. What is not modelled: the time the cache write takes on disk.
 // The cache is a copy of the made-up sample cache (tests/api/v2-boot-sample.ts: 18 businesses, 130 homes) in a
-// temp folder. No network, no real key, no .env. Nothing here changes product code (DECISIONS pass 54).
+// temp folder. No network, no real key, no .env.
 import { expect, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -20,18 +22,19 @@ import type { LatLng } from '../../shared/v2/types';
 import { pairsToEnsure } from '../../server/api/v2/commutePlan';
 import { MATRIX_FILE, POLYLINES_FILE, readTravelFiles, writeTravelFiles } from '../../server/geo/cache';
 import type { TravelFiles } from '../../server/geo/cache';
-import { DEFAULT_TIMEOUT_MS, GoogleApiError, MAX_RETRIES, ROUTES_URL, ROUTE_MATRIX_URL } from '../../server/geo/googleClient';
+import { GoogleApiError, ROUTES_URL, ROUTE_MATRIX_URL } from '../../server/geo/googleClient';
 import type { FetchLike } from '../../server/geo/googleClient';
 import type { PlacePair } from '../../server/geo/googleProvider';
-import { createTravelService } from '../../server/geo/travelService';
+import { LIVE_ATTEMPT_TIMEOUT_MS, LIVE_MAX_RETRIES, createTravelService } from '../../server/geo/travelService';
+import type { TravelService } from '../../server/geo/travelService';
 import { bootSample } from '../api/v2-boot-sample';
-import { KEY, KEY_FORMS, NEW_HOME, NEW_HOME_POINT, expectNoText, google500, lineFor, metersFor, secondsFor } from './travelServiceHarness';
+import { KEY, KEY_FORMS, NEW_HOME, NEW_HOME_POINT, OTHER_HOME, OTHER_HOME_POINT, expectNoText, google500, lineFor, metersFor, secondsFor } from './travelServiceHarness';
 import type { GoogleReply } from './travelServiceHarness';
 
 /** Explicit limit for every test and hook of these files (DECISIONS pass 19). A whole file takes well under 1 s locally. */
 export const SLOW_TEST_TIMEOUT_MS = 20_000;
 
-/** The budget of #530: the pair fetch settles within 10 s; the two commute lines add at most 5 s. */
+/** The budget of #530, kept by the service since #555: the pair fetch settles within 10 s; the two commute lines add at most 5 s. */
 export const PAIR_BUDGET_MS = 10_000;
 export const LINES_BUDGET_MS = 5_000;
 
@@ -53,7 +56,10 @@ export const businessIds = (): string[] => Object.keys(sampleCache().matrix.plac
 /** The business the employee works at: the commute lines run between it and the home. */
 export const workplaceId = (): string => businessIds()[0];
 /** Exactly what the commute route asks the travel service for: 36 matrix pairs and the 2 commute lines. */
-export const neededForHome = (): { matrix: PlacePair[]; polylines: PlacePair[] } => pairsToEnsure({ id: HOME }, workplaceId(), businessIds());
+export const neededForHome = (home: string = HOME): { matrix: PlacePair[]; polylines: PlacePair[] } => pairsToEnsure({ id: home }, workplaceId(), businessIds());
+/** A second new home, for a save that starts while the first one is still waiting (#555). The fake Google knows it too. */
+export const SECOND_HOME = OTHER_HOME;
+export const SECOND_HOME_POINT: LatLng = OTHER_HOME_POINT;
 
 // ---------- what the fake Google does with one HTTP attempt ----------
 
@@ -87,7 +93,10 @@ export interface CaseSpec {
   key?: string;
 }
 
-/** The six cases of #530 (a–f) and four more that the numbers needed (see each label). */
+/**
+ * The six cases of #530 (a–f) and four more that the numbers needed (see each label). "Its last attempt" and
+ * "the timeout" of the longest wait are the live limits of the service (one retry, 4 s per attempt).
+ */
 export const CASES = {
   a: { label: '(a) every request answers after 300 ms', script: () => answers() },
   b: { label: '(b) Google never answers', script: () => never },
@@ -102,7 +111,7 @@ export const CASES = {
   },
   worst: {
     label: '(extra) the longest wait the retry rules allow: every request answers on its last attempt, 1 ms before the timeout',
-    script: ({ attempt }) => (attempt < MAX_RETRIES ? never : answers(DEFAULT_TIMEOUT_MS - 1)),
+    script: ({ attempt }) => (attempt < LIVE_MAX_RETRIES ? never : answers(LIVE_ATTEMPT_TIMEOUT_MS - 1)),
   },
   noKey: { label: '(extra) the server has no Google key', script: () => answers(), key: '' },
 } satisfies Record<string, CaseSpec>;
@@ -111,6 +120,8 @@ export type CaseId = keyof typeof CASES;
 // ---------- the measurement ----------
 
 export interface AttemptLog extends Attempt {
+  /** Virtual ms since the replay began when this attempt was sent. */
+  startMs: number;
   /** Virtual ms this attempt took: its answer time, or its timeout when it never answered. */
   ms: number;
   /** The HTTP status, or 'timeout'. */
@@ -162,14 +173,30 @@ export interface Measurement {
   memory: TravelFiles;
 }
 
+/** What a replay works with: the real service on a temp copy of the sample cache, the fake Google and the virtual clock. */
+export interface Bench {
+  service: TravelService;
+  /** Virtual ms since the replay began. */
+  now(): number;
+  /** Runs one call of the service and measures it on the virtual clock, from the call until it settles. */
+  step(call: () => Promise<{ fetched: number }>): Promise<Step>;
+  /** Every HTTP attempt so far, and every backoff slept, in order. */
+  attempts: AttemptLog[];
+  sleeps: number[];
+  /** The most requests that were ever open at once. */
+  maxInFlight(): number;
+  /** The two cache files as text, to compare before and after. */
+  bytes(): string[];
+  /** The temp cache folder: its file names (sorted) and both files parsed and checked by the cache reader. */
+  disk(): { entries: string[]; files: TravelFiles };
+}
+
 /**
- * Replays one commute save with a new home on a fresh copy of the sample cache and measures it on the virtual
- * clock. The steps are the route's: `addPlaces`, `await ensurePairs` (a rejection ends the save), then
- * `await ensurePolylines` with its rejection swallowed.
+ * Runs `run` against a fresh copy of the sample cache in a temp folder, with the fake Google of `spec` and the
+ * timers frozen. Throws when the replay did something the virtual clock cannot measure.
  */
-export async function measure(spec: CaseSpec): Promise<Measurement> {
+export async function replay<T>(spec: Pick<CaseSpec, 'script' | 'key'>, run: (bench: Bench) => Promise<T>): Promise<T> {
   const sample = sampleCache();
-  const needed = neededForHome();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-travel-slow-'));
   const dir = path.join(root, 'nyc');
   const bytes = () => [MATRIX_FILE, POLYLINES_FILE].map((file) => fs.readFileSync(path.join(dir, file), 'utf8'));
@@ -180,10 +207,11 @@ export async function measure(spec: CaseSpec): Promise<Measurement> {
   const problems: string[] = [];
   const flight = { open: 0, max: 0 };
 
-  // The fake Google knows the places of this save by their coordinates, like the harness's fake does.
+  // The fake Google knows the places of a save by their coordinates, like the harness's fake does.
   const idByPoint = new Map<string, string>();
-  for (const id of [...businessIds(), HOME]) {
-    const point = id === HOME ? HOME_POINT : sample.matrix.places[id];
+  const newHomes: Record<string, LatLng> = { [HOME]: HOME_POINT, [SECOND_HOME]: SECOND_HOME_POINT };
+  for (const id of [...businessIds(), HOME, SECOND_HOME]) {
+    const point = newHomes[id] ?? sample.matrix.places[id];
     idByPoint.set(`${point.lat},${point.lng}`, id);
   }
   type Waypoint = { location: { latLng: { latitude: number; longitude: number } } };
@@ -218,13 +246,18 @@ export async function measure(spec: CaseSpec): Promise<Measurement> {
       problems.push('a request had no signal from AbortSignal.timeout(ms): this helper reads the attempt timeout there');
       throw new Error('no timeout signal');
     }
-    const log: AttemptLog = { ...attempt, ms: 0, result: 'timeout', timeoutMs };
+    const log: AttemptLog = { ...attempt, startMs: nowMs, ms: 0, result: 'timeout', timeoutMs };
     attempts.push(log);
 
     flight.open += 1;
     flight.max = Math.max(flight.max, flight.open);
     await Promise.resolve(); // a promise job, not a timer: a second request sent meanwhile would show in `max`
     flight.open -= 1;
+    // Time moves only when nothing else is due. With two calls in the queue, the first one's rejection is still
+    // on its way to its caller when the second one sends its request; on a real clock that takes no time, so
+    // every promise job that is already waiting runs before this request is charged. (Timers are frozen, so
+    // promise jobs are all there is; the chain from the client to the caller is far shorter than this.)
+    for (let job = 0; job < 50; job++) await Promise.resolve();
 
     const { afterMs, reply } = spec.script(attempt);
     if (afterMs >= timeoutMs) {
@@ -269,7 +302,6 @@ export async function measure(spec: CaseSpec): Promise<Measurement> {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate'] });
   try {
     writeTravelFiles(dir, sample);
-    const before = bytes();
     const service = createTravelService({
       dir,
       key: spec.key ?? KEY,
@@ -278,7 +310,40 @@ export async function measure(spec: CaseSpec): Promise<Measurement> {
         sleeps.push(ms);
         nowMs += ms;
       },
+      now: () => nowMs,
     });
+    const result = await run({
+      service,
+      now: () => nowMs,
+      step,
+      attempts,
+      sleeps,
+      maxInFlight: () => flight.max,
+      bytes,
+      disk: () => {
+        const files = readTravelFiles(dir);
+        if (files === null) throw new Error('travel-service-slow-helper: the temp cache has no matrix.json');
+        return { entries: fs.readdirSync(dir).sort(), files };
+      },
+    });
+    if (problems.length > 0) throw new Error(`travel-service-slow-helper cannot measure this: ${[...new Set(problems)].join('; ')}`);
+    return result;
+  } finally {
+    vi.useRealTimers();
+    timeoutSpy.mockRestore();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Replays one commute save with a new home and measures it on the virtual clock. The steps are the route's:
+ * `addPlaces`, `await ensurePairs` (a rejection ends the save), then `await ensurePolylines` with its rejection
+ * swallowed.
+ */
+export function measure(spec: CaseSpec): Promise<Measurement> {
+  const needed = neededForHome();
+  return replay(spec, async ({ service, now, step, attempts, sleeps, maxInFlight, bytes, disk }) => {
+    const before = bytes();
 
     // The route (server/api/v2/commuteRoutes.ts), step for step.
     service.addPlaces({ [HOME]: HOME_POINT });
@@ -289,30 +354,22 @@ export async function measure(spec: CaseSpec): Promise<Measurement> {
         : { ms: 0, requests: 0, settled: 'not called', fetched: null, error: undefined };
 
     const pendingTimers = vi.getTimerCount();
-    if (problems.length > 0) throw new Error(`travel-service-slow-helper cannot measure this: ${[...new Set(problems)].join('; ')}`);
-
     const after = bytes();
-    const files = readTravelFiles(dir);
-    if (files === null) throw new Error('travel-service-slow-helper: the temp cache has no matrix.json after the save');
     return {
       label: spec.label,
       pairs,
       lines,
-      totalMs: nowMs,
+      totalMs: now(),
       requests: attempts.length,
       save: pairs.settled !== 'resolved' ? 'refused' : lines.settled === 'resolved' ? 'saved' : 'saved without route lines',
       attempts,
       sleeps,
-      maxInFlight: flight.max,
+      maxInFlight: maxInFlight(),
       pendingTimers,
-      disk: { entries: fs.readdirSync(dir).sort(), files, matrixChanged: after[0] !== before[0], polylinesChanged: after[1] !== before[1] },
+      disk: { ...disk(), matrixChanged: after[0] !== before[0], polylinesChanged: after[1] !== before[1] },
       memory: structuredClone(service.files),
     };
-  } finally {
-    vi.useRealTimers();
-    timeoutSpy.mockRestore();
-    fs.rmSync(root, { recursive: true, force: true });
-  }
+  });
 }
 
 /** Runs the cases one after another (never at the same time: they share the faked timers). */
@@ -322,8 +379,8 @@ export async function measureCases<Id extends CaseId>(ids: readonly Id[]): Promi
   return out;
 }
 
-/** Every HTTP attempt in order, e.g. `matrix 1 try 2: 500 after 300 ms` or `line 1 try 1: no answer for 15000 ms`. */
-export function traceOf(m: Measurement): string[] {
+/** Every HTTP attempt in order, e.g. `matrix 1 try 2: 500 after 300 ms` or `line 1 try 1: no answer for 4000 ms`. */
+export function traceOf(m: Pick<Measurement, 'attempts'>): string[] {
   return m.attempts.map((a) => `${a.what} ${a.request + 1} try ${a.attempt + 1}: ${a.result === 'timeout' ? `no answer for ${a.ms} ms` : `${a.result} after ${a.ms} ms`}`);
 }
 

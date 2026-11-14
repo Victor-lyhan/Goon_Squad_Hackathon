@@ -1,13 +1,15 @@
-// #530, the cases where Google does not answer. The client waits 15 s for each attempt and tries 4 times with
-// 0.5 s, 1 s and 2 s of backoff, so ONE request that never answers costs 63.5 s:
-// - (b) Google never answers: the pair fetch rejects after 63.5 s;
-// - (e, silent) only the very first attempt is lost and everything else answers in 300 ms: 16.1 s;
-// - (f) the matrix answers and the route lines never do: the save waits 63.5 s more for lines it then drops;
-// - (extra) the first matrix request answers, the second never does: 63.8 s, and half of the pairs stay cached;
-// - (extra) the longest wait the retry rules allow: 127 s for the pairs and 127 s more for the lines.
-// The budget is 10 s for the pair fetch and 5 s more for the two lines. Every number over it stays here as an
-// `it.fails` test with the measured seconds in its title (DECISIONS pass 54): when the product is fixed, that
-// test turns red and is changed back to `it`. No product code is changed by this issue.
+// #530 and #555, the cases where Google does not answer. A live action waits 4 s for each attempt and tries
+// twice with 0.5 s of backoff, so ONE request that never answers costs 8.5 s, and the call's deadline (10 s for
+// the pair fetch, 5 s for the two lines, counted from the call) cuts whatever would run past it:
+// - (b) Google never answers: the pair fetch rejects after 8.5 s;
+// - (e, silent) only the very first attempt is lost and everything else answers in 300 ms: 5.1 s;
+// - (f) the matrix answers and the route lines never do: the lines reject after exactly 5 s (the deadline cuts
+//   the retry to 0.5 s);
+// - (extra) the first matrix request answers, the second never does: 8.8 s, and half of the pairs stay cached;
+// - (extra) the longest wait the retry rules allow: the deadline ends it after exactly 10 s, as a failure.
+// The budget is 10 s for the pair fetch and 5 s more for the two lines. Before #555 these cases measured
+// 63.5 s, 16.1 s, 63.5 s, 63.8 s and 127 s + 127 s (the client's bulk limits: 15 s per attempt, 3 retries), and
+// the budget tests below were `it.fails` (DECISIONS pass 54). They are plain `it` now.
 // Time is virtual (tests/geo/travel-service-slow-helper.ts): nothing here waits in real time or has a
 // wall-clock limit. Sample cache in a temp folder, a fake Google, a fake key: no network, no .env.
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -35,21 +37,21 @@ function expectNoResponse(error: unknown, endpoint: string) {
   expect((error as GoogleApiError).message).toContain('TimeoutError');
 }
 
-const FOUR_SILENT_TRIES = [1, 2, 3, 4].map((attempt) => `try ${attempt}: no answer for 15000 ms`);
+const TWO_SILENT_TRIES = [1, 2].map((attempt) => `try ${attempt}: no answer for 4000 ms`);
 
 describe('(b) Google never answers', () => {
-  it('measures 63.5 s for the pair fetch: 4 attempts of 15 s on the first request and 3.5 s of backoff, then it rejects', () => {
-    expect(m.b.pairs).toMatchObject({ ms: 63_500, requests: 4, settled: 'rejected', fetched: null });
-    expect(m.b.sleeps).toEqual([500, 1000, 2000]);
-    expect(traceOf(m.b)).toEqual(FOUR_SILENT_TRIES.map((attempt) => `matrix 1 ${attempt}`));
+  it('measures 8.5 s for the pair fetch: 2 attempts of 4 s on the first request and 0.5 s of backoff, then it rejects', () => {
+    expect(m.b.pairs).toMatchObject({ ms: 8500, requests: 2, settled: 'rejected', fetched: null });
+    expect(m.b.sleeps).toEqual([500]);
+    expect(traceOf(m.b)).toEqual(TWO_SILENT_TRIES.map((attempt) => `matrix 1 ${attempt}`));
   });
 
-  it('answers 503 after 63.5 s: the two lines are not asked for', () => {
+  it('answers 503 after 8.5 s: the two lines are not asked for', () => {
     expect(m.b.lines).toEqual({ ms: 0, requests: 0, settled: 'not called', fetched: null, error: undefined });
-    expect(m.b).toMatchObject({ totalMs: 63_500, requests: 4, save: 'refused' });
+    expect(m.b).toMatchObject({ totalMs: 8500, requests: 2, save: 'refused' });
   });
 
-  it.fails('OVER BUDGET: the pair fetch settles within 10 s (measured: 63.5 s)', () => {
+  it('is within budget: the pair fetch settles within 10 s (8.5 s; it was 63.5 s)', () => {
     expect(m.b.pairs.ms).toBeLessThanOrEqual(PAIR_BUDGET_MS);
   });
 
@@ -65,22 +67,22 @@ describe('(b) Google never answers', () => {
 });
 
 describe('(e, silent) only the very first attempt never answers, the second answers', () => {
-  it('measures 16.1 s for the pair fetch (3 requests): 15 s for the lost attempt, 0.5 s of backoff, two answers of 300 ms', () => {
-    expect(m.eSilent.pairs).toEqual({ ms: 16_100, requests: 3, settled: 'resolved', fetched: 36, error: undefined });
+  it('measures 5.1 s for the pair fetch (3 requests): 4 s for the lost attempt, 0.5 s of backoff, two answers of 300 ms', () => {
+    expect(m.eSilent.pairs).toEqual({ ms: 5100, requests: 3, settled: 'resolved', fetched: 36, error: undefined });
     expect(m.eSilent.sleeps).toEqual([500]);
     expect(traceOf(m.eSilent).slice(0, 3)).toEqual([
-      'matrix 1 try 1: no answer for 15000 ms',
+      'matrix 1 try 1: no answer for 4000 ms',
       'matrix 1 try 2: 200 after 300 ms',
       'matrix 2 try 1: 200 after 300 ms',
     ]);
   });
 
-  it('measures 0.6 s more for the two lines (2 requests): saved after 16.7 s', () => {
+  it('measures 0.6 s more for the two lines (2 requests): saved after 5.7 s', () => {
     expect(m.eSilent.lines).toEqual({ ms: 600, requests: 2, settled: 'resolved', fetched: 2, error: undefined });
-    expect(m.eSilent).toMatchObject({ totalMs: 16_700, requests: 5, save: 'saved' });
+    expect(m.eSilent).toMatchObject({ totalMs: 5700, requests: 5, save: 'saved' });
   });
 
-  it.fails('OVER BUDGET: the pair fetch settles within 10 s (measured: 16.1 s)', () => {
+  it('is within budget: the pair fetch settles within 10 s (5.1 s; it was 16.1 s)', () => {
     expect(m.eSilent.pairs.ms).toBeLessThanOrEqual(PAIR_BUDGET_MS);
   });
 
@@ -98,14 +100,14 @@ describe('(f) the matrix answers, the route lines never do', () => {
     expect(m.f.pairs).toEqual({ ms: 600, requests: 2, settled: 'resolved', fetched: 36, error: undefined });
   });
 
-  it('measures 63.5 s more for the lines: 4 attempts of 15 s on the first line, the second line is never asked for', () => {
-    expect(m.f.lines).toMatchObject({ ms: 63_500, requests: 4, settled: 'rejected', fetched: null });
-    expect(m.f.sleeps).toEqual([500, 1000, 2000]);
-    expect(traceOf(m.f).slice(2)).toEqual(FOUR_SILENT_TRIES.map((attempt) => `line 1 ${attempt}`));
+  it('measures 5 s more for the lines: 4 s for the first attempt, 0.5 s of backoff, and a retry the deadline cuts to 0.5 s; the second line is never asked for', () => {
+    expect(m.f.lines).toMatchObject({ ms: 5000, requests: 2, settled: 'rejected', fetched: null });
+    expect(m.f.sleeps).toEqual([500]);
+    expect(traceOf(m.f).slice(2)).toEqual(['line 1 try 1: no answer for 4000 ms', 'line 1 try 2: no answer for 500 ms']);
   });
 
-  it('saves without route lines after 64.1 s: the rejection of the lines is swallowed by the route', () => {
-    expect(m.f).toMatchObject({ totalMs: 64_100, requests: 6, save: 'saved without route lines' });
+  it('saves without route lines after 5.6 s: the rejection of the lines is swallowed by the route', () => {
+    expect(m.f).toMatchObject({ totalMs: 5600, requests: 4, save: 'saved without route lines' });
     expectNoResponse(m.f.lines.error, ROUTES_URL);
   });
 
@@ -113,7 +115,7 @@ describe('(f) the matrix answers, the route lines never do', () => {
     expect(m.f.pairs.ms).toBeLessThanOrEqual(PAIR_BUDGET_MS);
   });
 
-  it.fails('OVER BUDGET: the two lines add at most 5 s (measured: 63.5 s)', () => {
+  it('is within budget for the lines: they add at most 5 s (5 s; it was 63.5 s)', () => {
     expect(m.f.lines.ms).toBeLessThanOrEqual(LINES_BUDGET_MS);
   });
 
@@ -124,14 +126,14 @@ describe('(f) the matrix answers, the route lines never do', () => {
 });
 
 describe('(extra) the first matrix request answers, the second never does', () => {
-  it('measures 63.8 s for the pair fetch (5 requests): one answer of 300 ms, then 4 attempts of 15 s and 3.5 s of backoff', () => {
-    expect(m.half.pairs).toMatchObject({ ms: 63_800, requests: 5, settled: 'rejected', fetched: null });
-    expect(traceOf(m.half)).toEqual(['matrix 1 try 1: 200 after 300 ms', ...FOUR_SILENT_TRIES.map((attempt) => `matrix 2 ${attempt}`)]);
-    expect(m.half).toMatchObject({ totalMs: 63_800, requests: 5, save: 'refused' });
+  it('measures 8.8 s for the pair fetch (3 requests): one answer of 300 ms, then 2 attempts of 4 s and 0.5 s of backoff', () => {
+    expect(m.half.pairs).toMatchObject({ ms: 8800, requests: 3, settled: 'rejected', fetched: null });
+    expect(traceOf(m.half)).toEqual(['matrix 1 try 1: 200 after 300 ms', ...TWO_SILENT_TRIES.map((attempt) => `matrix 2 ${attempt}`)]);
+    expect(m.half).toMatchObject({ totalMs: 8800, requests: 3, save: 'refused' });
     expect(m.half.lines.settled).toBe('not called');
   });
 
-  it.fails('OVER BUDGET: the pair fetch settles within 10 s (measured: 63.8 s)', () => {
+  it('is within budget: the pair fetch settles within 10 s (8.8 s; it was 63.8 s)', () => {
     expect(m.half.pairs.ms).toBeLessThanOrEqual(PAIR_BUDGET_MS);
   });
 
@@ -147,24 +149,32 @@ describe('(extra) the first matrix request answers, the second never does', () =
 });
 
 describe('(extra) the longest wait the retry rules allow: every request answers on its last attempt, 1 ms before the timeout', () => {
-  it('measures 126.998 s for the pair fetch (8 requests) and 126.998 s more for the lines (8 requests): saved after 253.996 s', () => {
-    // Per request: 3 attempts of 15 s, 3.5 s of backoff, then an answer after 14.999 s. Two requests per step.
-    expect(m.worst.pairs).toEqual({ ms: 126_998, requests: 8, settled: 'resolved', fetched: 36, error: undefined });
-    expect(m.worst.lines).toEqual({ ms: 126_998, requests: 8, settled: 'resolved', fetched: 2, error: undefined });
-    expect(m.worst).toMatchObject({ totalMs: 253_996, requests: 16, save: 'saved' });
-    expect(m.worst.sleeps).toEqual([500, 1000, 2000, 500, 1000, 2000, 500, 1000, 2000, 500, 1000, 2000]);
+  it('measures exactly 10 s for the pair fetch (3 requests): 8.499 s for the first request, then the deadline cuts the second one to 1.501 s', () => {
+    // First request: an attempt of 4 s, 0.5 s of backoff, then an answer after 3.999 s. The second request has
+    // 1.501 s left of the 10 s: its first attempt gets that as its timeout, and there is no time for a retry.
+    expect(m.worst.pairs).toMatchObject({ ms: 10_000, requests: 3, settled: 'rejected', fetched: null });
+    expect(traceOf(m.worst)).toEqual([
+      'matrix 1 try 1: no answer for 4000 ms',
+      'matrix 1 try 2: 200 after 3999 ms',
+      'matrix 2 try 1: no answer for 1501 ms',
+    ]);
+    expect(m.worst.sleeps).toEqual([500]); // the backoff after the cut attempt is not slept
   });
 
-  it.fails('OVER BUDGET: the pair fetch settles within 10 s (measured: 126.998 s)', () => {
+  it('answers 503 after 10 s: a deadline is a failure, the two lines are not asked for', () => {
+    expect(m.worst.lines).toEqual({ ms: 0, requests: 0, settled: 'not called', fetched: null, error: undefined });
+    expect(m.worst).toMatchObject({ totalMs: 10_000, requests: 3, save: 'refused' });
+    expectNoResponse(m.worst.pairs.error, ROUTE_MATRIX_URL);
+  });
+
+  it('is within budget: the pair fetch settles within 10 s (10 s; it was 126.998 s, and 126.998 s more for the lines)', () => {
     expect(m.worst.pairs.ms).toBeLessThanOrEqual(PAIR_BUDGET_MS);
   });
 
-  it.fails('OVER BUDGET: the two lines add at most 5 s (measured: 126.998 s)', () => {
-    expect(m.worst.lines.ms).toBeLessThanOrEqual(LINES_BUDGET_MS);
-  });
-
-  it('leaves the home with all 36 pairs and both lines in the cache files', () => {
-    expect(homeIn(m.worst.disk.files)).toEqual({ place: true, pairs: 36, lines: 2 });
+  it('keeps the 18 pairs that got an answer, with the place, in memory and on disk; no time was made up for the other 18', () => {
+    expect(homeIn(m.worst.disk.files)).toEqual({ place: true, pairs: 18, lines: 0 });
+    expect(homeIn(m.worst.memory)).toEqual({ place: true, pairs: 18, lines: 0 });
+    expect(m.worst.disk).toMatchObject({ matrixChanged: true, polylinesChanged: false });
   });
 });
 
@@ -179,6 +189,6 @@ describe('every case of this file', () => {
 
   it('printed nothing, and no rejection holds the key', () => {
     for (const measured of Object.values(m)) expectNoKeyIn(measured);
-    suite.expectNoLeak(3); // (b) and (extra, half) from the pair fetch, (f) from the lines
+    suite.expectNoLeak(4); // (b) and the two extras from the pair fetch, (f) from the lines
   });
 });
