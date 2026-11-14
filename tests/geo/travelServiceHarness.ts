@@ -38,6 +38,14 @@ export const POINTS: Record<string, LatLng> = {
 };
 export const BUSINESSES = ['biz-a', 'biz-b', 'biz-c'];
 
+/**
+ * A second commute-editor home, for two saves at the same time. It is not in POINTS, so it is not in the
+ * seeded cache; the fake Google knows it through MORE_POINTS.
+ */
+export const OTHER_HOME = 'home-c-40.68610_-73.94410';
+export const OTHER_HOME_POINT: LatLng = { lat: 40.6861, lng: -73.9441 };
+export const MORE_POINTS: Record<string, LatLng> = { [OTHER_HOME]: OTHER_HOME_POINT };
+
 /** Deterministic made-up Google answers, different per direction. */
 export const secondsFor = (from: string, to: string) => 601 + from.length * 61 + to.charCodeAt(to.length - 1);
 export const metersFor = (from: string, to: string) => 4000 + from.charCodeAt(from.length - 1) * 10 + to.length;
@@ -96,7 +104,8 @@ export type GoogleReply = { status: number; body: unknown };
 
 const idOf = (waypoint: { location: { latLng: { latitude: number; longitude: number } } }) => {
   const { latitude, longitude } = waypoint.location.latLng;
-  return Object.keys(POINTS).find((id) => POINTS[id].lat === latitude && POINTS[id].lng === longitude) ?? '?';
+  const inPoints = (points: Record<string, LatLng>) => Object.keys(points).find((id) => points[id].lat === latitude && points[id].lng === longitude);
+  return inPoints(POINTS) ?? inPoints(MORE_POINTS) ?? '?';
 };
 
 export const google500: GoogleReply = { status: 500, body: { error: { code: 500, message: `backend error for key ${KEY}`, status: 'INTERNAL' } } };

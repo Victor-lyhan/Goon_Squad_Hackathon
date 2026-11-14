@@ -4,6 +4,8 @@
 // - A live action fetches only what it needs from Google: a new home's travel pairs on a commute save
 //   (`addPlaces` + `ensurePairs`), the route lines of a newly matched delivery (`ensureLegPolylines`).
 //   Every answer is written back to the cache files (SPEC "MVP II" rule 3).
+// - A refused pair fetch leaves nothing behind: a place registered here that has no travel pair is taken out
+//   again, and is never written to the cache files while it has none (SPEC rule 6, DECISIONS pass 56).
 // Rules:
 // - nothing is ever estimated; a missing key is GoogleKeyMissingError before any request (rule 2);
 // - the key is an argument (the caller reads the environment) and lives only inside the bound Google
@@ -43,7 +45,8 @@ export interface TravelService {
    * Registers coordinates in `matrix.places` (a new `home-c-…` home) so its pairs can be fetched.
    * A place that is already there with the same coordinates is left alone. Throws TravelPlaceError, and adds
    * nothing, when a place already has other coordinates or a coordinate is not a real latitude / longitude.
-   * The places reach the disk with the next fetch.
+   * A new place reaches the disk with the first cache write after it got a travel pair, never before. Until
+   * then a rejected `ensurePairs` removes it again (see there), so call `ensurePairs` right after this.
    */
   addPlaces(places: Record<string, LatLng>): void;
   /**
@@ -51,6 +54,11 @@ export interface TravelService {
    * Something missing and no key: rejects with GoogleKeyMissingError before any request. Otherwise the missing
    * pairs are fetched and the cache files are written. Google's errors pass through unchanged, and pairs that
    * did get an answer stay cached (in memory and on disk).
+   * When it rejects, every place that `addPlaces` registered in this process, that is not on disk yet and that
+   * has no pair at all is removed from `files.matrix.places` (with any route line of it) before the caller sees
+   * the rejection, so the same point can be registered and fetched again. A place that got some of its pairs
+   * stays: a retry fills the rest. A place that another `ensurePairs` call still in progress asks for stays
+   * too; that call decides. Places from the cache files are never removed.
    */
   ensurePairs(pairs: readonly PlacePair[]): Promise<{ fetched: number }>;
   /** The same for encoded route lines. */
@@ -95,12 +103,68 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
   const files = readTravelFiles(dir) ?? emptyTravelFiles();
   const ready = Object.keys(files.matrix.pairs).length > 0;
 
+  // Places that `addPlaces` registered in this process and that no cache write has put on disk yet.
+  // Only these can be rolled back; a place that was in the cache at start is never in this set.
+  const unsaved = new Set<string>();
+  // How many `ensurePairs` calls in progress name each place. A place another call still waits for is not rolled back.
+  const claims = new Map<string, number>();
+
+  /** The places of `ids` that have at least one travel pair, in either direction. */
+  const withPair = (ids: ReadonlySet<string>): Set<string> => {
+    const found = new Set<string>();
+    if (ids.size === 0) return found;
+    for (const key of Object.keys(files.matrix.pairs)) {
+      const cut = key.indexOf('|'); // a place ID never holds '|' (see addPlaces)
+      const from = key.slice(0, cut);
+      const to = key.slice(cut + 1);
+      if (ids.has(from)) found.add(from);
+      if (ids.has(to)) found.add(to);
+    }
+    return found;
+  };
+
+  /**
+   * Writes the cache without the unsaved places that have no pair yet (their fetch may still be refused), so
+   * a typed address without travel data never reaches matrix.json, whichever call writes first.
+   */
+  const write = options.persist ?? ((current: TravelFiles) => writeTravelFiles(dir, current));
+  const persist = async (current: TravelFiles): Promise<void> => {
+    const written = withPair(unsaved);
+    const held = [...unsaved].filter((id) => !written.has(id));
+    if (held.length === 0) {
+      await write(current);
+    } else {
+      const places = { ...current.matrix.places };
+      for (const id of held) delete places[id];
+      await write({ ...current, matrix: { ...current.matrix, places } });
+    }
+    for (const id of written) unsaved.delete(id); // on disk now: they stay for good
+  };
+
+  /** After a rejected pair fetch: takes out every unsaved place that has no pair and that no other call waits for. */
+  const rollBack = (): void => {
+    const open = new Set([...unsaved].filter((id) => !claims.has(id)));
+    const paired = withPair(open);
+    const removed = new Set([...open].filter((id) => !paired.has(id)));
+    if (removed.size === 0) return;
+    for (const id of removed) {
+      delete files.matrix.places[id];
+      unsaved.delete(id);
+    }
+    // A route line of a removed place (only there if its own write failed) would still describe the point.
+    const lines = files.polylines.polylines;
+    for (const key of Object.keys(lines)) {
+      const cut = key.indexOf('|');
+      if (removed.has(key.slice(0, cut)) || removed.has(key.slice(cut + 1))) delete lines[key];
+    }
+  };
+
   // One GoogleTravel for everything, so there is one queue: one Google fetch at a time across all methods.
   // With an empty key the client is never called: `ensure` rejects first.
   const google = createGoogleTravel({
     files,
     client: bindGoogleClient({ apiKey, fetchImpl: options.fetch, sleep: options.sleep }),
-    persist: options.persist ?? ((current) => writeTravelFiles(dir, current)),
+    persist,
   });
 
   /** The distinct pairs of different places that `cached` does not hold. */
@@ -147,10 +211,33 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
       }
       if (invalid.length > 0) throw new TravelPlaceError('invalid', invalid.sort());
       if (conflicts.length > 0) throw new TravelPlaceError('conflict', conflicts.sort());
-      for (const [id, point] of fresh) files.matrix.places[id] = point;
+      for (const [id, point] of fresh) {
+        files.matrix.places[id] = point;
+        unsaved.add(id);
+      }
     },
 
-    ensurePairs: (pairs) => ensure(pairs, files.matrix.pairs, google.ensurePairs),
+    async ensurePairs(pairs) {
+      // Claimed before the first await, so a call that fails while this one waits in the queue leaves its places alone.
+      const named = new Set(pairs.flatMap(({ from, to }) => [from, to]));
+      for (const id of named) claims.set(id, (claims.get(id) ?? 0) + 1);
+      const release = () => {
+        for (const id of named) {
+          const left = (claims.get(id) ?? 1) - 1;
+          if (left > 0) claims.set(id, left);
+          else claims.delete(id);
+        }
+      };
+      try {
+        const result = await ensure(pairs, files.matrix.pairs, google.ensurePairs);
+        release();
+        return result;
+      } catch (err) {
+        release();
+        rollBack();
+        throw err;
+      }
+    },
     ensurePolylines: (pairs) => ensure(pairs, files.polylines.polylines, google.ensurePolylines),
 
     async ensureLegPolylines(legs) {
