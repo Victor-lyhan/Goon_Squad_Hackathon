@@ -4,12 +4,49 @@ import { CreateShipmentRequest } from '../../../../../shared/v2/schemas';
 import type { ShipmentResponse, ShipmentView, TravelUnavailable } from '../../../../../shared/v2/api';
 import type { NetworkBusiness, PackageCategory } from '../../../../../shared/v2/types';
 import { formatMin } from '../../../ui/format';
-import { DEFAULT_WINDOW, dayTimeToMin, parseWeightKg, type TimeWindow } from '../shipmentFormModel';
 import { deliveryDetails, type DetailsLookups, type StopRow } from './deliveryDetailsModel';
 
-export { DEFAULT_WINDOW, type TimeWindow };
-
 const DAY = 1440;
+
+// ---------- Helpers kept from the MVP 1 form model (same names and behaviour) ----------
+
+function timeToMin(value: string): number {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!m) return NaN;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  return h > 23 || mi > 59 ? NaN : h * 60 + mi;
+}
+
+/** Day + HH:MM -> minutes since Day 1 00:00 (NaN when the time is malformed). */
+export function dayTimeToMin(day: number, time: string): number {
+  return (day - 1) * DAY + timeToMin(time);
+}
+
+/** Default planning window (settings.simStartMin / simEndMin): Day 1 15:30 to Day 2 12:00. */
+export const DEFAULT_WINDOW = { startMin: 930, endMin: 2160 } as const;
+export type TimeWindow = { startMin: number; endMin: number };
+
+/** Weight rule: kg with a dot, 0 < kg <= 2, stored as grams = round(kg * 1000) which must be >= 1. */
+export function parseWeightKg(raw: string): { kg: number; grams: number } | { error: string } {
+  const t = raw.trim();
+  if (t === '') return { error: 'Enter a weight in kg, for example 0.5' };
+  if (t.includes(',')) return { error: 'Use a dot for the decimal point, for example 1.5 kg' };
+  const n = Number(t);
+  if (!Number.isFinite(n)) return { error: 'Weight must be a number in kg, for example 0.5' };
+  if (n <= 0) return { error: 'Weight must be above 0 kg' };
+  if (n > 2) return { error: 'Max 2 kg' };
+  const grams = Math.round(n * 1000);
+  if (grams < 1) return { error: 'Weight is too small: the minimum is 0.001 kg (1 g)' };
+  return { kg: grams / 1000, grams };
+}
+
+let requestCounter = 0;
+/** Fresh id for a new request. Module-wide counter so two requests never share an id (POST is idempotent per id). */
+export function newClientRequestId(originId: string): string {
+  requestCounter += 1;
+  return `req-${originId}-${requestCounter}-${Date.now().toString(36)}`;
+}
 
 /** What the user has typed. Strings for inputs; weight in kg; ready time is always on Day 1. */
 export type NewDeliveryDraft = {
