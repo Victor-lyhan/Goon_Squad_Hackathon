@@ -17,13 +17,15 @@ export type CityMapProps = {
   onNodeClick?: (nodeId: string) => void;
   children?: ReactNode; // extra SVG layer (markers etc.)
   className?: string;
+  /** Accessible title for the whole map (default "City map"). */
+  title?: string;
 };
 
 const PAD = 90;
 
 export function CityMap({
   graph, businesses, hubs, homes = [], highlightRoute, baselineRoute, highlightRoutes, baselineRoutes,
-  selectedNodeId, onNodeClick, children, className,
+  selectedNodeId, onNodeClick, children, className, title = 'City map',
 }: CityMapProps) {
   const pos = projectNodes(graph.nodes);
   const vb = computeViewBox(graph.nodes, PAD);
@@ -49,8 +51,9 @@ export function CityMap({
       viewBox={`${vb.x} ${vb.y} ${vb.width} ${vb.height}`}
       preserveAspectRatio="xMidYMid meet"
       role="img"
-      aria-label="City map"
+      aria-label={title}
     >
+      <title>{title}</title>
       <g>
         {segs.map((s) => (
           <line key={`${s.from}-${s.to}`} className="road" x1={s.a.x} y1={s.a.y} x2={s.b.x} y2={s.b.y} />

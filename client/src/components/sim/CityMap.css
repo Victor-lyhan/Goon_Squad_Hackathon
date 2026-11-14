@@ -15,3 +15,5 @@
 .city-map .legend-bg { fill: #fff; stroke: #e2e8f0; }
 .city-map .route-base-leg { stroke-width: 4; opacity: .35; }
 .city-map .route-hi-alt { stroke-dasharray: 26 12; }
+.city-map .node-click:focus-visible { stroke: #0f172a; stroke-width: 4; }
+@media (prefers-reduced-motion: reduce) { .city-map * { transition: none !important; animation: none !important; } }
