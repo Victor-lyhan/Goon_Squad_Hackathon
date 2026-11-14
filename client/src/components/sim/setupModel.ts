@@ -16,36 +16,57 @@ export const FIELD_RANGES: Record<NumericField, { label: string; min?: number; m
 };
 export const NUMERIC_FIELDS = Object.keys(FIELD_RANGES) as NumericField[];
 
-/** Defaults come straight from the schema. */
+/** Defaults come straight from the schema (the Random preset uses every field). */
 export function defaultForm(): SetupForm {
-  const d = GenerateScenarioRequest.parse({ preset: 'demo' });
+  const d = GenerateScenarioRequest.parse({ preset: 'random' });
   return { preset: 'demo', seed: String(d.seed), employees: String(d.employees), packages: String(d.packages), hubs: String(d.hubs), maxExtraMin: String(d.maxExtraMin) };
 }
+
+export const PRESET_LABELS: Record<SetupForm['preset'], string> = { demo: 'Demo city (designed)', random: 'Random city (seeded)' };
+/** server/api/scenario.ts loads the fixed Demo city and ignores every numeric field. */
+export const DEMO_IGNORES_TEXT = 'The designed Demo city is fixed, so seed and sizes do not apply. Pick Random city to set them.';
+export const isFieldDisabled = (preset: SetupForm['preset']): boolean => preset === 'demo';
 
 export function rangeHint(f: NumericField): string {
   const r = FIELD_RANGES[f];
   return r.min === undefined || r.max === undefined ? 'Whole number' : `Whole number, ${r.min} to ${r.max}`;
 }
 
+export function fieldErrorText(f: NumericField): string {
+  const r = FIELD_RANGES[f];
+  return r.min === undefined || r.max === undefined
+    ? `${r.label} must be a whole number.`
+    : `${r.label} must be a whole number from ${r.min} to ${r.max}.`;
+}
+
 export type SetupValidation =
   | { ok: true; request: GenerateScenarioRequest; errors: Record<string, never> }
   | { ok: false; request?: undefined; errors: Partial<Record<NumericField, string>> };
 
-/** Validates the form with the shared schema. Blank fields fall back to the schema default. */
+const NUMBER_TEXT = /^[+-]?\d+(\.\d+)?$/;
+
+/** Validates the form with the shared schema. Blank or non-numeric text is an error; Demo sends only the preset. */
 export function validateSetup(form: SetupForm): SetupValidation {
   const raw: Record<string, unknown> = { preset: form.preset };
-  for (const f of NUMERIC_FIELDS) {
-    const t = form[f].trim();
-    if (t !== '') raw[f] = Number(t);
+  if (form.preset === 'random') {
+    for (const f of NUMERIC_FIELDS) {
+      const t = form[f].trim();
+      raw[f] = NUMBER_TEXT.test(t) ? Number(t) : Number.NaN;
+    }
   }
   const parsed = GenerateScenarioRequest.safeParse(raw);
   if (parsed.success) return { ok: true, request: parsed.data, errors: {} };
   const errors: Partial<Record<NumericField, string>> = {};
   for (const issue of parsed.error.issues) {
     const key = issue.path[0] as NumericField;
-    if (key in FIELD_RANGES && !errors[key]) errors[key] = `${FIELD_RANGES[key].label}: ${rangeHint(key).toLowerCase()}`;
+    if (key in FIELD_RANGES && !errors[key]) errors[key] = fieldErrorText(key);
   }
   return { ok: false, errors };
+}
+
+/** "Generated run-3 (seed 42)" from the API response; Demo has no seed of its own, so the response's seed is shown as-is. */
+export function generatedText(r: { runId: string }, seed: number | undefined): string {
+  return seed === undefined ? `Generated ${r.runId}` : `Generated ${r.runId} (seed ${seed})`;
 }
 
 export type CompareRow = { key: string; label: string; direct: string; relay: string; diff: string };

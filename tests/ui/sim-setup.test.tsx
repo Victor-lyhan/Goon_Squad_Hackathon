@@ -21,21 +21,21 @@ describe('sim setup: validation', () => {
     expect(v.ok).toBe(true);
     expect(v.request).toEqual(GenerateScenarioRequest.parse({ preset: 'demo' }));
   });
-  it('blank fields use schema defaults', () => {
-    const v = validateSetup({ ...defaultForm(), seed: '', packages: '' });
-    expect(v.request?.seed).toBe(42);
-    expect(v.request?.packages).toBe(24);
+  it('blank fields are errors for Random', () => {
+    const v = validateSetup({ ...defaultForm(), preset: 'random', seed: '', packages: '' });
+    expect(v.ok).toBe(false);
+    expect(Object.keys(v.errors).sort()).toEqual(['packages', 'seed']);
   });
   it('ranges match the schema boundaries', () => {
     for (const [f, r] of Object.entries(FIELD_RANGES) as [NumericField, (typeof FIELD_RANGES)[NumericField]][]) {
       if (r.min === undefined || r.max === undefined) continue;
       for (const [val, ok] of [[r.min, true], [r.max, true], [r.min - 1, false], [r.max + 1, false]] as const) {
-        expect(validateSetup({ ...defaultForm(), [f]: String(val) }).ok, `${f}=${val}`).toBe(ok);
+        expect(validateSetup({ ...defaultForm(), preset: 'random', [f]: String(val) }).ok, `${f}=${val}`).toBe(ok);
       }
     }
   });
   it('reports inline errors for bad input', () => {
-    const v = validateSetup({ ...defaultForm(), employees: '5', hubs: 'abc', seed: '1.5' });
+    const v = validateSetup({ ...defaultForm(), preset: 'random', employees: '5', hubs: 'abc', seed: '1.5' });
     expect(v.ok).toBe(false);
     expect(Object.keys(v.errors).sort()).toEqual(['employees', 'hubs', 'seed']);
     expect(v.errors.employees).toMatch(/10 to 200/);
