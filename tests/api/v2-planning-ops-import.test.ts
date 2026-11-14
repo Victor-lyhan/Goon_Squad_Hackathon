@@ -168,6 +168,35 @@ describe('parseImportedRun: references', () => {
     }
   });
 
+  it('refuses a place ID that is not a business or a home of the file, wherever the run drives or stops', () => {
+    // A new planning cycle and Recompute match the stored trips again; a place the file does not hold has
+    // no travel time, so such a file used to be stored and then lock both actions in a 503 (#570).
+    const cases: [(run: Run) => void, string, string][] = [
+      [(run) => { run.trips[0].originPlaceId = 'place-not-in-the-file'; }, 'trips.0.originPlaceId', 'Unknown place'],
+      [(run) => { run.trips[3].destinationPlaceId = 'emp-2'; }, 'trips.3.destinationPlaceId', 'Unknown place'],
+      [(run) => { run.assignments.plans[0].legs[1].placeIds[1] = 'hub-1'; }, 'assignments.plans.0.legs.1.placeIds.1', 'Unknown place'],
+      [(run) => { run.assignments.plans[1].legs[0].stops[1].placeId = 'home-999'; }, 'assignments.plans.1.legs.0.stops.1.placeId', 'Unknown place'],
+      [(run) => { run.jobs[1].pickup.placeId = 'biz-gone'; }, 'jobs.1.pickup.placeId', 'Unknown place'],
+      [(run) => { run.jobs[2].dropoff.placeId = 'shp-2'; }, 'jobs.2.dropoff.placeId', 'Unknown place'],
+      [(run) => { run.events[1].relayBusinessId = 'home-001'; }, 'events.1.relayBusinessId', 'Unknown business'],
+      // The home was cut out of the file; nobody lives there any more, but a trip still ends there.
+      [(run) => {
+        run.scenario.employees[0].homeId = 'home-003';
+        run.scenario.homes = run.scenario.homes.filter((home) => home.id !== 'home-001');
+      }, 'trips.0.destinationPlaceId', 'Unknown place'],
+    ];
+    // As uploaded: in the sample run a job and its plan share stop objects, in a file they never do.
+    const uploaded = asUploaded(lockedRun) as Run;
+    for (const [edit, path, label] of cases) {
+      const error = expectInvalid(runWith(edit, uploaded), / in this file refers to an? [a-z ]+ that is not in the file, so it was not loaded\.$/);
+      expect(error.fieldErrors, path).toStrictEqual({ [path]: label });
+    }
+    expect(expectInvalid(runWith((run) => { run.trips[0].originPlaceId = 'place-not-in-the-file'; }))).toStrictEqual({
+      error: 'A commute trip in this file refers to a place that is not in the file, so it was not loaded.',
+      fieldErrors: { 'trips.0.originPlaceId': 'Unknown place' },
+    });
+  });
+
   it('refuses an ID that is listed twice', () => {
     const twice = runWith((run) => { run.scenario.employees[2].id = 'emp-1'; });
     expect(expectInvalid(twice)).toStrictEqual({
@@ -222,6 +251,61 @@ describe('parseImportedRun: travel cache', () => {
   it('does not ask for a home that no employee lives in', () => {
     // home-003 belongs to nobody in the sample city.
     expect(parseImportedRun(lockedRun, travelWithout(['home-003']).travel).kind).toBe('run');
+  });
+
+  it('refuses a trip whose own drive is not in the cache (400), after the employees\' commutes (503)', () => {
+    // home-003 is in the file but nobody lives there, so the employee check never asks for it.
+    const odd = runWith((run) => { run.trips[0].destinationPlaceId = 'home-003'; });
+    const plan = expectDeterministic(() => parseImportedRun(odd, travelWithout(['home-003']).travel));
+    expect(plan).toStrictEqual({
+      kind: 'invalid', status: 400,
+      error: {
+        error: 'A commute trip in this file drives between places this server has no travel time for, so it was not loaded.',
+        fieldErrors: { 'trips.0.destinationPlaceId': 'No travel time' },
+      },
+    });
+    expect(parseImportedRun(odd, everyPair()).kind).toBe('run');
+    // A missing commute of an employee is still the 503 of the cache check, which comes first.
+    expect(parseImportedRun(odd, travelWithout(['home-003', 'home-001']).travel)).toMatchObject({ kind: 'unavailable', missingPlaces: 1 });
+  });
+
+  it('refuses a trip that cannot be routed through every business of the file', () => {
+    // A new planning cycle may match any trip through any business: the other side of a delivery or a relay point.
+    const cases: [string[], string[], string][] = [
+      [['biz-cafe'], [], 'trips.0.originPlaceId'], // nobody works at the cafe, so only the trips ask for it
+      [[], [pairKey('biz-cafe', 'home-002')], 'trips.4.destinationPlaceId'],
+      [[], [pairKey('home-story-ana', 'biz-studio')], 'trips.3.originPlaceId'],
+      [[], [pairKey('biz-agency', 'biz-studio')], 'trips.1.destinationPlaceId'],
+    ];
+    for (const [places, pairs, path] of cases) {
+      const plan = parseImportedRun(asUploaded(lockedRun), travelWithout(places, pairs).travel);
+      expect(plan, path).toMatchObject({ kind: 'invalid', status: 400, error: { fieldErrors: { [path]: 'No travel time' } } });
+    }
+  });
+
+  it('refuses a plan leg that drives a pair the cache does not have', () => {
+    const odd = runWith((run) => { run.assignments.plans[0].legs[0].placeIds[2] = 'home-003'; });
+    expect(parseImportedRun(odd, travelWithout(['home-003']).travel)).toStrictEqual({
+      kind: 'invalid', status: 400,
+      error: {
+        error: 'A delivery plan in this file drives between places this server has no travel time for, so it was not loaded.',
+        fieldErrors: { 'assignments.plans.0.legs.0.placeIds.2': 'No travel time' },
+      },
+    });
+  });
+
+  it('asks only for pairs of two different places', () => {
+    const { travel, calls } = travelWithout();
+    expect(parseImportedRun(lockedRun, travel).kind).toBe('run');
+    expect(calls.filter((key) => key.split('|')[0] === key.split('|')[1])).toStrictEqual([]);
+    // Every trip is asked for its own drive and for both ways through each business.
+    for (const trip of lockedRun.trips) {
+      expect(calls).toContain(pairKey(trip.originPlaceId, trip.destinationPlaceId));
+      for (const business of lockedRun.scenario.businesses) {
+        if (business.id !== trip.originPlaceId) expect(calls).toContain(pairKey(trip.originPlaceId, business.id));
+        if (business.id !== trip.destinationPlaceId) expect(calls).toContain(pairKey(business.id, trip.destinationPlaceId));
+      }
+    }
   });
 
   it('accepts a city with no employees without asking the cache anything', () => {
