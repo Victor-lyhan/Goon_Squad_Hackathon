@@ -203,13 +203,13 @@ describe('v2 client: network, timeout and abort', () => {
   });
 });
 
-describe('MVP 1 client is unchanged by the shared request export', () => {
-  it('still calls /api paths and gives no code on its errors', async () => {
-    const fetchMock = vi.fn().mockImplementation(async () => json(404, { error: 'Job not found' }));
+describe('the index after the MVP 1 helpers were deleted (#628)', () => {
+  it('calls the given path unchanged and gives no code on an error without one', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => json(404, { error: 'Not found' }));
     vi.stubGlobal('fetch', fetchMock);
-    const e = await caught(v1.getJob('j1'));
+    const e = await caught(v1.request('GET', '/api/jobs/j1'));
     expect(fetchMock.mock.calls[0][0]).toBe('/api/jobs/j1');
-    expect([e.status, e.message, e.code]).toEqual([404, 'Job not found', undefined]);
+    expect([e.status, e.message, e.code]).toEqual([404, 'Not found', undefined]);
   });
 
   it('the index does not export the v2-only names', () => {

@@ -1,85 +1,49 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { createApp } from '../../server/index';
-import { createStore } from '../../server/store';
+import { describe, expect, it } from 'vitest';
 import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 import {
   actionErrorMessage, createSubmitGuard, formFromShipment, newClientRequestId, toRequest, validate,
 } from '../../client/src/components/business/shipmentFormModel';
-import { ApiRequestError, createShipment, getShipment, matchShipment, patchShipment } from '../../client/src/api';
+import { ApiRequestError } from '../../client/src/api';
+import type { Shipment } from '../../shared/types';
 
-// Real server + real POSTs: ~0.9 s locally on the first test. Explicit 30 s (>3x, >=10 s) so a slow CI runner cannot hit the 5 s default (#307).
-const SLOW = 30_000;
-describe('no-match -> Edit request -> Try again -> Duplicate (real pipeline)', { timeout: SLOW }, () => {
-  let server: Server;
-  let store: ReturnType<typeof createStore>;
-  const realFetch = globalThis.fetch;
-  beforeEach(async () => {
-    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nomatch-')), 'state.json');
-    store = createStore({ filePath: file, initial: () => createInitialRun(loadDefaultScenario()) });
-    server = createApp(store).listen(0);
-    await new Promise((r) => server.once('listening', r));
-    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
-      realFetch(typeof input === 'string' && input.startsWith('/') ? base + input : input, init)) as typeof fetch;
-  }, SLOW);
-  afterEach(async () => {
-    globalThis.fetch = realFetch;
-    await new Promise((r) => server.close(r));
-  }, SLOW);
+// These cases ran against the MVP 1 routes (POST/PATCH /api/shipments, POST /match) through the MVP 1 client
+// helpers. Both were deleted with the MVP 1 API (#628). What is left is what the cases proved about
+// shipmentFormModel, which MVP II still imports: on a stored no-match shipment of the Demo city instead of
+// one made over HTTP. The same flow over HTTP on /api/v2 is covered by tests/ui/business-v2-real-newdelivery
+// and tests/api/v2-shipment-route-*.
+describe('no-match -> Edit request -> Try again -> Duplicate (form model)', () => {
+  const { scenario } = createInitialRun(loadDefaultScenario());
+  const origin = scenario.businesses[0]!;
+  const dest = scenario.businesses[1]!;
 
-  const scenario = () => store.get().scenario;
-  const origin = () => scenario().businesses[0]!;
-  const dest = () => scenario().businesses[1]!;
+  // Ready at sim start + 60 but due one minute later: no commute can make it.
+  const stored: Shipment = {
+    id: 'shp-nm-1', clientRequestId: 'nm-1', originBusinessId: origin.id, destinationBusinessId: dest.id,
+    label: 'Tight contracts', category: 'envelope', description: 'Needs it fast', weightGrams: 700,
+    readyMin: scenario.settings.simStartMin + 60, deadlineMin: scenario.settings.simStartMin + 61,
+    pickupInstructions: 'Front desk', dropoffInstructions: 'Ask for Sam', createdSeq: 99,
+  };
 
-  // Ready at sim start but due one minute later: no commute can make it.
-  async function postUnmatched(extra = {}) {
-    const { settings } = scenario();
-    return createShipment({
-      clientRequestId: 'nm-1', originBusinessId: origin().id, destinationBusinessId: dest().id,
-      label: 'Tight contracts', category: 'envelope', description: 'Needs it fast', weightKg: 0.7,
-      readyMin: settings.simStartMin + 60, deadlineMin: settings.simStartMin + 61,
-      pickupInstructions: 'Front desk', dropoffInstructions: 'Ask for Sam', ...extra,
-    });
-  }
-
-  it('Edit request prefills every field from the stored shipment and PATCHes it', async () => {
-    const res = await postUnmatched();
-    const stored = (await getShipment(res.shipment.id)).shipment;
+  it('Edit request prefills every field from the stored shipment and builds the PATCH body', () => {
     const form = formFromShipment(stored);
     expect(form).toMatchObject({
-      originBusinessId: origin().id, destinationBusinessId: dest().id, label: 'Tight contracts',
+      originBusinessId: origin.id, destinationBusinessId: dest.id, label: 'Tight contracts',
       category: 'envelope', description: 'Needs it fast', weightKg: '0.7',
       pickupInstructions: 'Front desk', dropoffInstructions: 'Ask for Sam',
     });
     const day = (m: number) => (m >= 1440 ? 2 : 1);
     expect(form.readyDay).toBe(day(stored.readyMin));
     expect(form.deadlineDay).toBe(day(stored.deadlineMin));
-    // Edit: relax the deadline to the end of the sim and save.
+    // Edit: relax the deadline to the end of the sim.
     const edited = { ...form, deadlineDay: 2 as const, deadlineTime: '10:00' };
     expect(validate(edited)).toEqual({});
     // The PATCH body is the request without the create-only fields.
     const { clientRequestId: _c, originBusinessId: _o, ...body } = toRequest(edited, 'ignored');
-    const patched = await patchShipment(stored.id, body);
-    expect(patched.shipment.id).toBe(stored.id);
-    expect(patched.shipment.deadlineMin).toBe(2040);
-    expect(patched.shipment.weightGrams).toBe(700);
-    expect(store.get().scenario.shipments.filter((s) => s.id === stored.id)).toHaveLength(1);
-  });
-
-  it('Try again calls POST /match and returns the same shipment', async () => {
-    const res = await postUnmatched();
-    const spy = vi.spyOn(globalThis, 'fetch');
-    const again = await matchShipment(res.shipment.id);
-    expect(again.shipment.id).toBe(res.shipment.id);
-    const [url, init] = spy.mock.calls[0]!;
-    expect(String(url)).toBe(`/api/shipments/${res.shipment.id}/match`);
-    expect(init?.method).toBe('POST');
-    spy.mockRestore();
+    expect(body).toMatchObject({
+      destinationBusinessId: dest.id, label: 'Tight contracts', weightKg: 0.7, readyMin: stored.readyMin, deadlineMin: 2040,
+    });
+    expect(body).not.toHaveProperty('clientRequestId');
+    expect(body).not.toHaveProperty('originBusinessId');
   });
 
   it('guard ignores a second call while one is pending (no double submit)', async () => {
@@ -96,40 +60,29 @@ describe('no-match -> Edit request -> Try again -> Duplicate (real pipeline)', {
     expect(await guard(async () => 'c')).toBe('c');
   });
 
-  it('409 while locked shows the "Start a new planning cycle" message', async () => {
-    const res = await postUnmatched();
-    await store.mutate((r) => { r.clock.phase = 'locked'; });
-    const errs: unknown[] = [];
-    await patchShipment(res.shipment.id, { label: 'x' }).catch((e) => errs.push(e));
-    await matchShipment(res.shipment.id).catch((e) => errs.push(e));
-    await postUnmatched({ clientRequestId: 'nm-2' }).catch((e) => errs.push(e));
-    expect(errs).toHaveLength(3);
-    for (const e of errs) {
-      expect(e).toBeInstanceOf(ApiRequestError);
-      expect((e as ApiRequestError).status).toBe(409);
-      expect(actionErrorMessage(e)).toMatch(/Start a new planning cycle/);
+  it('a 409 while locked shows the "Start a new planning cycle" message', () => {
+    for (const said of ['Locked', 'The run is locked', 'Shipment cannot be changed']) {
+      const e = new ApiRequestError(409, said);
+      expect(actionErrorMessage(e)).toBe(`${said}. Start a new planning cycle to change deliveries.`);
     }
-    expect(actionErrorMessage(new ApiRequestError(409, 'Locked'))).toMatch(/Start a new planning cycle/);
+    // A server sentence that already names the planning cycle is not said twice.
+    const named = 'Start a new planning cycle to change deliveries';
+    expect(actionErrorMessage(new ApiRequestError(409, named))).toBe(named);
     expect(actionErrorMessage(new ApiRequestError(500, 'Boom'))).toBe('Boom');
   });
 
-  it('Duplicate prefills the same details and POSTs a second shipment, not a replay', async () => {
-    const res = await postUnmatched();
-    const stored = (await getShipment(res.shipment.id)).shipment;
+  it('Duplicate prefills the same details under a new request id, not a replay', () => {
     const form = formFromShipment(stored);
-    const id = newClientRequestId(origin().id);
+    const id = newClientRequestId(origin.id);
     expect(id).not.toBe(stored.clientRequestId);
-    expect(newClientRequestId(origin().id)).not.toBe(id);
-    const dup = await createShipment(toRequest(form, id));
-    expect(dup.shipment.id).not.toBe(stored.id);
-    expect(dup.shipment.clientRequestId).toBe(id);
-    expect(dup.shipment).toMatchObject({
-      label: stored.label, description: stored.description, weightGrams: stored.weightGrams,
-      readyMin: stored.readyMin, deadlineMin: stored.deadlineMin, destinationBusinessId: stored.destinationBusinessId,
+    expect(newClientRequestId(origin.id)).not.toBe(id);
+    const dup = toRequest(form, id);
+    expect(dup.clientRequestId).toBe(id);
+    expect(dup).toMatchObject({
+      originBusinessId: stored.originBusinessId, destinationBusinessId: stored.destinationBusinessId,
+      label: stored.label, description: stored.description, weightKg: stored.weightGrams / 1000,
+      readyMin: stored.readyMin, deadlineMin: stored.deadlineMin,
+      pickupInstructions: stored.pickupInstructions, dropoffInstructions: stored.dropoffInstructions,
     });
-    expect(store.get().scenario.shipments.filter((s) => s.label === 'Tight contracts')).toHaveLength(2);
-    // Replaying the original id is still idempotent.
-    const replay = await postUnmatched();
-    expect(replay.shipment.id).toBe(stored.id);
   });
 });

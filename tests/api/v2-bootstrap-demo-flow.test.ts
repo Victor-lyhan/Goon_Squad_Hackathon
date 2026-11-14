@@ -177,15 +177,15 @@ describe('MVP II demo flow on the bootstrapped server', () => {
     expect((await api.v2.get('/geocode?q=ab')).status).toBe(400); // registered with its own validation
   }, T);
 
-  it('an unknown /api/v2 path is a JSON 404, and MVP 1 answers as before on its own state', async () => {
+  it('an unknown /api/v2 path is a JSON 404, and so is a deleted MVP 1 path; the MVP 1 state is untouched', async () => {
     const unknown = await api.v2.get('/no-such-route');
     expect(unknown.status).toBe(404);
     expect(unknown.body).toStrictEqual({ error: 'Not found' });
 
-    const mvp1 = await api.call('GET', '/api/simulator');
-    expect(mvp1.status).toBe(200);
-    expect(mvp1.body.runId).toBe(api.mvp1Store.get().runId);
-    expect(mvp1.body.version).toBe(0); // nothing in the v2 flow touched the MVP 1 run
+    const mvp1 = await api.call('GET', '/api/simulator'); // an MVP 1 route until #628
+    expect(mvp1.status).toBe(404);
+    expect(mvp1.body).toStrictEqual({ error: 'Not found' });
+    expect(api.mvp1Store.get().version).toBe(0); // nothing in the v2 flow touched the MVP 1 run
     expect(fs.existsSync(api.repo.mvp1StatePath)).toBe(false);
   }, T);
 

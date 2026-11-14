@@ -1,6 +1,6 @@
 // A fake clock for the client's request timeout, shared by client-abort and client-health.
 //
-// The client arms one setTimeout per request (client/src/api/client.ts). A test that asks "did the call
+// The client arms one setTimeout per request (client/src/api/http.ts). A test that asks "did the call
 // end by its timeout?" must not compare wall-clock time with a limit (DECISIONS pass 52): it fakes
 // setTimeout, moves the clock by hand and counts timers, so a slow runner cannot turn it red.
 //

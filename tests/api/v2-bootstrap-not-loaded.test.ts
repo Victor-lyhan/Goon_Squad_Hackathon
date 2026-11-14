@@ -72,16 +72,16 @@ describe('bootstrap with an empty cache folder', () => {
     }
   }, T);
 
-  it('MVP 1 still answers 200 and its control still works', async () => {
+  it('/api/health still answers 200, and the deleted MVP 1 paths are the JSON 404, not the 503 (#628)', async () => {
     api = await startBootstrapApi({ cache: 'empty' });
-    const simulator = await api.call('GET', '/api/simulator');
-    expect(simulator.status).toBe(200);
-    expect(simulator.body.runId).toBe(api.mvp1Store.get().runId);
     expect((await api.call('GET', '/api/health')).body).toStrictEqual({ ok: true });
-    expect((await api.call('GET', '/api/businesses')).status).toBe(200);
-    const control = await api.call('POST', '/api/simulator/control', { action: 'speed', speed: 600 });
-    expect(control.status).toBe(200);
-    expect(control.body.clock.speed).toBe(600);
+    for (const [method, url, body] of [
+      ['GET', '/api/simulator'], ['GET', '/api/businesses'], ['POST', '/api/simulator/control', { action: 'speed', speed: 600 }],
+    ] as const) {
+      const res = await api.call(method, url, body);
+      expect([method, url, res.status]).toStrictEqual([method, url, 404]);
+      expect(res.body).toStrictEqual({ error: 'Not found' });
+    }
   }, T);
 
   it('the ticker and the shutdown do nothing: no state file, no data folder, no cache file', async () => {
@@ -141,7 +141,7 @@ describe('bootstrap with travel data it cannot use', () => {
     expectNotLoaded(repo, /demoStory\.json.*missing/);
   }, T);
 
-  it('such a server answers 503 on /api/v2 and 200 on MVP 1', async () => {
+  it('such a server answers 503 on /api/v2, 200 on /api/health and 404 on a deleted MVP 1 path', async () => {
     repo = tempRepo('empty');
     fs.writeFileSync(path.join(repo.fixturesDir, MATRIX_FILE), 'not json');
     api = await startBootstrapApi({ cache: 'empty', repo });
@@ -149,6 +149,7 @@ describe('bootstrap with travel data it cannot use', () => {
     const simulator = await api.v2.get('/simulator');
     expect(simulator.status).toBe(503);
     expect(simulator.body).toStrictEqual(NOT_LOADED_BODY);
-    expect((await api.call('GET', '/api/simulator')).status).toBe(200);
+    expect((await api.call('GET', '/api/health')).status).toBe(200);
+    expect((await api.call('GET', '/api/simulator')).status).toBe(404); // an MVP 1 route until #628
   }, T);
 });
