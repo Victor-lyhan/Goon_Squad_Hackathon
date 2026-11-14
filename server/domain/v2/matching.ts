@@ -16,6 +16,28 @@ const compareId = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
 export type MatchMode = 'with_relay' | 'direct_only';
 
+/** What the two candidate sorts read. The story explainer sorts its rows with them too. */
+export type RankableCandidate = Pick<DeliveryPlan, 'kind' | 'legs' | 'deliveryMin' | 'relayBusinessId'>;
+
+/** Generation order of candidates: kind, trip IDs, relay business. */
+export function compareCandidates(a: RankableCandidate, b: RankableCandidate): number {
+  return compareId(a.kind, b.kind) ||
+    compareId(a.legs[0].tripId, b.legs[0].tripId) ||
+    compareId(a.legs[1]?.tripId ?? '', b.legs[1]?.tripId ?? '') ||
+    compareId(a.relayBusinessId ?? '', b.relayBusinessId ?? '');
+}
+
+/** Allocation order: cheapest, least added time, earliest delivery, then the given order. */
+export function rankCandidates<T extends RankableCandidate>(candidates: readonly T[], settings: Settings): T[] {
+  return candidates.map((plan, index) => ({
+    plan, index,
+    cost: plan.legs.reduce((sum, leg) => sum + leg.rewardCents, 0) +
+      (plan.kind === 'relay' ? settings.hubCostCents : 0),
+    extraMin: plan.legs.reduce((sum, leg) => sum + leg.extraMin, 0),
+  })).sort((a, b) => a.cost - b.cost || a.extraMin - b.extraMin ||
+    a.plan.deliveryMin - b.plan.deliveryMin || a.index - b.index).map(ranked => ranked.plan);
+}
+
 /** Greedily reserve whole trips, preserving assignments from earlier requests. */
 export function assignShipments(
   shipments: Shipment[], ctx: MatchContext, opts?: { existing?: DeliveryPlan[]; mode?: MatchMode },
@@ -50,17 +72,11 @@ export function assignShipments(
     a.shipment.deadlineMin - b.shipment.deadlineMin || compareId(a.shipment.id, b.shipment.id));
 
   for (const { shipment, candidates } of pending) {
-    const ranked = candidates.map((plan, index) => ({
-      plan, index,
-      cost: plan.legs.reduce((sum, leg) => sum + leg.rewardCents, 0) +
-        (plan.kind === 'relay' ? ctx.settings.hubCostCents : 0),
-      extraMin: plan.legs.reduce((sum, leg) => sum + leg.extraMin, 0),
-    })).sort((a, b) => a.cost - b.cost || a.extraMin - b.extraMin ||
-      a.plan.deliveryMin - b.plan.deliveryMin || a.index - b.index);
-    const selected = ranked.find(({ plan }) => plan.legs.every(leg => !reserved.has(leg.tripId)));
+    const selected = rankCandidates(candidates, ctx.settings)
+      .find(plan => plan.legs.every(leg => !reserved.has(leg.tripId)));
     if (selected) {
-      plans.push(selected.plan);
-      for (const leg of selected.plan.legs) reserved.add(leg.tripId);
+      plans.push(selected);
+      for (const leg of selected.legs) reserved.add(leg.tripId);
     } else {
       unmatched.push({ shipmentId: shipment.id, reason: candidates.length === 0
         ? unmatchedReason(shipment, ctx, opts?.mode)
@@ -122,8 +138,10 @@ export function compareAssignments(
   };
 }
 
-/** Schedule the two business services and the complete commute, including waiting. */
-function scheduleLeg(
+/** Schedule the two business services and the complete commute, including waiting.
+ * Null when the leg breaks a rule: no finite route, over the carrier's limit, or past the deadline.
+ */
+export function scheduleLeg(
   ctx: MatchContext, trip: Trip, employee: Employee, addedPlaceId: string,
   pickupKind: 'pickup' | 'hub_pickup', dropKind: 'hub_drop' | 'delivery',
   readyMin: number, deadlineMin: number,
@@ -206,8 +224,5 @@ export function generateCandidates(
       }
     }
   }
-  return candidates.sort((a, b) => compareId(a.kind, b.kind) ||
-    compareId(a.legs[0].tripId, b.legs[0].tripId) ||
-    compareId(a.legs[1]?.tripId ?? '', b.legs[1]?.tripId ?? '') ||
-    compareId(a.relayBusinessId ?? '', b.relayBusinessId ?? ''));
+  return candidates.sort(compareCandidates);
 }
