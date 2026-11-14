@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EmployeePortalView } from '../../client/src/components/employee/EmployeePortalView';
 import {
   diffNewJobs, nextArrivals, NEW_BADGE_MS, stepBaseline, toastText, arrivalsFor, dashboardJobIds,
@@ -19,14 +19,14 @@ let server: Server;
 let base: string;
 let store: ReturnType<typeof createStore>;
 
-beforeEach(async () => {
+beforeAll(async () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'newjob-')), 'state.json');
   store = createStore({ filePath: file, initial: () => createInitialRun(loadDefaultScenario()) });
   server = createApp(store).listen(0);
   await new Promise((r) => server.once('listening', r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
-afterEach(() => new Promise((r) => server.close(r)));
+afterAll(() => new Promise((r) => server.close(r)));
 
 const dashOf = async (id: string) =>
   (await (await fetch(`${base}/api/employees/${id}/dashboard`)).json()) as EmployeeDashboard;
@@ -121,5 +121,5 @@ describe('new job arrives by polling', () => {
       <Toast toasts={[{ id: 1, kind: 'info', message: toastText(arrival.packageName) }]} onDismiss={() => {}} />,
     );
     expect(toast).toContain('New delivery job: Contracts');
-  });
+  }, 30_000); // ~0.5 s locally (HTTP round trips for every employee); 30 s for slower CI runners
 });

@@ -31,6 +31,20 @@ function clean(html: string) {
 
 const demo = createInitialRun(loadDefaultScenario());
 
+// Built once per file: generated/derived cities are the slow part on a CI runner.
+const eveningOffBase = loadDefaultScenario();
+const eveningOffTarget = eveningOffBase.employees[0];
+const eveningOffRun = createInitialRun({
+  ...eveningOffBase,
+  employees: eveningOffBase.employees.map((e) => (e.id === eveningOffTarget.id ? { ...e, availableEvening: false } : e)),
+});
+const zeroHubRun = createInitialRun(generateScenario({
+  seed: 5, employees: 20, packages: 10, hubs: 0, maxExtraMin: 8, preset: 'random',
+}));
+
+// Explicit timeouts: ~3x+ headroom over local time (<0.3 s), floor 10 s, for slower CI runners.
+const SLOW_MS = 10_000;
+
 describe('commute editor edge states with real data', () => {
   it('Demo employee with no jobs shows labels and API durations', () => {
     const id = demo.scenario.employees.find((e) => !demo.jobs.some((j) => j.employeeId === e.id))!.id;
@@ -46,29 +60,22 @@ describe('commute editor edge states with real data', () => {
   });
 
   it('evening trip switched off shows Not available for deliveries', () => {
-    const base = loadDefaultScenario();
-    const target = base.employees[0];
-    const run = createInitialRun({
-      ...base, employees: base.employees.map((e) => (e.id === target.id ? { ...e, availableEvening: false } : e)),
-    });
-    const { html, d } = editorHtml(run, target.id);
+    const { html, d } = editorHtml(eveningOffRun, eveningOffTarget.id);
     expect(d.trips.some((t) => t.direction === 'evening')).toBe(false);
     clean(html);
     expect(text(html)).toContain(`Evening route: ${UNAVAILABLE_TEXT}`);
     expect(text(html)).toMatch(/Morning route: .*\d+ (min|h)/);
-  });
+  }, SLOW_MS);
 
   it('random zero-hub city (seed 5) renders every employee cleanly', () => {
-    const run = createInitialRun(generateScenario({
-      seed: 5, employees: 20, packages: 10, hubs: 0, maxExtraMin: 8, preset: 'random',
-    }));
+    const run = zeroHubRun;
     expect(run.scenario.hubs).toHaveLength(0);
     for (const e of run.scenario.employees) {
       const { html } = editorHtml(run, e.id);
       clean(html);
       expect(text(html)).toMatch(/Evening route: .*(\d+ (min|h)|Not available)/);
     }
-  });
+  }, SLOW_MS);
 
   it('locked phase disables inputs and links to the simulator', () => {
     const run = { ...demo, clock: { ...demo.clock, phase: 'locked' as const } };
