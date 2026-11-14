@@ -9,6 +9,7 @@ import { MetricsCards } from './MetricsCards';
 import { PackageDetail } from './PackageDetail';
 import { PackageQueue } from './PackageQueue';
 import { PlaybackBar } from './PlaybackBar';
+import { formatMin } from '../../ui/format';
 import { resolveSelection, selectedRoutes } from './simPageModel';
 import './SimulatorPage.css';
 
@@ -42,15 +43,19 @@ export function SimulatorView({ sim, map, employees, selectedId, onSelect, onCon
   return (
     <div className="sp">
       {banner}
-      <PlaybackBar clock={sim.clock} nextEventMin={sim.nextEventMin} settings={SIM_WINDOW} busy={busy} onControl={onControl} />
+      <MetricsCards metrics={sim.snapshot.metrics} />
       <div className="sp-main">
         <div className="sp-map">
           <CityMap graph={map.graph} businesses={map.businesses} hubs={map.hubs} homes={map.homes}
+            title={`Synthetic city map at ${formatMin(sim.clock.timeMin)}`}
             highlightRoutes={routes.legs} baselineRoutes={routes.baselines}>
             <MapMarkers graph={map.graph} snapshot={sim.snapshot} clock={sim.clock}
               shipmentLabels={Object.fromEntries(sim.shipments.map((s) => [s.id, s.label]))}
               employeeNames={Object.fromEntries(employees.map((e) => [e.id, e.name]))} />
           </CityMap>
+        </div>
+        <div className="sp-bar">
+          <PlaybackBar clock={sim.clock} nextEventMin={sim.nextEventMin} settings={SIM_WINDOW} busy={busy} onControl={onControl} />
         </div>
         <aside className="sp-side">
           {sim.shipments.length === 0 ? (
@@ -62,7 +67,6 @@ export function SimulatorView({ sim, map, employees, selectedId, onSelect, onCon
           <PackageDetail sim={sim} businesses={map.businesses} hubs={map.hubs} employees={employees} selectedId={selected} />
         </aside>
       </div>
-      <MetricsCards metrics={sim.snapshot.metrics} />
       <Timeline events={sim.snapshot.occurredEvents} timeMin={sim.snapshot.timeMin}
         shipments={sim.shipments} employees={employees} hubs={map.hubs} />
     </div>

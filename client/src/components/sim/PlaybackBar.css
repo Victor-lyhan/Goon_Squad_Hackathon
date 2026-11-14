@@ -13,3 +13,14 @@
 .playback-bar .pb-scrub:disabled { opacity: .45; cursor: not-allowed; }
 .playback-bar .pb-hint { flex-basis: 100%; font: 12px system-ui, sans-serif; color: #475569; }
 @media (max-width: 599px) { .playback-bar .pb-hint { display: none; } }
+@media (max-width: 899px) {
+  .playback-bar .pb-scrub { flex: 1 1 100%; min-width: 0; }
+}
+@media (max-width: 599px) {
+  .playback-bar { gap: 6px; padding: 8px; max-width: 100%; box-sizing: border-box; }
+  .playback-bar .pb-time { flex: 1 1 100%; min-width: 0; }
+  .playback-bar .pb-btn { padding: 8px 10px; min-height: 40px; flex: 1 1 auto; }
+  .playback-bar .pb-speed { flex: 1 1 100%; }
+  .playback-bar .pb-speed .pb-btn { flex: 1 1 0; }
+}
+@media (prefers-reduced-motion: reduce) { .playback-bar * { transition: none !important; animation: none !important; } }

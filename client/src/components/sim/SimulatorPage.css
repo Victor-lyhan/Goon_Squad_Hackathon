@@ -1,7 +1,17 @@
 .sp { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
-.sp-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.sp { min-width: 0; max-width: 100%; }
+.sp-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); grid-template-areas: 'map side' 'bar side'; grid-template-rows: auto 1fr; gap: 16px; align-items: start; }
+.sp-map { grid-area: map; }
+.sp-bar { grid-area: bar; min-width: 0; }
+.sp-side { grid-area: side; }
+.sp button:focus-visible, .sp input:focus-visible, .sp [tabindex]:focus-visible, .sp a:focus-visible { outline: 3px solid var(--accent, #f97316); outline-offset: 2px; }
 .sp-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .sp-map { min-width: 0; }
 .sp-loading { display: flex; justify-content: center; padding: 48px; }
 .sp-error { background: #fdecea; color: #8a1c13; border: 1px solid #f5c2bd; border-radius: 6px; padding: 8px 12px; }
-@media (max-width: 800px) { .sp-main { grid-template-columns: 1fr; } }
+/* Below 900px: metrics -> map -> playback bar -> queue -> detail (DOM order). */
+@media (max-width: 899px) {
+  .sp { padding: 8px; gap: 12px; }
+  .sp-main { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'map' 'bar' 'side'; grid-template-rows: none; }
+}
+@media (prefers-reduced-motion: reduce) { .sp *, .sp *::before, .sp *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
