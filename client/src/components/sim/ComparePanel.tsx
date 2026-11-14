@@ -26,6 +26,7 @@ export function ComparePanel({ compare }: ComparePanelProps) {
           ))}
         </tbody>
       </table>
+      <p className="cmp-note">{view.planNote}</p>
     </div>
   );
 }
