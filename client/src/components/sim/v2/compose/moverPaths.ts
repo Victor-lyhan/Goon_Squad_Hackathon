@@ -1,8 +1,9 @@
 // The route line each map mover is on, for the tween between two polls (#496, DECISIONS pass 46).
 // A vehicle follows the leg its employee drives; a package follows the leg that carries it. The line
 // is the leg's decoded polylines from MapResponse, place pair by place pair. A pair with no cached
-// line is the straight line between its two places (pass 44), and a leg with no cached line at all
-// gives null, so the tween moves on the straight line between the two polled points.
+// line is the straight line between its two places (pass 44). A leg with no cached line at all is the
+// straight line through its places in order (#553), so the marker passes through a relay stop instead
+// of cutting the corner between two polls. Only a place without coordinates gives null.
 //
 // Display only: this picks a line to slide along between two polled positions. It never produces a
 // position, a time, a status or a distance of its own (AGENTS.md).
@@ -27,18 +28,19 @@ function decoded(map: MapResponse, from: string, to: string): LngLat[] | null {
   }
 }
 
-/** One leg's line through all its places, or null when none of its pairs has a cached line. */
+/**
+ * One leg's line through all its places: each pair's cached route line, else the straight line between
+ * the two places (pass 44, also when no pair is cached, #553). Null only when a place has no coordinates.
+ */
 export function legLine(leg: Leg, map: MapResponse): LngLat[] | null {
   const coords = new Map<string, LngLat>();
   for (const b of map.businesses) coords.set(b.id, [b.lng, b.lat]);
   for (const h of map.homes) coords.set(h.id, [h.lng, h.lat]);
   const ids = leg.placeIds;
   let out: LngLat[] = [];
-  let cached = 0;
   for (let i = 0; i + 1 < ids.length; i += 1) {
     let seg = decoded(map, ids[i], ids[i + 1]);
-    if (seg) cached += 1;
-    else {
+    if (!seg) {
       const a = coords.get(ids[i]);
       const b = coords.get(ids[i + 1]);
       if (!a || !b) return null; // a place without coordinates: no line to slide along
@@ -46,7 +48,7 @@ export function legLine(leg: Leg, map: MapResponse): LngLat[] | null {
     }
     out = out.length ? [...out, ...seg.slice(1)] : seg;
   }
-  return cached > 0 && out.length >= 2 ? out : null;
+  return out.length >= 2 ? out : null;
 }
 
 /**
@@ -75,7 +77,8 @@ export function buildMoverLines(plans: SimulatorResponse['plans'], map: MapRespo
 /**
  * The line a mover is on at the polled minute `timeMin`: its first leg that has not finished yet
  * (an employee drives at most one leg per trip, and the evening and morning trips are hours apart),
- * else its last leg. Null (straight line) for a mover on no leg or a leg with no cached line.
+ * else its last leg. Null (straight line between the two polls) for a mover on no leg or a leg with a
+ * place that has no coordinates.
  */
 export function pathForMovers(lines: MoverLines, timeMin: number): PathFor {
   return (moverId) => {

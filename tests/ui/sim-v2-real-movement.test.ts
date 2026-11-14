@@ -6,10 +6,18 @@
 // No story ID, name or count is pinned (DECISIONS pass 54).
 import { describe, expect, it, vi } from 'vitest';
 import type { MapResponse } from '../../shared/v2/api';
-import type { Leg } from '../../shared/v2/types';
+import type { Leg, Run } from '../../shared/v2/types';
+import { planControl } from '../../server/api/v2/controlOps';
+import { simulatorResponse } from '../../server/api/v2/views';
+import { snapshotAt } from '../../server/domain/v2/simulation';
+import type { MapMover } from '../../client/src/components/map/types';
+import { INITIAL_SIM_DATA } from '../../client/src/components/sim/v2/live/simDataModel';
+import {
+  advanceMoverFrames, initialMoverFrames, moverFramePositions,
+} from '../../client/src/components/sim/v2/motion/useTweenedMovers';
 import { buildMoverLines, legLine, pathForMovers } from '../../client/src/components/sim/v2/compose/moverPaths';
 import { simPageView } from '../../client/src/components/sim/v2/compose/simPageView';
-import { tweenMovers, type LngLat } from '../../client/src/components/sim/v2/motion/routeTween';
+import { tweenMovers, type LngLat, type TweenClock } from '../../client/src/components/sim/v2/motion/routeTween';
 import { DEFAULT_LAYERS } from '../../client/src/components/sim/v2/workspaceModel';
 import { T, inNyc, metersBetween, realSim, type Moment } from './sim-v2-real-helper';
 
@@ -89,12 +97,15 @@ describe('every leg of the API\'s plans has a path', () => {
     checkLegs(partial);
   });
 
-  // BUG (client/src/components/sim/v2/compose/moverPaths.ts, `legLine`): a leg with NO cached pair gets `null`
-  // instead of the straight line through its places. The tween then cuts straight between two polled points,
-  // also across a relay stop's corner. This is what every new plan of the #492 retune looks like until a human
-  // fetches its lines. compose/ is owned by the page check queued with #512, so the fix is left there.
-  it.fails('a leg with no cached line at all: the straight line between its places (DECISIONS pass 44)', () => {
-    checkLegs({ ...map, polylines: map.polylines.map((p) => ({ ...p, encoded: null })) });
+  // #553: a leg with NO cached pair is the straight line through its places (start, each stop, end), so the
+  // tween does not cut straight between two polled points across a relay stop's corner.
+  it('a leg with no cached line at all: the straight line between its places (DECISIONS pass 44)', () => {
+    const bare = { ...map, polylines: map.polylines.map((p) => ({ ...p, encoded: null })) };
+    checkLegs(bare);
+    const coords = coordsOf(bare);
+    for (const leg of legs) {
+      expect(legLine(leg, bare)).toEqual(leg.placeIds.map((id) => [coords.get(id)!.lng, coords.get(id)!.lat]));
+    }
   });
 });
 
@@ -145,4 +156,126 @@ it('one minute inside each leg of the day, its carrier has a marker on the map',
     expect(leg).toBeDefined();
     expect(m.sim.snapshot.markers.some((x) => x.employeeId === leg!.employeeId)).toBe(true);
   }
+});
+
+// ---------- #553: no route line yet (a delivery created live, before Google's lines arrive) ----------
+
+/** The map with every line removed, and the server's view at a minute when it has no polyline either. */
+const bareMap: MapResponse = { ...map, polylines: map.polylines.map((p) => ({ ...p, encoded: null })) };
+const NO_LINES = { polyline: () => null };
+const wire = <X>(x: X): X => JSON.parse(JSON.stringify(x)) as X;
+
+function bareAt(timeMin: number): Moment {
+  const plan = planControl(real.run, { action: 'seek', timeMin });
+  if (plan.kind !== 'apply') throw new Error(`seek ${timeMin} refused`);
+  const moved: Run = { ...real.run, clock: plan.clock };
+  const s = wire(simulatorResponse(moved, snapshotAt(moved, timeMin, NO_LINES)));
+  return { name: `minute ${timeMin} (no lines)`, timeMin, sim: s, map: bareMap, data: { ...INITIAL_SIM_DATA, view: 'ready', sim: s, map: bareMap } };
+}
+
+/** Metres from a point to a polyline (flat plane, fine inside NYC). */
+function distToPath(p: { lat: number; lng: number }, path: LngLat[]): number {
+  const kx = 111_320 * Math.cos((p.lat * Math.PI) / 180);
+  const ky = 111_320;
+  let best = Infinity;
+  for (let i = 0; i + 1 < path.length; i++) {
+    const [ax, ay] = [path[i][0] * kx, path[i][1] * ky];
+    const [bx, by] = [path[i + 1][0] * kx, path[i + 1][1] * ky];
+    const [x, y] = [p.lng * kx, p.lat * ky];
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / len2));
+    best = Math.min(best, Math.hypot(ax + dx * t - x, ay + dy * t - y));
+  }
+  return best;
+}
+
+/** The straight segments through each leg's places, built from the map's coordinates (not from legLine). */
+const straightByMover = new Map<string, LngLat[][]>();
+{
+  const coords = coordsOf(map);
+  for (const plan of sim.plans) {
+    for (const leg of plan.legs) {
+      const segs = leg.placeIds.map((id): LngLat => [coords.get(id)!.lng, coords.get(id)!.lat]);
+      for (const id of [leg.employeeId, plan.shipmentId]) straightByMover.set(id, [...(straightByMover.get(id) ?? []), segs]);
+    }
+  }
+}
+const nearestStraight = (id: string, p: { lat: number; lng: number }) =>
+  Math.min(...(straightByMover.get(id) ?? []).map((segs) => distToPath(p, segs)));
+
+describe.each(real.moments.map((m) => m.timeMin))('no route line in the map at minute %i (#553)', (timeMin) => {
+  const next = bareAt(timeMin);
+  const prev = timeMin > 930 ? bareAt(timeMin - 1) : next;
+  const pathFor = pathForMovers(buildMoverLines(next.sim.plans, bareMap), timeMin);
+  const movers = moversAt(next);
+  const before = moversAt(prev);
+
+  it('every leg mover is given its leg\'s straight line, and every tweened point is within 50 m of it, inside NYC', () => {
+    const onLegs = movers.filter((m) => straightByMover.has(m.id));
+    for (const m of onLegs) expect({ id: m.id, hasPath: pathFor(m.id) !== null }).toEqual({ id: m.id, hasPath: true });
+    for (const alpha of [0, 0.25, 0.5, 0.75, 1]) {
+      for (const m of tweenMovers({ prev: before, next: movers, alpha, pathFor, reducedMotion: false })) {
+        expect({ id: m.id, alpha, in: inNyc(m) }).toEqual({ id: m.id, alpha, in: true });
+        if (!straightByMover.has(m.id)) continue;
+        const d = nearestStraight(m.id, m);
+        expect({ id: m.id, alpha, within50m: d <= 50 }).toEqual({ id: m.id, alpha, within50m: true });
+      }
+    }
+  });
+});
+
+describe('the route lines arrive later (a new map object): the marker moves onto them without jumping back', () => {
+  // The first evening leg, two minutes after its first stop's service ends (the carrier is driving to the
+  // next place): polls at t-1 and t without lines, then the map with lines, then the poll at t+1.
+  const first = legs.filter((l) => l.tripId.endsWith('-eve') && l.stops.length > 0)
+    .sort((a, b) => a.stops[0].serviceEndMin - b.stops[0].serviceEndMin)[0];
+  const t = first.stops[0].serviceEndMin + 2;
+  const clock = (timeMin: number): TweenClock => ({ runId: real.run.runId, timeMin, playing: true, speed: 60 });
+  const p0 = moversAt(bareAt(t - 1));
+  const p1 = moversAt(bareAt(t));
+  const later = real.at(t + 1); // the server now has the lines too
+  const p2 = moversAt(later);
+  const barePath = pathForMovers(buildMoverLines(sim.plans, bareMap), t);
+  const linesNow = buildMoverLines(sim.plans, later.map); // a new map object, built once like the page's useMemo
+  const routePath = pathForMovers(linesNow, t + 1);
+  const moving = p1.filter((m) => {
+    const b = p0.find((x) => x.id === m.id);
+    return b && (b.lat !== m.lat || b.lng !== m.lng) && straightByMover.has(m.id);
+  });
+
+  it('the run has a mover between the two polls', () => {
+    expect(moving.length).toBeGreaterThan(0);
+  });
+
+  it('the next tween starts at the last drawn point and ends on the route line, inside NYC', () => {
+    const f1 = advanceMoverFrames(initialMoverFrames(p0, clock(t - 1), 0), p1, clock(t), barePath, 1000, false);
+    expect(f1.tween).toBe(true);
+    for (const alpha of [0.5, 1]) {
+      const mid = { ...f1, alpha };
+      // Drawn on the straight line before the lines arrive.
+      const drawnBare = moverFramePositions(mid, barePath, false);
+      for (const m of drawnBare.filter((x) => moving.some((v) => v.id === x.id))) {
+        expect({ id: m.id, near: nearestStraight(m.id, m) <= 50 }).toEqual({ id: m.id, near: true });
+      }
+      // The map arrives: the page re-renders with the new lines (same frames), that is the last drawn point.
+      const drawn = moverFramePositions(mid, routePath, false);
+      // Then the poll at t+1: the new tween starts exactly there, never back on the straight line.
+      const f2 = advanceMoverFrames(mid, p2, clock(t + 1), routePath, 2000, false);
+      expect(f2.tween).toBe(true);
+      expect(moverFramePositions({ ...f2, alpha: 0 }, routePath, false).filter((m) => drawn.some((d) => d.id === m.id)))
+        .toEqual(drawn.filter((m) => p2.some((d) => d.id === m.id)));
+      for (const a of [0.25, 0.5, 0.75]) {
+        for (const m of moverFramePositions({ ...f2, alpha: a }, routePath, false)) expect(inNyc(m)).toBe(true);
+      }
+      // It ends at the server's point on the route line.
+      const end: MapMover[] = moverFramePositions({ ...f2, alpha: 1 }, routePath, false);
+      expect(end).toEqual(p2);
+      for (const m of end.filter((x) => moving.some((v) => v.id === x.id))) {
+        const line = routePath(m.id);
+        expect(line).not.toBeNull();
+        expect({ id: m.id, onLine: distToPath(m, line!) <= 50 }).toEqual({ id: m.id, onLine: true });
+      }
+    }
+  });
 });
