@@ -122,17 +122,35 @@ export function placeLabels(
       { x: it.x - r - gap, y: it.y + fs / 3, anchor: 'end' },
       { x: it.x, y: it.y + r + 2 * fs + gap, anchor: 'middle' },
       { x: it.x, y: it.y - r - fs - 8, anchor: 'middle' },
+      { x: it.x + r + gap, y: it.y + r + fs, anchor: 'start' },
+      { x: it.x - r - gap, y: it.y + r + fs, anchor: 'end' },
+      { x: it.x + r + gap, y: it.y - r - 4, anchor: 'start' },
+      { x: it.x - r - gap, y: it.y - r - 4, anchor: 'end' },
+      { x: it.x + r + gap, y: it.y + fs / 3 + 2 * fs, anchor: 'start' },
+      { x: it.x - r - gap, y: it.y + fs / 3 + 2 * fs, anchor: 'end' },
+      { x: it.x + r + gap, y: it.y + fs / 3 - 2 * fs, anchor: 'start' },
+      { x: it.x - r - gap, y: it.y + fs / 3 - 2 * fs, anchor: 'end' },
+      { x: it.x, y: it.y + r + 3 * fs + 2 * gap, anchor: 'middle' },
+      { x: it.x, y: it.y - r - 2 * fs - 12, anchor: 'middle' },
     ];
+    // Last resort: keep stepping the label further out (below, above, right, left) until it is free.
+    for (let k = 4; k <= 8; k++) {
+      cands.push(
+        { x: it.x, y: it.y + r + k * fs, anchor: 'middle' },
+        { x: it.x, y: it.y - r - k * fs, anchor: 'middle' },
+        { x: it.x + r + gap + (k - 3) * fs, y: it.y + fs / 3, anchor: 'start' },
+        { x: it.x - r - gap - (k - 3) * fs, y: it.y + fs / 3, anchor: 'end' },
+      );
+    }
     const boxOf = (c: (typeof cands)[number]): Box => {
       const x0 = c.anchor === 'middle' ? c.x - w / 2 : c.anchor === 'start' ? c.x : c.x - w;
       return { x0, x1: x0 + w, y0: c.y - fs, y1: c.y + fs * 0.25 };
     };
-    let pick = 0;
-    for (let k = 0; k < cands.length; k++) {
-      const b = boxOf(cands[k]);
-      if (!placed.some((p) => hit(b, p)) && !markers.some((m) => hit(b, m))) { pick = k; break; }
-      if (k === cands.length - 1) pick = 0;
-    }
+    // Prefer a spot clear of labels and markers; else one clear of other labels (label text never
+    // overlaps label text); else the default spot.
+    let pick = cands.findIndex((c) => { const b = boxOf(c); return !placed.some((p) => hit(b, p)) && !markers.some((m) => hit(b, m)); });
+    if (pick < 0) pick = cands.findIndex((c) => { const b = boxOf(c); return !placed.some((p) => hit(b, p)); });
+    if (pick < 0) pick = 0;
     placed.push(boxOf(cands[pick]));
     out.push({ id: it.id, x: cands[pick].x, y: cands[pick].y, anchor: cands[pick].anchor, moved: pick !== 0 });
   }
