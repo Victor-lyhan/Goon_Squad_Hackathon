@@ -53,7 +53,10 @@
 .job-v2__numbers { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border, #D7DDE5); border-radius: var(--radius, 2px); }
 .job-v2__number { display: flex; justify-content: space-between; gap: var(--space-2, 8px); padding: var(--space-2, 8px) var(--space-3, 12px); border-bottom: 1px solid var(--border, #D7DDE5); }
 .job-v2__number dt { color: var(--muted, #5B6472); font-size: var(--text-sm, 14px); }
-.job-v2__number dd { margin: 0; font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-sm, 14px); }
+.job-v2__number dd { margin: 0; font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-sm, 14px); text-align: right; }
+/* The reward leads "What it adds" (#551). */
+.job-v2__number[data-number="reward"] dt { color: inherit; font-weight: 600; }
+.job-v2__number[data-number="reward"] dd { font-weight: 600; }
 
 .job-v2__text { margin: 0; }
 .job-v2__actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }

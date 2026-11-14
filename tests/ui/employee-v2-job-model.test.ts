@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { jobDetail, UNKNOWN_PLACE } from '../../client/src/components/employee/v2/jobDetailV2Model';
+import {
+  DISTANCE_UNAVAILABLE, NO_EXTRA_DISTANCE, extraDistanceText, extraTimeText, jobDetail, UNKNOWN_PLACE,
+} from '../../client/src/components/employee/v2/jobDetailV2Model';
 import { businesses, eveningDirect, morningDirect, relayLeg1, relayLeg2, STATUSES } from './employeeV2JobSample';
 
 const rows = (m: ReturnType<typeof jobDetail>) => m.route.map((r) => [r.kind, r.time, r.place, r.action]);
@@ -22,10 +24,10 @@ describe('jobDetail (v2 model)', () => {
     expect(m.relay).toBeNull();
     expect(m.watchHref).toBe('/simulator?package=shp-0001');
     expect(m.numbers).toEqual([
-      { label: 'Extra time', value: '+8 min' },
-      { label: 'Extra distance', value: '+3.4 km' },
-      { label: 'Reward', value: '$4.50' },
-      { label: 'Usual commute', value: '38 min' },
+      { key: 'reward', label: 'Reward', value: '$4.50' },
+      { key: 'extra-time', label: 'Extra time', value: '+8 min' },
+      { key: 'extra-distance', label: 'Extra distance', value: '+3.4 km' },
+      { key: 'usual-commute', label: 'Usual commute', value: '38 min' },
     ]);
   });
 
@@ -38,7 +40,7 @@ describe('jobDetail (v2 model)', () => {
       ['delivery', '09:18–09:20', 'Midtown Agency', 'Hand over the package'],
       ['end', '09:20', 'Midtown Agency', 'Arrive at work'],
     ]);
-    expect(m.numbers[1].value).toBe('+1.3 km');
+    expect(m.numbers[2].value).toBe('+1.3 km');
   });
 
   it('relay leg 1: drop at the relay point, sentence names the relay business', () => {
@@ -61,7 +63,7 @@ describe('jobDetail (v2 model)', () => {
       ['end', '09:30', 'Midtown Agency', 'Arrive at work'],
     ]);
     expect(m.relay).toBe('Another carrier brought the package from LIC Bakery to River Cafe Roasters on their evening commute; you collect it there and deliver it.');
-    expect(m.numbers.map((n) => n.value)).toEqual(['+7 min', '+2.3 km', '$4.80', '50 min']);
+    expect(m.numbers.map((n) => n.value)).toEqual(['$4.80', '+7 min', '+2.3 km', '50 min']);
   });
 
   it('instructions: pickup on the sender row, drop-off on the recipient row, none at the relay point', () => {
@@ -104,5 +106,39 @@ describe('jobDetail (v2 model)', () => {
   it('a home without a neighborhood reads just "Home"', () => {
     const m = jobDetail(eveningDirect(), businesses, '');
     expect(m.route[3].place).toBe('Home');
+  });
+
+  it('extra distance in plain words (#551): longer, shorter, none, unavailable', () => {
+    expect(extraDistanceText(3400)).toBe('+3.4 km');
+    expect(extraDistanceText(12000)).toBe('+12 km');
+    expect(extraDistanceText(-5496)).toBe('5.5 km shorter');
+    expect(extraDistanceText(-2000)).toBe('2 km shorter');
+    expect(extraDistanceText(0)).toBe(NO_EXTRA_DISTANCE);
+    expect(extraDistanceText(-0)).toBe(NO_EXTRA_DISTANCE);
+    // Rounds to 0.0 km either way: not "+0 km" nor "0 km shorter".
+    expect(extraDistanceText(16)).toBe(NO_EXTRA_DISTANCE);
+    expect(extraDistanceText(-16)).toBe(NO_EXTRA_DISTANCE);
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, undefined, null]) {
+      expect(extraDistanceText(bad)).toBe(DISTANCE_UNAVAILABLE);
+    }
+  });
+
+  it('extra time keeps the API minutes and never shows "+-"', () => {
+    expect(extraTimeText(8)).toBe('+8 min');
+    expect(extraTimeText(0)).toBe('+0 min');
+    expect(extraTimeText(-3)).toBe('3 min shorter');
+    expect(extraTimeText(Number.NaN)).toBe('Time unavailable');
+  });
+
+  it('a shorter detour in the job: reward first, then time, then "shorter" distance', () => {
+    const job = eveningDirect();
+    job.plan.legs[job.job.legIndex].extraDistanceM = -5496;
+    const m = jobDetail(job, businesses, 'Astoria');
+    expect(m.numbers.map((n) => n.label)).toEqual(['Reward', 'Extra time', 'Extra distance', 'Usual commute']);
+    expect(m.numbers[2].value).toBe('5.5 km shorter');
+    job.plan.legs[job.job.legIndex].extraDistanceM = 0;
+    expect(jobDetail(job, businesses, 'Astoria').numbers[2].value).toBe(NO_EXTRA_DISTANCE);
+    job.plan.legs[job.job.legIndex].extraDistanceM = Number.NaN;
+    expect(jobDetail(job, businesses, 'Astoria').numbers[2].value).toBe(DISTANCE_UNAVAILABLE);
   });
 });

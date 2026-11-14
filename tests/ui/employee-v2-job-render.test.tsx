@@ -47,6 +47,18 @@ describe('JobDetailV2 render', () => {
     expect(t).not.toContain('relay');
   });
 
+  it('"What it adds" lists the reward first and a shorter detour as "km shorter" (#551)', () => {
+    const job = eveningDirect();
+    job.plan.legs[job.job.legIndex].extraDistanceM = -5496;
+    const html = render(job);
+    const keys = [...html.matchAll(/data-number="([^"]+)"/g)].map((m) => m[1]);
+    expect(keys).toEqual(['reward', 'extra-time', 'extra-distance', 'usual-commute']);
+    const t = text(html);
+    expect(t).toContain('5.5 km shorter');
+    expect(t).not.toMatch(/-\s*\d/);
+    expectClean(html);
+  });
+
   it('relay legs show the relay sentence and relay-point actions', () => {
     const t1 = text(render(relayLeg1()));
     expect(t1).toContain('Relay leg 1 of 2: drop at the relay point');
