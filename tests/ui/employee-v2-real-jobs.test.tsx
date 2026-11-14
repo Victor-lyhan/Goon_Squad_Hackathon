@@ -4,8 +4,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { JobResponse } from '../../shared/v2/api';
 import type { Stop } from '../../shared/v2/types';
-import { formatCents } from '../../client/src/ui/format';
-import { STOP_ACTION, clock24, extraDistanceText } from '../../client/src/components/employee/v2/jobDetailV2Model';
+import { formatCents, formatMin } from '../../client/src/ui/format';
+import { STOP_ACTION, extraDistanceText } from '../../client/src/components/employee/v2/jobDetailV2Model';
 import {
   STATUS_LABEL, T, at, buildRealRun, businessName, dashboardAt, elementWith, expectCleanPage, jobAt, momentsOf,
   readyState, renderPage, textOf, type Moment, type RealRun,
@@ -30,8 +30,13 @@ function routeRows(html: string): { kind: string; text: string }[] {
   return [...list.matchAll(/<li[^>]*data-kind="([^"]+)"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => ({ kind: m[1], text: textOf(m[2]) }));
 }
 
-/** "17:32–17:34" or "17:15" to minutes of the day, in order of appearance. */
-const minutesIn = (time: string) => [...time.matchAll(/(\d{2}):(\d{2})/g)].map((m) => Number(m[1]) * 60 + Number(m[2]));
+/** The row's own time, "Day 2, 8:05 AM" at its start (#583), as minutes since Day 1 00:00; null if it has none. */
+function minuteOf(rowText: string): number | null {
+  const m = /^Day (\d+), (\d{1,2}):(\d{2}) (AM|PM)\b/.exec(rowText);
+  if (!m) return null;
+  const hour = (Number(m[2]) % 12) + (m[4] === 'PM' ? 12 : 0);
+  return (Number(m[1]) - 1) * 1440 + hour * 60 + Number(m[3]);
+}
 
 /** Renders every job of the run at every moment, as the page shows `?job=<id>` on its carrier's page. */
 function eachJob(fn: (j: JobResponse, html: string, where: string) => void) {
@@ -71,12 +76,14 @@ describe('job detail on the real NYC run, every job at five moments', () => {
         const row = rows[i + 1];
         expect(real.businesses.some((b) => b.id === s.placeId), `${where}: stop ${i + 1} at ${s.placeId}`).toBe(true);
         expect(row.text, where).toContain(businessName(real.businesses, s.placeId));
-        expect(row.text, where).toContain(`${clock24(s.arrivalMin)}–${clock24(s.serviceEndMin)}`);
+        // One time per stop, with its day: the one the assigned row shows (#583).
+        expect(row.text.startsWith(`${formatMin(s.serviceStartMin)} `), `${where}: ${row.text}`).toBe(true);
         expect(row.text, where).toContain(STOP_ACTION[s.kind]);
       });
-      // What the page shows never goes back either, start to end (no leg crosses midnight on screen).
-      const shown = rows.flatMap((r) => minutesIn(r.text.slice(0, 12)));
-      for (let i = 1; i < shown.length; i++) expect(shown[i], `${where}: shown time ${i}`).toBeGreaterThanOrEqual(shown[i - 1]);
+      // What the page shows are the API's minutes, day included, and never goes back either, start to end.
+      const shown = rows.map((r) => minuteOf(r.text));
+      expect(shown, where).toStrictEqual([j.trip.departureMin, ...stops.map((s) => s.serviceStartMin), leg.finishMin]);
+      for (let i = 1; i < shown.length; i++) expect(shown[i]!, `${where}: shown time ${i}`).toBeGreaterThanOrEqual(shown[i - 1]!);
       // The commute ends are a business (by name) or the home (by neighborhood only).
       const ends = [rows[0].text, rows[rows.length - 1].text];
       expect(ends.some((t) => t.includes('Home ·')), where).toBe(true);
@@ -136,7 +143,7 @@ describe('job detail on the real NYC run, every job at five moments', () => {
       expect(view, where).not.toBeNull();
       const t = textOf(view!);
       // A sign: an ASCII hyphen or Unicode minus not joined to a word before it. Queens house numbers
-      // ("10-93 Jackson Avenue") and the en dash of "17:32–17:34" are not signs.
+      // ("10-93 Jackson Avenue") are not signs.
       const m = /(?:^|[^\w])[-\u2212]\s*\d/.exec(t);
       if (m) throw new Error(`${where}: a minus before a number in the job view: ${t.slice(Math.max(0, m.index - 60), m.index + 20)}`);
       expect(t, where).not.toMatch(/NaN|undefined/);

@@ -59,7 +59,8 @@ describe('deliveryRows', () => {
   it('a direct job row', () => {
     expect(direct).toMatchObject({
       jobId: 'plan-shp-001-L0', packageLabel: 'Fabric swatches', status: 'assigned', statusLabel: 'Assigned',
-      pickup: '5:30 PM · Acme Studio', dropoff: '6:06 PM · Cafe Luna',
+      pickup: 'Day 1, 5:30 PM · Acme Studio', dropoff: 'Day 1, 6:06 PM · Cafe Luna',
+      pickupTime: 'Day 1, 5:30 PM', dropoffTime: 'Day 1, 6:06 PM',
       extraMin: '+7 min', reward: '$8.00', legKind: 'Direct', commute: 'Evening commute to Astoria',
       jobHref: '/employee/emp-001?job=plan-shp-001-L0', simulatorHref: '/simulator?package=shp-001',
     });
@@ -67,7 +68,8 @@ describe('deliveryRows', () => {
 
   it('relay leg 2 picks up at the relay point and uses relay wording', () => {
     expect(relay).toMatchObject({
-      pickup: '8:40 AM · Relay point: Corner Books', dropoff: '9:10 AM · Acme Studio',
+      pickup: 'Day 2, 8:40 AM · Relay point: Corner Books', dropoff: 'Day 2, 9:10 AM · Acme Studio',
+      pickupTime: 'Day 2, 8:40 AM', dropoffTime: 'Day 2, 9:10 AM',
       extraMin: '+4 min', reward: '$7.00', legKind: 'Relay leg 2 of 2', commute: 'Morning commute from Astoria',
       jobHref: '/employee/emp-001?job=plan-shp-002-L1', simulatorHref: '/simulator?package=shp-002',
     });
@@ -78,7 +80,7 @@ describe('deliveryRows', () => {
     const job = { ...relayView.job, id: 'plan-shp-002-L0', legIndex: 0, tripId: 'emp-001-eve', pickup: l1.stops[0], dropoff: l1.stops[1], rewardCents: 600 };
     const [row] = deliveryRows([{ ...relayView, job }], businesses, 'Astoria');
     expect(row.legKind).toBe('Relay leg 1 of 2');
-    expect(row.dropoff).toBe('6:10 PM · Relay point: Corner Books');
+    expect(row.dropoff).toBe('Day 1, 6:10 PM · Relay point: Corner Books');
     expect(row.extraMin).toBe('+5 min');
   });
 
@@ -91,7 +93,7 @@ describe('deliveryRows', () => {
   it('an unresolved placeId gives "Unknown place", never the raw ID', () => {
     const job = { ...directView.job, dropoff: { ...directView.job.dropoff, placeId: 'biz-gone' } };
     const [row] = deliveryRows([{ ...directView, job }], businesses, 'Astoria');
-    expect(row.dropoff).toBe('6:06 PM · Unknown place');
+    expect(row.dropoff).toBe('Day 1, 6:06 PM · Unknown place');
     expect(JSON.stringify(row)).not.toContain('biz-gone');
   });
 

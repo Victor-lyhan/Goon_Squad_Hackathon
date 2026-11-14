@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DISTANCE_UNAVAILABLE, NO_EXTRA_DISTANCE, extraDistanceText, extraTimeText, jobDetail, UNKNOWN_PLACE,
+  DISTANCE_UNAVAILABLE, NO_EXTRA_DISTANCE, TIME_UNAVAILABLE, extraDistanceText, extraTimeText, jobDetail, momentText,
+  UNKNOWN_PLACE,
 } from '../../client/src/components/employee/v2/jobDetailV2Model';
 import { businesses, eveningDirect, morningDirect, relayLeg1, relayLeg2, STATUSES } from './employeeV2JobSample';
 
@@ -11,13 +12,13 @@ describe('jobDetail (v2 model)', () => {
     const m = jobDetail(eveningDirect(), businesses, 'Astoria');
     expect(m.title).toBe('Brand proofs');
     expect(m.legKind).toBe('Direct delivery');
-    expect(m.trip).toBe('Evening commute, Day 1, leaves 17:15');
+    expect(m.trip).toBe('Evening commute, leaves Day 1, 5:15 PM');
     expect(m.statusLabel).toBe('Assigned');
     expect(rows(m)).toEqual([
-      ['start', '17:15', 'Ink Studio', 'Leave work'],
-      ['pickup', '17:15–17:17', 'Ink Studio', 'Collect the package'],
-      ['delivery', '17:44–17:46', 'Midtown Agency', 'Hand over the package'],
-      ['end', '18:01', 'Home · Astoria', 'Arrive home'],
+      ['start', 'Day 1, 5:15 PM', 'Ink Studio', 'Leave work'],
+      ['pickup', 'Day 1, 5:15 PM', 'Ink Studio', 'Collect the package'],
+      ['delivery', 'Day 1, 5:44 PM', 'Midtown Agency', 'Hand over the package'],
+      ['end', 'Day 1, 6:01 PM', 'Home · Astoria', 'Arrive home'],
     ]);
     expect(m.route[1].address).toBe('55 Water St, Brooklyn');
     expect(m.route[3].address).toBe('');
@@ -33,12 +34,12 @@ describe('jobDetail (v2 model)', () => {
 
   it('morning direct: home start by neighborhood, workplace end with finish time', () => {
     const m = jobDetail(morningDirect(), businesses, 'Park Slope');
-    expect(m.trip).toBe('Morning commute, Day 2, leaves 08:30');
+    expect(m.trip).toBe('Morning commute, leaves Day 2, 8:30 AM');
     expect(rows(m)).toEqual([
-      ['start', '08:30', 'Home · Park Slope', 'Leave home'],
-      ['pickup', '08:48–08:50', 'Ink Studio', 'Collect the package'],
-      ['delivery', '09:18–09:20', 'Midtown Agency', 'Hand over the package'],
-      ['end', '09:20', 'Midtown Agency', 'Arrive at work'],
+      ['start', 'Day 2, 8:30 AM', 'Home · Park Slope', 'Leave home'],
+      ['pickup', 'Day 2, 8:48 AM', 'Ink Studio', 'Collect the package'],
+      ['delivery', 'Day 2, 9:18 AM', 'Midtown Agency', 'Hand over the package'],
+      ['end', 'Day 2, 9:20 AM', 'Midtown Agency', 'Arrive at work'],
     ]);
     expect(m.numbers[2].value).toBe('+1.3 km');
   });
@@ -57,10 +58,10 @@ describe('jobDetail (v2 model)', () => {
     const m = jobDetail(relayLeg2(), businesses, 'Park Slope');
     expect(m.legKind).toBe('Relay leg 2 of 2: collect from the relay point');
     expect(rows(m)).toEqual([
-      ['start', '08:30', 'Home · Park Slope', 'Leave home'],
-      ['hub_pickup', '08:45–08:47', 'River Cafe Roasters', 'Collect it from the relay point'],
-      ['delivery', '09:28–09:30', 'Midtown Agency', 'Hand over the package'],
-      ['end', '09:30', 'Midtown Agency', 'Arrive at work'],
+      ['start', 'Day 2, 8:30 AM', 'Home · Park Slope', 'Leave home'],
+      ['hub_pickup', 'Day 2, 8:45 AM', 'River Cafe Roasters', 'Collect it from the relay point'],
+      ['delivery', 'Day 2, 9:28 AM', 'Midtown Agency', 'Hand over the package'],
+      ['end', 'Day 2, 9:30 AM', 'Midtown Agency', 'Arrive at work'],
     ]);
     expect(m.relay).toBe('Another carrier brought the package from LIC Bakery to River Cafe Roasters on their evening commute; you collect it there and deliver it.');
     expect(m.numbers.map((n) => n.value)).toEqual(['$4.80', '+7 min', '+2.3 km', '50 min']);
@@ -106,6 +107,20 @@ describe('jobDetail (v2 model)', () => {
   it('a home without a neighborhood reads just "Home"', () => {
     const m = jobDetail(eveningDirect(), businesses, '');
     expect(m.route[3].place).toBe('Home');
+  });
+
+  it('a moment of the delivery is "Day N, h:mm AM/PM" (#583); a value that is no number is not a made-up time', () => {
+    expect(momentText(1035)).toBe('Day 1, 5:15 PM');
+    expect(momentText(1925)).toBe('Day 2, 8:05 AM');
+    expect(momentText(720)).toBe('Day 1, 12:00 PM');
+    expect(momentText(1440)).toBe('Day 2, 12:00 AM');
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, undefined, null]) expect(momentText(bad)).toBe(TIME_UNAVAILABLE);
+    // A leg without a finish time falls back to the end of its last stop; with neither, the row says so.
+    const job = eveningDirect();
+    delete (job.plan.legs[0] as { finishMin?: number }).finishMin;
+    expect(jobDetail(job, businesses, 'Astoria').route[3].time).toBe('Day 1, 5:46 PM');
+    job.plan.legs[0].finishMin = Number.NaN;
+    expect(jobDetail(job, businesses, 'Astoria').route[3].time).toBe(TIME_UNAVAILABLE);
   });
 
   it('extra distance in plain words (#551): longer, shorter, none, unavailable', () => {

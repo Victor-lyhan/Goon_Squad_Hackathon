@@ -4,7 +4,7 @@
 // place that does not resolve reads "Unknown place" (DECISIONS pass 45), never a raw ID.
 import type { JobResponse } from '../../../../../shared/v2/api';
 import type { JobStatus, NetworkBusiness, StopKind } from '../../../../../shared/v2/types';
-import { formatCents, formatDuration } from '../../../ui/format';
+import { formatCents, formatDuration, formatMin } from '../../../ui/format';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 
@@ -12,7 +12,10 @@ export type RouteRow = {
   key: string;
   /** 'start' and 'end' are the commute's own endpoints; the rest are stops at network businesses. */
   kind: 'start' | 'end' | StopKind;
-  /** "17:15" for start, "17:32–17:34" for a stop, "17:58" for the end. */
+  /**
+   * One moment per row, as "Day 1, 5:15 PM" (DECISIONS pass 60): the departure for the start, the stop's
+   * `serviceStartMin` (the same time the assigned row shows), the leg's `finishMin` for the end.
+   */
   time: string;
   place: string;
   address: string;
@@ -54,14 +57,15 @@ const STATUS_NOTE: Record<JobStatus, string> = {
   completed: 'Done. Thanks for carrying it.',
 };
 
-/** 24-hour "17:15" for minutes since Day 1 00:00 (the day is shown on the trip line). */
-export function clock24(min: number): string {
-  if (!Number.isFinite(min)) return '--:--';
-  const m = ((Math.round(min) % 1440) + 1440) % 1440;
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-}
+export const TIME_UNAVAILABLE = 'Time unavailable';
 
-const dayOf = (min: number) => (Number.isFinite(min) ? Math.floor(Math.max(0, min) / 1440) + 1 : 1);
+/**
+ * A moment of the delivery as "Day 2, 8:05 AM" (`formatMin`, the one format of all three workspaces, DECISIONS
+ * pass 60); "Time unavailable" for a value that is not a number, never a made-up time.
+ */
+export function momentText(min: number | null | undefined): string {
+  return typeof min === 'number' && Number.isFinite(min) ? formatMin(min) : TIME_UNAVAILABLE;
+}
 
 const homeLabel = (neighborhood: string) => (neighborhood.trim() ? `Home · ${neighborhood.trim()}` : 'Home');
 
@@ -88,11 +92,11 @@ export function legKindLabel(job: JobResponse): string {
     : 'Relay leg 2 of 2: collect from the relay point';
 }
 
-/** "Evening commute, Day 1, leaves 17:15" from the API trip. */
+/** "Evening commute, leaves Day 1, 5:15 PM" from the API trip: this job's departure, so it carries its day. */
 export function tripLine(job: JobResponse): string {
   const { direction, departureMin } = job.trip;
   const name = direction === 'evening' ? 'Evening commute' : 'Morning commute';
-  return `${name}, Day ${dayOf(departureMin)}, leaves ${clock24(departureMin)}`;
+  return `${name}, leaves ${momentText(departureMin)}`;
 }
 
 /** One sentence naming the relay business and what the other carrier does; null for a direct plan. */
@@ -112,7 +116,7 @@ function stopDone(status: JobStatus, index: number): boolean {
   return status === 'in_progress' && index === 0;
 }
 
-/** Ordered rows: commute start, each stop with its window and action, commute end. */
+/** Ordered rows: commute start, each stop with its time and action, commute end. */
 export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeNeighborhood: string): RouteRow[] {
   const leg = job.plan.legs[job.job.legIndex];
   const stops = leg?.stops?.length ? leg.stops : [job.job.pickup, job.job.dropoff];
@@ -122,7 +126,7 @@ export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeN
   const lastStop = stops[stops.length - 1];
   const finishMin = leg?.finishMin ?? lastStop?.serviceEndMin;
   const rows: RouteRow[] = [{
-    key: 'start', kind: 'start', time: clock24(trip.departureMin),
+    key: 'start', kind: 'start', time: momentText(trip.departureMin),
     place: start.name, address: start.address,
     action: trip.direction === 'evening' ? 'Leave work' : 'Leave home',
     instructions: '', done: status !== 'assigned',
@@ -133,13 +137,13 @@ export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeN
       : s.kind === 'delivery' ? shipment.dropoffInstructions : '';
     rows.push({
       key: `${i}-${s.kind}`, kind: s.kind,
-      time: `${clock24(s.arrivalMin)}–${clock24(s.serviceEndMin)}`,
+      time: momentText(s.serviceStartMin),
       place: p.name, address: p.address, action: STOP_ACTION[s.kind],
       instructions: (instructions ?? '').trim(), done: stopDone(status, i),
     });
   });
   rows.push({
-    key: 'end', kind: 'end', time: clock24(finishMin ?? Number.NaN),
+    key: 'end', kind: 'end', time: momentText(finishMin),
     place: end.name, address: end.address,
     action: trip.direction === 'evening' ? 'Arrive home' : 'Arrive at work',
     instructions: '', done: status === 'completed',

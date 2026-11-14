@@ -3,6 +3,7 @@
 import type { EmployeeDashboard, EmployeeJobView } from '../../../../../shared/v2/api';
 import type { JobStatus, NetworkBusiness, Stop, Trip } from '../../../../../shared/v2/types';
 import { formatCents, formatClock, formatDuration } from '../../../ui/format';
+import { momentText } from './jobDetailV2Model';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 
@@ -14,7 +15,7 @@ export type TripSummary = {
   from: string;
   to: string;
   available: boolean;
-  /** "5:30 PM"; null when not available. */
+  /** "5:30 PM": the saved daily departure, a setting and not a moment of one day; null when not available. */
   departure: string | null;
   /** "34 min"; null when not available. */
   duration: string | null;
@@ -38,9 +39,10 @@ export type DeliveryRow = {
   packageLabel: string;
   status: JobStatus;
   statusLabel: string;
-  /** "6:12 PM · Joe's Coffee" or "6:12 PM · Relay point: Joe's Coffee". */
+  /** "Day 1, 6:12 PM · Joe's Coffee" or "Day 1, 6:12 PM · Relay point: Joe's Coffee". */
   pickup: string;
   dropoff: string;
+  /** A moment of the delivery: "Day 2, 8:05 AM" (DECISIONS pass 60), so a morning leg says Day 2. */
   pickupTime: string;
   pickupPlace: string;
   dropoffTime: string;
@@ -126,9 +128,9 @@ export function deliveryRows(
     const legs = plan.legs.length;
     const isRelay = plan.kind === 'relay';
     const morning = job.tripId.endsWith('-morn');
-    const pickupTime = formatClock(job.pickup.serviceStartMin);
+    const pickupTime = momentText(job.pickup.serviceStartMin);
     const pickupPlace = stopPlace(job.pickup);
-    const dropoffTime = formatClock(job.dropoff.serviceStartMin);
+    const dropoffTime = momentText(job.dropoff.serviceStartMin);
     const dropoffPlace = stopPlace(job.dropoff);
     return {
       jobId: job.id,
