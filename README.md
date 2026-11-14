@@ -37,10 +37,30 @@ Inside the app, the Setup drawer on the Simulator page has **Start new planning 
 The landing page lets you choose a demo identity (a business and/or an employee). The identity is the only thing stored in the browser; all delivery data lives on the server.
 
 ## 2-minute demo
-1. **Employee portal** (landing page, *Employee portal*): show the saved commute, departure times and the *Max added minutes* limit.
-2. **Business portal**: switch to a business, choose the *Destination business*, describe the package (name, category, weight, description) and set the ready/deadline times.
+Known-good request for the **Demo city** (locked by `tests/api/demo-script.test.ts`, which reads the block below). It always matches as a relay: the package is dropped at the hub on Day 1 evening and stays there overnight.
+
+```demo-request
+employee: Taylor Irwin
+employee_url: /employee/emp-19
+sender: Atlas Printworks
+recipient: Field Notes Supply
+package: Quarterly price lists
+category: envelope
+weight_kg: 0.5
+ready: Day 1, 3:30 PM
+deadline: Day 2, 12:00 PM
+hub: West Gate Hub
+price: $10.00
+```
+
+The **Delivery arranged** card should show: relay via **West Gate Hub**, price **$10.00**, carriers Taylor Irwin → Noel Patel, held at West Gate Hub overnight.
+
+If **Play** was pressed earlier, open **Setup** and click **Start new planning cycle** first; otherwise the request is refused (409) because the plan is locked.
+
+1. **Employee portal** (landing page, *Employee portal*, choose **Taylor Irwin**, `/employee/emp-19`): show the saved commute, departure times and the *Max added minutes* limit.
+2. **Business portal**: switch to **Atlas Printworks**, choose **Field Notes Supply** as the *Destination business*, enter the package and times from the block above.
 3. Click **Find a delivery match**. Show the **Delivery arranged** card with package information, ETA and price.
-4. Back in the **Employee portal**: the assigned job is already there, with stops and reward.
+4. Back in the **Employee portal** as Taylor Irwin: the assigned job is already there, with stops and reward.
 5. Open the **Simulator** and press **Play** to run the evening leg; the package stays at the hub overnight.
 6. Click **Jump to morning** (then **Finish** if needed): sender/recipient tracking and employee earnings update from the same run.
 7. If time remains, open **Setup** (the Setup drawer), click **Start new planning cycle**, change the detour limit (*Max added minutes*) in the employee portal and show the tradeoff.
