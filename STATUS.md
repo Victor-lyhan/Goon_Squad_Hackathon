@@ -1,12 +1,12 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 07:24 (Sat), planner pass 24_
+_Last update: 2026-11-14 07:35 (Sat), planner pass 25_
 
 ## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). All six CI timing sweeps are merged (#309–#313, #316). There are no open issues or PRs, and nothing has changed since pass 23 (07:13). I queued nothing this pass: every area already has spec, real-data, 390 px, reduced-motion and poll-abort tests, so new issues would be filler (DECISIONS pass 13).
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). All six CI timing sweeps are merged (#309–#313, #316). There are no open issues or PRs, and nothing has changed since pass 23 (07:13); passes 24 and 25 found the same state. I queued nothing this pass: every area already has spec, real-data, 390 px, reduced-motion and poll-abort tests, so new issues would be filler (DECISIONS pass 13).
 
 ## Main health: GREEN
-- The last three main runs passed: the #316 (#303) merge and the 07:02 and 07:14 planner commits.
+- The last three main runs passed: the #316 (#303) merge and the 07:14 and 07:25 planner commits.
 - Every test area now has explicit CI timeouts and builds its data once per file.
 
 ## Stuck
