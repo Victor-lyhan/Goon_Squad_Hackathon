@@ -60,3 +60,24 @@ export function handleRunIdChange(
   const changed = refetchMap && !!prevRunId;
   return { refetchMap, clearSelection: changed && !!selectedId && resolveSelection(selectedId, shipments) === undefined };
 }
+
+export const STALE_PACKAGE_NOTE = "That package isn't in the current city";
+export const RECONNECTING_TEXT = 'Reconnecting…';
+
+/** The note to show for a `?package=` that is not in the loaded run (null when fine or not loaded yet). */
+export function stalePackageNote(
+  param: string | null | undefined,
+  shipments: Pick<Shipment, 'id'>[] | null | undefined,
+): string | null {
+  return resolveDeepLink(param, shipments).notFound ? STALE_PACKAGE_NOTE : null;
+}
+
+/** Reconnecting only makes sense while there is a last frame to keep; before that the view shows its own error state. */
+export function isReconnecting(error: string | null | undefined, hasSnapshot: boolean): boolean {
+  return !!error && hasSnapshot;
+}
+
+/** The map is only valid for the runId it was fetched for; a map from an older run must not be drawn under a new run's frame. */
+export function mapForRun<T>(map: T | null, mapRunId: string | null, runId: string | undefined): T | null {
+  return map !== null && runId !== undefined && mapRunId === runId ? map : null;
+}
