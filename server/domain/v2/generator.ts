@@ -102,16 +102,26 @@ function businessesWithCoordinates(
   });
 }
 
+/**
+ * A plain "First Last" name that no employee of the run has yet. The PRNG is asked exactly twice per employee
+ * (first name, last name), so the draws that follow are the same whether the pair is free or taken. A taken
+ * pair moves to the next last name in the list (wrapping round), then to the next first name; no name ever
+ * gets a number. `used` starts with the story employees' names, so a generated name never equals one of them.
+ */
 function uniqueName(rng: ReturnType<typeof createRng>, used: Set<string>): string {
-  const base = `${rng.pick(backgroundFirstNames)} ${rng.pick(backgroundLastNames)}`;
-  let name = base;
-  let suffix = 2;
-  while (used.has(name)) {
-    name = `${base} ${suffix}`;
-    suffix += 1;
+  const firstStart = backgroundFirstNames.indexOf(rng.pick(backgroundFirstNames));
+  const lastStart = backgroundLastNames.indexOf(rng.pick(backgroundLastNames));
+  for (let firstStep = 0; firstStep < backgroundFirstNames.length; firstStep += 1) {
+    const first = backgroundFirstNames[(firstStart + firstStep) % backgroundFirstNames.length]!;
+    for (let lastStep = 0; lastStep < backgroundLastNames.length; lastStep += 1) {
+      const name = `${first} ${backgroundLastNames[(lastStart + lastStep) % backgroundLastNames.length]!}`;
+      if (!used.has(name)) {
+        used.add(name);
+        return name;
+      }
+    }
   }
-  used.add(name);
-  return name;
+  throw new RangeError('not enough distinct names for requested employees');
 }
 
 function departureTimes(rng: ReturnType<typeof createRng>): Pick<Employee, 'eveningDepartureMin' | 'morningDepartureMin'> {
@@ -134,6 +144,7 @@ function backgroundEmployees(
   homes: Home[],
   maxExtraMin: number,
   featured: Employee[] = [],
+  reservedNames: string[] = [],
 ): Employee[] {
   if (count === 0) return [];
   if (businesses.length === 0) throw new RangeError('at least one business is required to generate employees');
@@ -144,7 +155,7 @@ function backgroundEmployees(
   for (const employee of featured) {
     businessCounts.set(employee.businessId, (businessCounts.get(employee.businessId) ?? 0) + 1);
   }
-  const names = new Set(featured.map(employee => employee.name));
+  const names = new Set([...featured.map(employee => employee.name), ...reservedNames]);
   const ids = new Set(featured.map(employee => employee.id));
   const employees: Employee[] = [];
 
@@ -256,7 +267,9 @@ export function buildNycScenario(input: BuildNycScenarioInput): Scenario {
     };
   }
 
-  const employees = backgroundEmployees(rng, request.employees, businesses, pool, request.maxExtraMin);
+  // Random city has no story employees, but it never reuses one of their names for someone else.
+  const storyNames = storyFile.featuredEmployees.map(employee => employee.name);
+  const employees = backgroundEmployees(rng, request.employees, businesses, pool, request.maxExtraMin, [], storyNames);
   const homeById = new Map(pool.map(home => [home.id, home]));
   return {
     schemaVersion: 2,
