@@ -4,7 +4,7 @@
 import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
 import { jobIdFor } from '../../../../../../shared/v2/types';
 import type {
-  DeliveryPlan, JobStatus, Leg, NetworkBusiness, Shipment, ShipmentProgress, StopKind,
+  DeliveryPlan, Job, JobStatus, Leg, NetworkBusiness, Shipment, ShipmentProgress, Stop, StopKind,
 } from '../../../../../../shared/v2/types';
 import { formatCents, formatMin } from '../../../../ui/format';
 
@@ -35,6 +35,10 @@ const KIND_LABEL: Record<NetworkBusiness['kind'], string> = { office: 'Office', 
 const UNKNOWN_PLACE = 'Unknown place';
 const UNKNOWN_PERSON = 'Unknown commuter';
 const NO_STATUS = '—';
+export const NO_MATCH_YET = 'No match yet';
+
+/** What a business is for one package, in UI copy. */
+export type PackageRole = 'Sender' | 'Recipient' | 'Relay point';
 
 // ---------- Shared shapes ----------
 export type Ref = { id: string; name: string };
@@ -54,6 +58,14 @@ export type PackageRow = {
   timeLabel: string | null;
   /** The matcher's reason, only for an unmatched package. */
   reason: string | null;
+  /** This business's part in the package: the list it sits in. */
+  role: PackageRole;
+  /** "$8.30": the jobs' rewardCents of the plan, added up (one or two legs). Null when unmatched. */
+  rewardLabel: string | null;
+  /** "+11 min": the legs' extraMin of the plan, added up. Null when unmatched. */
+  extraLabel: string | null;
+  /** "No match yet" for an unmatched package (then reward and extra are null), else null. */
+  noMatchLabel: string | null;
 };
 
 export type BusinessInspectorModel = {
@@ -106,6 +118,22 @@ export type EmployeeInspectorModel = {
   totalRewardLabel: string;
 };
 
+// ---------- Formatting ----------
+/**
+ * The one time the simulator shows for a stop: its `serviceEndMin`, the time the journey timeline shows
+ * (`JourneyStep.timeMin` in journey/journeyModel.ts). The employee inspector uses it so one stop never has
+ * two times on one screen (DECISIONS pass 60).
+ */
+export function stopTimeMin(stop: Stop): number {
+  return stop.serviceEndMin;
+}
+
+/** Extra minutes as the matcher gives them: "+6 min", "+0 min", or "-3 min" for a shorter route (pass 59). */
+export function formatExtraMin(min: number): string {
+  const m = finite(min) ? Math.round(min) : 0;
+  return m < 0 ? `-${-m} min` : `+${m} min`;
+}
+
 // ---------- Helpers ----------
 const byId = <T extends { id: string }>(items: readonly T[]) => new Map(items.map((x) => [x.id, x] as const));
 const cmpStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -116,15 +144,21 @@ function placeRef(id: string, businesses: Map<string, NetworkBusiness>): PlaceRe
   return b ? { id: b.id, name: b.name } : { id: null, name: UNKNOWN_PLACE };
 }
 
+/** Jobs keyed `${planId}#${legIndex}`. */
+function jobsByLeg(sim: SimulatorResponse): Map<string, Job> {
+  return new Map(sim.jobs.map((j) => [`${j.planId}#${j.legIndex}`, j] as const));
+}
+
 function compareShipments(a: Shipment, b: Shipment): number {
   return (finite(a.createdSeq) && finite(b.createdSeq) ? a.createdSeq - b.createdSeq : 0) || cmpStr(a.id, b.id);
 }
 
 function packageRow(
   s: Shipment,
-  roles: ('From' | 'To')[],
+  role: PackageRole,
   ctx: {
     plans: Map<string, DeliveryPlan>;
+    jobs: Map<string, Job>;
     businesses: Map<string, NetworkBusiness>;
     names: Map<string, string>;
     reasons: Map<string, string>;
@@ -137,6 +171,19 @@ function packageRow(
   let timeLabel: string | null = null;
   if (finite(deliveredAt)) timeLabel = `Delivered ${formatMin(deliveredAt)}`;
   else if (plan && finite(plan.deliveryMin)) timeLabel = `ETA ${formatMin(plan.deliveryMin)}`;
+  const roles: ('From' | 'To')[] = role === 'Sender' ? ['To'] : role === 'Recipient' ? ['From'] : ['From', 'To'];
+  // Money and minutes: the API's per-leg values, only added up over the plan's legs (DECISIONS pass 46).
+  let rewardLabel: string | null = null;
+  let extraLabel: string | null = null;
+  if (plan) {
+    const reward = plan.legs.reduce((sum, leg, i) => {
+      const cents = ctx.jobs.get(`${plan.id}#${i}`)?.rewardCents ?? leg.rewardCents;
+      return sum + (finite(cents) ? cents : 0);
+    }, 0);
+    const extra = plan.legs.reduce((sum, leg) => sum + (finite(leg.extraMin) ? leg.extraMin : 0), 0);
+    rewardLabel = formatCents(reward);
+    extraLabel = formatExtraMin(extra);
+  }
   return {
     shipmentId: s.id,
     label: s.label || 'Untitled package',
@@ -149,6 +196,10 @@ function packageRow(
     statusLabel: (status && SHIPMENT_STATUS_LABEL[status]) || NO_STATUS,
     timeLabel,
     reason: plan ? null : ctx.reasons.get(s.id) ?? null,
+    role,
+    rewardLabel,
+    extraLabel,
+    noMatchLabel: plan ? null : NO_MATCH_YET,
   };
 }
 
@@ -165,6 +216,7 @@ export function businessInspector(
   const plans = new Map(sim.plans.map((p) => [p.shipmentId, p] as const));
   const ctx = {
     plans,
+    jobs: jobsByLeg(sim),
     businesses,
     names: new Map(map.employees.map((e) => [e.id, e.name] as const)),
     reasons: new Map(sim.unmatched.map((u) => [u.shipmentId, u.reason] as const)),
@@ -186,13 +238,13 @@ export function businessInspector(
     borough: biz.borough,
     commuters,
     commutersLabel: `${commuters} ${commuters === 1 ? 'commuter works' : 'commuters work'} here`,
-    sent: shipments.filter((s) => s.originBusinessId === businessId).map((s) => packageRow(s, ['To'], ctx)),
+    sent: shipments.filter((s) => s.originBusinessId === businessId).map((s) => packageRow(s, 'Sender', ctx)),
     received: shipments
       .filter((s) => s.destinationBusinessId === businessId)
-      .map((s) => packageRow(s, ['From'], ctx)),
+      .map((s) => packageRow(s, 'Recipient', ctx)),
     held: shipments
       .filter((s) => heldIds.has(s.id) && s.originBusinessId !== businessId && s.destinationBusinessId !== businessId)
-      .map((s) => packageRow(s, ['From', 'To'], ctx)),
+      .map((s) => packageRow(s, 'Relay point', ctx)),
   };
 }
 
@@ -214,7 +266,7 @@ export function employeeInspector(
 
   const businesses = byId(map.businesses);
   const shipments = byId(sim.shipments);
-  const jobs = new Map(sim.jobs.map((j) => [`${j.planId}#${j.legIndex}`, j] as const));
+  const jobs = jobsByLeg(sim);
   const home = map.homes.find((h) => h.id === employee.homeId);
 
   const carried: CarriedLeg[] = [];
@@ -223,7 +275,7 @@ export function employeeInspector(
       if (leg.employeeId === employeeId) carried.push({ plan, leg, legIndex });
     });
   }
-  const firstTime = (c: CarriedLeg) => c.leg.stops[0]?.serviceStartMin ?? c.leg.finishMin;
+  const firstTime = (c: CarriedLeg) => (c.leg.stops[0] ? stopTimeMin(c.leg.stops[0]) : c.leg.finishMin);
   carried.sort((a, b) =>
     (firstTime(a) - firstTime(b)) || cmpStr(a.plan.id, b.plan.id) || a.legIndex - b.legIndex);
 
@@ -237,13 +289,13 @@ export function employeeInspector(
       legLabel: legLabel(plan, legIndex),
       stops: leg.stops.map((stop, i) => ({
         key: `${i}-${stop.kind}`,
-        timeLabel: formatMin(stop.serviceStartMin),
+        timeLabel: formatMin(stopTimeMin(stop)),
         kindLabel: STOP_KIND_LABEL[stop.kind] ?? 'Stop',
         place: placeRef(stop.placeId, businesses),
         isRelay: stop.kind === 'hub_drop' || stop.kind === 'hub_pickup',
       })),
       finishLabel: formatMin(leg.finishMin),
-      extraLabel: `+${finite(leg.extraMin) ? leg.extraMin : 0} min`,
+      extraLabel: formatExtraMin(leg.extraMin),
       rewardLabel: formatCents(finite(leg.rewardCents) ? leg.rewardCents : 0),
       statusLabel: (jobStatus && JOB_STATUS_LABEL[jobStatus]) || NO_STATUS,
     };
