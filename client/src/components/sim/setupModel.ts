@@ -1,6 +1,6 @@
 import { GenerateScenarioRequest } from '../../../../shared/schemas';
 import type { CompareResponse } from '../../../../shared/api';
-import type { Metrics } from '../../../../shared/types';
+import type { Metrics, Run } from '../../../../shared/types';
 import { formatCents, formatMin } from './metricsModel';
 
 export type NumericField = 'seed' | 'employees' | 'packages' | 'hubs' | 'maxExtraMin';
@@ -93,8 +93,45 @@ export function toCompareRows(c: CompareResponse): CompareRow[] {
 
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : 'Request failed');
 
-/** Local-time-free filename for the export download. */
-export const EXPORT_FILENAME = 'relay-scenario.json';
+export const CONFIRM_TEXT = 'This replaces the current city and its packages.';
+export const LOCKED_ERROR_TEXT = 'Start a new planning cycle first.';
+
+export type ReplaceAction = 'generate' | 'import';
+export type ConfirmState = ReplaceAction | null;
+export type ConfirmEvent = { type: 'ask'; action: ReplaceAction } | { type: 'cancel' } | { type: 'confirm' };
+
+/** Confirm step for destructive actions. `confirm` and `cancel` both close it; the caller only calls the API on confirm. */
+export function confirmReducer(state: ConfirmState, ev: ConfirmEvent): ConfirmState {
+  return ev.type === 'ask' ? ev.action : null;
+}
+
+/** True when the API refused the request because planning is locked. */
+export const isLockedError = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { status?: unknown }).status === 409;
+
+/** Message shown inline. A 409 always points at "Start new planning cycle", keeping the server text for detail. */
+export function describeActionError(e: unknown): string {
+  const msg = errorMessage(e);
+  if (!isLockedError(e)) return msg;
+  return /start a new planning cycle/i.test(msg) ? msg : `${LOCKED_ERROR_TEXT} ${msg}`;
+}
+
+/** Parses an imported file's text; the message is shown inline on failure. */
+export function parseImportText(text: string): { ok: true; data: Run } | { ok: false; error: string } {
+  try {
+    const data: unknown = JSON.parse(text);
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) return { ok: false, error: 'That file is not a scenario: expected a JSON object.' };
+    return { ok: true, data: data as Run };
+  } catch {
+    return { ok: false, error: 'That file is not valid JSON.' };
+  }
+}
+
+const slug = (s: string) => s.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
+
+/** `relay-<preset>-seed<seed>-<runId>.json`, from the API response only. */
+export function exportFilename(run: { runId: string; scenario: { preset: string; seed: number } }): string {
+  return `relay-${slug(run.scenario.preset)}-seed${slug(String(run.scenario.seed))}-${slug(run.runId)}.json`;
+}
 
 export const LOCKED_RECOMPUTE_TEXT = 'Playback has started. Start a new planning cycle to recompute.';
 

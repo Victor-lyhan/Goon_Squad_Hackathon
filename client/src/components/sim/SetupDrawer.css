@@ -12,3 +12,6 @@
 .cmp-diff { font-weight: 700; color: #166534; }
 .setup-hint { margin: 0; color: #92400e; font-size: 12px; }
 .setup-tradeoff { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.setup-confirm { border: 1px solid #fcd34d; background: #fffbeb; border-radius: 6px; padding: 8px 10px; width: 100%; box-sizing: border-box; }
+.setup-confirm p { margin: 0 0 8px; font-weight: 600; color: #92400e; }
+.setup-error { width: 100%; box-sizing: border-box; }
