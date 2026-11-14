@@ -364,6 +364,18 @@ export function SimPageBody({ sim, selection, onSelectionChange, initialFocus, i
   const [compare, setCompare] = useState<CompareState>(COMPARE_IDLE);
   const panSeq = useRef(0);
 
+  // #579: a new run (Random city, an import, a new planning cycle) numbers its IDs anew, so the
+  // focus of the old run goes back to "All". Adjusted during render, so no frame shows the old focus.
+  // A new `version` of the same run keeps it; the first run the page sees is not a change. Layers,
+  // the legend and the panels stay; the selection is the page's (`useSimPageState` clears it) and
+  // Play journey stops on its own (useJourneyPlay watches the runId).
+  const runId = sim.sim?.runId ?? null;
+  const [focusRunId, setFocusRunId] = useState(runId);
+  if (runId !== null && runId !== focusRunId) {
+    setFocusRunId(runId);
+    if (focusRunId !== null) setFocus(NO_FOCUS);
+  }
+
   const view = useMemo(() => simPageView({ data: sim, selection, focus, layers }), [sim, selection, focus, layers]);
   const ready = view.view === 'ready' ? view : null;
   const polled = sim.sim;

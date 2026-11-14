@@ -4,28 +4,60 @@
  * and the page knows whether it is below 900 px. The logic is in `simPageState.ts`; this file only
  * plugs it into React Router and the browser.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { SimulatorV2 } from '../live/useSimulatorV2';
 import type { Selection } from '../network/selectionModel';
 import {
-  attachSimKeys, isNarrow, locationForSelection, selectionFromSearch, watchNarrow,
+  attachSimKeys, isNarrow, isNewRun, locationForSelection, selectionFromSearch, watchNarrow,
   type MatchMediaFn, type SimKeyContext, type SimKeyTarget,
 } from './simPageState';
 
 export type SimPageState = {
-  /** Read from the URL on every render; an ID missing from the run is passed on as is. */
+  /**
+   * Read from the URL on every render; an ID missing from the run is passed on as is. After a change
+   * of run it is null (the old run's selection is being removed from the URL, #579).
+   */
   selection: Selection;
   /** Pushes a history entry (Back undoes it) and keeps every other query param. */
   setSelection: (selection: Selection) => void;
 };
 
-/** The selection in the URL, plus a setter that navigates. Only the query string changes, so it works on any path. */
-export function useUrlSelection(): SimPageState {
+/**
+ * The selection in the URL, plus a setter that navigates. Only the query string changes, so it works on any path.
+ *
+ * #579: when `runId` (the polled run) changes, the selection of the old run is removed from the URL
+ * with `replace`, so Back does not return to it: IDs are numbered per run, so an old `?package=shp-3`
+ * would open another package. Until the router shows the new URL (its updates may run in a
+ * transition), the stale query string reads as no selection, so the old one is never drawn on the
+ * new run. The first run is not a change: a deep link keeps its selection.
+ */
+export function useUrlSelection(runId: string | null = null): SimPageState {
   const location = useLocation();
   const navigate = useNavigate();
-  const selection = selectionFromSearch(location.search);
   const { pathname, search, hash } = location;
+
+  const [shownRunId, setShownRunId] = useState(runId);
+  /** The query string that holds the old run's selection, until the URL leaves it. */
+  const [staleSearch, setStaleSearch] = useState<string | null>(null);
+  if (runId !== null && runId !== shownRunId) {
+    // Adjusted during render: React renders again at once, before any child sees the old selection.
+    setShownRunId(runId);
+    if (isNewRun(shownRunId, runId) && selectionFromSearch(search) !== null) setStaleSearch(search);
+  }
+  const stale = staleSearch !== null && staleSearch === search;
+  const selection = stale ? null : selectionFromSearch(search);
+
+  useLayoutEffect(() => {
+    if (staleSearch === null) return;
+    if (!stale) {
+      setStaleSearch(null); // the URL moved on (the replace below, or the user)
+      return;
+    }
+    const to = locationForSelection(null, { pathname, search, hash });
+    if (to) navigate(to, { replace: true });
+  }, [stale, staleSearch, pathname, search, hash, navigate]);
+
   const setSelection = useCallback(
     (next: Selection) => {
       const to = locationForSelection(next, { pathname, search, hash });
@@ -71,7 +103,7 @@ export function useSimKeys(sim: SimulatorV2, page: SimPageState, escapeRef?: Esc
 
 /** URL selection plus the keyboard map: everything the page needs around `SimPageBody`. */
 export function useSimPageState(sim: SimulatorV2, escapeRef?: EscapeRef): SimPageState {
-  const page = useUrlSelection();
+  const page = useUrlSelection(sim.sim?.runId ?? null);
   useSimKeys(sim, page, escapeRef);
   return page;
 }
