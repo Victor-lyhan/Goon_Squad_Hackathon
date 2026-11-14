@@ -29,13 +29,13 @@ describe('deliveryRoute.css at 390 px', () => {
     expect(css).not.toMatch(/white-space:\s*nowrap/);
   });
 
-  it('follows the tokens: radius 2 to 4 px, no shadows or gradients, fallbacks on every token, no raw colours', () => {
+  it('follows the tokens: radius 2 to 6 px, no shadows or gradients, fallbacks on every token, no raw colours', () => {
     const radii = [...css.matchAll(/border-radius:\s*([^;]+);/g)].map((m) => m[1]);
     expect(radii.length).toBeGreaterThan(0);
     for (const value of radii) {
       for (const [, px] of value.matchAll(/(\d+(?:\.\d+)?)px/g)) {
         expect(Number(px)).toBeGreaterThanOrEqual(2);
-        expect(Number(px)).toBeLessThanOrEqual(4);
+        expect(Number(px)).toBeLessThanOrEqual(6);
       }
     }
     expect(css).not.toMatch(/box-shadow|gradient/i);

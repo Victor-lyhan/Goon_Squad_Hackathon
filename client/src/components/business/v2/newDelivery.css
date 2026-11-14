@@ -1,5 +1,8 @@
-/* MVP II Business workspace: New delivery form.
-   Tokens as var(--name, fallback) (DECISIONS pass 44). Square corners, 1px borders, no shadows, no gradients, no pills. */
+/* Business workspace: New delivery form.
+   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
+   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
+   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
+   IDs, weights and prices; Inter (--font-sans) for everything else. No pills. */
 
 .nd {
   display: flex;
@@ -7,12 +10,12 @@
   gap: var(--space-4, 16px);
   max-width: 640px;
   padding: var(--space-4, 16px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: var(--text-sm, 14px);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
 }
 
 .nd-head { display: flex; flex-direction: column; gap: var(--space-1, 4px); }
@@ -26,7 +29,7 @@
   margin: 0;
   padding: var(--space-3, 12px) 0 0;
   border: 0;
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
   min-width: 0;
 }
 .nd-legend {
@@ -41,17 +44,17 @@
 .nd-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3, 12px); }
 
 .nd-field { display: flex; flex-direction: column; gap: var(--space-1, 4px); min-width: 0; }
-.nd-label { font-weight: 600; font-size: var(--text-sm, 14px); }
+.nd-label { font-weight: 600; font-size: var(--text-sm, 13px); }
 .nd-hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .nd-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); }
 
 .nd-input {
   height: 36px;
   padding: 0 var(--space-2, 8px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
   min-width: 0;
   width: 100%;
@@ -61,10 +64,10 @@
 .nd-field--invalid .nd-input { border-color: var(--danger, #A4322A); }
 .nd-input:focus-visible {
   outline: none;
-  border-color: var(--accent, #28618A);
-  box-shadow: 0 0 0 1px var(--accent, #28618A);
+  border-color: var(--accent, #1D5075);
+  box-shadow: 0 0 0 1px var(--accent, #1D5075);
 }
-.nd-input:disabled { background: var(--bg, #F7F8FA); color: var(--muted, #5B6472); }
+.nd-input:disabled { background: var(--bg, #F7F7F4); color: var(--muted, #5B6472); }
 
 .nd-result:empty, .nd-alert:empty { display: none; }
 .nd-result__line {
@@ -75,16 +78,16 @@
   gap: var(--space-2, 8px);
   margin: 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
+  border: 1px solid var(--border, #E3E3DE);
   border-left-width: 3px;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
 }
 .nd-result__line--ok { border-left-color: var(--ok, #2F6B4F); }
 .nd-result__line--warn { border-left-color: var(--warn, #8A5A00); }
 .nd-result__line--danger { border-left-color: var(--danger, #A4322A); }
 .nd-result__text { margin: 0; }
 .nd-result__id { color: var(--muted, #5B6472); white-space: nowrap; }
-.nd-mono { font-family: var(--font-mono, ui-monospace, monospace); }
+.nd-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); }
 
 /* The "Delivery arranged" card: title and ID, the facts in a row, one block per carrier, two actions. */
 .nd-arranged { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: var(--space-3, 12px); }
@@ -103,7 +106,7 @@
   gap: var(--space-2, 8px);
   margin: 0;
   padding: var(--space-2, 8px) 0 0;
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
   list-style: none;
 }
 .nd-carrier__who { margin: 0; }
@@ -117,30 +120,30 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
 .nd-btn {
   height: 36px;
   padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
-.nd-btn:hover { border-color: var(--text, #151B26); }
+.nd-btn:hover { border-color: var(--text, #171C24); }
 .nd-btn--primary {
-  background: var(--accent, #28618A);
-  border-color: var(--accent, #28618A);
+  background: var(--accent, #1D5075);
+  border-color: var(--accent, #1D5075);
   color: var(--panel, #FFFFFF);
 }
-.nd-btn--primary:hover { background: var(--accent-dark, #1F4E70); border-color: var(--accent-dark, #1F4E70); }
+.nd-btn--primary:hover { background: var(--accent-dark, #173E5B); border-color: var(--accent-dark, #173E5B); }
 .nd-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .nd-btn--link {
   height: auto;
   min-height: 32px;
   padding: 0 var(--space-2, 8px);
-  border-color: var(--accent, #28618A);
-  color: var(--accent, #28618A);
+  border-color: var(--accent, #1D5075);
+  color: var(--accent, #1D5075);
 }
-.nd-btn:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
+.nd-btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 
 /* 390 px: one column, controls at least 40 px high, full-width actions. */
 @media (max-width: 480px) {

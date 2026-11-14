@@ -1,5 +1,8 @@
-/* MVP II Business workspace: shipments toolbar + table.
-   Tokens as var(--name, fallback) (DECISIONS pass 44). Square corners, 1px dividers, no shadows, no gradients. */
+/* Business workspace: shipments toolbar + table.
+   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
+   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
+   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
+   IDs, weights and prices; Inter (--font-sans) for everything else. */
 
 .bw-toolbar {
   display: flex;
@@ -7,9 +10,9 @@
   align-items: flex-end;
   gap: var(--space-3, 12px);
   padding: var(--space-3, 12px) 0;
-  border-bottom: 1px solid var(--border, #D7DDE5);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  color: var(--text, #151B26);
+  border-bottom: 1px solid var(--border, #E3E3DE);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  color: var(--text, #171C24);
 }
 .bw-toolbar__field { display: flex; flex-direction: column; gap: var(--space-1, 4px); min-width: 0; }
 .bw-toolbar__search { flex: 1 1 240px; }
@@ -25,56 +28,56 @@
 .bw-input {
   height: 32px;
   padding: 0 var(--space-2, 8px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
-  font-size: var(--text-sm, 14px);
+  font-size: var(--text-sm, 13px);
   min-width: 0;
 }
-.bw-input:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 0; }
+.bw-input:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 0; }
 
 .bw-segmented { display: flex; }
 .bw-segmented__btn {
   height: 32px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
+  border: 1px solid var(--border, #E3E3DE);
   border-radius: 0;
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
-  font-size: var(--text-sm, 14px);
+  font-size: var(--text-sm, 13px);
   cursor: pointer;
 }
 .bw-segmented__btn + .bw-segmented__btn { border-left: 0; }
-.bw-segmented__btn:first-child { border-radius: var(--radius, 2px) 0 0 var(--radius, 2px); }
-.bw-segmented__btn:last-child { border-radius: 0 var(--radius, 2px) var(--radius, 2px) 0; }
+.bw-segmented__btn:first-child { border-radius: var(--radius, 4px) 0 0 var(--radius, 4px); }
+.bw-segmented__btn:last-child { border-radius: 0 var(--radius, 4px) var(--radius, 4px) 0; }
 .bw-segmented__btn[aria-pressed='true'] {
-  background: var(--accent-soft, #E8F0F6);
-  color: var(--accent-dark, #1F4E70);
+  background: var(--accent-soft, #E8EEF1);
+  color: var(--accent-dark, #173E5B);
   font-weight: 600;
 }
-.bw-segmented__btn:hover { background: var(--bg, #F7F8FA); }
-.bw-segmented__btn:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: -2px; }
+.bw-segmented__btn:hover { background: var(--bg, #F7F7F4); }
+.bw-segmented__btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
 
 .bw-btn {
   height: 32px;
   padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
-  font-size: var(--text-sm, 14px);
+  font-size: var(--text-sm, 13px);
   font-weight: 600;
   cursor: pointer;
 }
-.bw-btn:hover { background: var(--bg, #F7F8FA); }
-.bw-btn--primary { background: var(--accent, #28618A); border-color: var(--accent, #28618A); color: var(--panel, #FFFFFF); }
-.bw-btn--primary:hover { background: var(--accent-dark, #1F4E70); border-color: var(--accent-dark, #1F4E70); }
+.bw-btn:hover { background: var(--bg, #F7F7F4); }
+.bw-btn--primary { background: var(--accent, #1D5075); border-color: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
+.bw-btn--primary:hover { background: var(--accent-dark, #173E5B); border-color: var(--accent-dark, #173E5B); }
 .bw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.bw-btn:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
+.bw-btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 
 /* ---------- Table ---------- */
 /* The table's box is a size container: above 640 px its least important columns drop as the box (not the
@@ -83,17 +86,17 @@
 .bw-table {
   width: 100%;
   border-collapse: collapse;
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: var(--text-sm, 14px);
-  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
+  color: var(--text, #171C24);
   background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #D7DDE5);
+  border: 1px solid var(--border, #E3E3DE);
 }
 .bw-table__caption {
   caption-side: top;
   text-align: left;
   padding: var(--space-3, 12px) 0 var(--space-2, 8px);
-  font-size: var(--text-md, 16px);
+  font-size: var(--text-md, 14px);
   font-weight: 600;
 }
 .bw-table__count {
@@ -106,12 +109,12 @@
 .bw-table th,
 .bw-table td {
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
   text-align: left;
   vertical-align: top;
 }
 .bw-table th {
-  background: var(--bg, #F7F8FA);
+  background: var(--bg, #F7F7F4);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
   color: var(--muted, #5B6472);
@@ -127,7 +130,7 @@
   gap: var(--space-1, 4px);
   padding: 0;
   border: 0;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
   background: none;
   color: inherit;
   font: inherit;
@@ -135,21 +138,21 @@
   letter-spacing: inherit;
   cursor: pointer;
 }
-.bw-sort:hover { color: var(--text, #151B26); }
-.bw-sort:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
+.bw-sort:hover { color: var(--text, #171C24); }
+.bw-sort:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 .bw-sort__icon { display: inline-block; width: 12px; font-size: 0.8em; }
-th[aria-sort] .bw-sort { color: var(--text, #151B26); }
+th[aria-sort] .bw-sort { color: var(--text, #171C24); }
 
 .bw-row { cursor: pointer; }
-.bw-row:hover { background: var(--bg, #F7F8FA); }
-.bw-row[aria-selected='true'] { background: var(--accent-soft, #E8F0F6); }
-.bw-row[aria-selected='true'] .bw-cell--primary { color: var(--accent-dark, #1F4E70); }
-.bw-row:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: -2px; }
+.bw-row:hover { background: var(--bg, #F7F7F4); }
+.bw-row[aria-selected='true'] { background: var(--accent-soft, #E8EEF1); }
+.bw-row[aria-selected='true'] .bw-cell--primary { color: var(--accent-dark, #173E5B); }
+.bw-row:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
 /* The caption and an empty state's title take focus when a closed delivery has no row to return to
    (#609). Not tab stops; the ring shows for keyboard focus only, inside the box so the table's wrapper
    does not clip it. */
 .bw-table__caption:focus, .bw-empty__title:focus { outline: none; }
-.bw-table__caption:focus-visible, .bw-empty__title:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: -2px; }
+.bw-table__caption:focus-visible, .bw-empty__title:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
 
 .bw-cell--primary { font-weight: 600; }
 .bw-mono {
@@ -165,18 +168,18 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
   color: var(--danger, #A4322A);
 }
 
-/* Status: rectangular label, 1px border, no pill. */
+/* Status: rectangular label, 1px border, no pill. Words, so --font-sans. */
 .bw-status {
   display: inline-block;
   padding: 1px var(--space-2, 8px);
   border: 1px solid currentColor;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
   white-space: nowrap;
 }
 .bw-status--neutral { color: var(--muted, #5B6472); }
-.bw-status--info { color: var(--accent, #28618A); }
+.bw-status--info { color: var(--accent, #1D5075); }
 .bw-status--warn { color: var(--warn, #8A5A00); }
 .bw-status--success { color: var(--ok, #2F6B4F); }
 .bw-status--danger { color: var(--danger, #A4322A); }
@@ -184,15 +187,15 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
 /* ---------- Empty states ---------- */
 .bw-empty {
   padding: var(--space-8, 32px) var(--space-4, 16px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   text-align: center;
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  color: var(--text, #171C24);
 }
-.bw-empty__title { margin: 0 0 var(--space-1, 4px); font-weight: 600; font-size: var(--text-md, 16px); }
-.bw-empty__text { margin: 0 0 var(--space-4, 16px); color: var(--muted, #5B6472); font-size: var(--text-sm, 14px); }
+.bw-empty__title { margin: 0 0 var(--space-1, 4px); font-weight: 600; font-size: var(--text-md, 14px); }
+.bw-empty__text { margin: 0 0 var(--space-4, 16px); color: var(--muted, #5B6472); font-size: var(--text-sm, 13px); }
 
 .bw-visually-hidden {
   position: absolute;
@@ -246,11 +249,11 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
   /* A keyboard user who tabs into the sort buttons sees them: the header row shows as a wrapping strip. */
   .bw-table thead:focus-within { position: static; display: block; width: auto; height: auto; overflow: visible; clip: auto; margin-bottom: var(--space-2, 8px); }
   .bw-table thead:focus-within tr { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px); }
-  .bw-table thead:focus-within th { display: block; padding: var(--space-1, 4px) var(--space-2, 8px); border: 1px solid var(--border, #D7DDE5); }
+  .bw-table thead:focus-within th { display: block; padding: var(--space-1, 4px) var(--space-2, 8px); border: 1px solid var(--border, #E3E3DE); }
   .bw-table tr.bw-row {
     margin-bottom: var(--space-2, 8px);
-    border: 1px solid var(--border, #D7DDE5);
-    border-radius: var(--radius, 2px);
+    border: 1px solid var(--border, #E3E3DE);
+    border-radius: var(--radius, 4px);
     background: var(--panel, #FFFFFF);
   }
   .bw-table td {
@@ -258,13 +261,13 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
     grid-template-columns: 7.5rem minmax(0, 1fr);
     gap: var(--space-2, 8px);
     padding: var(--space-1, 4px) var(--space-3, 12px);
-    border-bottom: 1px solid var(--border, #D7DDE5);
+    border-bottom: 1px solid var(--border, #E3E3DE);
     overflow-wrap: anywhere;
   }
   .bw-table td:last-child { border-bottom: 0; }
   .bw-table td::before {
     content: attr(data-label);
-    font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+    font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
     font-size: var(--text-xs, 12px);
     font-weight: 600;
     color: var(--muted, #5B6472);

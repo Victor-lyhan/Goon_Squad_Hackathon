@@ -1,14 +1,19 @@
-/* Delivery route map in the Business workspace (#549). Square corners (2px), 1px borders, no shadows,
-   no gradients. Tokens are read as var(--name, fallback). The map block has a fixed height: 280px in the
-   details column, 240px on narrow screens, always full width. No rule sets a width wider than 390 px. */
+/* Delivery route map in the Business workspace (#549).
+   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
+   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
+   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
+   IDs, weights and prices; Inter (--font-sans) for everything else.
+   The route and legend colours are not in this file: they come from map/layers.ts.
+   The map block has a fixed height: 280px in the details column, 240px on narrow screens, always full
+   width. No rule sets a width wider than 390 px. */
 
 .bdr {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: var(--text-sm, 14px);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -18,9 +23,9 @@
   width: 100%;
   height: 280px;
   overflow: hidden;
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
-  background: var(--bg, #F7F8FA);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  background: var(--bg, #F7F7F4);
 }
 
 /* The shared map (its root is the only child) has its own min-height; here it fills the fixed height. */
@@ -60,15 +65,15 @@
   margin: var(--space-2, 8px) 0 0;
   padding: var(--space-2, 8px) 0 0;
   list-style: none;
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
 }
 .bdr__stops li { padding: 2px 0; }
 .bdr__n {
   display: inline-block;
   min-width: 20px;
   text-align: center;
-  border-radius: var(--radius, 2px);
-  background: var(--text, #151B26);
+  border-radius: var(--radius, 4px);
+  background: var(--text, #171C24);
   color: var(--panel, #FFFFFF);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
@@ -82,23 +87,23 @@
 .bdr-line {
   margin: 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-left: 2px solid var(--accent, #28618A);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-left: 2px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   color: var(--muted, #5B6472);
 }
-.bdr-line--problem { border-left-color: var(--danger, #A4322A); color: var(--text, #151B26); }
+.bdr-line--problem { border-left-color: var(--danger, #A4322A); color: var(--text, #171C24); }
 .bdr-retry {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent, #28618A);
+  color: var(--accent, #1D5075);
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
 }
-.bdr-retry:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
+.bdr-retry:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 
 @media (max-width: 600px) {
   .bdr__map { height: 240px; }
