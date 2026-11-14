@@ -2,18 +2,23 @@
 // API functions are injected, so tests run in Node with fake timers. A poller belongs to one business:
 // `stop()` aborts what is in flight and nothing reaches the sink afterwards (the hook stops it and makes
 // a new poller when the business ID changes, so a late answer for the old ID is dropped).
+//
+// The dashboard has no run ID, so the run is read from the map (#599, DECISIONS pass 61). That request is
+// large, so it runs beside the poll, at most once every 5 s, and the dashboard never waits for it.
 import type { BusinessDashboard, BusinessesResponse, EmployeesResponse } from '../../../../../../shared/v2/api';
 import { ApiRequestError, isAbortError, type RequestOptions } from '../../../../api/v2';
 import { toDirectoryEmployees, type BusinessWorkspaceAction } from './businessWorkspaceState';
 
 export const POLL_INTERVAL_MS = 1000;
+/** The shortest time between two run checks (start to start). */
+export const RUN_CHECK_INTERVAL_MS = 5000;
 
 /** The v2 helpers the poller needs (same signatures as `client/src/api/v2`). */
 export type BusinessWorkspaceApi = {
   getBusinessDashboard: (id: string, opts?: RequestOptions) => Promise<BusinessDashboard>;
   getBusinesses: (opts?: RequestOptions) => Promise<BusinessesResponse>;
   getEmployees: (opts?: RequestOptions) => Promise<EmployeesResponse>;
-  /** Only `runId` is read: the dashboard has none, so a version change is checked against the map's run. */
+  /** Only `runId` is read: the dashboard has none, so version changes are checked against the map's run. */
   getMap: (opts?: RequestOptions) => Promise<{ runId: string }>;
 };
 
@@ -32,7 +37,7 @@ export function createBusinessPoller(
   businessId: string,
   api: BusinessWorkspaceApi,
   sink: BusinessPollerSink,
-  { intervalMs = POLL_INTERVAL_MS }: { intervalMs?: number } = {},
+  { intervalMs = POLL_INTERVAL_MS, runCheckMs = RUN_CHECK_INTERVAL_MS }: { intervalMs?: number; runCheckMs?: number } = {},
 ): BusinessPoller {
   const ctl = new AbortController();
   const { signal } = ctl;
@@ -42,44 +47,85 @@ export function createBusinessPoller(
   let waiters: (() => void)[] = [];
   let lastVersion: number | null = null;
   let runId: string | null = null;
+  /** The dashboard on screen; null before the first one and after a failed poll. */
+  let shownDash: BusinessDashboard | null = null;
+  /** True once a dashboard was dispatched: only the first one waits for the directories. */
+  let shown = false;
   let haveDirectories = false;
   let firstBusinessId: string | null = null;
   /** True while the dashboard answers 404: the directories are reloaded once, not every second. */
   let gone = false;
+  let dirLoad: Promise<void> | null = null;
+  let dirStale = false;
+  /** Run check: wanted, in flight, and the 5 s wait that starts with each check. */
+  let runDirty = false;
+  let runChecking = false;
+  let runCooldown: ReturnType<typeof setTimeout> | undefined;
 
   const live = () => !signal.aborted;
   const dispatch = (a: BusinessWorkspaceAction) => { if (live()) sink.dispatch(a); };
 
-  /** Both directories in one action; a failure leaves them for the next tick to retry. */
-  async function loadDirectories(): Promise<void> {
-    try {
-      const [b, e] = await Promise.all([api.getBusinesses({ signal }), api.getEmployees({ signal })]);
-      if (!live()) return;
-      haveDirectories = true;
-      firstBusinessId = b.businesses[0]?.id ?? null;
-      dispatch({ type: 'directories', businesses: b.businesses, employees: toDirectoryEmployees(e.employees) });
-    } catch { /* retried on the next tick */ }
+  /**
+   * Both directories in one action; a failure leaves them for the next tick to retry. One load at a
+   * time: a second caller gets the load in flight, and `fresh` repeats it when it may be out of date.
+   */
+  function loadDirectories(fresh = false): Promise<void> {
+    if (dirLoad) { if (fresh) dirStale = true; return dirLoad; }
+    dirLoad = (async () => {
+      do {
+        dirStale = false;
+        try {
+          const [b, e] = await Promise.all([api.getBusinesses({ signal }), api.getEmployees({ signal })]);
+          if (!live()) return;
+          haveDirectories = true;
+          firstBusinessId = b.businesses[0]?.id ?? null;
+          dispatch({ type: 'directories', businesses: b.businesses, employees: toDirectoryEmployees(e.employees) });
+        } catch { /* retried on the next tick */ }
+      } while (dirStale && live());
+    })().finally(() => { dirLoad = null; });
+    return dirLoad;
   }
 
-  /** Versions only go up, even for a new city, so the map's run ID is checked once per version change. */
-  async function checkRun(version: number): Promise<void> {
-    if (lastVersion !== null && version === lastVersion && runId !== null) return;
+  /** The check's answer. The dashboard on screen gets the run at once, not at the next poll. */
+  function onRun(next: string): void {
+    const prev = runId;
+    if (next === prev) return;
+    runId = next;
     try {
-      const m = await api.getMap({ signal });
-      if (live()) runId = m.runId;
-    } catch { /* keep the old run ID; the next version change retries */ }
+      if (shownDash) dispatch({ type: 'dashboard', dashboard: shownDash, runId });
+    } catch { /* sink errors must not stop the reload */ }
+    // Another run has other businesses and employees. Until the reload works, every poll retries it.
+    if (prev !== null) { haveDirectories = false; void loadDirectories(true); }
+  }
+
+  /**
+   * Versions only go up, even for a new city, and they go up on every simulator tick, so the map's run
+   * ID is read at most once per `runCheckMs`. A change during the wait or during a check leaves
+   * `runDirty` set, so one more check always follows the last change. A failed check is repeated.
+   */
+  function checkRun(): void {
+    if (!live() || !runDirty || runChecking || runCooldown) return;
+    runDirty = false;
+    runChecking = true;
+    runCooldown = setTimeout(() => { runCooldown = undefined; checkRun(); }, runCheckMs);
+    void api.getMap({ signal })
+      .then((m) => { if (live()) onRun(m.runId); }, () => { runDirty = true; })
+      .finally(() => { runChecking = false; checkRun(); });
   }
 
   async function poll(): Promise<void> {
+    // Missing directories load together with the dashboard, so the first render has the names.
+    const lists = haveDirectories ? null : loadDirectories();
     let dash: BusinessDashboard;
     try {
       dash = await api.getBusinessDashboard(businessId, { signal });
     } catch (e) {
       if (!live() || isAbortError(e)) return;
+      shownDash = null;
       if (is404(e)) {
         // A stale ID usually means a new city: reload the directories to link to a valid business.
         lastVersion = null;
-        if (!gone || !haveDirectories) await loadDirectories();
+        if (lists) await lists; else if (!gone) await loadDirectories(true);
         gone = true;
         dispatch({ type: 'notFound', fallbackBusinessId: firstBusinessId });
         return;
@@ -89,12 +135,18 @@ export function createBusinessPoller(
     }
     if (!live()) return;
     gone = false;
-    const prevRun = runId;
-    await checkRun(dash.version);
-    if (!live()) return;
+    if (dash.version !== lastVersion || runId === null) { runDirty = true; checkRun(); }
     lastVersion = dash.version;
-    dispatch({ type: 'dashboard', dashboard: dash, runId });
-    if (!haveDirectories || (prevRun !== null && runId !== prevRun)) await loadDirectories();
+    // Only the first dashboard waits for the names; a failed load does not hold it back.
+    if (!shown && lists) await lists;
+    if (!live()) return;
+    shown = true;
+    shownDash = dash;
+    try {
+      dispatch({ type: 'dashboard', dashboard: dash, runId });
+    } finally {
+      if (lists) await lists;
+    }
   }
 
   function schedule(delay: number) {
@@ -129,6 +181,8 @@ export function createBusinessPoller(
       ctl.abort();
       if (timer) clearTimeout(timer);
       timer = undefined;
+      if (runCooldown) clearTimeout(runCooldown);
+      runCooldown = undefined;
       const all = waiters; waiters = []; all.forEach((r) => r());
     },
     refetchNow,
