@@ -2,7 +2,7 @@
 // Display-only (AGENTS.md hard rule): the server's snapshotAt decides every position and status;
 // this file only picks a point between two polled positions. No status, ETA or money here.
 import type { MapMover } from '../../../map/types';
-import { clampAlpha } from '../../markerTween';
+import { clampAlpha } from './motionMath';
 import { JOURNEY_STEP_MIN, JOURNEY_STEP_MS } from './journeyPlayback';
 
 /** deck.gl order, like `MapRoute.path`. */

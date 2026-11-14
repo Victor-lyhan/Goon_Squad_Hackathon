@@ -3,7 +3,7 @@
 // requestAnimationFrame loop moves alpha 0 → 1 along each mover's route line.
 import { useEffect, useState } from 'react';
 import type { MapMover } from '../../../map/types';
-import { REDUCED_MOTION_QUERY, clampAlpha } from '../../markerTween';
+import { REDUCED_MOTION_QUERY, clampAlpha } from './motionMath';
 import { shouldSnapV2, tweenMovers, type PathFor, type TweenClock } from './routeTween';
 
 /** The tween runs over the real time between the last two polls, kept inside these bounds. */
