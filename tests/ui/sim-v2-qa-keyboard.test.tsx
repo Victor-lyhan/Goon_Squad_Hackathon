@@ -7,12 +7,10 @@ import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { FocusSelector } from '../../client/src/components/sim/v2/FocusSelector';
-import { LayerToggles } from '../../client/src/components/sim/v2/LayerToggles';
 import { PackageList } from '../../client/src/components/sim/v2/PackageList';
 import { LEFT_BODY_ID, RIGHT_BODY_ID, SimWorkspace } from '../../client/src/components/sim/v2/SimWorkspace';
-import { PlanningControls } from '../../client/src/components/sim/v2/controls/PlanningControls';
 import { PlaybackControls } from '../../client/src/components/sim/v2/controls/PlaybackControls';
-import { ScenarioControls } from '../../client/src/components/sim/v2/controls/ScenarioControls';
+import { BUSY_REASON, type PlayButtonView } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { BusinessInspector } from '../../client/src/components/sim/v2/inspector/BusinessInspector';
 import { EmployeeInspector } from '../../client/src/components/sim/v2/inspector/EmployeeInspector';
 import { businessInspector, employeeInspector } from '../../client/src/components/sim/v2/inspector/inspectorModel';
@@ -20,10 +18,6 @@ import { JourneyTimeline } from '../../client/src/components/sim/v2/journey/Jour
 import { buildJourney, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
 import { MapLegend } from '../../client/src/components/sim/v2/legend/MapLegend';
 import { PackagePanel } from '../../client/src/components/sim/v2/packages/PackagePanel';
-import { DEFAULT_LAYERS } from '../../client/src/components/sim/v2/workspaceModel';
-import { formatMin } from '../../client/src/ui/format';
-import { GenerateScenarioRequest } from '../../shared/v2/schemas';
-import type { Clock } from '../../shared/v2/types';
 import * as inspectorFx from './sim-v2-inspector-fixture';
 import { T, map as journeyMap, simAt } from './sim-v2-journey-sample';
 import * as packagesFx from './sim-v2-packages-fixture';
@@ -113,54 +107,36 @@ describe('workspace frame: panel collapse buttons and Back to network', () => {
   });
 });
 
-describe('left panel: playback', () => {
-  const clock: Clock = { phase: 'locked', playing: false, timeMin: 1950, speed: 120 };
-  const html = render(
-    <PlaybackControls clock={clock} simStartMin={930} simEndMin={2160} nextEventMin={1980} onControl={noop} />,
-  );
-  const all = expectReachable(html);
+describe('left panel: playback (#648: one Play/Pause button and Back to start)', () => {
+  const play: PlayButtonView = { label: 'Play', action: 'play_journey', note: null };
+  const pause: PlayButtonView = { label: 'Pause', action: 'pause_journey', note: null };
+  const html = (button: PlayButtonView, resetDisabled: string | null = null) =>
+    render(<PlaybackControls button={button} resetDisabled={resetDisabled} onToggle={noop} onReset={noop} />);
 
-  it('play / pause, next event, jump to morning, finish and reset are named buttons', () => {
-    for (const name of [/^(Play|Pause)$/, 'Next event', 'Jump to morning', 'Finish', 'Reset playback']) {
-      expect(one(all, name).tag).toBe('button');
+  it.each([['Play', play], ['Pause', pause]] as const)('%s and Back to start are the two named buttons, in the tab order', (label, button) => {
+    const all = expectReachable(html(button));
+    expect(all.map((c) => [c.tag, attr(c.open, 'type'), c.name])).toEqual([['button', 'button', label], ['button', 'button', 'Back to start']]);
+    for (const c of all) expect(c.open).not.toContain('disabled');
+  });
+
+  it('a disabled button stays named and is described by the visible reason', () => {
+    const out = html({ label: 'Play', action: null, note: BUSY_REASON }, BUSY_REASON);
+    const all = expectReachable(out);
+    expect(all.map((c) => c.name)).toEqual(['Play', 'Back to start']);
+    for (const c of all) {
+      expect(c.open).toContain('disabled');
+      const noteId = attr(c.open, 'aria-describedby');
+      expect(noteId).toBeTruthy();
+      expect(out).toContain(`id="${noteId}">${BUSY_REASON}<`);
     }
   });
 
-  it('the speed buttons are a named group of toggle buttons, one pressed', () => {
-    expect(html).toMatch(/role="group" aria-label="Playback speed"/);
-    const speeds = byName(all, /^Speed /);
-    expect(speeds.length).toBeGreaterThanOrEqual(2);
-    expect(speeds.filter((s) => attr(s.open, 'aria-pressed') === 'true')).toHaveLength(1);
-    for (const s of speeds) expect(['true', 'false']).toContain(attr(s.open, 'aria-pressed'));
-  });
-
-  it('the scrubber is a labelled range whose value text is the simulation time', () => {
-    const scrub = one(all, 'Simulation time');
-    expect(scrub.tag).toBe('input');
-    expect(attr(scrub.open, 'type')).toBe('range');
-    expect(attr(scrub.open, 'aria-valuetext')).toBe(formatMin(1950));
-    expect(formatMin(1950)).toBe('Day 2, 8:30 AM');
+  it('the step line is a live region that is there before anything plays', () => {
+    expect(html(play)).toMatch(/<p class="ctl-status" role="status"><\/p>/);
   });
 });
 
-describe('left panel: scenario, planning, layers, focus, packages', () => {
-  it('scenario and planning controls are named', () => {
-    const scenario = render(
-      <ScenarioControls value={GenerateScenarioRequest.parse({ preset: 'random', seed: 42 })} phase="planning" onGenerate={noop} />,
-    );
-    const fields = expectReachable(scenario).map((c) => c.name);
-    expect(fields).toEqual(expect.arrayContaining(['Preset', 'Seed', 'Employees', 'Packages', 'Detour limit (min)']));
-    const planning = render(<PlanningControls phase="locked" onReset={noop} onRecompute={noop} />);
-    expectReachable(planning);
-  });
-
-  it('layer toggles are four named checkboxes', () => {
-    const all = expectReachable(render(<LayerToggles layers={DEFAULT_LAYERS} onToggle={noop} />));
-    expect(all.map((c) => [attr(c.open, 'type'), c.name])).toEqual([
-      ['checkbox', 'Routes'], ['checkbox', 'Businesses'], ['checkbox', 'Homes'], ['checkbox', 'Packages'],
-    ]);
-  });
-
+describe('left panel: focus, packages and the map legend', () => {
   it('the focus selector is two labelled selects and a button', () => {
     const all = expectReachable(render(
       <FocusSelector employees={[{ id: 'emp-1', label: 'Maya Chen' }]} businesses={[{ id: 'biz-a', label: 'Studio' }]}
@@ -191,7 +167,7 @@ describe('left panel: scenario, planning, layers, focus, packages', () => {
   });
 
   it('the map legend toggle is named and expandable', () => {
-    const all = expectReachable(render(<MapLegend mode="network" layers={DEFAULT_LAYERS} />));
+    const all = expectReachable(render(<MapLegend mode="network" />));
     const t = all[0];
     expect(attr(t.open, 'aria-expanded')).toBe('true');
     expect(attr(t.open, 'aria-controls')).toBeTruthy();

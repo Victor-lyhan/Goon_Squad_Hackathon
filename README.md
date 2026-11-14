@@ -60,7 +60,7 @@ The run is saved in `data/state-v2.json` (gitignored, written by the server). A 
 
 A changed story or default limit starts a fresh run at the next restart: if `businesses.json`, `neighborhoods.json` or `demoStory.json` in `fixtures/nyc/`, or the default detour limit, changed since the run was saved, the server builds the default run from the current files, prints one line saying so, and keeps the old run as `data/state-v2.json.stale-<n>` (never deleted; remove it by hand when you no longer need it). It knows by a fingerprint of those inputs in `data/state-v2.source.json`; the travel cache is not part of it, so a saved commute does not reset the run.
 
-Inside the app, the left panel of the Simulator has **Start new planning cycle**, which recomputes the matches and resets playback. **Play** locks the run: after it, new deliveries and commute changes are refused until you start a new planning cycle.
+In the Simulator, **Play** with no package picked runs the whole network and locks the run: after it, new deliveries and commute changes are refused. The app has no control that starts a new planning cycle (removed in MVP III), so reset as above to unlock it. Playing one package's journey does not lock the run.
 
 ## Demo accounts
 On the Business and Employee pages the header's **Demo account** selector lists the businesses and employees of the run. The chosen account is the only thing stored in the browser; all delivery data lives on the server.
@@ -87,13 +87,13 @@ morning_carrier: Reese Green
 price: $10.00
 ```
 
-The times are the defaults of the **New delivery** form, so leave them as they are. Use a fresh run: the request is planned on commutes that are still free, so after an earlier try, reset first ([State file and reset](#state-file-and-reset)). If **Play** was pressed earlier, the form is closed until **Start new planning cycle**.
+The times are the defaults of the **New delivery** form, so leave them as they are. Use a fresh run: the request is planned on commutes that are still free, so after an earlier try, reset first ([State file and reset](#state-file-and-reset)). If the Simulator's **Play** was pressed earlier with no package picked, the run is locked and the form is closed: reset first.
 
 1. **Employee** (`/employee/emp-7`, or choose **Elena Rossi** as the **Demo account**): show the **Saved commute** between the Upper East Side and Brooklyn Roasting Company, the two departure times and the **Detour limit**.
 2. **Business** (`/business/biz-brooklyn-roasting`, Brooklyn Roasting Company): choose **New delivery**, pick **Blue Bottle Coffee** as the recipient, enter the package from the block above and choose **Send request**. This is the "Find a delivery match" step: the backend looks for a matching commute.
 3. The form answers **Delivery arranged** with the shipment ID. **View delivery** opens the details: plan **Relay via Etsy (relay point)**, the ETA, price **$10.00**, and the carriers Elena Rossi (evening commute, Day 1) and Reese Green (morning commute, Day 2).
 4. Back in **Employee** as Elena Rossi, without refreshing: the new job is under **Assigned deliveries**, with its pickup, drop-off, extra time and reward.
-5. **Simulator**: on the new delivery choose **Watch in simulator** (or **View journey** in the Business delivery details; both open `/simulator?package=<shipment ID>`), then **Play journey**. The package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (the player skips the wait), and is delivered to Blue Bottle Coffee in the morning. To run the whole network instead, use **Play**, then **Jump to morning** and **Finish**.
+5. **Simulator**: on the new delivery choose **Watch in simulator** (or **View journey** in the Business delivery details; both open `/simulator?package=<shipment ID>`), then **Play**. The package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (an "Overnight at Etsy" card stands in for the wait), and is delivered to Blue Bottle Coffee in the morning. **Pause** stops it where it is, **Play** goes on from there, and **Back to start** rewinds.
 6. The same run is in every workspace: the delivery reads **Delivered** for the sender (`/business/biz-brooklyn-roasting`) and for the recipient (`/business/biz-blue-bottle-wall`), and **Earnings** on the pages of Elena Rossi and Reese Green show the reward as **Earned**.
 
 Message: Relay turns existing commutes into a coordinated delivery network. This prototype calculates the matches on real NYC travel times and simulates the complete delivery cycle.

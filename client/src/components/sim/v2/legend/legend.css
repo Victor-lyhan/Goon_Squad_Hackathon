@@ -74,11 +74,6 @@
   color: var(--muted);
 }
 
-.ml__empty {
-  margin: 0;
-  color: var(--muted);
-}
-
 /* Swatches: a fixed 20x14 box so labels line up whatever the shape. */
 .ml__swatch-box {
   flex: 0 0 auto;

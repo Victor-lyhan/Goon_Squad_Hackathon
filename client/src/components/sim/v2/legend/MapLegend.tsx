@@ -2,13 +2,12 @@
 // Props only. The open state is either passed in (`open` + `onOpenChange`) or held locally; it is
 // never persisted in browser storage. Rows come from legendModel, so swatches match the map's layer colors.
 import { useId, useState, type CSSProperties } from 'react';
-import type { Focus, LayerVisibility } from '../workspaceModel';
-import { ALL_HIDDEN_MESSAGE, legendRows, showsHiddenMessage, type LegendMode, type LegendRow } from './legendModel';
+import type { Focus } from '../workspaceModel';
+import { legendRows, type LegendMode, type LegendRow } from './legendModel';
 import './legend.css';
 
 export type MapLegendProps = {
   mode: LegendMode;
-  layers: LayerVisibility;
   hasSelection?: boolean;
   focus?: Focus;
   /** Controlled open state. Leave undefined to let the legend hold it (open by default). */
@@ -33,7 +32,7 @@ function Swatch({ row }: { row: LegendRow }) {
   );
 }
 
-export function MapLegend({ mode, layers, hasSelection = false, focus, open, onOpenChange }: MapLegendProps) {
+export function MapLegend({ mode, hasSelection = false, focus, open, onOpenChange }: MapLegendProps) {
   const [localOpen, setLocalOpen] = useState(true);
   const isOpen = open ?? localOpen;
   const bodyId = useId();
@@ -43,8 +42,7 @@ export function MapLegend({ mode, layers, hasSelection = false, focus, open, onO
     onOpenChange?.(next);
   };
 
-  const hidden = showsHiddenMessage({ mode, layers });
-  const rows = hidden ? [] : legendRows({ mode, layers, hasSelection, focus });
+  const rows = legendRows({ mode, hasSelection, focus });
 
   return (
     <section className="ml" aria-label="Map legend">
@@ -53,18 +51,14 @@ export function MapLegend({ mode, layers, hasSelection = false, focus, open, onO
         <span className="ml__chevron" aria-hidden="true">{isOpen ? '−' : '+'}</span>
       </button>
       <div id={bodyId} className="ml__body" hidden={!isOpen}>
-        {hidden ? (
-          <p className="ml__empty">{ALL_HIDDEN_MESSAGE}</p>
-        ) : (
-          <ul className="ml__list">
-            {rows.map((row) => (
-              <li key={row.key} className={`ml__row ml__row--${row.key}`}>
-                <Swatch row={row} />
-                <span className="ml__label">{row.label}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="ml__list">
+          {rows.map((row) => (
+            <li key={row.key} className={`ml__row ml__row--${row.key}`}>
+              <Swatch row={row} />
+              <span className="ml__label">{row.label}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

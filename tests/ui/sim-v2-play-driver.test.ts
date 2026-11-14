@@ -1,11 +1,13 @@
-// #496: the Play journey player on the relay sample (shp-2, overnight at Brooklyn Roasting), with
-// fake timers and a fake `control`. The exact seek sequence, and every stop condition.
+// #496, #648: the journey player behind the one Play/Pause button, on the relay sample (shp-2,
+// overnight at Brooklyn Roasting) and the direct one (shp-1), with fake timers and a fake `control`.
+// The exact seek sequence, the overnight card, pause and resume, and every stop condition.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SimControlRequest } from '../../shared/v2/schemas';
 import { buildJourney, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
-import { JOURNEY_STEP_MS } from '../../client/src/components/sim/v2/motion/journeyPlayback';
+import { JOURNEY_STEP_MS, OVERNIGHT_CARD_MS } from '../../client/src/components/sim/v2/motion/journeyPlayback';
 import {
-  PLAY_IDLE, createJourneyPlayer, currentPlay, durationHint, journeyWindows, syncJourneyPlayer,
+  PLAY_IDLE, createJourneyPlayer, currentPlay, journeyWindows, overnightText, playFromMin, relayPointName,
+  syncJourneyPlayer,
   type JourneyPlayer, type PlayState, type PlaySync,
 } from '../../client/src/components/sim/v2/compose/journeyPlay';
 import { attachSimKeys, type SimKeyboardEvent, type SimKeyTarget } from '../../client/src/components/sim/v2/page/simPageState';
@@ -13,15 +15,24 @@ import { T, map, simAt } from './sim-v2-journey-sample';
 
 const relay = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.beforePickup), map }) as Journey;
 const windows = journeyWindows(relay);
+const direct = buildJourney({ shipmentId: 'shp-1', sim: simAt(T.beforePickup), map }) as Journey;
+const directWindows = journeyWindows(direct);
 
 const steps = (from: number, to: number) => {
   const out: number[] = [];
   for (let t = from + 2; t < to; t += 2) out.push(t);
   return [...out, to];
 };
-// Leg 1 from one minute before the pickup arrival (1040) to the drop's service end (1062); one jump
-// overnight; leg 2 from 1949 to the delivery's service end (1977).
-const SEQUENCE = [1039, ...steps(1039, 1062), 1949, ...steps(1949, 1977)];
+// Leg 1 from one minute before the pickup arrival (1040) to the drop's service end (1062); the
+// overnight card, then one jump; leg 2 from 1949 to the delivery's service end (1977).
+const LEG1 = [1039, ...steps(1039, 1062)];
+const SEQUENCE = [...LEG1, 1949, ...steps(1949, 1977)];
+/** When the last seek of leg 1 is sent, and when the card goes up (the step after it). */
+const LEG1_END_MS = (LEG1.length - 1) * JOURNEY_STEP_MS;
+const CARD_UP_MS = LEG1_END_MS + JOURNEY_STEP_MS;
+/** The whole relay journey: one step per seek, plus the card. */
+const TOTAL_MS = SEQUENCE.length * JOURNEY_STEP_MS + OVERNIGHT_CARD_MS;
+const RUNNING = { status: 'running', overnight: false, shipmentId: 'shp-2', runId: 'run-1' } as const;
 
 type Harness = {
   player: JourneyPlayer;
@@ -46,20 +57,20 @@ function harness(answer: (req: SimControlRequest) => unknown = () => ({ ok: true
   return { player, control, states, seeks };
 }
 
-const start = (h: Harness, clockPlaying = false, runId = 'run-1') =>
-  h.player.start({ shipmentId: 'shp-2', runId, windows, clockPlaying });
+const start = (h: Harness, clockPlaying = false, fromMin = -Infinity) =>
+  h.player.start({ shipmentId: 'shp-2', runId: 'run-1', windows, fromMin, clockPlaying });
 
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
 
-describe('Play journey on the relay sample', () => {
+describe('the journey on the relay sample', () => {
   it('the plan windows: leg 1 on Day 1 evening, leg 2 on Day 2 morning', () => {
     expect(windows).toEqual([{ startMin: 1039, endMin: 1062 }, { startMin: 1949, endMin: 1977 }]);
     expect(SEQUENCE).toHaveLength(28);
-    expect(durationHint(windows)).toBe('about 14 s');
+    expect(directWindows).toHaveLength(1);
   });
 
-  it('sends the exact seek sequence: 2 minutes every 500 ms, one jump before pickup and one overnight', async () => {
+  it('sends the exact seek sequence: 2 minutes every 500 ms, one jump before pickup and one over the night', async () => {
     const h = harness();
     start(h);
     await vi.advanceTimersByTimeAsync(0);
@@ -76,11 +87,11 @@ describe('Play journey on the relay sample', () => {
   it('stops by itself at the end, in under 30 s', async () => {
     const h = harness();
     start(h);
-    await vi.advanceTimersByTimeAsync(SEQUENCE.length * JOURNEY_STEP_MS - 1);
+    await vi.advanceTimersByTimeAsync(TOTAL_MS - 1);
     expect(h.player.state().status).toBe('running');
     await vi.advanceTimersByTimeAsync(1);
     expect(h.player.state()).toEqual({ status: 'finished', shipmentId: 'shp-2', runId: 'run-1' });
-    expect(SEQUENCE.length * JOURNEY_STEP_MS).toBeLessThan(30_000);
+    expect(TOTAL_MS).toBeLessThan(30_000);
     const calls = h.control.mock.calls.length;
     await vi.advanceTimersByTimeAsync(10_000);
     expect(h.control.mock.calls.length).toBe(calls);
@@ -106,18 +117,132 @@ describe('Play journey on the relay sample', () => {
   });
 });
 
-describe('Play journey stops', () => {
-  it('on Stop (or Esc): no more seeks, state "stopped", and stop() reports it was running', async () => {
+describe('the overnight card (#648)', () => {
+  it('names the relay business of the journey; a direct journey has none', () => {
+    expect(relayPointName(relay)).toBe('Brooklyn Roasting');
+    expect(relayPointName(direct)).toBeNull();
+    expect(overnightText(relay, { ...RUNNING, overnight: true })).toBe('Overnight at Brooklyn Roasting');
+    expect(overnightText(relay, RUNNING)).toBeNull();
+    expect(overnightText(relay, { status: 'paused', shipmentId: 'shp-2', runId: 'run-1' })).toBeNull();
+    expect(overnightText(null, { ...RUNNING, overnight: true })).toBeNull();
+  });
+
+  it('relay: shown after the evening leg for about 1 s, then gone, then the morning seek', async () => {
+    const h = harness();
+    start(h);
+    await vi.advanceTimersByTimeAsync(LEG1_END_MS);
+    expect(h.seeks()).toEqual(LEG1); // the evening leg ends at the relay point
+    expect(h.player.state()).toEqual(RUNNING);
+
+    await vi.advanceTimersByTimeAsync(JOURNEY_STEP_MS);
+    expect(h.player.state()).toEqual({ ...RUNNING, overnight: true }); // shown
+    expect(overnightText(relay, h.player.state())).toBe('Overnight at Brooklyn Roasting');
+    expect(h.seeks()).toEqual(LEG1); // no seek into the night
+
+    await vi.advanceTimersByTimeAsync(OVERNIGHT_CARD_MS - 1);
+    expect(h.player.state()).toEqual({ ...RUNNING, overnight: true });
+    expect(h.seeks()).toEqual(LEG1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(h.player.state()).toEqual(RUNNING); // gone
+    expect(h.seeks()).toEqual([...LEG1, 1949]); // then the morning
+    // The card came down before the morning seek was sent.
+    const cardDown = h.states.findIndex((s, i) => i > 0 && s.status === 'running' && !s.overnight && h.states[i - 1].status === 'running');
+    expect(cardDown).toBeGreaterThan(0);
+    expect(h.states.filter((s) => s.status === 'running' && s.overnight)).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(TOTAL_MS);
+    expect(h.seeks()).toEqual(SEQUENCE);
+    expect(h.seeks().every((t) => t <= 1062 || t >= 1949)).toBe(true); // never a minute of the night
+  });
+
+  it('a direct journey plays to the end without the card', async () => {
+    const h = harness();
+    h.player.start({ shipmentId: 'shp-1', runId: 'run-1', windows: directWindows, fromMin: -Infinity, clockPlaying: false });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.player.state()).toEqual({ status: 'finished', shipmentId: 'shp-1', runId: 'run-1' });
+    expect(h.states.some((s) => s.status === 'running' && s.overnight)).toBe(false);
+    const [w] = directWindows;
+    expect(h.seeks()).toEqual([w.startMin, ...steps(w.startMin, w.endMin)]);
+  });
+
+  it('Pause while the card is up takes it down and sends no morning seek; Play shows it again', async () => {
+    const h = harness();
+    start(h);
+    await vi.advanceTimersByTimeAsync(CARD_UP_MS + 300);
+    expect(h.player.state()).toEqual({ ...RUNNING, overnight: true });
+    expect(h.player.pause()).toBe(true);
+    expect(overnightText(relay, h.player.state())).toBeNull();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(h.seeks()).toEqual(LEG1);
+
+    start(h, false, playFromMin(h.player.state(), windows, 1062));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.player.state()).toEqual({ ...RUNNING, overnight: true });
+    await vi.advanceTimersByTimeAsync(OVERNIGHT_CARD_MS);
+    expect(h.seeks()).toEqual([...LEG1, 1949]);
+  });
+});
+
+describe('pause and resume (#648)', () => {
+  const paused: PlayState = { status: 'paused', shipmentId: 'shp-2', runId: 'run-1' };
+
+  it('Pause stops stepping and sends nothing: the clock stays where it is', async () => {
     const h = harness();
     start(h);
     await vi.advanceTimersByTimeAsync(JOURNEY_STEP_MS * 3);
-    const sent = h.seeks().length;
-    expect(h.player.stop()).toBe(true);
-    expect(h.player.state()).toEqual({ status: 'stopped', shipmentId: 'shp-2', runId: 'run-1' });
+    expect(h.seeks()).toEqual(SEQUENCE.slice(0, 4));
+    const calls = h.control.mock.calls.length;
+    expect(h.player.pause()).toBe(true);
+    expect(h.player.state()).toEqual(paused);
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(h.seeks()).toHaveLength(sent);
-    expect(h.player.stop()).toBe(false); // the next Esc is not for the journey
+    expect(h.control.mock.calls).toHaveLength(calls); // no seek, no reset, no pause request
+    expect(vi.getTimerCount()).toBe(0);
+    expect(h.player.pause()).toBe(false); // the next Esc is not for the journey
   });
+
+  it('Play again resumes from the minute the clock is at, not from the start', async () => {
+    const h = harness();
+    start(h);
+    await vi.advanceTimersByTimeAsync(JOURNEY_STEP_MS * 3);
+    h.player.pause();
+    const at = h.seeks()[3]; // the polled clock after the last answered seek
+    expect(at).toBe(1045);
+    expect(playFromMin(h.player.state(), windows, at)).toBe(at);
+
+    start(h, false, playFromMin(h.player.state(), windows, at));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.seeks()).toEqual([...SEQUENCE.slice(0, 4), 1047]); // the next step, at once
+    await vi.advanceTimersByTimeAsync(TOTAL_MS);
+    expect(h.seeks()).toEqual(SEQUENCE); // each minute once: nothing replayed, nothing skipped
+    expect(h.player.state().status).toBe('finished');
+  });
+
+  it('where Play starts: the start when idle, finished or failed; the clock after a pause; the start again at the end', () => {
+    const target = { shipmentId: 'shp-2', runId: 'run-1' };
+    expect(playFromMin(PLAY_IDLE, windows, 1050)).toBe(-Infinity);
+    expect(playFromMin({ status: 'finished', ...target }, windows, 1977)).toBe(-Infinity);
+    expect(playFromMin({ status: 'failed', ...target }, windows, 1050)).toBe(-Infinity);
+    expect(playFromMin(paused, windows, 1050)).toBe(1050);
+    expect(playFromMin(paused, windows, 930)).toBe(930); // Back to start, or a click on the first step
+    expect(playFromMin(paused, windows, 1500)).toBe(1500); // in the night: the card, then the morning
+    expect(playFromMin(paused, windows, 1976)).toBe(1976);
+    expect(playFromMin(paused, windows, 1977)).toBe(-Infinity); // a click on the last step, then Play
+    expect(playFromMin(paused, windows, 2160)).toBe(-Infinity);
+  });
+
+  it('once the journey has finished, Play starts from the start again', async () => {
+    const h = harness();
+    start(h);
+    await vi.advanceTimersByTimeAsync(TOTAL_MS);
+    expect(h.player.state().status).toBe('finished');
+    start(h, false, playFromMin(h.player.state(), windows, 1977));
+    await vi.advanceTimersByTimeAsync(TOTAL_MS);
+    expect(h.seeks()).toEqual([...SEQUENCE, ...SEQUENCE]);
+  });
+});
+
+describe('the journey stops', () => {
 
   it('when a seek fails: state "failed", no more seeks', async () => {
     let n = 0;
@@ -148,15 +273,15 @@ describe('Play journey stops', () => {
     expect(h.states).toHaveLength(reports);
   });
 
-  it('a late answer from a stopped journey changes nothing', async () => {
+  it('a late answer from a paused journey changes nothing', async () => {
     let release: (v: unknown) => void = () => {};
     const h = harness(() => new Promise((r) => { release = r; }));
     start(h);
     await vi.advanceTimersByTimeAsync(0);
-    h.player.stop();
-    release(null); // the open seek fails after Stop
+    h.player.pause();
+    release(null); // the open seek fails after Pause
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(h.player.state().status).toBe('stopped');
+    expect(h.player.state().status).toBe('paused');
     expect(h.seeks()).toEqual([1039]);
   });
 
@@ -187,15 +312,15 @@ describe('Play journey stops', () => {
       expect(h.player.state()).toBe(PLAY_IDLE);
     });
 
-    it('the server clock starts playing (another tab): stopped', async () => {
+    it('the server clock starts playing (another tab): paused', async () => {
       const h = await running();
       syncJourneyPlayer(h.player, now(), now()); // a poll with nothing new
       expect(h.player.state().status).toBe('running');
       syncJourneyPlayer(h.player, now(), now({ clockPlaying: true }));
-      expect(h.player.state().status).toBe('stopped');
+      expect(h.player.state().status).toBe('paused');
     });
 
-    it('a journey started on a playing clock is not stopped by that clock', async () => {
+    it('a journey started on a playing clock is not paused by that clock', async () => {
       const h = await running(true);
       syncJourneyPlayer(h.player, now({ clockPlaying: true }), now({ clockPlaying: true }));
       expect(h.player.state().status).toBe('running');
@@ -205,7 +330,7 @@ describe('Play journey stops', () => {
   });
 
   it('a state left from another package or run reads idle (currentPlay)', () => {
-    const s: PlayState = { status: 'running', shipmentId: 'shp-2', runId: 'run-1' };
+    const s: PlayState = { status: 'running', overnight: false, shipmentId: 'shp-2', runId: 'run-1' };
     expect(currentPlay(s, 'shp-2', 'run-1')).toBe(s);
     expect(currentPlay(s, 'shp-1', 'run-1')).toBe(PLAY_IDLE);
     expect(currentPlay(s, 'shp-2', 'run-2')).toBe(PLAY_IDLE);
@@ -213,7 +338,7 @@ describe('Play journey stops', () => {
   });
 });
 
-describe('Esc: the first stops the journey, the next goes back to the network', () => {
+describe('Esc: the first pauses the journey, the next goes back to the network', () => {
   function keys(escape: () => boolean) {
     let listener: ((e: SimKeyboardEvent) => void) | null = null;
     const target: SimKeyTarget = {
@@ -222,9 +347,9 @@ describe('Esc: the first stops the journey, the next goes back to the network', 
     };
     const select = vi.fn();
     const detach = attachSimKeys(target, {
-      context: () => ({ selection: { kind: 'package', id: 'shp-2' }, data: { sim: simAt(T.onLeg1), busy: false } }),
+      context: () => ({ selection: { kind: 'package', id: 'shp-2' }, data: { sim: simAt(T.onLeg1) } }),
       select,
-      control: vi.fn(),
+      togglePlay: vi.fn(),
       escape,
     });
     const press = (tagName = 'BODY') => {
@@ -239,10 +364,10 @@ describe('Esc: the first stops the journey, the next goes back to the network', 
     const h = harness();
     start(h);
     await vi.advanceTimersByTimeAsync(JOURNEY_STEP_MS);
-    const k = keys(() => h.player.stop());
-    const first = k.press('BUTTON'); // focus is on the Stop button after a click
+    const k = keys(() => h.player.pause());
+    const first = k.press('BUTTON'); // focus is on the Pause button after a click
     expect(first.preventDefault).toHaveBeenCalled();
-    expect(h.player.state().status).toBe('stopped');
+    expect(h.player.state().status).toBe('paused');
     expect(k.select).not.toHaveBeenCalled();
     k.press();
     expect(k.select).toHaveBeenCalledWith(null);

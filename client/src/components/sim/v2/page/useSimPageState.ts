@@ -1,15 +1,17 @@
 /**
- * The MVP II simulator page's state outside the body (#459): the selection lives in the URL
- * (`?package=`, `?employee=`, `?business=`, DECISIONS pass 47), the keyboard map runs on the window,
- * and the page knows whether it is below 900 px. The logic is in `simPageState.ts`; this file only
- * plugs it into React Router and the browser.
+ * The simulator page's state outside the body (#459): the selection lives in the URL
+ * (`?package=`, `?employee=`, `?business=`, DECISIONS pass 47) with `&play=1` to start a journey
+ * (#648), the keyboard map runs on the window, and the page knows whether it is below 900 px. The
+ * logic is in `simPageState.ts`; this file only plugs it into React Router and the browser.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import type { SimBodyKeys } from '../compose/SimPageBody';
 import type { SimulatorV2 } from '../live/useSimulatorV2';
 import type { Selection } from '../network/selectionModel';
 import {
-  attachSimKeys, isNarrow, isNewRun, locationForSelection, selectionFromSearch, watchNarrow,
+  attachSimKeys, autoPlayFromSearch, isNarrow, isNewRun, locationForSelection, locationWithoutAutoPlay,
+  selectionFromSearch, watchNarrow,
   type MatchMediaFn, type SimKeyContext, type SimKeyTarget,
 } from './simPageState';
 
@@ -21,6 +23,10 @@ export type SimPageState = {
   selection: Selection;
   /** Pushes a history entry (Back undoes it) and keeps every other query param. */
   setSelection: (selection: Selection) => void;
+  /** `play=1` is in the URL (#648): the body starts the journey once it is loaded. */
+  autoPlay: boolean;
+  /** Takes the `play` key out of the URL with a replace (no history entry); the body calls it once Play was asked for. */
+  clearAutoPlay: () => void;
 };
 
 /**
@@ -65,7 +71,14 @@ export function useUrlSelection(runId: string | null = null): SimPageState {
     },
     [pathname, search, hash, navigate],
   );
-  return { selection, setSelection };
+
+  // A stale URL (the old run's selection is being removed) asks for nothing.
+  const autoPlay = !stale && autoPlayFromSearch(search);
+  const clearAutoPlay = useCallback(() => {
+    const to = locationWithoutAutoPlay({ pathname, search, hash });
+    if (to) navigate(to, { replace: true });
+  }, [pathname, search, hash, navigate]);
+  return { selection, setSelection, autoPlay, clearAutoPlay };
 }
 
 /** The window as the key map's target; a DOM KeyboardEvent carries everything the map reads. */
@@ -75,22 +88,22 @@ function windowKeyTarget(): SimKeyTarget | null {
 }
 
 /**
- * The body's stop hook (#496): stops a running Play journey and says whether it did. Esc asks it
- * first; a key that sends a control (Space, `.`) calls it before the request (#607).
+ * What the body gives the keys (#496, #648), filled while it is mounted: Esc asks `stopJourney`
+ * first (it pauses a running journey and says whether it did); Space calls `togglePlay`, the
+ * handler of the one Play/Pause button.
  */
-export type EscapeRef = { current: (() => boolean) | null };
+export type SimKeysRef = { current: SimBodyKeys | null };
 
 /**
- * Esc, Space and the next-event key on the page. The listener is attached once, reads the latest
- * selection and poll through a ref, and is removed on unmount. Play, pause and next event go to
- * the data hook's `control`, after a running Play journey is stopped (as the buttons do); the
- * server decides the result.
+ * Esc and Space on the page. The listener is attached once, reads the latest selection and poll
+ * through a ref, and is removed on unmount. Space does what the Play/Pause button does; the server
+ * decides the result.
  */
-export function useSimKeys(sim: SimulatorV2, page: SimPageState, escapeRef?: EscapeRef): void {
-  const latest = useRef<{ ctx: SimKeyContext; page: SimPageState; control: SimulatorV2['control'] }>({
-    ctx: { selection: page.selection, data: sim }, page, control: sim.control,
+export function useSimKeys(sim: SimulatorV2, page: SimPageState, keysRef?: SimKeysRef): void {
+  const latest = useRef<{ ctx: SimKeyContext; page: SimPageState }>({
+    ctx: { selection: page.selection, data: sim }, page,
   });
-  latest.current = { ctx: { selection: page.selection, data: sim }, page, control: sim.control };
+  latest.current = { ctx: { selection: page.selection, data: sim }, page };
 
   useEffect(() => {
     const target = windowKeyTarget();
@@ -98,18 +111,17 @@ export function useSimKeys(sim: SimulatorV2, page: SimPageState, escapeRef?: Esc
     return attachSimKeys(target, {
       context: () => latest.current.ctx,
       select: (s) => latest.current.page.setSelection(s),
-      control: (req) => void latest.current.control(req),
-      escape: () => escapeRef?.current?.() ?? false,
-      stopJourney: () => void escapeRef?.current?.(),
+      togglePlay: () => keysRef?.current?.togglePlay(),
+      escape: () => keysRef?.current?.stopJourney() ?? false,
     });
     // The ref object is the page's own and never changes.
   }, []);
 }
 
 /** URL selection plus the keyboard map: everything the page needs around `SimPageBody`. */
-export function useSimPageState(sim: SimulatorV2, escapeRef?: EscapeRef): SimPageState {
+export function useSimPageState(sim: SimulatorV2, keysRef?: SimKeysRef): SimPageState {
   const page = useUrlSelection(sim.sim?.runId ?? null);
-  useSimKeys(sim, page, escapeRef);
+  useSimKeys(sim, page, keysRef);
   return page;
 }
 

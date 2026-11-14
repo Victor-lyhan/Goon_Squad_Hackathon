@@ -1,7 +1,8 @@
 /**
- * The MVP II simulator's selection lives in the URL (DECISIONS pass 8, 47):
+ * The simulator's selection lives in the URL (DECISIONS pass 8, 47):
  * `?package=<shipmentId>` opens the journey, `?employee=<id>` and `?business=<id>`
- * select in the network view. Pure functions, no window reads.
+ * select in the network view. `&play=1` next to a package starts its journey once (#648, pass 63).
+ * Pure functions, no window reads.
  */
 
 export type SimSelectionKind = 'package' | 'employee' | 'business';
@@ -18,6 +19,37 @@ function singleValue(params: URLSearchParams, key: string): string | null {
   // `?package=a&package=b` is ambiguous: ignore the key rather than guess. Exact duplicates collapse.
   return values.every((v) => v === values[0]) ? values[0] : null;
 }
+
+// ---------- `play=1` (#648) ----------
+
+/** The key a link adds to start the journey: `/simulator?package=<id>&play=1`. */
+export const PLAY_KEY = 'play';
+
+/** True when the query string asks to start playing: `play=1` (any other value asks nothing). */
+export function wantsAutoPlay(search: string): boolean {
+  return new URLSearchParams(search).getAll(PLAY_KEY).includes('1');
+}
+
+/** True when the `play` key is in the query string at all, whatever its value. */
+export function hasAutoPlayKey(search: string): boolean {
+  return new URLSearchParams(search).has(PLAY_KEY);
+}
+
+/**
+ * The query string without the `play` key, every other key kept in its order: '' when nothing is
+ * left, otherwise a string starting with '?'. The page replaces the URL with it once Play was
+ * asked for, so a reload, Back or the next selection does not start a journey again.
+ */
+export function withoutAutoPlay(search: string): string {
+  const next = new URLSearchParams();
+  for (const [key, value] of new URLSearchParams(search)) {
+    if (key !== PLAY_KEY) next.append(key, value);
+  }
+  const qs = next.toString();
+  return qs ? `?${qs}` : '';
+}
+
+// ---------- Selection ----------
 
 /** Reads the selection from a query string (with or without the leading `?`). */
 export function parseSimUrl(search: string): { selection: SimSelection; mode: SimMode } {

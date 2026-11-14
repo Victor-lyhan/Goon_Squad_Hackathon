@@ -1,4 +1,4 @@
-/* MVP II simulator left-panel controls: playback, scenario, planning cycle.
+/* Simulator left-panel playback block (#648): one Play/Pause button and "Back to start".
    Built for the 320px left column: everything shrinks to the column, nothing scrolls sideways.
    Square corners (2px), 1px borders, no shadows except a 1px focus ring, no gradients. */
 
@@ -13,10 +13,7 @@
 }
 .ctl-block *, .ctl-block *::before, .ctl-block *::after { box-sizing: border-box; }
 
-.ctl-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-variant-numeric: tabular-nums; }
-
 .ctl-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); min-width: 0; }
-.ctl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1, 4px); }
 
 /* ---------- Buttons ---------- */
 .ctl-btn {
@@ -36,90 +33,30 @@
 }
 .ctl-btn:hover:not(:disabled) { border-color: var(--accent, #28618A); color: var(--accent, #28618A); }
 .ctl-btn:disabled { color: var(--muted, #5B6472); background: var(--bg, #F7F8FA); cursor: not-allowed; }
-.ctl-primary { min-width: 72px; background: var(--accent, #28618A); border-color: var(--accent, #28618A); color: var(--panel, #FFFFFF); font-weight: 600; }
-.ctl-primary:hover:not(:disabled) { background: var(--panel, #FFFFFF); }
-.ctl-danger { border-color: var(--danger, #A4322A); color: var(--danger, #A4322A); font-weight: 600; }
-.ctl-danger:hover:not(:disabled) { border-color: var(--danger, #A4322A); color: var(--panel, #FFFFFF); background: var(--danger, #A4322A); }
-.ctl-wide { width: 100%; }
-
-/* Segmented speed selector */
-.ctl-seg { display: flex; flex: 1 1 auto; min-width: 0; }
-.ctl-seg-btn { flex: 1 1 0; border-radius: 0; font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); }
-.ctl-seg-btn + .ctl-seg-btn { margin-left: -1px; }
-.ctl-seg-btn:first-child { border-radius: var(--radius, 2px) 0 0 var(--radius, 2px); }
-.ctl-seg-btn:last-child { border-radius: 0 var(--radius, 2px) var(--radius, 2px) 0; }
-.ctl-seg-btn[aria-pressed="true"] {
-  position: relative;
+/* The one Play/Pause button: the largest control of the panel. */
+.ctl-primary {
+  flex: 1 1 auto;
+  min-width: 96px;
+  min-height: 36px;
+  background: var(--accent, #28618A);
   border-color: var(--accent, #28618A);
-  background: var(--accent-soft, #E8F0F6);
-  color: var(--accent, #28618A);
+  color: var(--panel, #FFFFFF);
   font-weight: 600;
 }
+.ctl-primary:hover:not(:disabled) { background: var(--panel, #FFFFFF); }
 
-/* ---------- Fields ---------- */
-.ctl-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2, 8px); }
-.ctl-field { display: grid; gap: 2px; min-width: 0; }
-.ctl-field label, .ctl-label-row label { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.ctl-label-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2, 8px); min-width: 0; }
-.ctl-label-row output { font-size: var(--text-sm, 13px); color: var(--text, #151B26); white-space: nowrap; }
-
-.ctl-input {
-  width: 100%;
-  min-width: 0;
-  min-height: 30px;
-  padding: 0 var(--space-2, 8px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
-  font-size: var(--text-sm, 13px);
-}
-select.ctl-input { font-family: inherit; }
-.ctl-input[aria-invalid="true"] { border-color: var(--danger, #A4322A); }
-.ctl-input:disabled { background: var(--bg, #F7F8FA); color: var(--muted, #5B6472); }
-
-.ctl-range { width: 100%; min-width: 0; margin: var(--space-1, 4px) 0 0; accent-color: var(--accent, #28618A); }
-.ctl-range-ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted, #5B6472); }
-
-.ctl-hint { margin: 0; font-size: 11px; color: var(--muted, #5B6472); }
-.ctl-error { font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); overflow-wrap: anywhere; }
-
-/* ---------- Notes, confirm, phase ---------- */
+/* ---------- Notes, the step line, a refused step ---------- */
 .ctl-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.ctl-notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-
-.ctl-confirm {
-  display: grid;
-  gap: var(--space-2, 8px);
-  padding: var(--space-2, 8px);
-  border: 1px solid var(--danger, #A4322A);
-  border-radius: var(--radius, 2px);
-  background: var(--panel, #FFFFFF);
-}
-.ctl-confirm p { margin: 0; }
-
-.ctl-phase { margin: 0; display: flex; align-items: center; gap: var(--space-2, 8px); font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.ctl-phase-tag {
-  padding: 0 var(--space-1, 4px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--text, #151B26);
-}
-.ctl-phase-tag.is-locked { border-color: var(--accent, #28618A); color: var(--accent, #28618A); }
+/* The status line stays in the page when empty (never display: none), so its next text is announced. */
+.ctl-status { margin: 0; font-size: var(--text-sm, 13px); }
+.ctl-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); overflow-wrap: anywhere; }
 
 /* ---------- Keyboard focus: 2px outline plus a 1px ring ---------- */
-.ctl-btn:focus-visible,
-.ctl-input:focus-visible,
-.ctl-range:focus-visible {
+.ctl-btn:focus-visible {
   outline: 2px solid var(--accent, #28618A);
   outline-offset: 1px;
   box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
 }
-/* The speed buttons overlap by 1px: lift the focused one so its neighbour never covers the ring. */
-.ctl-seg-btn:focus-visible { position: relative; z-index: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .ctl-block *, .ctl-block *::before, .ctl-block *::after { transition: none; animation: none; }

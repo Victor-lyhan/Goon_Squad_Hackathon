@@ -1,16 +1,21 @@
 // @vitest-environment jsdom
-// The MVP II simulator page's keyboard map in a real DOM (#519): the routed page
-// (SimulatorV2Workspace in a MemoryRouter) with its window listener. Space sends play or pause, `.`
-// sends next event, Esc leaves the journey or clears a selection, and none of them acts while the
-// focus is in a text field (package search, seed). The selection is read back from the URL.
-// #607: the scrubber, a layer checkbox and the focus dropdown do not keep the keys (a click leaves
-// the focus on them); Space on a checkbox or a button stays that control's own.
+// The simulator page's keyboard map in a real DOM (#519): the routed page (SimulatorV2Workspace in
+// a MemoryRouter) with its window listener. Space is the one Play/Pause button (#648: the server
+// clock with no package, the journey with one), Esc leaves the journey or clears a selection, and
+// neither acts while the focus is in a text field (the package search). `.` does nothing any more.
+// The selection is read back from the URL.
+// #607: the focus dropdown does not keep the keys (a click leaves the focus on it); Space on a
+// button stays that control's own.
 // The map runs in its no-key state: the Google loader is replaced by a recorder that must stay unused.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
 import { byLabel, button, click, press, select, textOf } from './kitDom';
 import {
-  FakeSimServer, T, currentSearch, journeySteps, leftBody, mountPage, packageRow, readyState, runAt,
+  FakeSimServer, T, currentSearch, journeySteps, leftBody, mountPage, packageRow, playPause, readyState,
 } from './sim-v2-dom-helpers';
+
+/** Lets the answers of the fake server (promises) land, on real timers. */
+const settle = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
 const google = vi.hoisted(() => ({ loads: 0 }));
 vi.mock('@googlemaps/js-api-loader', () => ({
@@ -33,39 +38,44 @@ function pageKey(key: string) {
   press(key, document.body);
 }
 
-describe('Space and the next-event key', () => {
-  it('Space sends play, then pause once the server says the clock is playing', () => {
+describe('Space', () => {
+  it('with no package: Space sends play, then pause once the server says the clock is playing', async () => {
     const server = new FakeSimServer(readyState(1000));
-    mountPage(server);
+    const { container: c } = mountPage(server);
     pageKey(' ');
+    await settle();
     expect(server.controls()).toEqual([{ action: 'play' }]);
     expect(server.state.sim?.clock.playing).toBe(true); // the fake server applied it
+    expect(textOf(playPause(c))).toBe('Pause');
     pageKey(' ');
+    await settle();
     expect(server.controls()).toEqual([{ action: 'play' }, { action: 'pause' }]);
   }, T);
 
-  it('"." sends next event; with no next event left it sends nothing', () => {
+  it('"." sends nothing (#648): the next-event key went with its button', async () => {
     const server = new FakeSimServer(readyState(1000));
     mountPage(server);
     pageKey('.');
-    expect(server.controls()).toEqual([{ action: 'next_event' }]);
-
-    server.poll({ ...server.state, sim: runAt(2000) }); // nextEventMin is null from 1950 on
-    pageKey('.');
-    expect(server.controls()).toEqual([{ action: 'next_event' }]);
+    await settle();
+    expect(server.calls).toEqual([]);
   }, T);
 
-  it('works in journey mode too, and with Ctrl or Cmd held nothing is sent', () => {
+  it('with a package: Space plays its journey (a seek, not the server clock); with Ctrl or Cmd held nothing is sent', async () => {
     const server = new FakeSimServer(readyState(1000));
-    mountPage(server, '?package=shp-2');
+    const { container: c } = mountPage(server, '?package=shp-2');
     expect(journeySteps(document.body)).toHaveLength(4);
     (document.activeElement as HTMLElement | null)?.blur?.();
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', ctrlKey: true, bubbles: true }));
-    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '.', metaKey: true, bubbles: true }));
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', metaKey: true, bubbles: true }));
     expect(server.controls()).toEqual([]);
     pageKey(' ');
-    pageKey('.');
-    expect(server.controls()).toEqual([{ action: 'play' }, { action: 'next_event' }]);
+    await settle();
+    expect(server.controls()).toEqual([{ action: 'seek', timeMin: 1039 }]);
+    expect(textOf(playPause(c))).toBe('Pause');
+    pageKey(' '); // pauses: nothing more is sent
+    await settle();
+    expect(server.controls()).toEqual([{ action: 'seek', timeMin: 1039 }]);
+    expect(textOf(playPause(c))).toBe('Play');
     expect(currentSearch(server)).toBe('?package=shp-2');
   }, T);
 });
@@ -115,64 +125,12 @@ describe('Esc', () => {
   }, T);
 });
 
-// #607: a click on the scrubber, a layer checkbox or the focus dropdown leaves the focus on it. These
-// are not text fields, so the page's keys still work from them.
-describe('keys after the scrubber, a layer checkbox or the focus dropdown was used', () => {
-  const scrubber = (c: ParentNode) => byLabel(leftBody(c), 'Simulation time') as HTMLInputElement;
-  const layerBox = (c: ParentNode, label: string) => {
-    const boxes = [...leftBody(c).querySelectorAll('label')].filter((l) => textOf(l) === label)
-      .map((l) => l.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    if (boxes.length !== 1) throw new Error(`layerBox(): ${boxes.length} checkboxes "${label}"`);
-    return boxes[0];
-  };
+// #607: a click on the focus dropdown or a package row leaves the focus on it. These are not text
+// fields, so the page's keys still work from them.
+describe('keys after the focus dropdown or a package row was used', () => {
   const focusDropdown = (c: ParentNode) => byLabel(leftBody(c), 'Focus on employee') as HTMLSelectElement;
 
-  it('Esc with the focus on "Simulation time" leaves the journey: the URL has no package', () => {
-    const server = new FakeSimServer(readyState(1000));
-    const { container: c } = mountPage(server, '?package=shp-2');
-    expect(journeySteps(c)).toHaveLength(4);
-    const range = scrubber(c);
-    expect(range.type).toBe('range');
-    range.focus();
-    expect(document.activeElement).toBe(range);
-
-    press('Escape', range);
-    expect(currentSearch(server)).toBe('');
-    expect(server.searches).toEqual(['?package=shp-2', '']); // one step, not two
-    expect(journeySteps(c)).toHaveLength(0);
-    expect(server.controls()).toEqual([]);
-  }, T);
-
-  it('Space and "." with the focus on the scrubber play, pause and go to the next event', () => {
-    const server = new FakeSimServer(readyState(1000));
-    const { container: c } = mountPage(server, '?package=shp-2');
-    const range = scrubber(c);
-    range.focus();
-    press(' ', range);
-    press(' ', range);
-    press('.', range);
-    expect(server.controls()).toEqual([{ action: 'play' }, { action: 'pause' }, { action: 'next_event' }]);
-    expect(currentSearch(server)).toBe('?package=shp-2');
-  }, T);
-
-  it('after a layer checkbox was clicked: Esc clears the selection and "." is next event; Space stays the checkbox\'s', () => {
-    const server = new FakeSimServer(readyState(1000));
-    const { container: c } = mountPage(server, '?business=biz-roast');
-    const box = layerBox(c, 'Homes');
-    click(box);
-    expect(document.activeElement).toBe(box);
-    expect(box.checked).toBe(false);
-
-    press(' ', box); // the checkbox's own key: playback is not toggled as well
-    expect(server.controls()).toEqual([]);
-    press('.', box);
-    expect(server.controls()).toEqual([{ action: 'next_event' }]);
-    press('Escape', box);
-    expect(currentSearch(server)).toBe('');
-    expect(server.searches).toEqual(['?business=biz-roast', '']);
-  }, T);
-
-  it('after the focus dropdown was used: Space plays and Esc leaves the journey', () => {
+  it('after the focus dropdown was used: Space plays the journey and Esc leaves it', async () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountPage(server, '?package=shp-2');
     const dropdown = focusDropdown(c);
@@ -181,19 +139,35 @@ describe('keys after the scrubber, a layer checkbox or the focus dropdown was us
     expect(dropdown.selectedIndex).toBe(1);
 
     press(' ', dropdown);
-    expect(server.controls()).toEqual([{ action: 'play' }]);
+    await settle();
+    expect(server.controls()).toEqual([{ action: 'seek', timeMin: 1039 }]);
+    press('Escape', dropdown); // the first Esc pauses the journey
+    expect(currentSearch(server)).toBe('?package=shp-2');
     press('Escape', dropdown);
     expect(currentSearch(server)).toBe('');
     expect(journeySteps(c)).toHaveLength(0);
     expect(focusDropdown(c).selectedIndex).toBe(1); // the focus choice is kept
+    expect(server.controls()).toHaveLength(1);
   }, T);
 
-  it('"." right after a click on a package row (focus on the row) is next event', () => {
+  it('in network mode Esc from the focus dropdown clears the selection in one step', () => {
+    const server = new FakeSimServer(readyState(1000));
+    const { container: c } = mountPage(server, '?business=biz-roast');
+    const dropdown = focusDropdown(c);
+    dropdown.focus();
+    press('Escape', dropdown);
+    expect(currentSearch(server)).toBe('');
+    expect(server.searches).toEqual(['?business=biz-roast', '']); // one step, not two
+    expect(server.controls()).toEqual([]);
+  }, T);
+
+  it('"." right after a click on a package row (focus on the row) sends nothing', async () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountPage(server);
     click(packageRow(c, 'Coffee samples'));
     press('.', document.activeElement!);
-    expect(server.controls()).toEqual([{ action: 'next_event' }]);
+    await settle();
+    expect(server.controls()).toEqual([]);
     expect(currentSearch(server)).toBe('?package=shp-2');
   }, T);
 });
@@ -201,7 +175,6 @@ describe('keys after the scrubber, a layer checkbox or the focus dropdown was us
 describe('keys in a text field act on the field only', () => {
   const fields = [
     ['package search', (c: ParentNode) => byLabel(leftBody(c), 'Search packages')],
-    ['seed', (c: ParentNode) => byLabel(leftBody(c), 'Seed')],
   ] as const;
 
   it.each(fields)('%s: Space, "." and Esc send nothing and keep the journey', (_name, field) => {

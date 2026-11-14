@@ -5,7 +5,6 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as L from '../../client/src/components/map/layers';
 import { cssColor, legendRows, type LegendRow } from '../../client/src/components/sim/v2/legend/legendModel';
-import { DEFAULT_LAYERS } from '../../client/src/components/sim/v2/workspaceModel';
 
 /** Parse `rgba(r, g, b, a)` back to the map's 0–255 RGBA. */
 function parse(css: string): L.RGBA {
@@ -54,19 +53,19 @@ function check(rows: LegendRow[], table: Record<string, { color: L.RGBA; width?:
 
 describe('legend swatches match map/layers.ts', () => {
   it('network mode (with the dimmed row)', () => {
-    check(legendRows({ mode: 'network', layers: DEFAULT_LAYERS, hasSelection: true }), NETWORK);
+    check(legendRows({ mode: 'network', hasSelection: true }), NETWORK);
   });
 
   it('journey mode, including the stop number color', () => {
-    const rows = legendRows({ mode: 'journey', layers: DEFAULT_LAYERS });
+    const rows = legendRows({ mode: 'journey' });
     check(rows, JOURNEY);
     expectSame(rows.find((r) => r.key === 'stop')!.textColor!, L.STOP_TEXT);
   });
 
   it('leg 1 and leg 2 have distinct colors, and the dimmed alpha is the map DIM_ALPHA', () => {
-    const rows = legendRows({ mode: 'journey', layers: DEFAULT_LAYERS });
+    const rows = legendRows({ mode: 'journey' });
     expect(rows.find((r) => r.key === 'leg1')!.color).not.toBe(rows.find((r) => r.key === 'leg2')!.color);
-    const dimmedRow = legendRows({ mode: 'network', layers: DEFAULT_LAYERS, hasSelection: true }).find((r) => r.key === 'dimmed')!;
+    const dimmedRow = legendRows({ mode: 'network', hasSelection: true }).find((r) => r.key === 'dimmed')!;
     expect(parse(dimmedRow.color)[3]).toBe(L.DIM_ALPHA);
   });
 

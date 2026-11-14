@@ -146,9 +146,13 @@ describe('README after the cutover', () => {
     expect(stale).toMatch(/never deleted/);
     expect(stale).toContain('`data/state-v2.source.json`');
     expect(stale).toMatch(/travel cache is not part of it/);
-    // The in-app reset, in the words of the simulator's left panel.
-    expect(state).toContain('**Start new planning cycle**');
-    expect(read('client/src/components/sim/v2/controls/PlanningControls.tsx')).toContain('Start new planning cycle');
+    // #648 (docs/mvp3.md P2): the simulator's Planning cycle section is gone, so the README no longer
+    // names an in-app reset; it says what locks the run and that the reset above unlocks it.
+    expect(state).not.toContain('Start new planning cycle');
+    expect(fs.existsSync(path.join(root, 'client/src/components/sim/v2/controls/PlanningControls.tsx'))).toBe(false);
+    expect(state).toMatch(/\*\*Play\*\* with no package picked runs the whole network and locks the run/);
+    expect(state).toMatch(/reset as above to unlock it/);
+    expect(state).toMatch(/Playing one package's journey does not lock the run/);
   });
 
   it('the repository layout names folders and files that exist', () => {

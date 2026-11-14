@@ -1,10 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { FocusSelector } from '../../client/src/components/sim/v2/FocusSelector';
-import { LayerToggles } from '../../client/src/components/sim/v2/LayerToggles';
 import { PackageList } from '../../client/src/components/sim/v2/PackageList';
 import { RunSummary } from '../../client/src/components/sim/v2/RunSummary';
-import { DEFAULT_LAYERS, toggleLayer } from '../../client/src/components/sim/v2/workspaceModel';
 import type { Metrics } from '../../shared/v2/types';
 
 const tags = (h: string, t: string) => h.match(new RegExp(`<${t}\\b[^>]*>`, 'g')) ?? [];
@@ -18,18 +16,6 @@ const metrics = (over: Partial<Metrics> = {}): Metrics => ({
   projectedCustomerSavingsCents: 0, projectedCustomerSpendCents: 0,
   projectedPlatformContributionCents: 0, earnedPlatformContributionCents: 0, extraDistanceM: 0,
   ...over,
-});
-
-describe('LayerToggles', () => {
-  it('renders four checkboxes wrapped in their labels, checked from props', () => {
-    const html = renderToStaticMarkup(<LayerToggles layers={toggleLayer(DEFAULT_LAYERS, 'homes')} onToggle={noop} />);
-    const labels = [...html.matchAll(/<label class="sw-check"><input([^>]*)\/?><span>([^<]+)<\/span><\/label>/g)];
-    expect(labels.map((m) => m[2])).toEqual(['Routes', 'Businesses', 'Homes', 'Packages']);
-    const checked = labels.map((m) => /checked=""/.test(m[1]));
-    expect(checked).toEqual([true, true, false, true]);
-    expect(labels.every((m) => m[1].includes('type="checkbox"'))).toBe(true);
-    expect(html).toContain('<legend');
-  });
 });
 
 describe('FocusSelector', () => {

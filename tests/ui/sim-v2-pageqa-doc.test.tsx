@@ -3,7 +3,7 @@
 // in the sample responses; the page computes no status, time or metric.
 import { describe, expect, it } from 'vitest';
 import * as layers from '../../client/src/components/map/layers';
-import { PLAY_LABEL } from '../../client/src/components/sim/v2/compose/journeyPlay';
+import { PAUSE_LABEL, PLAY_LABEL } from '../../client/src/components/sim/v2/compose/journeyPlay';
 import { BACK_TO_NETWORK } from '../../client/src/components/sim/v2/compose/simPageView';
 import { formatCents, formatMin } from '../../client/src/ui/format';
 import type { DeliveryPlan } from '../../shared/v2/types';
@@ -73,37 +73,39 @@ describe('doc §1: "No cards or metrics above the map. The simulator spans the w
   });
 });
 
-describe('doc §1: "Left panel (controls, collapsible): scenario, playback, layer toggles, focus selector, Start new planning cycle"', () => {
+// docs/mvp3.md P1 + P2 (#648) replaces the doc's "scenario, playback, layer toggles, focus selector,
+// Start new planning cycle": the setup form, the speed, scrubber and next-event controls and the layer
+// toggles are deleted; playback is one Play/Pause button and "Back to start".
+describe('doc §1 with docs/mvp3.md P2: "Left panel (controls, collapsible)": playback, packages, focus selector, comparison', () => {
   it.each(STATES)('$name: every group is in the left panel, the panel has a collapse button', (s) => {
-    expect(headings(s.left)).toEqual(expect.arrayContaining(['Scenario', 'Playback', 'Layers', 'Focus', 'Planning cycle', 'Packages']));
+    expect(headings(s.left).filter((h) => ['Playback', 'Packages', 'Focus', 'Direct only vs relay points'].includes(h)))
+      .toEqual(['Playback', 'Packages', 'Focus', 'Direct only vs relay points']);
     const toggle = buttonsNamed(s.root, 'Controls', s.left);
     expect(toggle).toHaveLength(1);
     expect(toggle[0].attrs['aria-expanded']).toBe('true');
   });
 
-  it.each(STATES)('$name: scenario: seed, employee and package counts, detour limit, Generate', (s) => {
-    const form = one(s.left, (n) => n.tag === 'form' && n.attrs['aria-label'] === 'Scenario', 'scenario form');
-    const names = all(form, (n) => ['input', 'select'].includes(n.tag)).map((n) => accessibleName(n, s.root));
-    expect(names).toEqual(expect.arrayContaining(['Seed', 'Employees', 'Packages', 'Detour limit (min)']));
-    expect(buttonsNamed(s.root, 'Generate', form)).toHaveLength(1);
-  });
-
-  it.each(STATES)('$name: playback: play/pause, speed, scrubber, next event, jump to morning, finish, reset', (s) => {
+  it.each(STATES)('$name: playback: one Play/Pause button and Back to start, nothing else', (s) => {
     const section = one(s.left, (n) => n.attrs['aria-labelledby'] === 'sw-section-playback', 'playback');
-    for (const name of [/^(Play|Pause)$/, 'Next event', 'Jump to morning', 'Finish', 'Reset playback']) {
-      expect(buttonsNamed(s.root, name, section), String(name)).toHaveLength(1);
-    }
-    expect(buttonsNamed(s.root, /^Speed /, section).length).toBeGreaterThanOrEqual(2);
-    const scrub = one(section, (n) => n.tag === 'input' && n.attrs.type === 'range', 'scrubber');
-    expect(accessibleName(scrub, s.root)).toBe('Simulation time');
-    expect(scrub.attrs.value).toBe(String(s.sim.clock.timeMin));
-    expect(scrub.attrs['aria-valuetext']).toBe(formatMin(s.sim.clock.timeMin));
+    const names = all(section, (n) => n.tag === 'button').map((b) => accessibleName(b, s.root));
+    expect(names).toEqual([s.sim.clock.playing ? PAUSE_LABEL : PLAY_LABEL, 'Back to start']);
+    expect(all(section, (n) => ['input', 'select'].includes(n.tag))).toEqual([]);
+    // The step line of a playing journey: in the page from the start, empty until something plays.
+    const status = one(section, (n) => n.attrs.role === 'status', 'step line');
+    expect(readText(status)).toBe('');
   });
 
-  it.each(STATES)('$name: layer toggles: routes, businesses, homes, packages', (s) => {
-    const section = one(s.left, (n) => n.attrs['aria-labelledby'] === 'sw-section-layers', 'layers');
-    const boxes = all(section, (n) => n.tag === 'input' && n.attrs.type === 'checkbox');
-    expect(boxes.map((b) => accessibleName(b, s.root))).toEqual(['Routes', 'Businesses', 'Homes', 'Packages']);
+  it.each(STATES)('$name: removed in mvp3 P2: no setup form, speed, scrubber, next event, layer toggles or key hints', (s) => {
+    expect(headings(s.root).filter((h) => ['Scenario', 'Layers', 'Planning cycle'].includes(h))).toEqual([]);
+    expect(all(s.root, (n) => n.tag === 'form')).toEqual([]);
+    expect(all(s.root, (n) => n.tag === 'input' && ['range', 'checkbox', 'number'].includes(n.attrs.type))).toEqual([]);
+    for (const name of [
+      'Generate', 'Start new planning cycle', 'Recompute matches', 'Next event', 'Jump to morning', 'Finish', 'Reset playback', /^Speed /,
+    ]) {
+      expect(buttonsNamed(s.root, name), String(name)).toEqual([]);
+    }
+    expect(all(s.root, (n) => n.tag === 'kbd')).toEqual([]);
+    expect(readText(s.root)).not.toMatch(/\b(Space|Esc)\b/);
   });
 
   it.each(STATES)('$name: focus selector: one employee or one business, from the sample map', (s) => {
@@ -118,11 +120,6 @@ describe('doc §1: "Left panel (controls, collapsible): scenario, playback, laye
       s.focus.kind === 'employee' ? s.focus.id : '',
       s.focus.kind === 'business' ? s.focus.id : '',
     ]);
-  });
-
-  it.each(STATES)('$name: "Start new planning cycle" is a button in the left panel', (s) => {
-    const [b] = buttonsNamed(s.root, 'Start new planning cycle', s.left);
-    expect(b.attrs.type).toBe('button');
   });
 
   it.each(STATES)('$name: the package list holds every sample package as a button (journey mode entry point)', (s) => {
@@ -264,21 +261,24 @@ describe('doc §1: package journey mode', () => {
     expect(byName('relay journey').sim.snapshot.deliveredAtMin['shp-2']).toBeUndefined();
   });
 
-  it.each(JOURNEYS)('$name: "Back to network" and "Play journey" are buttons with those names', (s) => {
+  it.each(JOURNEYS)('$name: "Back to network" and the one "Play" are enabled buttons; Play is in the left panel', (s) => {
     const back = buttonsNamed(s.root, BACK_TO_NETWORK);
     expect(back.length).toBeGreaterThanOrEqual(1);
     expect(buttonsNamed(s.root, BACK_TO_NETWORK, s.right)).toHaveLength(1);
     const play = buttonsNamed(s.root, PLAY_LABEL);
     expect(play).toHaveLength(1);
+    expect(buttonsNamed(s.root, PLAY_LABEL, s.left)).toEqual(play);
+    expect(buttonsNamed(s.root, /^(Play|Pause)( journey)?$/, s.right)).toEqual([]); // the journey panel has none of its own
     for (const b of [...back, ...play]) {
       expect(b.attrs.type).toBe('button');
       expect(b.attrs.disabled).toBeUndefined();
     }
   });
 
-  it.each(STATES.filter((s) => s.selection === null))('$name: no journey controls in network mode', (s) => {
+  it.each(STATES.filter((s) => s.selection === null))('$name: no "Back to network" in network mode; the one button plays the clock', (s) => {
     expect(buttonsNamed(s.root, BACK_TO_NETWORK)).toEqual([]);
-    expect(buttonsNamed(s.root, PLAY_LABEL)).toEqual([]);
+    expect(buttonsNamed(s.root, /^(Play|Pause)$/)).toHaveLength(1);
+    expect(buttonsNamed(s.root, /^(Play|Pause)$/, s.left)).toHaveLength(1);
   });
 });
 

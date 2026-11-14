@@ -17,7 +17,7 @@ import {
   VEHICLE_FILL,
   type RGBA,
 } from '../../../map/layers';
-import type { Focus, LayerVisibility } from '../workspaceModel';
+import type { Focus } from '../workspaceModel';
 
 export type LegendMode = 'network' | 'journey';
 export type LegendShape = 'dot' | 'ring' | 'line' | 'numbered';
@@ -36,12 +36,9 @@ export type LegendRow = {
 
 export type LegendInput = {
   mode: LegendMode;
-  layers: LayerVisibility;
   hasSelection?: boolean;
   focus?: Focus;
 };
-
-export const ALL_HIDDEN_MESSAGE = 'All map layers are hidden. Turn a layer on in the left panel.';
 
 /** The one conversion from a deck.gl RGBA (0–255 alpha) to a CSS color string. */
 export function cssColor([r, g, b, a]: RGBA): string {
@@ -53,15 +50,6 @@ export function dimmed(c: RGBA): RGBA {
   return [c[0], c[1], c[2], Math.min(c[3], DIM_ALPHA)];
 }
 
-export function allLayersHidden(layers: LayerVisibility): boolean {
-  return !layers.routes && !layers.businesses && !layers.homes && !layers.packages;
-}
-
-/** True when the legend should show only the "all layers hidden" line instead of rows. */
-export function showsHiddenMessage(input: Pick<LegendInput, 'mode' | 'layers'>): boolean {
-  return input.mode === 'network' && allLayersHidden(input.layers);
-}
-
 const dot = (key: string, label: string, c: RGBA): LegendRow => ({ key, label, shape: 'dot', color: cssColor(c) });
 const line = (key: string, label: string, c: RGBA, width: number): LegendRow => ({
   key,
@@ -71,18 +59,15 @@ const line = (key: string, label: string, c: RGBA, width: number): LegendRow => 
   width,
 });
 
-function networkRows({ layers, hasSelection, focus }: LegendInput): LegendRow[] {
-  if (allLayersHidden(layers)) return [];
-  const rows: LegendRow[] = [];
-  if (layers.businesses) rows.push(dot('business', 'Network business · every one is a relay point', BUSINESS_FILL));
-  if (layers.homes) rows.push(dot('home', 'Home neighborhood', HOME_FILL));
-  // Vehicles have no toggle of their own: the map always draws them while anything is shown.
-  rows.push(dot('vehicle', 'Commuter vehicle', VEHICLE_FILL));
-  if (layers.packages) rows.push(dot('package', 'Package', PACKAGE_FILL));
-  if (layers.routes) {
-    rows.push(line('baseline', 'Normal commute', BASELINE, BASELINE_WIDTH));
-    rows.push(line('route', 'Delivery route', LEG1, LEG_WIDTH));
-  }
+function networkRows({ hasSelection, focus }: LegendInput): LegendRow[] {
+  const rows: LegendRow[] = [
+    dot('business', 'Network business · every one is a relay point', BUSINESS_FILL),
+    dot('home', 'Home neighborhood', HOME_FILL),
+    dot('vehicle', 'Commuter vehicle', VEHICLE_FILL),
+    dot('package', 'Package', PACKAGE_FILL),
+    line('baseline', 'Normal commute', BASELINE, BASELINE_WIDTH),
+    line('route', 'Delivery route', LEG1, LEG_WIDTH),
+  ];
   const focused = focus !== undefined && focus.kind !== 'none';
   if (hasSelection || focused) {
     const what = hasSelection ? 'the selection' : 'this focus';
@@ -103,9 +88,9 @@ function journeyRows(): LegendRow[] {
 }
 
 /**
- * The legend rows for what the map can show now, in a fixed order. Network mode follows the layer
- * toggles (no rows when every layer is off; see `showsHiddenMessage`) and adds a "Dimmed" row with a
- * selection or a focus. Journey mode always shows its six rows; the carrier names live in JourneyLegend.
+ * The legend rows for what the map shows now, in a fixed order. Network mode has its six rows and
+ * adds a "Dimmed" row with a selection or a focus. Journey mode always shows its six rows; the
+ * carrier names live in JourneyLegend.
  */
 export function legendRows(input: LegendInput): LegendRow[] {
   return input.mode === 'journey' ? journeyRows() : networkRows(input);

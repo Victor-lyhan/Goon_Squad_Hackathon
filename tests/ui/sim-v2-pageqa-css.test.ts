@@ -183,7 +183,7 @@ const ALL_FOCUS = new Set([...FOCUS_SELECTORS, ...PAGE_FOCUS, ...visibleFocus(ui
 const PAGE_CONTROLS: { control: string; classes: string[]; own: boolean }[] = [
   { control: 'Back to network (right panel)', classes: ['.sw-btn', '.spc-back'], own: false },
   { control: 'Dismiss (failed action)', classes: ['.sw-btn'], own: false },
-  { control: 'Play journey / Stop', classes: ['.ui-btn', '.spc-play__button'], own: false },
+  { control: 'Play / Pause and Back to start (controls/PlaybackControls.tsx)', classes: ['.ctl-btn'], own: false },
   { control: 'Retry (503 and error screens)', classes: ['.ui-btn'], own: false },
   { control: 'Choose a workspace (desktop-only notice)', classes: ['.sim-desktop-notice a'], own: true },
 ];
@@ -191,12 +191,15 @@ const PAGE_CONTROLS: { control: string; classes: string[]; own: boolean }[] = [
 describe('compose.css + page.css: keyboard focus', () => {
   it('the control classes listed above are the ones the source renders', () => {
     const body = read('client/src/components/sim/v2/compose/SimPageBody.tsx');
-    const play = read('client/src/components/sim/v2/compose/PlayJourneyButton.tsx');
+    const play = read('client/src/components/sim/v2/controls/PlaybackControls.tsx');
+    const card = read('client/src/components/sim/v2/compose/OvernightCard.tsx');
     const notice = read('client/src/components/sim/v2/page/DesktopOnlyNotice.tsx');
     expect(body).toContain('className="sw-btn spc-back"');
     expect(body).toMatch(/className="sw-btn" onClick=\{handlers\.dismissActionError\}/);
     expect(body).toMatch(/<Button variant="secondary" onClick=\{onRetry\}>Retry<\/Button>/);
-    expect(play.match(/className="spc-play__button"/g)).toHaveLength(2);
+    // #648: the one Play/Pause button and "Back to start", both `.ctl-btn`; the overnight card has no control.
+    expect(play.match(/className="ctl-btn[ "]/g)).toHaveLength(2);
+    expect(card).not.toMatch(/<(button|a|input|select|textarea)\b/);
     expect(notice).toMatch(/<a href="\/">Choose a workspace<\/a>/);
     // No other raw interactive element in these files.
     for (const src of [body, play, notice]) {

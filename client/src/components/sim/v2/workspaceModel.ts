@@ -20,22 +20,11 @@ export const toggleLeft = (s: PanelState): PanelState => panelReducer(s, { type:
 export const toggleRight = (s: PanelState): PanelState => panelReducer(s, { type: 'toggleRight' });
 
 // ---------- Map layers ----------
-export type LayerKey = 'routes' | 'businesses' | 'homes' | 'packages';
-export type LayerVisibility = Record<LayerKey, boolean>;
-
-/** Display order and labels of the layer checkboxes. */
-export const LAYERS: { key: LayerKey; label: string }[] = [
-  { key: 'routes', label: 'Routes' },
-  { key: 'businesses', label: 'Businesses' },
-  { key: 'homes', label: 'Homes' },
-  { key: 'packages', label: 'Packages' },
-];
+// The layer checkboxes are gone (#648, docs/mvp3.md P2): the page always passes DEFAULT_LAYERS.
+// The type stays because `simPageView` and the map still take a visibility record.
+export type LayerVisibility = Record<'routes' | 'businesses' | 'homes' | 'packages', boolean>;
 
 export const DEFAULT_LAYERS: LayerVisibility = { routes: true, businesses: true, homes: true, packages: true };
-
-export function toggleLayer(v: LayerVisibility, key: LayerKey): LayerVisibility {
-  return { ...v, [key]: !v[key] };
-}
 
 // ---------- Focus (one employee OR one business, never both) ----------
 export type FocusKind = 'employee' | 'business';
@@ -74,8 +63,8 @@ export type KeyLike = {
 
 /**
  * True where the user types (a text, search or number input, a textarea, editable text). The rule
- * is the page key map's (#607), so both Esc listeners agree: a range input, a checkbox, a radio and
- * a `<select>` are not typing targets.
+ * is the page key map's (#607), so both Esc listeners agree: a checkbox, a radio and a `<select>`
+ * are not typing targets.
  */
 export function isTypingTarget(target: KeyLike['target']): boolean {
   return isTextTarget(target);

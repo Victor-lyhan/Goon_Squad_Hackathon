@@ -11,7 +11,6 @@ describe('simKeyAction', () => {
     expect(simKeyAction(ev('Esc'), journey())).toBe('exit_journey');
     expect(simKeyAction(ev(' '), journey())).toBe('toggle_play');
     expect(simKeyAction(ev(' '), journey({ playing: true }))).toBe('toggle_play');
-    expect(simKeyAction(ev('.'), journey())).toBe('next_event');
   });
 
   it('maps every key in network mode', () => {
@@ -20,11 +19,22 @@ describe('simKeyAction', () => {
     expect(simKeyAction(ev('Escape'), network({ hasSelection: false }))).toBeNull();
     expect(simKeyAction(ev(' '), network())).toBe('toggle_play');
     expect(simKeyAction(ev('Spacebar'), network({ playing: true }))).toBe('toggle_play');
-    expect(simKeyAction(ev('.'), network())).toBe('next_event');
   });
 
   it('exits the journey on Esc even if hasSelection is false', () => {
     expect(simKeyAction(ev('Escape'), journey({ hasSelection: false }))).toBe('exit_journey');
+  });
+
+  it('"." is no longer a key of the page (#648): the next-event button is gone', () => {
+    const targets: SimKeyEvent['target'][] = [
+      { tagName: 'BODY' }, null, { tagName: 'DIV' }, { tagName: 'BUTTON' }, { tagName: 'SELECT' }, { tagName: 'INPUT', type: 'checkbox' },
+    ];
+    for (const target of targets) {
+      for (const playing of [false, true]) {
+        expect(simKeyAction(ev('.', { target }), journey({ playing }))).toBeNull();
+        expect(simKeyAction(ev('.', { target }), network({ playing }))).toBeNull();
+      }
+    }
   });
 
   it('returns null for other keys', () => {
@@ -35,9 +45,9 @@ describe('simKeyAction', () => {
   });
 
   it('works with no target or a plain element target', () => {
-    expect(simKeyAction({ key: '.' }, network())).toBe('next_event');
-    expect(simKeyAction({ key: '.', target: null }, network())).toBe('next_event');
-    expect(simKeyAction(ev('.', { target: { tagName: 'DIV' } }), network())).toBe('next_event');
+    expect(simKeyAction({ key: ' ' }, network())).toBe('toggle_play');
+    expect(simKeyAction({ key: 'Escape', target: null }, network())).toBe('clear_selection');
+    expect(simKeyAction(ev('Escape', { target: { tagName: 'DIV' } }), journey())).toBe('exit_journey');
     expect(simKeyAction(ev(' ', { target: { tagName: 'canvas' } }), network())).toBe('toggle_play');
   });
 
@@ -50,14 +60,14 @@ describe('simKeyAction', () => {
       { tagName: 'DIV', isContentEditable: true },
     ];
     for (const mode of [journey(), network()]) {
-      for (const key of ['Escape', 'Esc', ' ', 'Spacebar', '.']) {
+      for (const key of ['Escape', 'Esc', ' ', 'Spacebar']) {
         for (const target of fields) expect(simKeyAction(ev(key, { target }), mode)).toBeNull();
       }
     }
   });
 
-  // #607: a click on the scrubber, a layer checkbox or the focus dropdown leaves the focus there.
-  it('Esc and "." work from a range input, a checkbox, a radio and a select', () => {
+  // #607: a click on a filter or the focus dropdown leaves the focus there.
+  it('Esc works from a range input, a checkbox, a radio and a select', () => {
     const controls: SimKeyEvent['target'][] = [
       { tagName: 'INPUT', type: 'range' }, { tagName: 'INPUT', type: 'checkbox' }, { tagName: 'INPUT', type: 'radio' },
       { tagName: 'input', type: 'RANGE' }, { tagName: 'SELECT' }, { tagName: 'select', type: 'select-one' },
@@ -66,13 +76,11 @@ describe('simKeyAction', () => {
       expect(simKeyAction(ev('Escape', { target }), journey())).toBe('exit_journey');
       expect(simKeyAction(ev('Esc', { target }), network())).toBe('clear_selection');
       expect(simKeyAction(ev('Escape', { target }), network({ hasSelection: false }))).toBeNull();
-      expect(simKeyAction(ev('.', { target }), journey())).toBe('next_event');
-      expect(simKeyAction(ev('.', { target }), network())).toBe('next_event');
       expect(simKeyAction(ev('Escape', { target, ctrlKey: true }), journey())).toBeNull();
     }
   });
 
-  it('Space plays or pauses from the scrubber and the focus dropdown', () => {
+  it('Space plays or pauses from a range input and the focus dropdown', () => {
     for (const target of [{ tagName: 'INPUT', type: 'range' }, { tagName: 'SELECT' }, { tagName: 'select', type: 'select-one' }]) {
       expect(simKeyAction(ev(' ', { target }), journey())).toBe('toggle_play');
       expect(simKeyAction(ev('Spacebar', { target }), network({ playing: true }))).toBe('toggle_play');
@@ -85,13 +93,6 @@ describe('simKeyAction', () => {
       expect(simKeyAction(ev('Escape', { target: { tagName } }), journey())).toBe('exit_journey');
       expect(simKeyAction(ev('Esc', { target: { tagName } }), network())).toBe('clear_selection');
       expect(simKeyAction(ev('Escape', { target: { tagName } }), network({ hasSelection: false }))).toBeNull();
-    }
-  });
-
-  it('"." from a focused button is next event (after a click on Play journey the focus is on Stop)', () => {
-    for (const target of [{ tagName: 'BUTTON' }, { tagName: 'button', type: 'button' }, { tagName: 'INPUT', type: 'submit' }]) {
-      expect(simKeyAction(ev('.', { target }), journey())).toBe('next_event');
-      expect(simKeyAction(ev('.', { target }), network())).toBe('next_event');
     }
   });
 
@@ -113,7 +114,7 @@ describe('simKeyAction', () => {
 
   it('does nothing with Ctrl, Cmd or Alt held', () => {
     for (const mod of ['ctrlKey', 'metaKey', 'altKey'] as const) {
-      for (const key of ['Escape', ' ', '.']) {
+      for (const key of ['Escape', ' ']) {
         expect(simKeyAction(ev(key, { [mod]: true }), journey())).toBeNull();
         expect(simKeyAction(ev(key, { [mod]: true }), network())).toBeNull();
       }

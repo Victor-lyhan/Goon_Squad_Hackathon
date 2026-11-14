@@ -1,179 +1,108 @@
+// The simulator's one Play/Pause button, as pure data (#648, DECISIONS pass 63): the requests the
+// server clock gets, and what the button shows and does for each page state.
 import { describe, expect, it } from 'vitest';
 import {
-  BUSY_REASON, FINISHED_REASON, LOCKED_RECOMPUTE_REASON, NO_NEXT_EVENT_REASON, PAST_MORNING_REASON, SCENARIO_FIELDS,
-  SCENARIO_FIELD_INFO, SCRUB_IDLE, SPEED_OPTIONS, initScenarioState, minToScrub, playbackRequest, scrubDrag,
-  scrubRelease, scrubShown, scrubToMin, speedRequest, syncScenarioState, toPlanningView, toPlaybackView,
-  toScenarioForm, validateScenario, type ScenarioForm,
+  BUSY_REASON, FINISHED_REASON, PAUSE_REQUEST, PLAY_SPEED, RESET_LABEL, RESET_REQUEST, isRunFinished,
+  playClockRequests, resetDisabledReason,
 } from '../../client/src/components/sim/v2/controls/controlsModel';
-import { GenerateScenarioRequest, SimControlRequest } from '../../shared/v2/schemas';
+import * as controlsModel from '../../client/src/components/sim/v2/controls/controlsModel';
+import {
+  NO_JOURNEY_TEXT, PLAY_IDLE, playButtonView, type PlayButtonInput, type PlayState,
+} from '../../client/src/components/sim/v2/compose/journeyPlay';
+import type { Journey, UnmatchedJourney } from '../../client/src/components/sim/v2/journey/journeyModel';
+import { SimControlRequest } from '../../shared/v2/schemas';
 import type { Clock } from '../../shared/v2/types';
 
 const W = { simStartMin: 930, simEndMin: 2160 };
 const clock = (over: Partial<Clock> = {}): Clock => ({ phase: 'planning', playing: false, timeMin: 930, speed: 120, ...over });
 
-describe('playback requests', () => {
-  it('each control maps to one valid SimControlRequest', () => {
-    const cases: [ReturnType<typeof playbackRequest>, SimControlRequest][] = [
-      [playbackRequest('playPause', clock({ playing: false })), { action: 'play' }],
-      [playbackRequest('playPause', clock({ playing: true, phase: 'locked' })), { action: 'pause' }],
-      [playbackRequest('nextEvent', clock()), { action: 'next_event' }],
-      [playbackRequest('jumpToMorning', clock()), { action: 'jump_to_morning' }],
-      [playbackRequest('finish', clock()), { action: 'finish' }],
-      [playbackRequest('reset', clock()), { action: 'reset_playback' }],
-      [speedRequest(30), { action: 'speed', speed: 30 }],
-      [speedRequest(120), { action: 'speed', speed: 120 }],
-      [speedRequest(600), { action: 'speed', speed: 600 }],
+describe('server clock requests', () => {
+  it('Play at the fixed speed is one request', () => {
+    expect(PLAY_SPEED).toBe(120);
+    expect(playClockRequests(clock({ speed: 120 }))).toEqual([{ action: 'play' }]);
+  });
+
+  it('a clock left at another speed gets `speed` 120 once, then play', () => {
+    for (const speed of [30, 600] as const) {
+      expect(playClockRequests(clock({ speed }))).toEqual([{ action: 'speed', speed: 120 }, { action: 'play' }]);
+    }
+  });
+
+  it('every request is a valid SimControlRequest', () => {
+    const all = [...playClockRequests(clock({ speed: 30 })), PAUSE_REQUEST, RESET_REQUEST];
+    expect(all.map((r) => r.action)).toEqual(['speed', 'play', 'pause', 'reset_playback']);
+    for (const req of all) expect(SimControlRequest.parse(req)).toEqual(req);
+  });
+
+  it('the run is finished at simEndMin, not before', () => {
+    expect(isRunFinished(clock({ timeMin: 2159 }), W)).toBe(false);
+    expect(isRunFinished(clock({ timeMin: 2160 }), W)).toBe(true);
+  });
+
+  it('Back to start is disabled only while another control is open', () => {
+    expect(RESET_LABEL).toBe('Back to start');
+    expect(resetDisabledReason(false)).toBeNull();
+    expect(resetDisabledReason(true)).toBe(BUSY_REASON);
+  });
+
+  it('the speed, scrubber, step, scenario and planning helpers are gone', () => {
+    const gone = [
+      'SPEED_OPTIONS', 'speedRequest', 'playbackRequest', 'toPlaybackView', 'scrubDrag', 'scrubRelease', 'scrubShown',
+      'minToScrub', 'scrubToMin', 'validateScenario', 'toScenarioForm', 'toPlanningView', 'NO_NEXT_EVENT_REASON',
+      'PAST_MORNING_REASON', 'LOCKED_RECOMPUTE_REASON',
     ];
-    for (const [got, want] of cases) {
-      expect(got).toEqual(want);
-      expect(SimControlRequest.parse(got)).toEqual(want);
+    for (const name of gone) expect(controlsModel, name).not.toHaveProperty(name);
+  });
+});
+
+describe('the one Play/Pause button', () => {
+  const journey = { kind: 'journey', shipmentId: 'shp-1' } as Journey;
+  const unmatched: UnmatchedJourney = { kind: 'unmatched', shipmentId: 'shp-2', title: 'Box', reason: 'No commute fits.' };
+  const target = { shipmentId: 'shp-1', runId: 'run-1' };
+  const view = (over: Partial<PlayButtonInput> = {}) =>
+    playButtonView({ packagePicked: false, journey: null, play: PLAY_IDLE, clock: clock(), busy: false, window: W, ...over });
+  const picked = (over: Partial<PlayButtonInput> = {}) => view({ packagePicked: true, journey, ...over });
+
+  it('no package: Play plays the server clock, Pause pauses it', () => {
+    expect(view()).toEqual({ label: 'Play', action: 'play_clock', note: null });
+    expect(view({ clock: clock({ playing: true, phase: 'locked' }) })).toEqual({ label: 'Pause', action: 'pause_clock', note: null });
+  });
+
+  it('no package, run finished: disabled, and the note names Back to start', () => {
+    expect(view({ clock: clock({ timeMin: 2160, phase: 'locked' }) })).toEqual({ label: 'Play', action: null, note: FINISHED_REASON });
+    expect(FINISHED_REASON).toContain('Back to start');
+  });
+
+  it('no package, another control open: disabled with the busy reason, playing or not', () => {
+    expect(view({ busy: true })).toEqual({ label: 'Play', action: null, note: BUSY_REASON });
+    expect(view({ busy: true, clock: clock({ playing: true }) })).toEqual({ label: 'Pause', action: null, note: BUSY_REASON });
+  });
+
+  it('package picked: Play plays its journey; a running journey reads Pause', () => {
+    expect(picked()).toEqual({ label: 'Play', action: 'play_journey', note: null });
+    for (const overnight of [false, true]) {
+      const play: PlayState = { status: 'running', overnight, ...target };
+      expect(picked({ play })).toEqual({ label: 'Pause', action: 'pause_journey', note: null });
     }
   });
 
-  it('offers exactly the three schema speeds with labels and a real-meaning title', () => {
-    expect(SPEED_OPTIONS.map((o) => o.speed)).toEqual([30, 120, 600]);
-    expect(SPEED_OPTIONS.map((o) => o.label)).toEqual(['1x', '4x', '20x']);
-    for (const o of SPEED_OPTIONS) expect(o.title).toBe(`${o.speed} simulated minutes per second`);
-  });
-});
-
-describe('scrubber conversion', () => {
-  it('is exact at simStartMin, simEndMin and Day 2 08:30 (1950)', () => {
-    for (const m of [W.simStartMin, W.simEndMin, 1950]) {
-      expect(minToScrub(m, W)).toBe(m);
-      expect(scrubToMin(String(minToScrub(m, W)), W)).toBe(m);
-      expect(scrubToMin(minToScrub(m, W), W)).toBe(m);
+  it('package picked: paused, finished and failed all read Play again', () => {
+    for (const status of ['paused', 'finished', 'failed'] as const) {
+      expect(picked({ play: { status, ...target } })).toEqual({ label: 'Play', action: 'play_journey', note: null });
     }
   });
 
-  it('clamps, rounds and never returns NaN', () => {
-    expect(scrubToMin('9999', W)).toBe(2160);
-    expect(scrubToMin('-4', W)).toBe(930);
-    expect(scrubToMin('1950.4', W)).toBe(1950);
-    expect(scrubToMin('', W)).toBe(930);
-    expect(scrubToMin('abc', W)).toBe(930);
-    expect(minToScrub(Number.NaN, W)).toBe(930);
-  });
-});
-
-describe('scrubber drag vs poll (DECISIONS pass 43)', () => {
-  it('a poll during a drag keeps the drag value; after release the next poll wins', () => {
-    const c1 = clock({ phase: 'locked', playing: true, timeMin: 1000 });
-    let s = scrubDrag('1950', W);
-    expect(scrubShown(s, c1, W)).toBe(1950);
-
-    // Poll arrives mid-drag with a new time: thumb stays put.
-    const c2 = { ...c1, timeMin: 1010 };
-    expect(scrubShown(s, c2, W)).toBe(1950);
-
-    // Release sends exactly one seek and keeps the value until a new clock arrives.
-    const r = scrubRelease(s, c2, W);
-    expect(r.request).toEqual({ action: 'seek', timeMin: 1950 });
-    expect(SimControlRequest.parse(r.request)).toEqual(r.request);
-    s = r.state;
-    expect(scrubShown(s, c2, W)).toBe(1950);
-
-    // Next poll: its time wins.
-    const c3 = { ...c2, timeMin: 1952 };
-    expect(scrubShown(s, c3, W)).toBe(1952);
-    const c4 = { ...c2, timeMin: 1011 };
-    expect(scrubShown(s, c4, W)).toBe(1011);
+  it('package picked: the journey plays at the end of the run and while another control is open (seeks are quiet)', () => {
+    expect(picked({ clock: clock({ timeMin: 2160 }) }).action).toBe('play_journey');
+    expect(picked({ busy: true }).action).toBe('play_journey');
   });
 
-  it('idle follows the clock; release without a drag or at the same minute sends nothing', () => {
-    const c = clock({ timeMin: 1200 });
-    expect(scrubShown(SCRUB_IDLE, c, W)).toBe(1200);
-    expect(scrubRelease(SCRUB_IDLE, c, W)).toEqual({ state: SCRUB_IDLE, request: null });
-    const same = scrubRelease(scrubDrag('1200', W), c, W);
-    expect(same.request).toBeNull();
-    expect(same.state).toEqual(SCRUB_IDLE);
-    // A second release (blur after pointer up) does not send again.
-    const first = scrubRelease(scrubDrag('1300', W), c, W);
-    expect(scrubRelease(first.state, c, W).request).toBeNull();
-  });
-});
-
-describe('playback view', () => {
-  it('planning: Play, title says it locks, only Next event needs an event', () => {
-    const v = toPlaybackView(clock(), W, null);
-    expect(v.playLabel).toBe('Play');
-    expect(v.playTitle).toMatch(/locks the run/);
-    expect(v.disabled).toEqual({ nextEvent: NO_NEXT_EVENT_REASON });
-    expect(v.reasons).toEqual([NO_NEXT_EVENT_REASON]);
-    expect(v.timeLabel).toBe('Day 1, 3:30 PM');
+  it('package picked while the server clock plays: Pause pauses the clock', () => {
+    expect(picked({ clock: clock({ playing: true }) })).toEqual({ label: 'Pause', action: 'pause_clock', note: null });
   });
 
-  it('finished: Play, Finish, Next event and Jump to morning disabled with the finished reason; Reset enabled', () => {
-    const v = toPlaybackView(clock({ phase: 'locked', timeMin: 2160 }), W, null);
-    expect(v.finished).toBe(true);
-    expect(v.disabled).toEqual({ play: FINISHED_REASON, nextEvent: FINISHED_REASON, jumpToMorning: FINISHED_REASON, finish: FINISHED_REASON });
-    expect(v.reasons).toEqual([FINISHED_REASON]);
-  });
-
-  it('past the morning: Jump to morning gives its reason', () => {
-    const v = toPlaybackView(clock({ phase: 'locked', playing: true, timeMin: 1950 }), W, 1980);
-    expect(v.playLabel).toBe('Pause');
-    expect(v.disabled).toEqual({ jumpToMorning: PAST_MORNING_REASON });
-  });
-
-  it('busy disables everything with one shared reason', () => {
-    const v = toPlaybackView(clock({ timeMin: 1000 }), W, 1100, true);
-    expect(Object.keys(v.disabled).sort()).toEqual(['finish', 'jumpToMorning', 'nextEvent', 'play', 'reset', 'scrub', 'speed']);
-    expect(v.reasons).toEqual([BUSY_REASON]);
-  });
-});
-
-describe('scenario form', () => {
-  const value = GenerateScenarioRequest.parse({ preset: 'random', seed: 7 });
-  const form = (over: Partial<ScenarioForm>): ScenarioForm => ({ ...toScenarioForm(value), ...over });
-
-  it('field ranges mirror the shared schema', () => {
-    const shape = GenerateScenarioRequest.shape;
-    for (const f of SCENARIO_FIELDS) {
-      const { min, max } = SCENARIO_FIELD_INFO[f];
-      if (min === undefined || max === undefined) continue;
-      expect(shape[f].safeParse(min).success).toBe(true);
-      expect(shape[f].safeParse(max).success).toBe(true);
-      expect(shape[f].safeParse(min - 1).success).toBe(false);
-      expect(shape[f].safeParse(max + 1).success).toBe(false);
-    }
-    expect(SCENARIO_FIELDS).not.toContain('hubs');
-  });
-
-  it('valid input parses to the request', () => {
-    const r = validateScenario(form({ employees: ' 120 ', packages: '5', maxExtraMin: '0' }));
-    expect(r).toEqual({ ok: true, request: { preset: 'random', seed: 7, employees: 120, packages: 5, maxExtraMin: 0 }, errors: {} });
-  });
-
-  it('invalid values give the schema messages', () => {
-    const bad = { seed: '1.5', employees: '121', packages: '4', maxExtraMin: 'abc' };
-    const r = validateScenario(form(bad));
-    expect(r.ok).toBe(false);
-    const raw = { preset: 'random', seed: 1.5, employees: 121, packages: 4, maxExtraMin: Number.NaN };
-    const issues = GenerateScenarioRequest.safeParse(raw).error!.issues;
-    for (const f of SCENARIO_FIELDS) {
-      const want = issues.find((i) => i.path[0] === f)!.message;
-      expect(r.errors[f]).toBe(want);
-      expect(r.errors[f]).toBeTruthy();
-    }
-    expect(validateScenario(form({ employees: '' })).errors.employees).toBeTruthy();
-  });
-
-  it('a poll with an equal value keeps typed text; a new server value resets it', () => {
-    let s = initScenarioState(value);
-    s = { ...s, form: { ...s.form, employees: '9' } };
-    const polled = syncScenarioState(s, { ...value });
-    expect(polled).toBe(s);
-    expect(polled.form.employees).toBe('9');
-    const changed = syncScenarioState(s, { ...value, seed: 8 });
-    expect(changed.form).toEqual(toScenarioForm({ ...value, seed: 8 }));
-  });
-});
-
-describe('planning view', () => {
-  it('Recompute is disabled with a reason only while locked (or busy)', () => {
-    expect(toPlanningView('planning')).toEqual({ phaseLabel: 'Planning', recomputeDisabled: null });
-    expect(toPlanningView('locked').recomputeDisabled).toBe(LOCKED_RECOMPUTE_REASON);
-    expect(toPlanningView('planning', true).recomputeDisabled).toBe(BUSY_REASON);
+  it('an unmatched package has nothing to play and says so; a pending or unknown one is just disabled', () => {
+    expect(view({ packagePicked: true, journey: unmatched })).toEqual({ label: 'Play', action: null, note: NO_JOURNEY_TEXT });
+    expect(view({ packagePicked: true, journey: null })).toEqual({ label: 'Play', action: null, note: null });
   });
 });

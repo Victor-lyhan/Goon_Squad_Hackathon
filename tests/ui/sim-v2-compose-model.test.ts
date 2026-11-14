@@ -10,7 +10,7 @@ import { buildNetworkView } from '../../client/src/components/sim/v2/network/net
 import { businessInspector, employeeInspector } from '../../client/src/components/sim/v2/inspector/inspectorModel';
 import { relayGainCompare } from './sim-v2-compare-fixture';
 import type { Selection } from '../../client/src/components/sim/v2/network/selectionModel';
-import { DEFAULT_LAYERS, toggleLayer } from '../../client/src/components/sim/v2/workspaceModel';
+import { DEFAULT_LAYERS } from '../../client/src/components/sim/v2/workspaceModel';
 import { mapOf, simAt as dataSimAt } from './sim-v2-data-fixtures';
 import { makeMap, makeSim } from './sim-v2-network-fixture';
 import { T, map as journeyMap, simAt as journeySimAt } from './sim-v2-journey-sample';
@@ -104,7 +104,7 @@ describe('simPageView: network mode', () => {
     expect(v.focusOptions.businesses.map((o) => o.label)).toEqual(['Chelsea Print Studio', 'Etsy', 'Sunrise Bakery']);
   });
 
-  it('focus and a layer toggle change the map props', () => {
+  it('focus changes the map props; the visibility record is passed through to the map', () => {
     const data = ready();
     const all = asReady(view(data));
     const focused = asReady(view(data, null, { focus: { kind: 'employee', id: 'emp-1' } }));
@@ -113,7 +113,8 @@ describe('simPageView: network mode', () => {
     const nv = buildNetworkView({ map: data.map!, sim: data.sim!, focus: { kind: 'employee', id: 'emp-1' } });
     expect(focused.map.places).toEqual(nv.places);
 
-    const noHomes = asReady(view(data, null, { layers: toggleLayer(DEFAULT_LAYERS, 'homes') }));
+    // The page always passes DEFAULT_LAYERS since #648 (no checkboxes); the view still hands on what it is given.
+    const noHomes = asReady(view(data, null, { layers: { ...DEFAULT_LAYERS, homes: false } }));
     expect(noHomes.map.visible).toEqual({ routes: true, businesses: true, homes: false, packages: true });
     expect(all.map.visible.homes).toBe(true);
   });

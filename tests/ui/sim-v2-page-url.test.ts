@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   BACK_TO_NETWORK,
+  PLAY_KEY,
+  hasAutoPlayKey,
   isStale,
   parseSimUrl,
   resolveSelection,
   simUrlFor,
   staleMessage,
+  wantsAutoPlay,
+  withoutAutoPlay,
   type SimSelection,
 } from '../../client/src/components/sim/v2/page/urlState';
 
@@ -142,5 +146,37 @@ describe('stale copy', () => {
     expect(staleMessage('employee')).toBe('This employee is not in the current scenario');
     expect(staleMessage('business')).toBe('This business is not in the current scenario');
     expect(BACK_TO_NETWORK).toBe('Back to network');
+  });
+});
+
+describe('play=1 (#648)', () => {
+  it('the key is `play` and only the value 1 asks for Play', () => {
+    expect(PLAY_KEY).toBe('play');
+    expect(wantsAutoPlay('?package=shp-001&play=1')).toBe(true);
+    expect(wantsAutoPlay('package=shp-001&play=1')).toBe(true);
+    for (const s of ['', '?package=shp-001', '?play=0', '?play=', '?play=yes', '?replay=1']) expect(wantsAutoPlay(s), s).toBe(false);
+  });
+
+  it('does not change the selection or the mode', () => {
+    expect(parseSimUrl('?package=shp-001&play=1')).toEqual({ selection: { kind: 'package', id: 'shp-001' }, mode: 'journey' });
+    expect(parseSimUrl('?play=1')).toEqual({ selection: null, mode: 'network' });
+  });
+
+  it('withoutAutoPlay drops every `play` key and keeps the rest in order', () => {
+    expect(withoutAutoPlay('?package=shp-001&play=1')).toBe('?package=shp-001');
+    expect(withoutAutoPlay('?play=1&package=shp-001&debug=1&play=0')).toBe('?package=shp-001&debug=1');
+    expect(withoutAutoPlay('?play=1')).toBe('');
+    expect(withoutAutoPlay('')).toBe('');
+  });
+
+  it('hasAutoPlayKey is true for any value of the key', () => {
+    expect(hasAutoPlayKey('?play=1')).toBe(true);
+    expect(hasAutoPlayKey('?package=a&play=0')).toBe(true);
+    expect(hasAutoPlayKey('?package=a')).toBe(false);
+    expect(hasAutoPlayKey('?replay=1')).toBe(false);
+  });
+
+  it('simUrlFor keeps it like any other key, so a selection made before it is consumed still plays', () => {
+    expect(simUrlFor({ kind: 'package', id: 'shp-002' }, '?package=shp-001&play=1')).toBe('?package=shp-002&play=1');
   });
 });

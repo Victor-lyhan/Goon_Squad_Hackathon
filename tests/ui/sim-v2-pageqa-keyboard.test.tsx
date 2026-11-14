@@ -4,12 +4,13 @@
 // - every control is a native button, input, select or link (or a role with tabindex="0"), has an
 //   accessible name, a :focus-visible style, and no positive tabindex; nothing else takes a click;
 // - a collapsed panel's controls cannot be reached;
-// - Play journey: the step line is a live region that is in the page before playing, and Stop
-//   takes the Play button's place (same element, so focus stays on it) while it plays;
+// - the one Play/Pause button (#648): the step line is a live region that is in the page before
+//   playing, and Pause takes the Play button's place (same element, so focus stays on it) while a
+//   journey plays;
 // - Esc leaves the journey (doc: "A clear exit ("Back to network" / Esc)") even from a focused button.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { PLAY_LABEL, STOP_LABEL, stepAnnouncement, type PlayState } from '../../client/src/components/sim/v2/compose/journeyPlay';
+import { PAUSE_LABEL, PLAY_LABEL, stepAnnouncement, type PlayState } from '../../client/src/components/sim/v2/compose/journeyPlay';
 import { buildJourney, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
 import { simKeyEffect, attachSimKeys, type SimKeyboardEvent } from '../../client/src/components/sim/v2/page/simPageState';
 import { DesktopOnlyNotice } from '../../client/src/components/sim/v2/page/DesktopOnlyNotice';
@@ -65,7 +66,7 @@ const shown = (s: PageState): Shown => ({ ...s, root: parse(renderBody(s)) });
 const STATES = [...FOUR_STATES, ...SELECTED_STATES].map(shown);
 const relayState = FOUR_STATES.find((s) => s.name === 'relay journey')!;
 const relayJourney = buildJourney({ shipmentId: 'shp-2', sim: relayState.sim, map: relayState.map }) as Journey;
-const running: PlayState = { status: 'running', shipmentId: 'shp-2', runId: relayState.sim.runId };
+const running: PlayState = { status: 'running', overnight: false, shipmentId: 'shp-2', runId: relayState.sim.runId };
 
 /** The checks every reachable control passes. */
 function checkControls(root: Node) {
@@ -86,7 +87,9 @@ function checkControls(root: Node) {
 describe('every control in the page states: native, named, focus-visible, no positive tabindex', () => {
   it.each(STATES)('$name', (s) => {
     const { controls, bad } = checkControls(s.root);
-    expect(controls.length).toBeGreaterThan(20);
+    // Not an empty render. The network page has 16 controls since #648 took out the speed buttons,
+    // the scrubber, the Scenario form, the Planning cycle buttons and the layer checkboxes.
+    expect(controls.length).toBeGreaterThan(10);
     expect(bad).toEqual([]);
   });
 
@@ -145,47 +148,59 @@ describe('a collapsed panel: its controls cannot be reached', () => {
   });
 
   it('collapsing one side leaves the other side reachable', () => {
-    const root = parse(renderLayout(relayState, { panels: { leftOpen: false, rightOpen: true } }));
-    const right = one(root, (n) => n.tag === 'aside' && hasClass(n, 'sw-right'), 'right');
-    const names = controlsIn(right).filter((c) => !isHidden(c)).map((c) => accessibleName(c, root));
-    expect(names).toEqual(expect.arrayContaining([PLAY_LABEL, 'Back to network', expect.stringMatching(/^Step 1: Pickup at sender\b/)]));
-    const left = one(root, (n) => n.tag === 'aside' && hasClass(n, 'sw-left'), 'left');
-    expect(controlsIn(left).filter((c) => !isHidden(c)).map((c) => accessibleName(c, root))).toEqual(['Controls']);
+    const names = (root: Node, side: 'sw-left' | 'sw-right') =>
+      controlsIn(one(root, (n) => n.tag === 'aside' && hasClass(n, side), side)).filter((c) => !isHidden(c)).map((c) => accessibleName(c, root));
+    const leftShut = parse(renderLayout(relayState, { panels: { leftOpen: false, rightOpen: true } }));
+    expect(names(leftShut, 'sw-right')).toEqual(expect.arrayContaining(['Back to network', expect.stringMatching(/^Step 1: Pickup at sender\b/)]));
+    expect(names(leftShut, 'sw-left')).toEqual(['Controls']);
+    // The one Play/Pause button is in the left panel (#648): it stays reachable with the right panel shut.
+    const rightShut = parse(renderLayout(relayState, { panels: { leftOpen: true, rightOpen: false } }));
+    expect(names(rightShut, 'sw-left')).toEqual(expect.arrayContaining([PLAY_LABEL, 'Back to start', 'Back to network']));
+    expect(names(rightShut, 'sw-right')).toEqual(['Inspector']);
   });
 });
 
-describe('Play journey: announced in a live region, Stop reachable while it plays', () => {
+describe('the one Play/Pause button: announced in a live region, Pause reachable while a journey plays', () => {
   const idle = parse(renderLayout(relayState));
   const playing = parse(renderLayout(relayState, { play: running }));
-  const block = (root: Node) => one(root, (n) => hasClass(n, 'spc-play'), 'play block');
+  const block = (root: Node) => one(root, (n) => hasClass(n, 'ctl-playback'), 'playback block');
+  const status = (root: Node) => one(block(root), (n) => hasClass(n, 'ctl-status'), 'status');
+  const buttons = (root: Node) => all(block(root), (n) => n.tag === 'button');
+
+  it('the page has one playback block, in the left panel', () => {
+    for (const root of [idle, playing]) {
+      expect(ancestors(block(root)).some((a) => a.tag === 'aside' && hasClass(a, 'sw-left'))).toBe(true);
+    }
+  });
 
   it('before playing, the step line is already in the page as an empty polite live region', () => {
-    const status = one(block(idle), (n) => hasClass(n, 'spc-play__status'), 'status');
-    expect(status.attrs.role).toBe('status');
-    expect(readText(status)).toBe('');
-    expect(isHidden(status)).toBe(false);
+    expect(status(idle).attrs.role).toBe('status');
+    expect(readText(status(idle))).toBe('');
+    expect(isHidden(status(idle))).toBe(false);
   });
 
   it('while playing, the live region names the next step from the sample events', () => {
-    const status = one(block(playing), (n) => hasClass(n, 'spc-play__status'), 'status');
-    expect(status.attrs.role).toBe('status');
-    expect(readText(status)).toBe(stepAnnouncement(relayJourney));
-    expect(readText(status)).toBe('Step 3 of 4 next: Pickup at relay point at Brooklyn Roasting.');
+    expect(status(playing).attrs.role).toBe('status');
+    expect(readText(status(playing))).toBe(stepAnnouncement(relayJourney));
+    expect(readText(status(playing))).toBe('Step 3 of 4 next: Pickup at relay point at Brooklyn Roasting.');
   });
 
-  it('while playing, Stop is an enabled, named button in the tab order, in the place the Play button was', () => {
-    const [first] = block(playing).children.filter((c): c is Node => typeof c !== 'string');
-    expect(first.tag).toBe('button');
-    expect(accessibleName(first, playing)).toBe(STOP_LABEL);
+  it('while playing, Pause is an enabled, named button in the tab order, in the place the Play button was', () => {
+    const [first] = buttons(playing);
+    expect(accessibleName(first, playing)).toBe(PAUSE_LABEL);
     expect(first.attrs.disabled).toBeUndefined();
     expect(first.attrs.tabindex).toBeUndefined();
     expect(isHidden(first)).toBe(false);
     expect(hasFocusStyle(first)).toBe(true);
-    // Same element type at the same place as Play: React keeps the node, so focus stays on it.
-    const [before] = block(idle).children.filter((c): c is Node => typeof c !== 'string');
-    expect([before.tag, accessibleName(before, idle)]).toEqual(['button', PLAY_LABEL]);
-    expect(first.attrs.class).toBe(before.attrs.class.replace('ui-btn--primary', 'ui-btn--secondary'));
+    // Same element type and class at the same place as Play: React keeps the node, so focus stays on it.
+    const [before] = buttons(idle);
+    expect(accessibleName(before, idle)).toBe(PLAY_LABEL);
+    expect(first.attrs.class).toBe(before.attrs.class);
+    expect(buttons(playing).map((b) => accessibleName(b, playing))).toEqual([PAUSE_LABEL, 'Back to start']);
+    expect(buttons(idle).map((b) => accessibleName(b, idle))).toEqual([PLAY_LABEL, 'Back to start']);
+    // One button for both: no Play next to Pause, and none in the journey panel.
     expect(controlsIn(playing).filter((c) => accessibleName(c, playing) === PLAY_LABEL)).toEqual([]);
+    expect(controlsIn(idle).filter((c) => [PLAY_LABEL, PAUSE_LABEL].includes(accessibleName(c, idle)))).toHaveLength(1);
   });
 
   it('while playing, every other control still passes the checks', () => {
@@ -193,9 +208,9 @@ describe('Play journey: announced in a live region, Stop reachable while it play
   });
 
   it('the journey header status is a polite live region too', () => {
-    const status = one(playing, (n) => hasClass(n, 'jt__status'), 'journey status');
-    expect(status.attrs['aria-live']).toBe('polite');
-    expect(readText(status)).toBe(`Status ${relayJourney.statusLabel}`);
+    const journeyStatus = one(playing, (n) => hasClass(n, 'jt__status'), 'journey status');
+    expect(journeyStatus.attrs['aria-live']).toBe('polite');
+    expect(readText(journeyStatus)).toBe(`Status ${relayJourney.statusLabel}`);
   });
 });
 
@@ -220,13 +235,13 @@ describe('Esc: "A clear exit ("Back to network" / Esc) returns to the full view"
     expect(simKeyEffect({ key: ' ', target: { tagName: 'BUTTON' } }, ctxOf(relayState))).toBeNull();
   });
 
-  it('on the page: the first Esc on the focused Stop button stops the journey, the next one leaves it', () => {
+  it('on the page: the first Esc on the focused Pause button pauses the journey, the next one leaves it', () => {
     const listeners: ((e: SimKeyboardEvent) => void)[] = [];
     const target = { addEventListener: (_t: 'keydown', l: (e: SimKeyboardEvent) => void) => listeners.push(l), removeEventListener: () => {} };
     let playingNow = true;
     const select = vi.fn();
     attachSimKeys(target, {
-      context: () => ctxOf(relayState), select, control: vi.fn(),
+      context: () => ctxOf(relayState), select, togglePlay: vi.fn(),
       escape: () => { const was = playingNow; playingNow = false; return was; },
     });
     const press = () => {

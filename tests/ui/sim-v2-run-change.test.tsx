@@ -128,18 +128,15 @@ describe('a focus of the old run', () => {
     expect([...mapBusinesses(p.container)].sort()).toEqual(['biz-dumbo', 'biz-etsy']);
   }, T);
 
-  it('the layer toggles and a collapsed panel stay as they were', () => {
+  it('a collapsed panel stays as it was', () => {
     const p = mountPage(readyState(1000));
     const c = p.container;
-    const homes = () => c.querySelector<HTMLInputElement>('input[name="layer-homes"]')!;
-    expect(homes().checked).toBe(true);
-    click(homes());
     click(panelToggle(c, 'right'));
     expect(panelToggle(c, 'right').getAttribute('aria-expanded')).toBe('false');
 
     p.server.poll(newRunState());
-    expect(homes().checked).toBe(false);
     expect(panelToggle(c, 'right').getAttribute('aria-expanded')).toBe('false');
+    expect(c.querySelector('input[type="checkbox"]')).toBeNull(); // no layer checkboxes any more (#648)
   }, T);
 });
 

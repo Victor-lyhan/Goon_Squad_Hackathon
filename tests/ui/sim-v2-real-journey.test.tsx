@@ -1,13 +1,15 @@
 // Package journey mode on the REAL default NYC run (#512): every package of the default run, selected, at five
 // moments of the day. A matched package gives a journey on network businesses only (SPEC MVP II rule 5); an
-// unmatched one shows the API's reason and no journey; every Play journey is watchable in under 30 s
-// (DECISIONS pass 46). No story ID, name or count is pinned (DECISIONS pass 54).
+// unmatched one shows the API's reason and no journey; every journey the one Play/Pause button plays is
+// watchable in under 30 s, the overnight card included (DECISIONS pass 46, 63). No story ID, name or
+// count is pinned (DECISIONS pass 54).
 import { describe, expect, it, vi } from 'vitest';
 import { simPageView } from '../../client/src/components/sim/v2/compose/simPageView';
+import { pagePlayButton } from '../../client/src/components/sim/v2/compose/SimPageBody';
+import { NO_JOURNEY_TEXT, PLAY_IDLE, PLAY_LABEL, journeyWindows } from '../../client/src/components/sim/v2/compose/journeyPlay';
 import {
-  NO_JOURNEY_TEXT, PLAY_IDLE, PLAY_LABEL, journeyWindows, playButtonView,
-} from '../../client/src/components/sim/v2/compose/journeyPlay';
-import { journeyDurationMs } from '../../client/src/components/sim/v2/motion/journeyPlayback';
+  JOURNEY_STEP_MS, OVERNIGHT_CARD_MS, nextJourneyAction, type JourneyWindow,
+} from '../../client/src/components/sim/v2/motion/journeyPlayback';
 import { UNKNOWN_CARRIER, UNKNOWN_PLACE, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
 import { DEFAULT_LAYERS } from '../../client/src/components/sim/v2/workspaceModel';
 import { formatCents, formatClock, formatMin } from '../../client/src/ui/format';
@@ -20,6 +22,24 @@ const real = realSim();
 const PLAY_LIMIT_MS = 30_000;
 
 const sorted = (xs: Iterable<string>) => [...xs].sort();
+
+/**
+ * What one press of Play takes in real time, from the start to the end of the journey (#648): one
+ * step every JOURNEY_STEP_MS, and the overnight card once per gap between two windows.
+ */
+function playTime(windows: JourneyWindow[]): { ms: number; cards: number } {
+  let t = -Infinity;
+  let seeks = 0;
+  let cards = 0;
+  for (;;) {
+    const a = nextJourneyAction(windows, t);
+    if (a.kind === 'done') return { ms: seeks * JOURNEY_STEP_MS + cards * OVERNIGHT_CARD_MS, cards };
+    if (a.toMin <= t || seeks > 10_000) throw new Error('the journey never ends');
+    if (a.overnight) cards += 1;
+    seeks += 1;
+    t = a.toMin;
+  }
+}
 
 describe.each(real.moments)('every package selected at $name', (moment) => {
   const { sim, map } = moment;
@@ -191,17 +211,20 @@ describe.each(real.moments)('every package selected at $name', (moment) => {
     }
   });
 
-  it('a matched package: the Play journey plan is watchable in under 30 s', () => {
+  it('a matched package: Play plays its journey, watchable in under 30 s with the overnight card', () => {
     const durations: number[] = [];
-    for (const { s, view } of matched) {
+    for (const { s, plan, view } of matched) {
       if (view.view !== 'ready' || view.right.kind !== 'journey') throw new Error(`${s.id}: no journey`);
       const windows = journeyWindows(view.right.journey);
       expect(windows.length).toBe(view.right.journey.carriers.length);
-      const ms = journeyDurationMs(windows);
+      const { ms, cards } = playTime(windows);
       durations.push(ms);
       expect(ms).toBeGreaterThan(0);
       expect(ms).toBeLessThan(PLAY_LIMIT_MS);
-      expect(playButtonView(view.right.journey, PLAY_IDLE).kind).toBe('play');
+      // The card is shown once for a relay (the night between its two legs), never for a direct journey.
+      expect(cards).toBe(plan!.legs.length - 1);
+      // The page's one Play/Pause button plays this journey (the clock of a seek is paused).
+      expect(pagePlayButton(view, PLAY_IDLE)).toEqual({ label: PLAY_LABEL, action: 'play_journey', note: null });
     }
     if (moment.timeMin === real.moments[0].timeMin && durations.length > 0) {
       console.log(`[#512] Play journey: longest ${Math.max(...durations) / 1000} s over ${durations.length} matched packages`);
@@ -215,7 +238,7 @@ describe.each(real.moments)('every package selected at $name', (moment) => {
       if (view.right.kind !== 'unmatched') continue;
       expect(view.right.journey.reason).toBe(reasons.get(s.id)!.trim());
       expect(view.map.stops).toEqual([]);
-      expect(playButtonView(view.right.journey, PLAY_IDLE).kind).toBe('unavailable');
+      expect(pagePlayButton(view, PLAY_IDLE)).toEqual({ label: PLAY_LABEL, action: null, note: NO_JOURNEY_TEXT });
       const panel = elements(html, 'section', 'aria-label="Package journey"');
       expect(panel.length).toBe(1);
       expect(text(panel[0])).toContain(text(escaped(reasons.get(s.id)!.trim())));

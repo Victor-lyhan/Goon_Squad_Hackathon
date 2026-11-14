@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_LAYERS, INITIAL_PANELS, LAYERS, NETWORK_MODE, clearFocus, enterJourney, exitJourney,
-  isTypingTarget, panelReducer, setFocus, toggleLayer, toggleLeft, toggleRight, workspaceKeyAction,
+  DEFAULT_LAYERS, INITIAL_PANELS, NETWORK_MODE, clearFocus, enterJourney, exitJourney,
+  isTypingTarget, panelReducer, setFocus, toggleLeft, toggleRight, workspaceKeyAction,
 } from '../../client/src/components/sim/v2/workspaceModel';
 
 describe('panel reducer', () => {
@@ -23,15 +23,8 @@ describe('panel reducer', () => {
 });
 
 describe('layers', () => {
-  it('has the four layers, all visible by default', () => {
-    expect(LAYERS.map((l) => l.key)).toEqual(['routes', 'businesses', 'homes', 'packages']);
+  it('has no checkboxes any more (#648): the one visibility record shows all four layers', () => {
     expect(DEFAULT_LAYERS).toEqual({ routes: true, businesses: true, homes: true, packages: true });
-  });
-  it('toggleLayer flips only one layer', () => {
-    const v = toggleLayer(DEFAULT_LAYERS, 'homes');
-    expect(v).toEqual({ routes: true, businesses: true, homes: false, packages: true });
-    expect(toggleLayer(v, 'homes')).toEqual(DEFAULT_LAYERS);
-    expect(DEFAULT_LAYERS.homes).toBe(true);
   });
 });
 
@@ -84,7 +77,7 @@ describe('workspaceKeyAction', () => {
     expect(isTypingTarget({ tagName: 'DIV', isContentEditable: true })).toBe(true);
     expect(isTypingTarget({ tagName: 'DIV' })).toBe(false);
   });
-  it('Escape works from the scrubber, a checkbox, a radio and a select (#607)', () => {
+  it('Escape works from a range input, a checkbox, a radio and a select (#607)', () => {
     const controls = [
       { tagName: 'INPUT', type: 'range' }, { tagName: 'INPUT', type: 'checkbox' }, { tagName: 'INPUT', type: 'radio' },
       { tagName: 'SELECT' }, { tagName: 'select', type: 'select-one' },
