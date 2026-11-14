@@ -23,8 +23,7 @@ function recomputeInPlace(run: Run): void {
   const t0 = performance.now();
   const result = assignShipments(run.scenario.shipments, contextFor(run));
   result.computeMs = performance.now() - t0;
-  const empty: Run = { ...run, notifications: [] };
-  const m = materializeAssignment(empty, result);
+  const m = materializeAssignment(run, result);
   run.assignments = m.assignments;
   run.jobs = m.jobs;
   run.events = m.events;

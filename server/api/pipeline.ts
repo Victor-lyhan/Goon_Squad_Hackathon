@@ -31,7 +31,7 @@ function jobsFor(plan: DeliveryPlan): Job[] {
 
 /**
  * Turns an assignment result into the run's plans, jobs, notifications and
- * timeline. Pure and idempotent: plans that already have notifications get no new ones.
+ * timeline. Pure and idempotent: notifications are reconciled against the plans (see below).
  */
 export function materializeAssignment(run: Run, result: AssignmentResult): Materialized {
   const { scenario } = run;
@@ -39,43 +39,47 @@ export function materializeAssignment(run: Run, result: AssignmentResult): Mater
   const jobs = plans.flatMap(jobsFor);
   const events = buildTimeline(plans, jobs, scenario.hubs);
 
-  const notifications = [...run.notifications];
-  const planned = new Set(notifications.map((n) => n.planId));
-  let seq = notifications.reduce((max, n) => Math.max(max, n.createdSeq), 0);
+  // Reconcile: every plan/job gets exactly one notification with a deterministic ID.
+  // Existing IDs keep their createdSeq and get their text refreshed in place; IDs for
+  // plans/jobs that no longer exist are dropped.
+  const previous = new Map(run.notifications.map((n) => [n.id, n]));
+  let seq = run.notifications.reduce((max, n) => Math.max(max, n.createdSeq), 0);
+  const notifications: Notification[] = [];
+  const emit = (n: Omit<Notification, 'createdSeq'>) => {
+    if (notifications.some((x) => x.id === n.id)) return;
+    const old = previous.get(n.id);
+    notifications.push({ ...n, createdSeq: old ? old.createdSeq : ++seq });
+  };
   const shipments = new Map(scenario.shipments.map((s) => [s.id, s]));
   const businesses = new Map(scenario.businesses.map((b) => [b.id, b]));
+  const hubs = new Map(scenario.hubs.map((h) => [h.id, h]));
   const jobsByPlan = new Map<string, Job[]>();
   for (const job of jobs) jobsByPlan.set(job.planId, [...(jobsByPlan.get(job.planId) ?? []), job]);
 
   for (const plan of plans) {
-    if (planned.has(plan.id)) continue;
     const shipment = shipments.get(plan.shipmentId);
     if (!shipment) continue;
     const origin = businesses.get(shipment.originBusinessId)?.name ?? shipment.originBusinessId;
     const dest = businesses.get(shipment.destinationBusinessId)?.name ?? shipment.destinationBusinessId;
-    const via = plan.kind === 'relay' ? ' via a hub relay' : '';
-    const matched = (audienceId: string, message: string): Notification => ({
+    const hubName = plan.hubId ? (hubs.get(plan.hubId)?.name ?? 'a hub') : 'a hub';
+    const via = plan.kind === 'relay' ? ` via ${hubName}` : '';
+    const matched = (audienceId: string, message: string) => emit({
       id: `ntf-${plan.id}-${audienceId}`, audience: 'business', audienceId,
       kind: 'delivery_matched', shipmentId: plan.shipmentId, planId: plan.id, message,
-      createdSeq: ++seq,
     });
-    notifications.push(
-      matched(shipment.originBusinessId,
-        `Delivery arranged: "${shipment.label}" to ${dest}${via}, ${money(plan.customerPriceCents)}.`),
-      matched(shipment.destinationBusinessId,
-        `Incoming delivery: "${shipment.label}" from ${origin}${via}.`),
-    );
+    matched(shipment.originBusinessId,
+      `Delivery arranged: "${shipment.label}" to ${dest}${via}, ${money(plan.customerPriceCents)}.`);
+    matched(shipment.destinationBusinessId, `Incoming delivery: "${shipment.label}" from ${origin}${via}.`);
     for (const job of jobsByPlan.get(plan.id) ?? []) {
       const role = plan.kind === 'relay'
         ? (job.legIndex === 0
-          ? 'Drop at the hub; another employee completes delivery'
-          : `Collect from the hub and deliver to ${dest}`)
+          ? `Drop at ${hubName}; another employee completes delivery`
+          : `Collect from ${hubName} and deliver to ${dest}`)
         : `Collect from ${origin} and deliver to ${dest}`;
-      notifications.push({
+      emit({
         id: `ntf-${job.id}`, audience: 'employee', audienceId: job.employeeId,
         kind: 'job_assigned', shipmentId: plan.shipmentId, planId: plan.id, jobId: job.id,
         message: `New delivery job: "${shipment.label}". ${role}. Reward ${money(job.rewardCents)}.`,
-        createdSeq: ++seq,
       });
     }
   }
