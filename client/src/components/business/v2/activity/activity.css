@@ -60,7 +60,8 @@
   border-right: 1px solid var(--border, #E3E3DE);
 }
 .ba-totals__item:last-child { border-right: 0; margin-right: 0; }
-.ba-totals__value { order: -1; margin: 0; font-size: var(--text-md, 14px); font-weight: 600; color: var(--text, #171C24); }
+/* 500 is the heaviest IBM Plex Mono the app loads (styles/fonts.css); 600 would be a synthetic bold (#714). */
+.ba-totals__value { order: -1; margin: 0; font-size: var(--text-md, 14px); font-weight: 500; color: var(--text, #171C24); }
 .ba-totals__label { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 
 .ba-notes {

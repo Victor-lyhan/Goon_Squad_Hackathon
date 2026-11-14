@@ -25,7 +25,8 @@
 .shell-nav { display: flex; align-items: stretch; gap: var(--space-1, 4px); }
 .shell-nav-link {
   display: inline-block; padding: var(--space-1, 4px) var(--space-2, 8px);
-  border-radius: var(--radius, 4px); border-bottom: 2px solid transparent;
+  /* Only the top corners are rounded, so the active item's underline is a straight bar (#714). */
+  border-radius: var(--radius, 4px) var(--radius, 4px) 0 0; border-bottom: 2px solid transparent;
   color: var(--muted, #5B6472); text-decoration: none; font-weight: 500;
 }
 .shell-nav a.shell-nav-link:hover { color: var(--text, #171C24); background: var(--bg, #F7F7F4); }
@@ -53,8 +54,6 @@
   max-width: 20rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .shell-header .demo-account-status { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.shell-help { color: var(--accent-dark, #173E5B); text-decoration: none; font-size: var(--text-sm, 13px); padding: var(--space-1, 4px) 0; }
-.shell-help:hover, .shell-help.active { text-decoration: underline; }
 .shell-env {
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); white-space: nowrap;
@@ -64,7 +63,6 @@
 /* Focus: every header control gets a visible outline. */
 .shell-wordmark:focus-visible,
 .shell-nav-link:focus-visible,
-.shell-help:focus-visible,
 .shell-header .demo-account select:focus-visible,
 .shell-header .demo-account-status a:focus-visible {
   outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; border-radius: var(--radius, 4px);
