@@ -1,5 +1,5 @@
 import type { JobResponse } from '../../../../shared/api';
-import type { Business, Hub, Node, StopKind } from '../../../../shared/types';
+import type { Business, Hub, Node, ShipmentProgress, StopKind } from '../../../../shared/types';
 import { formatCents, formatKg, formatMin } from '../../ui/format';
 
 export type JobLookups = { businesses: Business[]; hubs: Hub[]; nodes?: Node[] };
@@ -23,6 +23,9 @@ export type JobDetailModel = {
   added: string;
   reward: string;
   relay: string | null;
+  progress: string;
+  trackHref: string;
+  watchHref: string;
   stops: StopRow[];
 };
 
@@ -64,9 +67,45 @@ export function stopRows(job: JobResponse, l: JobLookups): StopRow[] {
   }));
 }
 
+/** Deep link to the sender's tracking drawer (DECISIONS pass 4). */
+export const trackHref = (job: JobResponse) =>
+  `/business/${encodeURIComponent(job.shipment.originBusinessId)}?shipment=${encodeURIComponent(job.shipment.id)}`;
+/** Deep link to the simulator with the package selected (DECISIONS pass 8). */
+export const watchHref = (job: JobResponse) => `/simulator?package=${encodeURIComponent(job.shipment.id)}`;
+
+/**
+ * One-line "where is the package" note. Everything comes from the API: the shipment's own
+ * progress when the caller has it, else this job's API status plus the plan. Nothing is computed.
+ */
+export function progressNote(job: JobResponse, l: JobLookups, progress?: ShipmentProgress): string {
+  const { plan, shipment, job: j } = job;
+  const hub = l.hubs.find((h) => h.id === plan.hubId)?.name ?? 'the hub';
+  const origin = l.businesses.find((b) => b.id === shipment.originBusinessId)?.name ?? 'the sender';
+  const dest = l.businesses.find((b) => b.id === shipment.destinationBusinessId)?.name ?? 'the destination';
+  if (progress) {
+    switch (progress) {
+      case 'unmatched': return 'Package is not matched to a carrier yet';
+      case 'scheduled': return `Package is waiting at ${origin} for pickup`;
+      case 'picked_up': return plan.kind === 'relay' ? `Package is on its way to ${hub}` : `Package is on its way to ${dest}`;
+      case 'at_hub': return `Package is at ${hub}, waiting for the next leg`;
+      case 'out_for_delivery': return `Package is on its way to ${dest}`;
+      case 'delivered': return `Package was delivered to ${dest}`;
+    }
+  }
+  if (job.status === 'completed') {
+    return plan.kind === 'relay' && j.legIndex === 0 ? `Your leg is done, package is at ${hub}` : `Package was delivered to ${dest}`;
+  }
+  if (job.status === 'in_progress') {
+    return plan.kind === 'relay' && j.legIndex === 0 ? `Package is with you, on its way to ${hub}` : `Package is with you, on its way to ${dest}`;
+  }
+  return plan.kind === 'relay' && j.legIndex === 1
+    ? `Package is at ${hub}, waiting for your pickup`
+    : `Package is waiting at ${origin} for pickup`;
+}
+
 const STATUS_LABEL = { assigned: 'Assigned', in_progress: 'In progress', completed: 'Completed' } as const;
 
-export function toJobDetailModel(job: JobResponse, l: JobLookups): JobDetailModel {
+export function toJobDetailModel(job: JobResponse, l: JobLookups, progress?: ShipmentProgress): JobDetailModel {
   const leg = job.plan.legs[job.job.legIndex];
   return {
     statusLabel: STATUS_LABEL[job.status],
@@ -77,6 +116,9 @@ export function toJobDetailModel(job: JobResponse, l: JobLookups): JobDetailMode
     added: `+${leg?.extraMin ?? 0} min`,
     reward: formatCents(job.job.rewardCents),
     relay: relayExplanation(job, l),
+    progress: progressNote(job, l, progress),
+    trackHref: trackHref(job),
+    watchHref: watchHref(job),
     stops: stopRows(job, l),
   };
 }

@@ -1,14 +1,14 @@
 import type { JobResponse, MapResponse } from '../../../../shared/api';
-import type { Business, Hub } from '../../../../shared/types';
+import type { Business, Hub, ShipmentProgress } from '../../../../shared/types';
 import { CityMap } from '../CityMap';
 import { Card, StatusPill } from '../../ui';
 import { toJobDetailModel } from './jobDetailModel';
 import './JobDetail.css';
 
-export type JobDetailProps = { job: JobResponse; map: MapResponse; businesses: Business[]; hubs: Hub[] };
+export type JobDetailProps = { job: JobResponse; map: MapResponse; businesses: Business[]; hubs: Hub[]; progress?: ShipmentProgress };
 
-export function JobDetail({ job, map, businesses, hubs }: JobDetailProps) {
-  const m = toJobDetailModel(job, { businesses, hubs, nodes: map.graph.nodes });
+export function JobDetail({ job, map, businesses, hubs, progress }: JobDetailProps) {
+  const m = toJobDetailModel(job, { businesses, hubs, nodes: map.graph.nodes }, progress);
   const leg = job.plan.legs[job.job.legIndex];
   return (
     <div className="job-detail">
@@ -16,6 +16,11 @@ export function JobDetail({ job, map, businesses, hubs }: JobDetailProps) {
         <h2 className="job-detail__title">Job detail</h2>
         <StatusPill status={job.status} />
       </div>
+      <p className="job-detail__progress" role="status">{m.progress}</p>
+      <nav className="job-detail__links" aria-label="Package links">
+        <a className="job-detail__link" href={m.trackHref}>Track package</a>
+        <a className="job-detail__link" href={m.watchHref}>Watch in simulator</a>
+      </nav>
       <CityMap
         graph={map.graph}
         businesses={businesses}
