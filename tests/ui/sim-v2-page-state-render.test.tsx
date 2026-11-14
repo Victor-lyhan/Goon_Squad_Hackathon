@@ -37,14 +37,17 @@ describe('URL -> selection on the page', () => {
 
   it('?employee= selects the employee', () => {
     const html = renderAt('/nyc/simulator?employee=emp-1');
-    expect(html).toContain('spc-entity');
+    // The inspector (#485) replaced the spc-entity card that #459 checked for.
+    expect(html).toContain('data-testid="insp-employee"');
     expect(text(html)).toContain('Maya Ortiz');
-    expect(text(html)).toContain('Commuter · works at Chelsea Print Studio');
+    expect(text(html)).toContain('Works at Chelsea Print Studio');
   });
 
   it('?business= selects the business', () => {
     const html = renderAt('/nyc/simulator?business=biz-etsy&debug=1');
-    expect(text(html)).toContain('Network business · DUMBO, Brooklyn');
+    expect(html).toContain('data-testid="insp-business"');
+    expect(text(html)).toContain('Etsy');
+    expect(text(html)).toContain('DUMBO, Brooklyn');
   });
 
   it('?package= opens the journey, and wins over ?employee= given with it', () => {
