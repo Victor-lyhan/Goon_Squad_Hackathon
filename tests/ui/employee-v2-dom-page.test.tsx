@@ -14,8 +14,12 @@ import {
 import { EmployeePageView } from '../../client/src/components/employee/v2/page/EmployeePageView';
 import { SAVED_TEXT, SAVING_TEXT } from '../../client/src/components/employee/v2/page/employeePageModel';
 import { businesses, dashboard, directView, relayView } from './employee-v2-workspace-sample';
-import { T, commuteAnswer, dashboardAfter, jobResponseFor } from './employee-v2-dom-helpers';
+import type { SearchFn } from '../../client/src/components/employee/v2/addressSearchModel';
+import {
+  HAMILTON, HARLEM, T, advance, commuteAnswer, dashboardAfter, fakeSearch, jobResponseFor, settle, useFakeTimers,
+} from './employee-v2-dom-helpers';
 import { button, byLabel, click, deferred, flush, mount, press, textOf, typeInto } from './kitDom';
+import { DEFAULT_DEBOUNCE_MS } from '../../client/src/components/employee/v2/addressSearchModel';
 
 function ready(d: EmployeeDashboard = dashboard): EmployeeWorkspaceState {
   const s = employeeWorkspaceReducer(initialWorkspaceState, { type: 'dashboard', dashboard: d, runId: 'run-1' });
@@ -27,6 +31,7 @@ type Api = {
   saveCommute: (req: PutCommuteRequest) => Promise<CommuteResponse>;
   onCloseJob: () => void;
   markSeen: (jobId: string) => void;
+  search?: SearchFn;
 };
 
 /** The page with the real reducer; `api.dispatch` stands in for the poller. */
@@ -37,7 +42,7 @@ function Harness({ init, jobId, api }: { init: EmployeeWorkspaceState; jobId: st
   return (
     <EmployeePageView
       state={state} jobId={jobId} saveCommute={(r) => api.saveCommute(r)} refetchNow={async () => {}}
-      markSeen={markSeen} onCloseJob={() => api.onCloseJob()} search={async () => []}
+      markSeen={markSeen} onCloseJob={() => api.onCloseJob()} search={(q, sig) => (api.search ? api.search(q, sig) : Promise.resolve([]))}
       employeeHref={(id) => `/nyc/employee/${id}`}
     />
   );
@@ -117,20 +122,16 @@ describe('Employee page in a real DOM: commute', () => {
     expect(textOf(p.c)).toContain(commuteSummary(dashboard, businesses).detourLimit);
   }, T);
 
-  // BUG (#518), in client/src/components/employee/v2/page/EmployeePageView.tsx: Close unmounts the editor and
-  // the new "Edit commute" button never gets focus, so focus falls to <body>. Not fixed here because #513
-  // (same folder) was not merged when this issue started (DECISIONS pass 56).
-  it.fails('Close returns focus to the Edit commute button', () => {
+  // Fixed in #550 (found by #518): Close used to drop focus to <body>.
+  it('Close returns focus to the Edit commute button', () => {
     const p = setup();
     click(p.edit());
     click(button(p.c, 'Close'));
     expect(document.activeElement).toBe(p.edit());
   }, T);
 
-  // BUG (#518), in client/src/components/employee/v2/page/EmployeePageView.tsx (and CommuteForm.tsx has no
-  // Escape handler either): Esc inside the open commute editor does nothing, so it neither closes the editor
-  // nor returns focus to "Edit commute". Left as it.fails by DECISIONS pass 56 (#513 not merged).
-  it.fails('Esc in the commute editor closes it and returns focus to the Edit commute button', () => {
+  // Fixed in #550 (found by #518): Esc in the editor used to do nothing.
+  it('Esc in the commute editor closes it and returns focus to the Edit commute button', () => {
     const p = setup();
     click(p.edit());
     const detour = byLabel(p.form()!, 'Maximum detour (minutes)');
@@ -138,6 +139,57 @@ describe('Employee page in a real DOM: commute', () => {
     press('Escape', detour);
     expect(p.form()).toBeNull();
     expect(document.activeElement).toBe(p.edit());
+    expect(p.api.saveCommute).not.toHaveBeenCalled();
+    expect(textOf(p.c)).toContain(commuteSummary(dashboard, businesses).detourLimit);
+  }, T);
+
+  it('Esc in the open address list closes only the list, not the editor (#550)', async () => {
+    useFakeTimers();
+    try {
+      const s = fakeSearch();
+      const p = setup();
+      p.api.search = s.fn;
+      click(p.edit());
+      click(button(p.form()!, 'Change'));
+      const input = byLabel(p.form()!, 'Home address') as HTMLInputElement;
+      typeInto(input, 'W 14');
+      await advance(DEFAULT_DEBOUNCE_MS);
+      s.calls[s.calls.length - 1].resolve([HARLEM, HAMILTON]);
+      await settle();
+      expect(input.getAttribute('aria-expanded')).toBe('true');
+
+      press('Escape', input);
+      expect(p.form()).not.toBeNull();
+      expect(input.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(input);
+    } finally {
+      vi.useRealTimers();
+    }
+  }, T);
+
+  it('a save with an invalid value sends nothing and focuses the first invalid field (#550)', () => {
+    const p = setup();
+    click(p.edit());
+    const detour = byLabel(p.form()!, 'Maximum detour (minutes)') as HTMLInputElement;
+    const evening = byLabel(p.form()!, 'Evening departure (Day 1, work to home)') as HTMLInputElement;
+    typeInto(evening, '');
+    typeInto(detour, '45');
+    const save = p.form()!.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(save.disabled).toBe(false);
+    click(save);
+    expect(p.api.saveCommute).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(evening);
+    expect(evening.getAttribute('aria-invalid')).toBe('true');
+    expect(document.getElementById(evening.getAttribute('aria-describedby')!)?.textContent).toBeTruthy();
+    expect(p.form()).not.toBeNull();
+  }, T);
+
+  it('a locked run keeps Edit commute disabled, so no form opens (#550)', () => {
+    const p = setup(ready({ ...dashboard, phase: 'locked' }));
+    expect(p.edit().disabled).toBe(true);
+    click(p.edit());
+    expect(p.form()).toBeNull();
+    expect(p.api.saveCommute).not.toHaveBeenCalled();
   }, T);
 });
 
@@ -187,16 +239,25 @@ describe('Employee page in a real DOM: a job from ?job=', () => {
     expect(p.row(directView.job.id)).not.toBeNull();
   }, T);
 
-  // BUG (#518), in client/src/components/employee/v2/page/EmployeePageView.tsx (with DeliveryList.tsx, whose
-  // rows have no focus target): closing a job re-renders the list but focus stays on the removed "Back to
-  // deliveries" button and falls to <body>, instead of returning to the job's row. Left as it.fails by
-  // DECISIONS pass 56 (#513 not merged).
-  it.fails('closing a job opened from ?job= returns focus to its row', () => {
+  // Fixed in #550 (found by #518): closing a job used to drop focus to <body>.
+  it('closing a job opened from ?job= returns focus to its row', () => {
     const p = setup(ready(), directView.job.id);
     p.send({ type: 'job', job: jobResponseFor(directView) });
     click(button(p.c, 'Back to deliveries'));
     p.setJob(null);
     const row = p.row(directView.job.id)!;
     expect(row.contains(document.activeElement)).toBe(true);
+  }, T);
+
+  it('closing a job opened from its row returns focus to that row (#550)', () => {
+    const p = setup(ready(), null);
+    const target = relayView.job.id;
+    p.row(target)!.querySelector<HTMLAnchorElement>('a')!.focus();
+    p.setJob(target); // the row link changes `?job=`
+    p.send({ type: 'job', job: jobResponseFor(relayView) });
+    click(button(p.c, 'Back to deliveries'));
+    p.setJob(null);
+    expect(p.row(target)!.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement?.textContent).toBe('View job');
   }, T);
 });

@@ -54,7 +54,7 @@ export function DeliveryList({ id, title, rows, newJobIds, emptyText = EMPTY_TEX
                 </div>
               </dl>
               <div className="ew-row-links">
-                <a href={r.jobHref}>View job</a>
+                <a href={r.jobHref} data-row-focus="">View job</a>
                 <a href={r.simulatorHref}>Watch in simulator</a>
               </div>
             </li>

@@ -84,12 +84,12 @@ describe('CommuteForm static renders', () => {
     expect(h).toContain('Maximum detour');
   });
 
-  it('disables Save when clean, invalid or saving; enables it when dirty', () => {
+  it('disables Save when clean or saving; enables it when dirty, even if invalid (#550)', () => {
     expect(isDisabled(saveBtn(states.clean))).toBe(true);
     expect(isDisabled(button(states.clean, 'Discard changes'))).toBe(true);
     expect(isDisabled(saveBtn(states.dirty))).toBe(false);
     expect(isDisabled(button(states.dirty, 'Discard changes'))).toBe(false);
-    expect(isDisabled(saveBtn(states.invalid))).toBe(true);
+    expect(isDisabled(saveBtn(states.invalid))).toBe(false);
     expect(isDisabled(saveBtn(states.saving))).toBe(true);
     expect(states.saving).toContain('Saving…');
   });
