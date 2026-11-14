@@ -1,5 +1,5 @@
 import {
-  planIdFor, type Business, type DeliveryPlan, type Employee, type Hub, type Leg,
+  planIdFor, type AssignmentResult, type Business, type DeliveryPlan, type Employee, type Hub, type Leg,
   type Settings, type Shipment, type Stop, type Trip,
 } from '../../shared/types';
 import { customerPriceCents, legRewardCents, platformContributionCents } from './pricing';
@@ -15,6 +15,48 @@ export type MatchContext = {
 };
 
 const compareId = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+
+/** Greedily reserve whole trips, preserving assignments from earlier requests. */
+export function assignShipments(
+  shipments: Shipment[], ctx: MatchContext, opts?: { existing?: DeliveryPlan[] },
+): AssignmentResult {
+  const plans = [...(opts?.existing ?? [])];
+  const assigned = new Set(plans.map(plan => plan.shipmentId));
+  const reserved = new Set(plans.flatMap(plan => plan.legs.map(leg => leg.tripId)));
+  const unmatched: AssignmentResult['unmatched'] = [];
+  const pending = shipments.filter(shipment => !assigned.has(shipment.id)).map(shipment => ({
+    shipment,
+    candidates: shipment.originBusinessId === shipment.destinationBusinessId
+      ? [] : generateCandidates(shipment, ctx),
+  })).sort((a, b) => a.candidates.length - b.candidates.length ||
+    a.shipment.deadlineMin - b.shipment.deadlineMin || compareId(a.shipment.id, b.shipment.id));
+
+  for (const { shipment, candidates } of pending) {
+    const ranked = candidates.map((plan, index) => ({
+      plan, index,
+      cost: plan.legs.reduce((sum, leg) => sum + leg.rewardCents, 0) +
+        (plan.kind === 'relay' ? ctx.settings.hubCostCents : 0),
+      extraMin: plan.legs.reduce((sum, leg) => sum + leg.extraMin, 0),
+    })).sort((a, b) => a.cost - b.cost || a.extraMin - b.extraMin ||
+      a.plan.deliveryMin - b.plan.deliveryMin || a.index - b.index);
+    const selected = ranked.find(({ plan }) => plan.legs.every(leg => !reserved.has(leg.tripId)));
+    if (selected) {
+      plans.push(selected.plan);
+      for (const leg of selected.plan.legs) reserved.add(leg.tripId);
+    } else {
+      unmatched.push({ shipmentId: shipment.id, reason: candidates.length === 0
+        ? 'No commute can carry this package within its times and added-time limits'
+        : 'Every matching commute is already carrying a package' });
+    }
+  }
+
+  const createdSeq = new Map(shipments.map(shipment => [shipment.id, shipment.createdSeq]));
+  // Existing plans may belong to shipments outside this batch; retain those too.
+  plans.sort((a, b) =>
+    (createdSeq.get(a.shipmentId) ?? Infinity) - (createdSeq.get(b.shipmentId) ?? Infinity) ||
+    compareId(a.shipmentId, b.shipmentId));
+  return { plans, unmatched, computeMs: 0 };
+}
 
 /** One stop is inserted; the other is the employer endpoint of the commute. */
 function scheduleLeg(
