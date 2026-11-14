@@ -235,6 +235,16 @@ function generateEmployeeRoster(rng: Rng, businesses: Business[], maxExtraMin: n
   return roster;
 }
 
+/** Give random-city employees distinct card-friendly names without consuming RNG values. */
+function withUniqueEmployeeNames(roster: Employee[]): Employee[] {
+  const occurrences = new Map<string, number>();
+  return roster.map(employee => {
+    const occurrence = (occurrences.get(employee.name) ?? 0) + 1;
+    occurrences.set(employee.name, occurrence);
+    return occurrence === 1 ? employee : { ...employee, name: `${employee.name} ${occurrence}` };
+  });
+}
+
 function generateShipments(rng: Rng, businesses: Business[], count: number, seed: number): Shipment[] {
   if (count < 0) throw new RangeError('packages must not be negative');
   const shipments: Shipment[] = [];
@@ -287,7 +297,9 @@ export function generateScenario(opts: GenerateScenarioOptions): Scenario {
     graph: gridGraph(),
     businesses,
     hubs,
-    employees: roster.slice(0, opts.employees),
+    // The fixture is a byte-stable demo contract. Random cities retain the same
+    // seeded commute data while making employee labels unambiguous in the UI.
+    employees: (opts.preset === 'random' ? withUniqueEmployeeNames(roster) : roster).slice(0, opts.employees),
     shipments,
     settings: { ...DEFAULT_SETTINGS, defaultMaxExtraMin: opts.maxExtraMin },
   };
