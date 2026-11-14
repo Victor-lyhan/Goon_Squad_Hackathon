@@ -82,14 +82,55 @@ export function createApp(store: Store, opts: { clientDist?: string } = {}) {
 
 const isEntry = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 
+export function portInUseMessage(port: number): string {
+  return `Port ${port} is already in use. Stop the other Relay server or set PORT=${port + 1}.`;
+}
+
+// Stop the ticker, pause the clock, and wait until the final state write has landed.
+export async function shutdown(store: Store, ticker: { stop(): void }): Promise<void> {
+  ticker.stop();
+  await store.flush(); // let an in-flight tick finish first
+  await store.mutate((run) => {
+    run.clock.playing = false;
+  });
+  await store.flush();
+}
+
 if (isEntry) {
   const PORT = Number(process.env.PORT ?? 3001);
   const store = createStore({
     filePath: path.resolve(here, '../data/state.json'),
     initial: () => createInitialRun(loadDefaultScenario()),
   });
-  startClockTicker(store);
-  createApp(store).listen(PORT, () => {
+  const ticker = startClockTicker(store);
+  const server = createApp(store).listen(PORT, (err?: Error) => {
+    if (err) return; // Express 5 also passes listen errors here; the 'error' handler below reports them
     console.log(`Relay API listening on http://localhost:${PORT}`);
   });
+  server.on('error', (e: NodeJS.ErrnoException) => {
+    if (e.code === 'EADDRINUSE') {
+      ticker.stop();
+      console.error(portInUseMessage(PORT));
+      process.exit(1);
+    }
+    throw e;
+  });
+
+  let stopping = false;
+  const onSignal = (sig: string) => {
+    if (stopping) process.exit(0); // second signal: leave right away
+    stopping = true;
+    console.log(`${sig} received, saving state and shutting down (press Ctrl-C again to force)`);
+    server.close();
+    server.closeAllConnections?.();
+    shutdown(store, ticker).then(
+      () => process.exit(0),
+      (e) => {
+        console.error('Shutdown failed to save state:', e);
+        process.exit(1);
+      },
+    );
+  };
+  process.on('SIGINT', () => onSignal('SIGINT'));
+  process.on('SIGTERM', () => onSignal('SIGTERM'));
 }
