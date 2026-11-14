@@ -9,6 +9,14 @@ import { generateScenario } from '../../server/domain/generator';
 import type { Run } from '../../shared/types';
 
 const TIMEOUT = 60_000;
+// Wall-clock limit for one tick's mutate + state-file write on the largest city. DECISIONS pass 52: at
+// least 10x the local measurement. Measured locally (median of the 82 ticks): 1.9 to 2.2 ms with this file
+// run alone, 4.2 to 5.2 ms inside the full suite. The limit is the production tick interval (250 ms,
+// DECISIONS pass 3): 48x the slowest local median, and above it the ticker could not finish one tick
+// before the next is due. Was 50 ms (under 10x the full-suite median).
+const TICK_MEDIAN_LIMIT_MS = 250;
+// 930 -> 2160 is 1230 simulated minutes; a 25 ms tick at 600x is 15 of them. Does not depend on the machine.
+const TICKS_TO_END = 82;
 const tmpFile = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ticker-load-')), 'state.json');
 
 let bigRun: Run;
@@ -65,7 +73,9 @@ describe('ticker under load (largest random city, 600x)', () => {
     const sorted = [...durations].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
     console.log(`[ticker-load] ${durations.length} ticks, median mutate+write ${median.toFixed(1)} ms`);
-    expect(median).toBeLessThan(50);
+    // Every tick advanced the clock: none was skipped behind a slow write and none ran twice.
+    expect(durations.length).toBe(TICKS_TO_END);
+    expect(median).toBeLessThan(TICK_MEDIAN_LIMIT_MS);
   }, TIMEOUT);
 
   it('does not lose carried milliseconds with tiny ticks', async () => {
