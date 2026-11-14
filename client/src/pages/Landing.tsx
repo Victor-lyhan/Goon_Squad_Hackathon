@@ -3,91 +3,92 @@ import { Link } from 'react-router-dom';
 
 import { getBusinesses, getEmployees, getSimulator, isAbortError } from '../api';
 import { portalPaths, readIdentity, resolveIdentity, useDirectory } from '../demoIdentity';
-import { Spinner } from '../ui';
 import '../styles/landing.css';
 
 export const SIMULATOR_PATH = '/simulator';
+export const HELP_PATH = '/help';
 
-const STEPS = [
-  { title: 'Commute', text: 'Employees share the route they already drive each day.' },
-  { title: 'Match', text: 'Business packages are matched to a commute, direct or via one hub relay.' },
-  { title: 'Simulated delivery', text: 'Watch the matched deliveries run on a synthetic city map.' },
-];
-
-export type GuideFacts =
+/** Live counts for the operational summary. Every number comes from an API response. */
+export type SummaryFacts =
   | { status: 'loading' }
   | { status: 'error' }
-  | { status: 'ready'; businesses: number; commuters: number; matched: number; requested: number; hubs?: number };
+  | { status: 'ready'; businesses: number; commuters: number; relayPoints: number; matched: number; requested: number };
 
-export type GuidePaths = { business: string | null; employee: string | null };
+type WorkspaceKey = 'business' | 'employee' | 'simulator';
 
-type GuideStep = { text: string; label: string; target: 'employee' | 'business' | 'simulator' };
-
-// Wording follows SPEC.md "The 2-minute demo".
-export const GUIDE_STEPS: GuideStep[] = [
-  { text: 'Employee portal: see the saved commute, departure times and added-time limit.', label: 'Open employee portal', target: 'employee' },
-  { text: 'Business portal: pick a recipient, describe the package, set times and Find a delivery match.', label: 'Open business portal', target: 'business' },
-  { text: 'The backend returns a real Delivery arranged card: shipment ID, ETA, price, carriers and hub.', label: 'See the result card', target: 'business' },
-  { text: 'Back on the employee tab, with no refresh, the new job is already there with stops and reward.', label: 'Check the employee jobs', target: 'employee' },
-  { text: 'Simulator: play the evening leg, let the package sit at the hub overnight, jump to morning and watch it delivered.', label: 'Open simulator', target: 'simulator' },
-  { text: 'Sender and recipient tracking and employee earnings update from the same run.', label: 'Open tracking', target: 'business' },
+export const WORKSPACES: { key: WorkspaceKey; id: string; title: string; text: string }[] = [
+  { key: 'business', id: '01 / BUSINESS', title: 'Business', text: 'Create shipment requests, find delivery matches and manage deliveries.' },
+  { key: 'employee', id: '02 / EMPLOYEE', title: 'Employee', text: 'Manage your commute, departure times, maximum detour and assigned packages.' },
+  { key: 'simulator', id: '03 / SIMULATOR', title: 'Simulator', text: 'Watch the delivery network, matched routes and relay points run.' },
 ];
 
-export function DemoGuide({ paths, facts }: { paths: GuidePaths; facts: GuideFacts }) {
+const num = (n: number) => (Number.isFinite(n) ? String(n) : '–');
+
+export function OperationalSummary({ facts }: { facts: SummaryFacts }) {
+  if (facts.status === 'error') {
+    return (
+      <section className="op-summary" aria-label="Operational summary">
+        <p className="op-summary-note">Live numbers unavailable</p>
+      </section>
+    );
+  }
+  const ready = facts.status === 'ready';
+  const items: [string, string][] = [
+    ['Businesses', ready ? num(facts.businesses) : '–'],
+    ['Commuters', ready ? num(facts.commuters) : '–'],
+    ['Relay points', ready ? num(facts.relayPoints) : '–'],
+    ['Matched / requested', ready ? `${num(facts.matched)} / ${num(facts.requested)}` : '– / –'],
+  ];
   return (
-    <section className="panel demo-guide" aria-labelledby="demo-guide-title">
-      <h2 id="demo-guide-title">Run the demo</h2>
-      <p className="demo-guide-intro">Six steps, about two minutes.</p>
-      <ol className="guide-steps">
-        {GUIDE_STEPS.map((s, i) => {
-          const to = s.target === 'simulator' ? SIMULATOR_PATH : paths[s.target];
-          return (
-            <li className="guide-step" key={s.label}>
-              <span className="step-num">{i + 1}</span>
-              <p>{s.text}</p>
-              {to
-                ? <Link className="btn" to={to}>{s.label}</Link>
-                : <span className="btn btn-disabled" aria-disabled="true">{s.label}</span>}
-            </li>
-          );
-        })}
-      </ol>
-      {facts.status === 'loading' && <p className="guide-facts-note"><Spinner label="Loading live numbers" /> Loading live numbers…</p>}
-      {facts.status === 'error' && <p className="guide-facts-note">Live numbers unavailable</p>}
-      {facts.status === 'ready' && (
-        <ul className="guide-facts" aria-label="Demo city facts">
-          <li><strong>{facts.businesses}</strong> businesses</li>
-          <li><strong>{facts.commuters}</strong> commuters</li>
-          <li><strong>{facts.matched} / {facts.requested}</strong> packages matched / requested</li>
-        </ul>
-      )}
+    <section className="op-summary" aria-label="Operational summary" aria-busy={ready ? undefined : true}>
+      <dl className="op-summary-list">
+        {items.map(([label, value]) => (
+          <div className="op-summary-item" key={label}>
+            <dt>{label}</dt>
+            <dd className={ready ? 'op-summary-value' : 'op-summary-value is-placeholder'}>{value}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
 
-/** One-line "Current city" strip: live counts, spinner while loading, hidden on error. */
-export function CityStrip({ facts }: { facts: GuideFacts }) {
-  if (facts.status === 'error') return null;
+function EntryBody({ id, title, text }: { id: string; title: string; text: string }) {
   return (
-    <section className="panel city-strip" aria-label="Current city">
-      <span className="city-strip-label">Current city</span>
-      {facts.status === 'loading'
-        ? <span className="city-strip-loading"><Spinner label="Loading current city" /> Loading…</span>
-        : (
-          <ul className="city-strip-facts">
-            <li><strong>{facts.businesses}</strong> businesses</li>
-            <li><strong>{facts.commuters}</strong> commuters</li>
-            {facts.hubs !== undefined && <li><strong>{facts.hubs}</strong> hubs</li>}
-            <li><strong>{facts.matched} / {facts.requested}</strong> packages matched / requested</li>
-          </ul>
-        )}
-    </section>
+    <>
+      <span className="workspace-id">{id}</span>
+      <h2 className="workspace-title">{title}</h2>
+      <p className="workspace-text">{text}</p>
+      <span className="workspace-action">Open workspace <span aria-hidden="true">→</span></span>
+    </>
   );
 }
 
-function useGuideFacts(): GuideFacts {
-  const [facts, setFacts] = useState<GuideFacts>({ status: 'loading' });
+export function WorkspaceEntries({ paths }: { paths: { business: string | null; employee: string | null } }) {
+  return (
+    <ul className="workspaces" aria-label="Workspaces">
+      {WORKSPACES.map((w) => {
+        const to = w.key === 'simulator' ? SIMULATOR_PATH : paths[w.key];
+        return (
+          <li key={w.key}>
+            {to
+              ? <Link className="workspace-entry" to={to}><EntryBody {...w} /></Link>
+              : (
+                <div className="workspace-entry is-disabled" aria-disabled="true">
+                  <EntryBody {...w} />
+                </div>
+              )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function useSummaryFacts(initial?: SummaryFacts): SummaryFacts {
+  const [facts, setFacts] = useState<SummaryFacts>(initial ?? { status: 'loading' });
   useEffect(() => {
+    if (initial) return;
     const ctl = new AbortController();
     const opts = { signal: ctl.signal };
     Promise.all([getBusinesses(opts), getEmployees(opts), getSimulator(opts)])
@@ -96,56 +97,41 @@ function useGuideFacts(): GuideFacts {
         setFacts({
           status: 'ready',
           businesses: b.businesses.length,
-          hubs: b.hubs.length,
           commuters: e.employees.length,
+          relayPoints: b.hubs.length,
           matched: sim.snapshot.metrics.matched,
           requested: sim.snapshot.metrics.requested,
         });
       })
-      .catch((e) => { if (!ctl.signal.aborted && !isAbortError(e)) setFacts({ status: 'error' }); });
+      .catch((err) => { if (!ctl.signal.aborted && !isAbortError(err)) setFacts({ status: 'error' }); });
     return () => ctl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return facts;
 }
 
-export default function Landing({ initial }: { initial?: Parameters<typeof useDirectory>[0] } = {}) {
+export default function Landing(
+  { initial, initialFacts }: { initial?: Parameters<typeof useDirectory>[0]; initialFacts?: SummaryFacts } = {},
+) {
   const dir = useDirectory(initial);
-  const facts = useGuideFacts();
+  const facts = useSummaryFacts(initialFacts);
   const paths = portalPaths(
     dir.status === 'ready' ? resolveIdentity(readIdentity(), dir.businesses, dir.employees) : null,
   );
   return (
     <div className="landing">
-      <section className="panel hero">
-        <h1>Deliver on the way home.</h1>
-        <p className="pitch">
-          Relay matches B2B packages to the commutes employees already make, direct or through one hub relay.
-        </p>
-        <div className="cta-row">
-          {paths.business
-            ? <Link className="btn btn-primary" to={paths.business}>Business portal</Link>
-            : <span className="btn btn-primary btn-disabled" aria-disabled="true">Business portal</span>}
-          {paths.employee
-            ? <Link className="btn" to={paths.employee}>Employee portal</Link>
-            : <span className="btn btn-disabled" aria-disabled="true">Employee portal</span>}
-          <Link className="btn" to={SIMULATOR_PATH}>Simulator</Link>
-        </div>
-        {dir.status === 'loading' && <p className="demo-account-status">Loading demo accounts…</p>}
-        {dir.status === 'error' && <p className="demo-account-status demo-account-error" role="alert">Could not load demo accounts. Is the API running?</p>}
+      <section className="landing-intro">
+        <h1>Delivery infrastructure, powered by existing commutes.</h1>
+        <p>Relay matches business packages to the trips employees already make, direct or through one relay point.</p>
       </section>
-      <CityStrip facts={facts} />
-      <section aria-label="How it works">
-        <ol className="steps">
-          {STEPS.map((s, i) => (
-            <li className="panel step" key={s.title}>
-              <span className="step-num">{i + 1}</span>
-              <h2>{s.title}</h2>
-              <p>{s.text}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-      <DemoGuide paths={paths} facts={facts} />
+      <OperationalSummary facts={facts} />
+      <WorkspaceEntries paths={paths} />
+      {dir.status === 'loading' && <p className="landing-status">Loading demo accounts…</p>}
+      {dir.status === 'error' && <p className="landing-status" role="alert">Could not load demo accounts. Is the API running?</p>}
+      <footer className="landing-footer">
+        <span>Simulated environment. No real deliveries are made.</span>
+        <Link to={HELP_PATH}>Guided demo</Link>
+      </footer>
     </div>
   );
 }
