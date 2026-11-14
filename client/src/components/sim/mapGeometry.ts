@@ -72,3 +72,17 @@ export function routePoints(graph: Graph, nodeIds: readonly string[]): Point[] {
 
 export const pointsAttr = (pts: readonly Point[]): string =>
   pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+/** Projector for raw graph-unit coordinates (e.g. marker x/y) into the same scaled space as projectNodes. */
+export function pointProjector(nodes: readonly XY[]): (p: Point) => Point {
+  if (nodes.length === 0) return (p) => p;
+  const minX = Math.min(...nodes.map((n) => n.x));
+  const minY = Math.min(...nodes.map((n) => n.y));
+  const span = Math.max(
+    Math.max(...nodes.map((n) => n.x)) - minX,
+    Math.max(...nodes.map((n) => n.y)) - minY,
+    1e-9,
+  );
+  const k = MAP_UNIT / span;
+  return (p) => ({ x: (p.x - minX) * k, y: (p.y - minY) * k });
+}
