@@ -25,19 +25,19 @@
 }
 .jt__title {
   margin: 0;
-  font-size: var(--text-md, 15px);
+  font-size: var(--text-md, 14px);
   font-weight: 600;
 }
 .jt__kind {
   margin: var(--space-1, 4px) 0 0;
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
   font-size: var(--text-xs, 12px);
 }
 .jt__status {
   margin: var(--space-2, 8px) 0 0;
 }
 .jt__status-label {
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   text-transform: uppercase;
@@ -46,7 +46,7 @@
 .jt__reason {
   margin: 0;
   padding: var(--space-3, 12px) var(--space-4, 16px);
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
 }
 
 .jt__steps {
@@ -83,7 +83,7 @@
   cursor: pointer;
 }
 .jt-step__button:hover {
-  background: var(--accent-soft, #E6EEF4);
+  background: var(--accent-soft, #E8F0F6);
 }
 .jt-step__button:focus-visible {
   outline: 2px solid var(--accent, #28618A);
@@ -91,7 +91,7 @@
 }
 .jt-step__button[aria-current='step'] {
   border-left-color: var(--accent, #28618A);
-  background: var(--accent-soft, #E6EEF4);
+  background: var(--accent-soft, #E8F0F6);
 }
 
 .jt-step__n {
@@ -132,7 +132,7 @@
   font-weight: 600;
 }
 .jt-step__state {
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   text-transform: uppercase;
@@ -150,13 +150,13 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--space-3, 12px);
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
 }
 .jt-step--upcoming .jt-step__label,
 .jt-step--upcoming .jt-step__place {
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
 }
 
 /* ---------- Legend ---------- */
@@ -201,7 +201,7 @@
 }
 .jl__leg,
 .jl__sub {
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
 }
@@ -210,5 +210,5 @@
 }
 .jl__item--baseline .jl__name {
   font-weight: 400;
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
 }

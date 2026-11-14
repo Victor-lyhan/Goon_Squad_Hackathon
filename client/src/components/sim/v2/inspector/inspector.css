@@ -168,7 +168,7 @@
   cursor: pointer;
   overflow-wrap: anywhere;
 }
-.insp-link:hover { color: var(--accent-dark, #1D4866); }
+.insp-link:hover { color: var(--accent-dark, #1F4E70); }
 .insp-unknown { color: var(--muted, #5B6472); }
 
 .insp-btn {

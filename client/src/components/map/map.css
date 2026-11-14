@@ -1,10 +1,11 @@
-/* NYC map (Google basemap + deck.gl). Token fallbacks follow docs/mvp2-ui-redesign.md. */
+/* NYC map (Google basemap + deck.gl). Colours only through tokens (fallbacks equal the token values in
+   client/src/styles/tokens.css); the load overlay is the canvas token at 85%. Square corners, no shadows. */
 .map-v2 {
   position: relative;
   width: 100%;
   height: 100%;
   min-height: 320px;
-  background: var(--canvas, #f7f8fa);
+  background: var(--bg, #F7F8FA);
   overflow: hidden;
 }
 
@@ -32,24 +33,24 @@
 .map-v2__panel {
   max-width: 440px;
   padding: 16px;
-  background: #fff;
-  border: 1px solid var(--border, #d7dde5);
-  border-radius: 2px;
-  color: var(--text, #151b26);
+  background: var(--panel, #FFFFFF);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  color: var(--text, #151B26);
   font-size: 14px;
   line-height: 1.5;
 }
 
 .map-v2__panel p {
   margin: 8px 0 12px;
-  color: #5b6472;
+  color: var(--muted, #5B6472);
 }
 
 .map-v2__panel code {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: 12px;
   padding: 0 2px;
-  background: #f3f4f6;
+  background: var(--bg, #F7F8FA);
 }
 
 .map-v2__tooltip {
@@ -57,10 +58,10 @@
   z-index: 2;
   pointer-events: none;
   padding: 6px 8px;
-  background: #fff;
-  border: 1px solid var(--border, #d7dde5);
-  border-radius: 2px;
-  color: var(--text, #151b26);
+  background: var(--panel, #FFFFFF);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  color: var(--text, #151B26);
   font-size: 12px;
   line-height: 1.4;
   white-space: nowrap;
@@ -71,7 +72,20 @@
 }
 
 .map-v2__tooltip-role {
-  color: #5b6472;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  color: var(--muted, #5B6472);
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: 11px;
+}
+
+/* Selected item's name and role for screen readers: the hover tooltip's text without a mouse. */
+.map-v2__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

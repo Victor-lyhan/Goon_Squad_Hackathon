@@ -5,7 +5,7 @@
 .cmp-note,
 .cmp-error { margin: 0; font-size: var(--text-sm, 13px); line-height: 1.4; color: var(--text, #151B26); }
 .cmp-note { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.cmp-error { color: var(--danger, #B42318); }
+.cmp-error { color: var(--danger, #A4322A); }
 
 .cmp-summary {
   margin: 0;
@@ -17,9 +17,9 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-.cmp-summary--gain { border-color: var(--accent, #28618A); color: var(--accent-dark, #1D4866); background: var(--accent-soft, #E8F0F6); }
+.cmp-summary--gain { border-color: var(--accent, #28618A); color: var(--accent-dark, #1F4E70); background: var(--accent-soft, #E8F0F6); }
 .cmp-summary--neutral { color: var(--text, #151B26); background: var(--panel, #FFFFFF); }
-.cmp-summary--loss { border-color: var(--warn, #B54708); color: var(--warn, #B54708); background: var(--panel, #FFFFFF); }
+.cmp-summary--loss { border-color: var(--warn, #8A5A00); color: var(--warn, #8A5A00); background: var(--panel, #FFFFFF); }
 
 .cmp-table {
   width: 100%;

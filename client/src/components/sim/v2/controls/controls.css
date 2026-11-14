@@ -38,8 +38,8 @@
 .ctl-btn:disabled { color: var(--muted, #5B6472); background: var(--bg, #F7F8FA); cursor: not-allowed; }
 .ctl-primary { min-width: 72px; background: var(--accent, #28618A); border-color: var(--accent, #28618A); color: var(--panel, #FFFFFF); font-weight: 600; }
 .ctl-primary:hover:not(:disabled) { background: var(--panel, #FFFFFF); }
-.ctl-danger { border-color: var(--danger, #A4312A); color: var(--danger, #A4312A); font-weight: 600; }
-.ctl-danger:hover:not(:disabled) { border-color: var(--danger, #A4312A); color: var(--panel, #FFFFFF); background: var(--danger, #A4312A); }
+.ctl-danger { border-color: var(--danger, #A4322A); color: var(--danger, #A4322A); font-weight: 600; }
+.ctl-danger:hover:not(:disabled) { border-color: var(--danger, #A4322A); color: var(--panel, #FFFFFF); background: var(--danger, #A4322A); }
 .ctl-wide { width: 100%; }
 
 /* Segmented speed selector */
@@ -75,14 +75,14 @@
   font-size: var(--text-sm, 13px);
 }
 select.ctl-input { font-family: inherit; }
-.ctl-input[aria-invalid="true"] { border-color: var(--danger, #A4312A); }
+.ctl-input[aria-invalid="true"] { border-color: var(--danger, #A4322A); }
 .ctl-input:disabled { background: var(--bg, #F7F8FA); color: var(--muted, #5B6472); }
 
 .ctl-range { width: 100%; min-width: 0; margin: var(--space-1, 4px) 0 0; accent-color: var(--accent, #28618A); }
 .ctl-range-ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted, #5B6472); }
 
 .ctl-hint { margin: 0; font-size: 11px; color: var(--muted, #5B6472); }
-.ctl-error { font-size: var(--text-xs, 12px); color: var(--danger, #A4312A); overflow-wrap: anywhere; }
+.ctl-error { font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); overflow-wrap: anywhere; }
 
 /* ---------- Notes, confirm, phase ---------- */
 .ctl-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
@@ -92,7 +92,7 @@ select.ctl-input { font-family: inherit; }
   display: grid;
   gap: var(--space-2, 8px);
   padding: var(--space-2, 8px);
-  border: 1px solid var(--danger, #A4312A);
+  border: 1px solid var(--danger, #A4322A);
   border-radius: var(--radius, 2px);
   background: var(--panel, #FFFFFF);
 }
@@ -118,6 +118,8 @@ select.ctl-input { font-family: inherit; }
   outline-offset: 1px;
   box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
 }
+/* The speed buttons overlap by 1px: lift the focused one so its neighbour never covers the ring. */
+.ctl-seg-btn:focus-visible { position: relative; z-index: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .ctl-block *, .ctl-block *::before, .ctl-block *::after { transition: none; animation: none; }
