@@ -4,12 +4,15 @@
 // snapshot at the run's clock, call a pure view (views.ts) or the pure compare step (compareOps.ts).
 // Statuses are never stored; they come from the snapshot function, which is passed in (the bootstrap
 // issue passes the real snapshotAt). No handler calls store.mutate.
+// GET /map also starts, after its answer, a background fetch of the route lines the answer lacks
+// (mapLines.ts, DECISIONS pass 57). That writes to the travel cache only, never to the run.
 import type { NextFunction, Request, Response, Router } from 'express';
-import type { BusinessesResponse, EmployeesResponse, ShipmentResponse } from '../../../shared/v2/api';
+import type { BusinessesResponse, EmployeesResponse, MapResponse, ShipmentResponse } from '../../../shared/v2/api';
 import type { ApiError } from '../../../shared/v2/schemas';
 import type { Run as RunV2, Snapshot, TravelProvider } from '../../../shared/v2/types';
 import type { Store } from '../../store';
 import { compareRun } from './compareOps';
+import { createMapLineFetcher, type EnsureLegPolylines } from './mapLines';
 import {
   businessDashboard, employeeDashboard, jobResponse, mapResponse, shipmentView, simulatorResponse,
 } from './views';
@@ -18,6 +21,12 @@ export type ReadDeps = {
   store: Store<RunV2>;
   travel: TravelProvider;
   snapshotAt: (run: RunV2, timeMin: number) => Snapshot;
+  /**
+   * `ensureLegPolylines` of the travel service (server/geo/travelService.ts). The bootstrap passes it only
+   * when the server has a Google key. GET /map calls it after the response for the pairs it answered
+   * without a route line: never awaited, its failure dropped. Left out: the map fetches nothing.
+   */
+  ensureLegPolylines?: EnsureLegPolylines;
 };
 
 export const BUSINESS_NOT_FOUND = 'Business not found';
@@ -56,10 +65,27 @@ export function registerReadRoutes(router: Router, deps: ReadDeps): void {
       return view(run, snapshotAt(run, run.clock.timeMin), String(req.params.id));
     };
 
+  // One per server run: it holds the "one fetch at a time" flag and the tries of every pair.
+  const fetchMissingLines = createMapLineFetcher(deps.ensureLegPolylines);
+
   // Lists and the map hold no status, so they need no snapshot.
   router.get('/businesses', answer<BusinessesResponse>(() => ({ businesses: store.get().scenario.businesses })));
   router.get('/employees', answer<EmployeesResponse>(() => ({ employees: store.get().scenario.employees })));
-  router.get('/map', answer(() => mapResponse(store.get(), travel)));
+  router.get('/map', (_req: Request, res: Response<MapResponse | ApiError>, next: NextFunction) => {
+    let run: RunV2;
+    let body: MapResponse;
+    try {
+      run = store.get();
+      body = mapResponse(run, travel);
+    } catch (err) {
+      next(err);
+      return;
+    }
+    res.json(body);
+    // After the answer, and never part of it: the lines this answer lacks are fetched in the background
+    // and the page's next map request returns them. It never throws.
+    fetchMissingLines(run, body.polylines);
+  });
 
   router.get('/businesses/:id/dashboard', answer(withSnapshot(businessDashboard), BUSINESS_NOT_FOUND));
   router.get('/employees/:id/dashboard', answer(withSnapshot(employeeDashboard), EMPLOYEE_NOT_FOUND));
