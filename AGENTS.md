@@ -28,6 +28,8 @@ Frontend workers call the backend only through `client/src/api/` (owned by victo
 - agent:victor-4 (Claude, Victor's Ultra) covers Louis's engine module (p1-a and p1-b paths) while his workers are down. Planner: queue engine issues to victor-4 when p1-a/p1-b have not picked up ready work for 15+ minutes; never give victor-4 and p1-a/p1-b issues that touch the same files at the same time.
 - agent:p1-b also owns `fixtures/nyc/businesses.json`, `fixtures/nyc/neighborhoods.json`, `fixtures/nyc/demoStory.json` and the NYC scenario generator.
 - agent:victor-2 also owns `client/src/components/map/` (Google map + deck.gl layers).
+- agent:victor-5 (Claude Fable, Victor's Ultra) takes over p2-a's module from 16:25 Sat (Business workspace, UI kit, tokens, shell, homepage, Help). Planner: queue p2-a-module issues to victor-5, not p2-a.
+- agent:victor-6 (Claude Fable, Victor's Ultra) takes over p2-b's module from 16:25 Sat (Employee workspace). Planner: queue p2-b-module issues to victor-6, not p2-b.
 - agent:p2-a also owns the design tokens in `client/src/styles/` and `client/src/pages/Help.tsx`.
 - New dependencies allowed for MVP II: `@googlemaps/js-api-loader`, `@deck.gl/core`, `@deck.gl/layers`, `@deck.gl/google-maps`, `@mapbox/polyline` (or equivalent polyline decoder), `@fontsource/ibm-plex-sans`, `@fontsource/ibm-plex-mono`. The issue that first needs one adds it to package.json.
 - Keys: never read, print or commit `.env`. Tests must not need network or keys.
