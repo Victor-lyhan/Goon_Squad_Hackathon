@@ -6,8 +6,8 @@ import { getShipment } from '../api/client';
 import { CityMap } from './CityMap';
 import { Button, Card, Field, formatDuration } from '../ui';
 import {
-  LOCKED_TEXT, SAVED_TEXT, SIMULATOR_PATH, routeLine, addWaypoint, clearWaypoints, rematchedText, removeWaypoint, toForm, toRequest, validate,
-  type CommuteForm, type WaypointDirection,
+  LOCKED_TEXT, SAVED_TEXT, SIMULATOR_PATH, routeLine, addWaypoint, clearWaypoints, commuteSync, rematchedText, removeWaypoint, syncCommuteForm, toForm, toRequest, validate,
+  type CommuteForm, type CommuteSync, type WaypointDirection,
 } from './employee/commuteModel';
 import { projectNodes } from './sim/mapGeometry';
 import './employee/CommuteEditor.css';
@@ -29,8 +29,15 @@ export function CommuteEditor({
   employee, trips, map, businesses, locked, saving = false, fieldErrors, saved, onSave,
 }: CommuteEditorProps) {
   const [form, setForm] = useState<CommuteForm>(() => toForm(employee));
+  const [sync, setSync] = useState<CommuteSync>(() => commuteSync(employee));
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
-  useEffect(() => { setForm(toForm(employee)); }, [employee]);
+  // Polls hand us a new `employee` object every second. Only an identity switch or changed
+  // server values reset the form (decided by syncCommuteForm); equal values keep unsaved edits.
+  const synced = syncCommuteForm(form, sync, employee);
+  if (synced.sync !== sync) {
+    setSync(synced.sync);
+    setForm(synced.form);
+  }
 
   const [adjusting, setAdjusting] = useState(false);
   const [dir, setDir] = useState<WaypointDirection>('evening');
