@@ -1,42 +1,46 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 04:09 (Sat), planner pass 9_
+_Last update: 2026-11-14 04:25 (Sat), planner pass 10_
 
-## Current milestone: M5 done → verification + demo polish (well ahead of schedule)
-All must-haves 1–10 are merged, and so are nice-to-haves 11–15 and the scrubber/Duplicate request from 16. Last pass's queue (#121–#132) merged as PRs #129, #135, #139–#146. The only spec item left is Setup drawer CRUD (16), which is cut pending a `shared/` contract (QUESTIONS.md). This pass queues end-to-end verification over the API (full run, random/zero-hub cities, unknown IDs, poll cost), the Setup drawer Recompute button (demo step 7), the comparison proof panel, and portal edge states.
+## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Pass 9's queue mostly merged in 7 minutes (PRs #167–#173). This pass queues production-mode and restart checks, two-tab sync, playback endgame, spec §3A/§3B/§8 audits, and simulator/landing polish.
 
 ## Main health
-- CI on main: green through PR #144 (#125). Runs for PR #145/#146 were in progress at 04:09. No `stuck` items.
+- CI on main: green at PR #173 (#157). Runs for #172 (#152) and #171 (#160) failed, and the next merge (#173) fixed main. No `stuck` items, and no `it.fails` tests left in `tests/`.
 
-## In review
-- PR #149 (#137) p1-b: sim/metrics edge runs · PR #148 (#133) p2-b: commute editor edge states · PR #147 (#126) p2-a: business playback test
-- PR #150 (#138) p1-b: generator quality
+## In review (9 PRs)
+- victor-1: PR #178 (#153) JSON 404 test · PR #181 (#154) poll budget test
+- victor-2: PR #177 (#158) simulator layout + a11y
+- p2-a: PR #175 (#161) shell 404/skip link · PR #179 (#162) business 390 px + drawer focus trap
+- p2-b: PR #174 (#163) "New" job badge · PR #176 (#164) stale employee links · PR #180 (#165) job card §3B audit · PR #182 (#166) earnings + 390 px
+- Already opened this pass: PR #196 (#183)
 
 ## Queued (label `ready`), 18 issues
-- victor-1: #151 full-run API test (play/finish/rewind) · #152 random/zero-hub/no-match API flow + export/import · #153 JSON 404s + `status` on client errors · #154 poll time/size budget
-- victor-2: #155 Setup drawer Recompute button + step-7 hint · #156 ComparePanel proof slide · #157 simulator real-data playback test · #158 simulator layout + a11y
-- p2-a: #159 stale business deep links · #160 no-match → edit/retry/duplicate flow · #161 app shell 404/identity switch/skip link · #162 business 390 px + drawer keyboard
-- p2-b: #163 "New" job highlight on poll · #164 stale employee deep links · #165 job card spec §3B audit · #166 earnings summary + 390 px
-- p1-a: #134 matcher edge cases · #136 spec test 10 (test-only). Nothing new: all p1-a files are in these two.
-- p1-b: nothing new. Every p1-b file is in #137/#138.
+- victor-1: #183 production deep links + README build steps · #184 state-file restart/corruption · #185 two-tab sync + concurrent double-submit · #186 playback endgame (600x to 2160, controls at the end)
+- victor-2: #187 run change / reconnect on simulator page · #188 package queue + detail keyboard pass · #189 Setup drawer confirm + error states · #190 timeline scrubber keyboard + event ticks
+- p2-a: #191 send-form edge cases (§3A) · #192 business copy audit (§3A) · #193 UI kit/formatter audit · #194 landing live city summary + 390 px
+- p2-b: #195 commute editor §3B audit (only free p2-b files; the rest are in 4 open PRs)
+- p1-b: #199 pricing §8 audit · #197 metrics §8 audit (extra distance once per trip) · #198 snapshotAt perf + marker continuity
+- p1-a: #134 matcher edge cases · #136 spec test 10 (test-only). Nothing new: #134 covers every p1-a file.
 
 ## Next up
-- Fix whatever this pass's tests mark `it.fails` once their owners' files are free.
-- p1-a/p1-b: queue follow-ups after #134/#136/#137/#138 merge (pricing §8 audit, extra distance counted once per trip).
+- p2-b: queue more once PRs #174/#176/#180/#182 merge and free the portal files (job detail §3B audit, 390 px job feed).
+- p1-a: after #134/#136, queue a check that matching honors `maxExtraMin` per direction with waypoints on random cities.
+- Fixes found by this pass's audits (`it.fails` tests naming another owner's file).
 - M6 (11 p.m. Sat): bug fixes only, from the humans' list. A human two-tab browser walkthrough (spec §10) is still needed.
 
 ## Done (newest first)
-- PR #146 (#130), #143 (#128), #140 (#127) victor-2: large/zero-hub map render; playback keyboard shortcuts; `/simulator?package=` deep link
+- PR #173 (#157), #170 (#156), #168 (#155) victor-2: real-data playback test; ComparePanel proof slide; Recompute button + step-7 hint
+- PR #172 (#152), #167 (#151) victor-1: random/zero-hub/no-match API flow + export/import; full Demo-city run test
+- PR #171 (#160), #169 (#159), #147 (#126) p2-a: no-match → edit/retry/duplicate; stale business links; business playback test
+- PR #150 (#138), #149 (#137) p1-b: generator quality; sim/metrics edge runs
+- PR #148 (#133) p2-b: commute editor edge states
+- PR #146 (#130), #143 (#128), #140 (#127) victor-2: large/zero-hub map; playback shortcuts; `/simulator?package=`
 - PR #145 (#132), #141 (#131) p2-b: job detail links + live progress; employee playback test
 - PR #144 (#125), #139 (#124) p2-a: carrier/simulator links; landing "Run the demo" strip
-- PR #142 (#123), #135 (#122), #129 (#121) victor-1: planning-cycle flow test; README; scenario routes registered
-- PR #120 (#105) p1-b: timeline/snapshotAt random invariants · PR #119 (#104) p1-a: matcher random determinism
-- PR #118 (#108), #117 (#107), #113 (#106) p2-a: connection banner; business real-data audit; maps
-- PR #116 (#110), #112 (#109) p2-b: commute layout + locked state; employee real-data audit
-- PR #115 (#102), #111 (#101) victor-1: demo steps 1–6 API test; compare/recompute/reset routes
-- PR #114 (#103) victor-2: simulator real-data audit · PR #99 (#82) Setup drawer + ComparePanel
-- Earlier (M0–M4): see git log
+- PR #142 (#123), #135 (#122), #129 (#121) victor-1: planning-cycle flow; README; scenario routes
+- Earlier (M0–M5): see git log and previous STATUS versions
 
 ## Known bugs / gaps
-- Nothing in the UI calls `recomputeMatches`, so demo step 7 can't be done from the browser yet (victor-2 issue this pass).
-- Nobody has done a real two-tab browser walkthrough. All verification so far is server-side render and API tests.
+- Nobody has done a real two-tab browser walkthrough. All checks so far are server-side renders and API tests.
+- Production mode (`npm run build && npm start`) and restart behaviour are untested until #183/#184 merge.
