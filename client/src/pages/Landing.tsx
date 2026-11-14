@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { getBusinesses, getEmployees, getSimulator, isAbortError } from '../api';
 import { portalPaths, readIdentity, resolveIdentity, useDirectory } from '../demoIdentity';
+import { NYC_ENV_TEXT, NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, type LandingDataset, type NycSummary } from './landingModel';
 import '../styles/landing.css';
 
 export const SIMULATOR_PATH = '/simulator';
@@ -12,6 +13,8 @@ export const HELP_PATH = '/help';
 export type SummaryFacts =
   | { status: 'loading' }
   | { status: 'error' }
+  /** NYC only: /api/v2 answered 503 (travel data not loaded). One line, no numbers. */
+  | { status: 'unavailable' }
   | { status: 'ready'; businesses: number; commuters: number; relayPoints: number; matched: number; requested: number };
 
 type WorkspaceKey = 'business' | 'employee' | 'simulator';
@@ -25,6 +28,13 @@ export const WORKSPACES: { key: WorkspaceKey; id: string; title: string; text: s
 const num = (n: number) => (Number.isFinite(n) ? String(n) : '–');
 
 export function OperationalSummary({ facts }: { facts: SummaryFacts }) {
+  if (facts.status === 'unavailable') {
+    return (
+      <section className="op-summary" aria-label="Operational summary">
+        <p className="op-summary-note" role="status">{NYC_UNAVAILABLE_TEXT}</p>
+      </section>
+    );
+  }
   if (facts.status === 'error') {
     return (
       <section className="op-summary" aria-label="Operational summary">
@@ -64,11 +74,13 @@ function EntryBody({ id, title, text }: { id: string; title: string; text: strin
   );
 }
 
-export function WorkspaceEntries({ paths }: { paths: { business: string | null; employee: string | null } }) {
+export function WorkspaceEntries({ paths }: {
+  paths: { business: string | null; employee: string | null; simulator?: string | null };
+}) {
   return (
     <ul className="workspaces" aria-label="Workspaces">
       {WORKSPACES.map((w) => {
-        const to = w.key === 'simulator' ? SIMULATOR_PATH : paths[w.key];
+        const to = w.key === 'simulator' ? (paths.simulator === undefined ? SIMULATOR_PATH : paths.simulator) : paths[w.key];
         return (
           <li key={w.key}>
             {to
@@ -110,8 +122,58 @@ function useSummaryFacts(initial?: SummaryFacts): SummaryFacts {
   return facts;
 }
 
+/** The NYC summary from /api/v2 (requests aborted on unmount). `initial` skips the requests (tests). */
+function useNycSummary(initial?: NycSummary): NycSummary {
+  const [summary, setSummary] = useState<NycSummary>(initial ?? { status: 'loading' });
+  useEffect(() => {
+    if (initial) return;
+    return startNycSummary(setSummary);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return summary;
+}
+
+function nycFacts(s: NycSummary): SummaryFacts {
+  if (s.status !== 'ready') return s;
+  const { firstEmployeeId: _first, ...counts } = s;
+  return counts;
+}
+
+/** The same homepage on the NYC network: /api/v2 only, links to the /nyc preview pages. */
+function NycLanding({ initialSummary }: { initialSummary?: NycSummary }) {
+  const summary = useNycSummary(initialSummary);
+  return (
+    <div className="landing landing-nyc">
+      <section className="landing-intro">
+        <h1>Delivery infrastructure, powered by existing commutes.</h1>
+        <p>Relay matches business packages to the trips employees already make, direct or through one relay point.</p>
+        <p className="landing-indicator">{NYC_ENV_TEXT}</p>
+      </section>
+      <OperationalSummary facts={nycFacts(summary)} />
+      <WorkspaceEntries paths={nycWorkspacePaths(summary)} />
+      <footer className="landing-footer">
+        <span>{NYC_ENV_TEXT}</span>
+        <Link to={HELP_PATH}>Guided demo</Link>
+      </footer>
+    </div>
+  );
+}
+
 export default function Landing(
-  { initial, initialFacts }: { initial?: Parameters<typeof useDirectory>[0]; initialFacts?: SummaryFacts } = {},
+  { initial, initialFacts, dataset = 'synthetic', initialSummary }: {
+    initial?: Parameters<typeof useDirectory>[0]; initialFacts?: SummaryFacts;
+    /** Which data the page shows. 'synthetic' (default) is the MVP 1 API; 'nyc' reads /api/v2 only. */
+    dataset?: LandingDataset;
+    /** NYC only: skip the /api/v2 requests and render this summary (tests). */
+    initialSummary?: NycSummary;
+  } = {},
+) {
+  if (dataset === 'nyc') return <NycLanding initialSummary={initialSummary} />;
+  return <SyntheticLanding initial={initial} initialFacts={initialFacts} />;
+}
+
+function SyntheticLanding(
+  { initial, initialFacts }: { initial?: Parameters<typeof useDirectory>[0]; initialFacts?: SummaryFacts },
 ) {
   const dir = useDirectory(initial);
   const facts = useSummaryFacts(initialFacts);
