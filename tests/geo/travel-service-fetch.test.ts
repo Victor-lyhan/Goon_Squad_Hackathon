@@ -303,8 +303,8 @@ describe('ensurePolylines', () => {
   });
 });
 
-describe('one Google fetch at a time', () => {
-  it('runs overlapping calls of all the fetching methods one request after another', async () => {
+describe('one Google fetch at a time for each kind of call (#601)', () => {
+  it('runs the three fetching methods side by side, and two calls of the same method one after the other', async () => {
     const dir = dirs.seeded();
     const google = fakeGoogle();
     const service = createTravelService({ dir, key: KEY, fetch: google.fetch, sleep: noSleep });
@@ -319,7 +319,11 @@ describe('one Google fetch at a time', () => {
 
     expect(results).toEqual([{ fetched: 6 }, { fetched: 2 }, { fetched: 2, failed: 0 }, { fetched: 6 }]);
     expect(google.calls.length).toBeGreaterThanOrEqual(8);
-    expect(google.maxInFlight()).toBe(1);
+    // The pairs, a save's lines and the leg lines each have a queue: three requests open, never four, although
+    // four calls were made. The second pair fetch waited for the first.
+    expect(google.maxInFlight()).toBe(3);
+    const homeOf = (pairs: string[]) => (pairs.some((key) => key.split('|').includes(NEW_HOME)) ? 'new home' : 'ana');
+    expect(google.matrixCalls().map((call) => homeOf(call.pairs))).toEqual(['new home', 'new home', 'ana', 'ana']);
     expect(readTravelFiles(dir)).toEqual(service.files);
   });
 });

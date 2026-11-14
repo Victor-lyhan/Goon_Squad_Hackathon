@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { readIdentity } from '../demoIdentity';
-import { NYC_ENV_TEXT, NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, type NycSummary } from './landingModel';
+import {
+  NYC_ENV_TEXT, NYC_UNAVAILABLE_TEXT, RELAY_POINTS_NOTE, nycWorkspacePaths, startNycSummary, type NycSummary,
+} from './landingModel';
 import '../styles/landing.css';
 
 export const SIMULATOR_PATH = '/simulator';
@@ -42,19 +44,21 @@ export function OperationalSummary({ facts }: { facts: SummaryFacts }) {
     );
   }
   const ready = facts.status === 'ready';
-  const items: [string, string][] = [
+  // The third entry is a note in words; the number itself is the API's (pass 61).
+  const items: [string, string, string?][] = [
     ['Businesses', ready ? num(facts.businesses) : '–'],
     ['Commuters', ready ? num(facts.commuters) : '–'],
-    ['Relay points', ready ? num(facts.relayPoints) : '–'],
+    ['Relay points', ready ? num(facts.relayPoints) : '–', RELAY_POINTS_NOTE],
     ['Matched / requested', ready ? `${num(facts.matched)} / ${num(facts.requested)}` : '– / –'],
   ];
   return (
     <section className="op-summary" aria-label="Operational summary" aria-busy={ready ? undefined : true}>
       <dl className="op-summary-list">
-        {items.map(([label, value]) => (
+        {items.map(([label, value, note]) => (
           <div className="op-summary-item" key={label}>
             <dt>{label}</dt>
             <dd className={ready ? 'op-summary-value' : 'op-summary-value is-placeholder'}>{value}</dd>
+            {note && <dd className="op-summary-hint">{note}</dd>}
           </div>
         ))}
       </dl>
@@ -96,7 +100,10 @@ export function WorkspaceEntries({ paths }: {
   );
 }
 
-/** The NYC summary from /api/v2 (requests aborted on unmount). `initial` skips the requests (tests). */
+/**
+ * The NYC summary from /api/v2. A failed load is asked for again until it is ready (#610); the requests and
+ * the retry timer are dropped on unmount. `initial` skips the requests (tests).
+ */
 function useNycSummary(initial?: NycSummary): NycSummary {
   const [summary, setSummary] = useState<NycSummary>(initial ?? { status: 'loading' });
   useEffect(() => {
@@ -131,7 +138,6 @@ export default function Landing({ initialSummary, helpPath = HELP_PATH }: {
       <section className="landing-intro">
         <h1>Delivery infrastructure, powered by existing commutes.</h1>
         <p>Relay matches business packages to the trips employees already make, direct or through one relay point.</p>
-        <p className="landing-indicator">{NYC_ENV_TEXT}</p>
       </section>
       <OperationalSummary facts={nycFacts(summary)} />
       <WorkspaceEntries paths={nycWorkspacePaths(summary, readIdentity())} />

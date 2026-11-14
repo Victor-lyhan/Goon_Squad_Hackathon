@@ -4,10 +4,10 @@ import type { BusinessesResponse, EmployeesResponse, SimulatorResponse } from '.
 import type { DemoIdentity } from '../demoIdentity';
 import { ENV_LABELS, pickAccount, workspaceHrefs } from '../ui/shellModel';
 import {
-  getBusinesses, getEmployees, getSimulator, isAbortError, isTravelUnavailable, type RequestOptions,
+  getBusinesses, getEmployees, getSimulator, isTravelUnavailable, type RequestOptions,
 } from '../api/v2';
 
-/** Footer and indicator text (the label must describe the data on screen, pass 44). */
+/** Footer text (the label must describe the data on screen, pass 44); in the page once (#610). */
 export const NYC_ENV_TEXT = ENV_LABELS.nyc;
 /** The one line shown instead of numbers when /api/v2 answers 503 (same copy as the v2 workspaces, pass 46). */
 export const NYC_UNAVAILABLE_TEXT = 'NYC travel data is not loaded on this server yet.';
@@ -22,6 +22,9 @@ export type NycSummary =
     /** The account IDs, in API order, for the workspace links (never counted or shown). */
     businessIds: string[]; employeeIds: string[];
   };
+
+/** The note next to "Relay points", so its number equal to "Businesses" reads as intended (#610). */
+export const RELAY_POINTS_NOTE = 'every network business';
 
 /** Relay points = network businesses: every network business is one (SPEC MVP II data model). */
 export function nycSummaryFrom(b: BusinessesResponse, e: EmployeesResponse, sim: SimulatorResponse): NycSummary {
@@ -58,15 +61,50 @@ type V2Reads = {
 };
 const realReads: V2Reads = { getBusinesses, getEmployees, getSimulator };
 
+/** Waits before asking again after a failed load: 1 s, 2 s, 4 s, then every 5 s (#610). */
+export const NYC_RETRY_DELAYS_MS: readonly number[] = [1000, 2000, 4000];
+export const NYC_RETRY_EVERY_MS = 5000;
+/** The wait after the `failures`-th failure in a row (1 = the first). */
+export function nycRetryDelayMs(failures: number): number {
+  return NYC_RETRY_DELAYS_MS[failures - 1] ?? NYC_RETRY_EVERY_MS;
+}
+
 /**
- * Load the NYC summary once from /api/v2 and report it through `onSummary`. Returns the cleanup that aborts
- * the three requests (call it on unmount); after it, `onSummary` is never called.
+ * Load the NYC summary from /api/v2 and report it through `onSummary`. A failed load (error or 503) is
+ * reported and asked for again after 1 s, 2 s, 4 s, then every 5 s, until it is ready; a failure state is
+ * reported once, not again on every failed retry. Returns the cleanup that aborts the requests and the
+ * timer (call it on unmount); after it, `onSummary` is never called and nothing is requested.
  */
 export function startNycSummary(onSummary: (s: NycSummary) => void, api: V2Reads = realReads): () => void {
-  const ctl = new AbortController();
-  const opts = { signal: ctl.signal };
-  Promise.all([api.getBusinesses(opts), api.getEmployees(opts), api.getSimulator(opts)])
-    .then(([b, e, sim]) => { if (!ctl.signal.aborted) onSummary(nycSummaryFrom(b, e, sim)); })
-    .catch((err) => { if (!ctl.signal.aborted && !isAbortError(err)) onSummary(nycSummaryFromError(err)); });
-  return () => ctl.abort();
+  let stopped = false;
+  let attempt: AbortController | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let failures = 0;
+  let reported: NycSummary['status'] | null = null;
+
+  const load = () => {
+    timer = undefined;
+    const ctl = new AbortController();
+    attempt = ctl;
+    const opts = { signal: ctl.signal };
+    Promise.all([api.getBusinesses(opts), api.getEmployees(opts), api.getSimulator(opts)])
+      .then(([b, e, sim]) => nycSummaryFrom(b, e, sim))
+      .then(
+        (ready) => { if (!stopped) onSummary(ready); },
+        (err) => {
+          if (stopped) return;
+          ctl.abort(); // the requests of this attempt that are still open
+          const failed = nycSummaryFromError(err);
+          failures += 1;
+          timer = setTimeout(load, nycRetryDelayMs(failures));
+          if (failed.status !== reported) { reported = failed.status; onSummary(failed); }
+        },
+      );
+  };
+  load();
+  return () => {
+    stopped = true;
+    attempt?.abort();
+    if (timer !== undefined) clearTimeout(timer);
+  };
 }
