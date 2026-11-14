@@ -38,8 +38,8 @@ describe('JobDetailV2 render', () => {
 
   it('evening direct shows title, trip, route, numbers and home by neighborhood only', () => {
     const t = text(render(eveningDirect('in_progress')));
-    for (const s of ['Brand proofs', 'Direct delivery', 'Evening commute, Day 1, leaves 17:15', 'In progress',
-      'Ink Studio', '55 Water St, Brooklyn', 'Midtown Agency', 'Home · Astoria', '17:44–17:46', '18:01',
+    for (const s of ['Brand proofs', 'Direct delivery', 'Evening commute, leaves Day 1, 5:15 PM', 'In progress',
+      'Ink Studio', '55 Water St, Brooklyn', 'Midtown Agency', 'Home · Astoria', 'Day 1, 5:44 PM', 'Day 1, 6:01 PM',
       'Collect the package', 'Hand over the package', 'Ask for Maya at reception', 'Leave with the front desk',
       '+8 min', '+3.4 km', '$4.50', '38 min']) {
       expect(t).toContain(s);
