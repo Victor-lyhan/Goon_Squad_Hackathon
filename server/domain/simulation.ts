@@ -31,6 +31,24 @@ type EventWithStopIndex = SimEvent & { stopIndex: number };
 
 type Point = { x: number; y: number };
 
+type RunIndexes = {
+  events: SimEvent[];
+  eventsByJobId: Map<string, SimEvent[]>;
+  eventsByShipmentId: Map<string, SimEvent[]>;
+  plansByShipmentId: Map<string, DeliveryPlan>;
+  plansById: Map<string, DeliveryPlan>;
+  nodes: Map<string, Point>;
+  durations: Map<string, number>;
+  tripsById: Map<string, Run['trips'][number]>;
+  businessesById: Map<string, Run['scenario']['businesses'][number]>;
+};
+
+// A Run is frozen while it is simulated. Keeping immutable lookup tables by
+// Run means the one-second polling path does not repeatedly sort and rebuild
+// the same timeline indexes. WeakMap keeps this an implementation detail of
+// the pure function: nothing is attached to or mutated on the Run itself.
+const indexesByRun = new WeakMap<Run, RunIndexes>();
+
 /**
  * Runs normally retain the output of buildTimeline, but snapshotAt is also
  * used while assembling/importing a run. Normalize that input here so status
@@ -54,6 +72,48 @@ function edgeDurations(run: Run): Map<string, number> {
     if (previous === undefined || edge.durationMin < previous) durations.set(key, edge.durationMin);
   }
   return durations;
+}
+
+function indexesFor(run: Run): RunIndexes {
+  const cached = indexesByRun.get(run);
+  if (cached !== undefined) return cached;
+
+  const events = orderedEvents(run.events);
+  const eventsByJobId = new Map<string, SimEvent[]>();
+  const eventsByShipmentId = new Map<string, SimEvent[]>();
+  for (const event of events) {
+    const jobEvents = eventsByJobId.get(event.jobId) ?? [];
+    jobEvents.push(event);
+    eventsByJobId.set(event.jobId, jobEvents);
+    const shipmentEvents = eventsByShipmentId.get(event.shipmentId) ?? [];
+    shipmentEvents.push(event);
+    eventsByShipmentId.set(event.shipmentId, shipmentEvents);
+  }
+
+  const indexes: RunIndexes = {
+    events,
+    eventsByJobId,
+    eventsByShipmentId,
+    plansByShipmentId: new Map(run.assignments.plans.map((plan) => [plan.shipmentId, plan])),
+    plansById: new Map(run.assignments.plans.map((plan) => [plan.id, plan])),
+    nodes: new Map(run.scenario.graph.nodes.map((node) => [node.id, { x: node.x, y: node.y }])),
+    durations: edgeDurations(run),
+    tripsById: new Map(run.trips.map((trip) => [trip.id, trip])),
+    businessesById: new Map(run.scenario.businesses.map((business) => [business.id, business])),
+  };
+  indexesByRun.set(run, indexes);
+  return indexes;
+}
+
+function occurredCount(events: SimEvent[], timeMin: number): number {
+  let low = 0;
+  let high = events.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (events[middle]!.timeMin <= timeMin) low = middle + 1;
+    else high = middle;
+  }
+  return low;
 }
 
 function markerForLeg(
@@ -197,32 +257,22 @@ export function buildTimeline(plans: DeliveryPlan[], jobs: Job[], hubs: Hub[]): 
  * behind progress or earnings from a later snapshot.
  */
 export function snapshotAt(run: Run, timeMin: number): Snapshot {
-  const timeline = orderedEvents(run.events);
-  const occurredEvents = timeline.filter((event) => event.timeMin <= timeMin);
-  const plansByShipmentId = new Map(
-    run.assignments.plans.map((plan) => [plan.shipmentId, plan]),
-  );
-  const eventsByJobId = new Map<string, SimEvent[]>();
-
-  for (const event of timeline) {
-    const events = eventsByJobId.get(event.jobId) ?? [];
-    events.push(event);
-    eventsByJobId.set(event.jobId, events);
-  }
+  const indexes = indexesFor(run);
+  const occurredEvents = indexes.events.slice(0, occurredCount(indexes.events, timeMin));
 
   const occurredEventIds = new Set(occurredEvents.map((event) => event.id));
   const shipmentStatus: Snapshot['shipmentStatus'] = {};
   const deliveredAtMin: Snapshot['deliveredAtMin'] = {};
 
   for (const shipment of run.scenario.shipments) {
-    const plan = plansByShipmentId.get(shipment.id);
+    const plan = indexes.plansByShipmentId.get(shipment.id);
     if (plan === undefined) {
       shipmentStatus[shipment.id] = 'unmatched';
       continue;
     }
 
-    const shipmentEvents = occurredEvents.filter((event) => event.shipmentId === shipment.id);
-    const lastEvent = shipmentEvents[shipmentEvents.length - 1];
+    const shipmentEvents = indexes.eventsByShipmentId.get(shipment.id) ?? [];
+    const lastEvent = shipmentEvents[occurredCount(shipmentEvents, timeMin) - 1];
     if (lastEvent === undefined) {
       shipmentStatus[shipment.id] = 'scheduled';
       continue;
@@ -252,7 +302,7 @@ export function snapshotAt(run: Run, timeMin: number): Snapshot {
 
   for (const plan of run.assignments.plans) {
     plan.legs.forEach((leg, legIndex) => {
-      const legEvents = eventsByJobId.get(jobIdFor(plan.id, legIndex)) ?? [];
+      const legEvents = indexes.eventsByJobId.get(jobIdFor(plan.id, legIndex)) ?? [];
       const lastEvent = legEvents[legEvents.length - 1];
       if (lastEvent !== undefined && occurredEventIds.has(lastEvent.id)) {
         earningsCents[leg.employeeId] = (earningsCents[leg.employeeId] ?? 0) + leg.rewardCents;
@@ -261,9 +311,9 @@ export function snapshotAt(run: Run, timeMin: number): Snapshot {
   }
 
   for (const job of run.jobs) {
-    const plan = run.assignments.plans.find((candidate) => candidate.id === job.planId);
+    const plan = indexes.plansById.get(job.planId);
     const jobId = plan === undefined ? job.id : jobIdFor(plan.id, job.legIndex);
-    const legEvents = eventsByJobId.get(jobId) ?? [];
+    const legEvents = indexes.eventsByJobId.get(jobId) ?? [];
     const firstEvent = legEvents[0];
     const lastEvent = legEvents[legEvents.length - 1];
 
@@ -278,16 +328,13 @@ export function snapshotAt(run: Run, timeMin: number): Snapshot {
     jobStatus[job.id] = 'in_progress';
   }
 
-  const nodes = new Map(run.scenario.graph.nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
-  const durations = edgeDurations(run);
-  const tripsById = new Map(run.trips.map((trip) => [trip.id, trip]));
   const markersByEmployeeId = new Map<string, MarkerPosition>();
 
   for (const plan of run.assignments.plans) {
     for (const leg of plan.legs) {
-      const trip = tripsById.get(leg.tripId);
+      const trip = indexes.tripsById.get(leg.tripId);
       if (trip === undefined || markersByEmployeeId.has(leg.employeeId)) continue;
-      const marker = markerForLeg(leg, trip.departureMin, timeMin, nodes, durations);
+      const marker = markerForLeg(leg, trip.departureMin, timeMin, indexes.nodes, indexes.durations);
       if (marker === undefined) continue;
       const pickup = leg.stops[0];
       const dropoff = leg.stops[leg.stops.length - 1];
@@ -298,13 +345,12 @@ export function snapshotAt(run: Run, timeMin: number): Snapshot {
     }
   }
 
-  const businessesById = new Map(run.scenario.businesses.map((business) => [business.id, business]));
   const packagePositions: Snapshot['packagePositions'] = {};
   for (const shipment of run.scenario.shipments) {
-    const origin = nodes.get(businessesById.get(shipment.originBusinessId)?.nodeId ?? '');
-    const destination = nodes.get(businessesById.get(shipment.destinationBusinessId)?.nodeId ?? '');
+    const origin = indexes.nodes.get(indexes.businessesById.get(shipment.originBusinessId)?.nodeId ?? '');
+    const destination = indexes.nodes.get(indexes.businessesById.get(shipment.destinationBusinessId)?.nodeId ?? '');
     const position = packagePosition(
-      plansByShipmentId.get(shipment.id), origin, destination, markersByEmployeeId, nodes, timeMin,
+      indexes.plansByShipmentId.get(shipment.id), origin, destination, markersByEmployeeId, indexes.nodes, timeMin,
     );
     if (position !== undefined) packagePositions[shipment.id] = position;
   }
