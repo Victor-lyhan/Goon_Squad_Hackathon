@@ -1,7 +1,7 @@
 // #496: the map's movers between polls on the simulator page. Each mover slides along the decoded
 // route line of its leg (moverPaths.ts) through useTweenedMovers' frame step; never ahead of the
-// newest poll; snaps on a seek, a pause, a run change and under reduced motion; straight line
-// when a leg has no cached line. Play journey's 2-minute steps tween, its jumps over gaps snap.
+// newest poll; snaps on a seek, a pause, a run change and under reduced motion; the straight line
+// through the leg's places when a leg has no cached line (#553). Play journey's 2-minute steps tween, its jumps over gaps snap.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -52,10 +52,21 @@ describe('the route line of each mover (moverPaths)', () => {
     expect(at(2100)).toBe(pathForMovers(lines, 1960)('emp-2')); // after the last leg: the last line
   });
 
-  it('a leg with no cached line at all, or a mover on no leg: null (the straight line)', () => {
+  it('a leg with no cached line at all: the straight line through its places in order (#553)', () => {
     const bare: MapResponse = { ...map, polylines: [] };
-    expect(legLine(plans[0].legs[0], bare)).toBeNull();
-    expect(pathForMovers(buildMoverLines(plans, bare), 1050)('emp-1')).toBeNull();
+    expect(legLine(plans[0].legs[0], bare)).toEqual(plans[0].legs[0].placeIds.map(ll));
+    // The relay leg passes through its stop: start, relay point, end.
+    expect(pathForMovers(buildMoverLines(plans, bare), 1050)('emp-3'))
+      .toEqual([ll('biz-dumbo'), ll('biz-roast'), ll('home-007')]);
+    // Every line encoded as null (the server knows the pair, Google's line is not there yet): the same.
+    const nulls: MapResponse = { ...map, polylines: map.polylines.map((p) => ({ ...p, encoded: null })) };
+    expect(legLine(plans[0].legs[0], nulls)).toEqual(legLine(plans[0].legs[0], bare));
+  });
+
+  it('a leg with a place that has no coordinates, or a mover on no leg: null (the straight line between polls)', () => {
+    const noHome: MapResponse = { ...map, polylines: [], homes: map.homes.filter((h) => h.id !== 'home-007') };
+    expect(legLine(plans.find((p) => p.shipmentId === 'shp-2')!.legs[0], noHome)).toBeNull();
+    expect(pathForMovers(buildMoverLines(plans, noHome), 1050)('emp-3')).toBeNull();
     expect(pathForMovers(lines, 1050)('emp-9')).toBeNull();
     expect(buildMoverLines(plans, null).size).toBe(0);
   });
@@ -113,12 +124,26 @@ describe('tween between two polls on the page', () => {
     expect(moverFramePositions(mid, pathFor(1050), true)).toEqual(v(b));
   });
 
-  it('with no cached line the marker moves on the straight line', () => {
+  it('with no cached line the marker moves on the straight line through the places, round the relay stop (#553)', () => {
     const none = pathForMovers(buildMoverLines(plans, { ...map, polylines: [] }), 1050);
-    const f = advanceMoverFrames(start, v(b), clock(1050), none, 600, false, { journey: true });
-    const [p] = moverFramePositions({ ...f, alpha: 0.5 }, none, false);
-    expect(p.lat).toBeCloseTo((a.lat + b.lat) / 2, 12);
-    expect(p.lng).toBeCloseTo((a.lng + b.lng) / 2, 12);
+    const straightLeg = [ll('biz-dumbo'), ll('biz-roast'), ll('home-007')];
+    const on = (from: LngLat, to: LngLat, t: number) => ({ lng: from[0] + (to[0] - from[0]) * t, lat: from[1] + (to[1] - from[1]) * t });
+    // Two polls the server places on the straight line (no polyline): before and after the relay stop.
+    const p0 = on(straightLeg[0], straightLeg[1], 0.5);
+    const p1 = on(straightLeg[1], straightLeg[2], 0.05);
+    const s0 = initialMoverFrames(v(p0), clock(1048), 0);
+    const f = advanceMoverFrames(s0, v(p1), clock(1050), none, 600, false, { journey: true });
+    expect(f.tween).toBe(true);
+    let nearest = Infinity;
+    for (let i = 0; i <= 20; i++) {
+      const [p] = moverFramePositions({ ...f, alpha: i / 20 }, none, false);
+      expect(distToPath(p, straightLeg)).toBeLessThan(1);
+      nearest = Math.min(nearest, distToPath(p, [straightLeg[1], straightLeg[1]]));
+    }
+    expect(nearest).toBeLessThan(20); // it passes the relay point
+    // The cut between the two polls would miss the corner.
+    const cut = { lat: (p0.lat + p1.lat) / 2, lng: (p0.lng + p1.lng) / 2 };
+    expect(distToPath(cut, straightLeg)).toBeGreaterThan(5);
   });
 });
 
