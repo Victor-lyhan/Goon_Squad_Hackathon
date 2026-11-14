@@ -22,3 +22,4 @@
   .bp-send { max-width: 100%; align-items: stretch; }
   .bp-main { overflow-wrap: anywhere; }
 }
+.bp-notes__meta { font-size: 0.85em; color: var(--muted, #5b6770); }
