@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { MapMover } from '../../client/src/components/map/types';
-import { REDUCED_MOTION_QUERY } from '../../client/src/components/sim/markerTween';
+import { REDUCED_MOTION_QUERY } from '../../client/src/components/sim/v2/motion/motionMath';
 import type { LngLat, TweenClock } from '../../client/src/components/sim/v2/motion/routeTween';
 import {
   advanceMoverFrames, initialMoverFrames, moverFramePositions,
