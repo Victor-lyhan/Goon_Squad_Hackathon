@@ -10,11 +10,13 @@ export type PlaybackBarProps = {
   nextEventMin: number | null;
   settings: Pick<Settings, 'simStartMin' | 'simEndMin'>;
   busy?: boolean;
+  /** Where jump_to_morning lands, when the caller knows it (default: 1860). */
+  morningTargetMin?: number;
   onControl: (req: SimControlRequest) => void;
 };
 
-export function PlaybackBar({ clock, nextEventMin, settings, busy = false, onControl }: PlaybackBarProps) {
-  const m = toPlaybackModel(clock, nextEventMin, settings, busy);
+export function PlaybackBar({ clock, nextEventMin, settings, busy = false, morningTargetMin, onControl }: PlaybackBarProps) {
+  const m = toPlaybackModel(clock, nextEventMin, settings, busy, morningTargetMin);
   // Local value while dragging; one seek is sent on release / key press, not per pixel.
   const [draft, setDraft] = useState<number | null>(null);
   const shown = draft ?? clampScrub(clock.timeMin, settings);
@@ -29,24 +31,27 @@ export function PlaybackBar({ clock, nextEventMin, settings, busy = false, onCon
       const req = keyToControl({
         key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey,
         shiftKey: e.shiftKey, repeat: e.repeat, target: e.target as HTMLElement | null,
-      }, { clock, nextEventMin, settings, busy });
+      }, { clock, nextEventMin, settings, busy, morningTargetMin });
       if (!req) return;
       e.preventDefault();
       onControl(req);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clock, nextEventMin, settings, busy, onControl]);
+  }, [clock, nextEventMin, settings, busy, morningTargetMin, onControl]);
   return (
     <div className="playback-bar" role="toolbar" aria-label="Simulation playback">
-      <span className="pb-time" aria-live="off">{draft === null ? m.timeLabel : formatMin(shown)}</span>
+      {/* Polite live region: text only changes when the simulated minute does. */}
+      <span className="pb-time" role="status" aria-live="polite" aria-atomic="true">{m.timeLabel}</span>
+      {draft !== null && <span className="pb-time" aria-hidden="true">{formatMin(shown)}</span>}
+      {m.finishedNote && <span className="pb-finished" role="status">{m.finishedNote}</span>}
       <input type="range" className="pb-scrub" aria-label="Simulation time"
         min={settings.simStartMin} max={settings.simEndMin} step={1} value={shown}
         aria-valuetext={formatMin(shown)} disabled={busy}
         onChange={(e) => setDraft(clampScrub(Number(e.target.value), settings))}
         onPointerUp={commit}
         onKeyUp={(e) => { if (e.key !== 'Tab' && e.key !== 'Shift') commit(); }} />
-      <button type="button" className="pb-btn pb-primary" aria-label={m.playLabel === 'Play' ? 'Play simulation' : 'Pause simulation'}
+      <button type="button" className="pb-btn pb-primary" aria-label={m.playAriaLabel}
         aria-keyshortcuts="Space" disabled={m.disabled.play} onClick={() => onControl({ action: clock.playing ? 'pause' : 'play' })}>
         {m.playLabel}
       </button>

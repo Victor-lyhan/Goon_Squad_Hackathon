@@ -5,8 +5,17 @@ import { formatMin } from '../../ui/format';
 export type Speed = Clock['speed'];
 export const SPEEDS: readonly Speed[] = [30, 120, 600];
 
+/** Where jump_to_morning lands when the run has no Day 2 event (matches server/clock.ts). */
+export const MORNING_FALLBACK_MIN = 1860;
+
 export type PlaybackModel = {
   timeLabel: string;
+  /** Run is at simEndMin. */
+  finished: boolean;
+  /** Text for the finished state; null otherwise. */
+  finishedNote: string | null;
+  /** Accessible name for the play/pause button. */
+  playAriaLabel: 'Play simulation' | 'Pause simulation';
   playLabel: 'Play' | 'Pause';
   speed: Speed;
   disabled: {
@@ -24,10 +33,14 @@ export function toPlaybackModel(
   nextEventMin: number | null,
   settings: Pick<Settings, 'simStartMin' | 'simEndMin'>,
   busy = false,
+  morningTargetMin: number = MORNING_FALLBACK_MIN,
 ): PlaybackModel {
   const atEnd = clock.timeMin >= settings.simEndMin;
   return {
     timeLabel: formatMin(clock.timeMin),
+    finished: atEnd,
+    finishedNote: atEnd ? 'Run finished. Use Reset playback to watch again.' : null,
+    playAriaLabel: clock.playing ? 'Pause simulation' : 'Play simulation',
     playLabel: clock.playing ? 'Pause' : 'Play',
     speed: clock.speed,
     disabled: {
@@ -35,7 +48,7 @@ export function toPlaybackModel(
       play: busy || (!clock.playing && atEnd),
       speed: busy,
       nextEvent: busy || nextEventMin === null,
-      jumpToMorning: busy,
+      jumpToMorning: busy || clock.timeMin >= morningTargetMin,
       finish: busy || atEnd,
       reset: busy,
     },
@@ -67,6 +80,7 @@ export type KeyState = {
   settings: Pick<Settings, 'simStartMin' | 'simEndMin'>;
   /** A control request is in flight. */
   busy: boolean;
+  morningTargetMin?: number;
 };
 
 const TYPING_TAGS = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
@@ -86,7 +100,7 @@ export function keyToControl(event: KeyEventLike, state: KeyState): SimControlRe
   if (state.busy || event.repeat) return null;
   if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return null;
   if (isTypingTarget(event.target)) return null;
-  const m = toPlaybackModel(state.clock, state.nextEventMin, state.settings, state.busy);
+  const m = toPlaybackModel(state.clock, state.nextEventMin, state.settings, state.busy, state.morningTargetMin);
   switch (event.key) {
     case ' ': {
       const tag = (event.target?.tagName ?? '').toUpperCase();
