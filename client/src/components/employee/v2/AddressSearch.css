@@ -1,0 +1,168 @@
+/* MVP II home address search (#331). Square corners, 1px borders, no shadows except the 1px focus ring.
+   Tokens are read as var(--name, fallback) until the design tokens land everywhere. */
+
+.addr-search {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  max-width: 560px;
+  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.addr-search__label {
+  font-weight: 600;
+  color: var(--text, #151B26);
+}
+
+.addr-search__field {
+  display: flex;
+  gap: var(--space-2, 8px);
+}
+
+.addr-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 var(--space-3, 12px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font: inherit;
+}
+
+.addr-search__input:focus-visible,
+.addr-search__btn:focus-visible {
+  outline: none;
+  border-color: var(--accent, #28618A);
+  box-shadow: 0 0 0 1px var(--accent, #28618A);
+}
+
+.addr-search__input[readonly] {
+  background: var(--accent-soft, #E8F0F6);
+  color: var(--muted, #5B6472);
+  cursor: not-allowed;
+}
+
+.addr-search__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.addr-search__list[hidden] {
+  display: none;
+}
+
+.addr-search__option {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 40px;
+  padding: var(--space-1, 4px) var(--space-3, 12px);
+  border-top: 1px solid var(--border, #D7DDE5);
+  cursor: pointer;
+}
+
+.addr-search__option:first-child {
+  border-top: 0;
+}
+
+.addr-search__option:hover,
+.addr-search__option--active {
+  background: var(--accent-soft, #E8F0F6);
+}
+
+.addr-search__option--active {
+  border-left: 2px solid var(--accent, #28618A);
+  padding-left: calc(var(--space-3, 12px) - 2px);
+}
+
+.addr-search__option-hood {
+  color: var(--muted, #5B6472);
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: 12px;
+}
+
+.addr-search__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  color: var(--muted, #5B6472);
+  min-height: 1em;
+}
+
+.addr-search__status:empty {
+  display: none;
+}
+
+.addr-search__status--problem {
+  color: var(--danger, #A4322A);
+}
+
+.addr-search__chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  min-height: 40px;
+}
+
+.addr-search__neighborhood {
+  font-weight: 600;
+}
+
+.addr-search__btn {
+  min-height: 40px;
+  padding: 0 var(--space-3, 12px);
+  border: 1px solid var(--accent, #28618A);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--accent, #28618A);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addr-search__btn:hover:not(:disabled) {
+  background: var(--accent-soft, #E8F0F6);
+}
+
+.addr-search__btn:disabled {
+  border-color: var(--border, #D7DDE5);
+  color: var(--muted, #5B6472);
+  cursor: not-allowed;
+}
+
+.addr-search__locked {
+  margin: 0;
+  color: var(--muted, #5B6472);
+}
+
+@media (max-width: 390px) {
+  .addr-search {
+    max-width: none;
+    width: 100%;
+  }
+
+  .addr-search__list {
+    width: 100%;
+    max-height: 50vh;
+  }
+
+  .addr-search__option,
+  .addr-search__btn,
+  .addr-search__input {
+    min-height: 44px;
+  }
+}
