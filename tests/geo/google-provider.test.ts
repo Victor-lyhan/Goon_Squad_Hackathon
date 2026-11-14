@@ -389,6 +389,38 @@ describe('createGoogleTravel.ensurePairs', () => {
     expect(second).toEqual({ status: 'fulfilled', value: { fetched: 1 } });
   });
 
+  it('two objects over the same files do not wait for each other, and a line the other one fetched meanwhile is not bought again (#601)', async () => {
+    const files = cacheWith();
+    const { client, polylineCalls } = fakeClient();
+    const other = createGoogleTravel({ files, client });
+    // The first object's Google holds every answer back until the other object has fetched 'biz-b|biz-c'.
+    let otherIsDone = () => {};
+    const otherDone = new Promise<void>((resolve) => { otherIsDone = resolve; });
+    const slow = fakeClient();
+    const slowCalls: string[] = [];
+    const travel = createGoogleTravel({
+      files,
+      client: {
+        computeRouteMatrix: slow.client.computeRouteMatrix,
+        async computeRoutePolyline(origin, destination) {
+          slowCalls.push(`${idOf(origin)}|${idOf(destination)}`);
+          await otherDone;
+          return slow.client.computeRoutePolyline(origin, destination);
+        },
+      },
+    });
+
+    const first = travel.ensurePolylines([{ from: 'biz-a', to: 'biz-b' }, { from: 'biz-b', to: 'biz-c' }]);
+    // Not queued behind `first`, which is still waiting for its first answer.
+    expect(await other.ensurePolylines([{ from: 'biz-b', to: 'biz-c' }])).toEqual({ fetched: 1 });
+    expect(polylineCalls).toEqual(['biz-b|biz-c']);
+    otherIsDone();
+
+    expect(await first).toEqual({ fetched: 1 }); // only the line it bought itself
+    expect(slowCalls).toEqual(['biz-a|biz-b']);
+    expect(Object.keys(files.polylines.polylines).sort()).toEqual(['biz-a|biz-b', 'biz-b|biz-c']);
+  });
+
   it('a failing persist rejects the call; the fetched pairs stay in memory', async () => {
     const files = cacheWith();
     const { client } = fakeClient();

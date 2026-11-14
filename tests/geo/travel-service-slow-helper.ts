@@ -2,13 +2,18 @@
 // wait on Google? It replays what the commute route does for one new home (server/api/v2/commuteRoutes.ts) on
 // the real travel service, against a fake Google that is slow, failing or silent, and measures the wait on a
 // VIRTUAL clock:
-// - the fake `fetch` adds each request's answer time to a counter, and the injected `sleep` adds each backoff;
+// - a request of the fake `fetch` ends its answer time after it was sent, and the injected `sleep` ends after
+//   its backoff. Each is one wait on the clock; the clock jumps to the wait that ends first, and only when
+//   nothing else is left to do. So requests that are open at the same time (the service has one queue per kind
+//   of call, #601) share the time, and with one request at a time the waits simply add up;
 // - an attempt that never answers counts as its timeout. The timeout is not assumed: the helper records the
 //   number the client passes to `AbortSignal.timeout(ms)` for that very request;
-// - the service reads the same counter as its clock (`now`), so its deadlines (#555: 10 s for the pair fetch,
-//   5 s for the two lines) run on the virtual clock too;
+// - the service reads the same clock (`now`), so its deadlines (#555: 10 s for the pair fetch, 5 s for the two
+//   lines) run on the virtual clock too;
 // - setTimeout, setInterval and setImmediate are frozen while the replay runs. A replay that needed real time
-//   would never settle, and a timer left behind is counted in `pendingTimers`.
+//   would never settle, and a timer left behind is counted in `pendingTimers`. (The clock itself takes one
+//   turn of the real event loop before each jump, with the `setImmediate` it kept from before the freeze.
+//   That is a turn, not a wait: it only proves that every promise job has run.)
 // So no test here waits in real time and none has a wall-clock limit (DECISIONS pass 52): the numbers are the
 // same on a laptop and on a slow CI runner. What is not modelled: the time the cache write takes on disk.
 // The cache is a copy of the made-up sample cache (tests/api/v2-boot-sample.ts: 18 businesses, 130 homes) in a
@@ -30,6 +35,9 @@ import type { TravelService } from '../../server/geo/travelService';
 import { bootSample } from '../api/v2-boot-sample';
 import { KEY, KEY_FORMS, NEW_HOME, NEW_HOME_POINT, OTHER_HOME, OTHER_HOME_POINT, expectNoText, google500, lineFor, metersFor, secondsFor } from './travelServiceHarness';
 import type { GoogleReply } from './travelServiceHarness';
+
+// The real one, kept before any test freezes the timers: the virtual clock's "nothing else is left to do".
+const realSetImmediate = setImmediate;
 
 /** Explicit limit for every test and hook of these files (DECISIONS pass 19). A whole file takes well under 1 s locally. */
 export const SLOW_TEST_TIMEOUT_MS = 20_000;
@@ -156,7 +164,7 @@ export interface Measurement {
   attempts: AttemptLog[];
   /** Every backoff the client slept, in order. */
   sleeps: number[];
-  /** The most requests that were ever open at once. 1 means adding the times up is exact. */
+  /** The most requests that were ever open at the same virtual time. 1 means adding the times up is exact. */
   maxInFlight: number;
   /** Timers the replay armed (they are frozen, so none could have fired). Must be 0. */
   pendingTimers: number;
@@ -178,12 +186,14 @@ export interface Bench {
   service: TravelService;
   /** Virtual ms since the replay began. */
   now(): number;
+  /** Resolves when the virtual clock is `ms` further: "1 s later", while requests of other calls are open. */
+  wait(ms: number): Promise<void>;
   /** Runs one call of the service and measures it on the virtual clock, from the call until it settles. */
   step(call: () => Promise<{ fetched: number }>): Promise<Step>;
   /** Every HTTP attempt so far, and every backoff slept, in order. */
   attempts: AttemptLog[];
   sleeps: number[];
-  /** The most requests that were ever open at once. */
+  /** The most requests that were ever open at the same virtual time. */
   maxInFlight(): number;
   /** The two cache files as text, to compare before and after. */
   bytes(): string[];
@@ -202,6 +212,35 @@ export async function replay<T>(spec: Pick<CaseSpec, 'script' | 'key'>, run: (be
   const bytes = () => [MATRIX_FILE, POLYLINES_FILE].map((file) => fs.readFileSync(path.join(dir, file), 'utf8'));
 
   let nowMs = 0;
+  // The virtual clock: everything that takes time waits here, and the clock jumps to the wait that ends first.
+  const waits: { dueMs: number; wake: () => void }[] = [];
+  let driving = false;
+  const drive = async (): Promise<void> => {
+    if (driving) return;
+    driving = true;
+    try {
+      while (waits.length > 0) {
+        // Time moves only when nothing else is due: after a turn of the real event loop every promise job has
+        // run, so whoever was going to send a request or start a backoff at the current time has done so.
+        // (With two calls in a queue, the first one's rejection is on its way to its caller while the second
+        // one sends its request; on a real clock that takes no time either.)
+        await new Promise<void>((resolve) => realSetImmediate(resolve));
+        let next = 0; // the earliest; of two that end together, the one that began first
+        for (let i = 1; i < waits.length; i++) if (waits[i].dueMs < waits[next].dueMs) next = i;
+        const [{ dueMs, wake }] = waits.splice(next, 1);
+        nowMs = dueMs;
+        wake();
+      }
+    } finally {
+      driving = false;
+    }
+  };
+  const wait = (ms: number): Promise<void> =>
+    new Promise((wake) => {
+      waits.push({ dueMs: nowMs + ms, wake });
+      void drive();
+    });
+
   const sleeps: number[] = [];
   const attempts: AttemptLog[] = [];
   const problems: string[] = [];
@@ -249,25 +288,16 @@ export async function replay<T>(spec: Pick<CaseSpec, 'script' | 'key'>, run: (be
     const log: AttemptLog = { ...attempt, startMs: nowMs, ms: 0, result: 'timeout', timeoutMs };
     attempts.push(log);
 
+    const { afterMs, reply } = spec.script(attempt);
+    const answered = afterMs < timeoutMs;
+    log.ms = answered ? afterMs : timeoutMs;
+    // The request is open from now until the clock has moved `log.ms` on; another one sent meanwhile shows in `max`.
     flight.open += 1;
     flight.max = Math.max(flight.max, flight.open);
-    await Promise.resolve(); // a promise job, not a timer: a second request sent meanwhile would show in `max`
+    await wait(log.ms);
     flight.open -= 1;
-    // Time moves only when nothing else is due. With two calls in the queue, the first one's rejection is still
-    // on its way to its caller when the second one sends its request; on a real clock that takes no time, so
-    // every promise job that is already waiting runs before this request is charged. (Timers are frozen, so
-    // promise jobs are all there is; the chain from the client to the caller is far shorter than this.)
-    for (let job = 0; job < 50; job++) await Promise.resolve();
-
-    const { afterMs, reply } = spec.script(attempt);
-    if (afterMs >= timeoutMs) {
-      // What Node's fetch rejects with when its AbortSignal.timeout fires.
-      log.ms = timeoutMs;
-      nowMs += timeoutMs;
-      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
-    }
-    log.ms = afterMs;
-    nowMs += afterMs;
+    // What Node's fetch rejects with when its AbortSignal.timeout fires.
+    if (!answered) throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
 
     const body = JSON.parse(init?.body ?? '{}');
     const origins: string[] = what === 'matrix' ? body.origins.map((o: { waypoint: Waypoint }) => idOf(o.waypoint)) : [idOf(body.origin)];
@@ -306,15 +336,16 @@ export async function replay<T>(spec: Pick<CaseSpec, 'script' | 'key'>, run: (be
       dir,
       key: spec.key ?? KEY,
       fetch: fetchImpl,
-      sleep: async (ms) => {
+      sleep: (ms) => {
         sleeps.push(ms);
-        nowMs += ms;
+        return wait(ms);
       },
       now: () => nowMs,
     });
     const result = await run({
       service,
       now: () => nowMs,
+      wait,
       step,
       attempts,
       sleeps,

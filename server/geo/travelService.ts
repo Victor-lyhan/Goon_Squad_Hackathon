@@ -9,6 +9,10 @@
 // - A live action has its own, short Google limits (the LIVE_* numbers below), because a page waits for it:
 //   4 s per attempt and one retry, and one deadline per call, counted from the moment the call is made:
 //   10 s for `ensurePairs`, 5 s for `ensurePolylines`. The fetch command keeps the client's bulk defaults.
+// - Each kind of live call has its own queue (#601, DECISIONS pass 61): the pairs of a commute save, the two
+//   route lines of a commute save, and the leg lines (a new delivery's, and the map's background fetch). A kind
+//   sends one Google request at a time, and no kind waits for another, so a save's pair fetch is never held
+//   or refused because route lines are being fetched. At most three requests are open at once.
 // Rules:
 // - nothing is ever estimated; a missing key is GoogleKeyMissingError before any request (rule 2);
 // - a deadline is a failure like any other Google failure (a GoogleApiError), never a guessed time;
@@ -76,8 +80,9 @@ export interface TravelService {
    * It settles within LIVE_PAIRS_DEADLINE_MS of the call: a Google attempt gets at most LIVE_ATTEMPT_TIMEOUT_MS
    * and LIVE_MAX_RETRIES retries, and the deadline cuts the last attempt, skips a backoff that would cross it,
    * and sends nothing once it has passed. Then it rejects with a GoogleApiError: the one of the last attempt,
-   * or the client's "not sent" one. The time a call waits for an earlier call counts too, so a second save is
-   * never held up longer than the first one's deadline. (Not counted: the cache write, which is local.)
+   * or the client's "not sent" one. The time a call waits for an earlier `ensurePairs` counts too, so a second
+   * save is never held up longer than the first one's deadline. It never waits for a route-line fetch, and a
+   * call that finds every pair cached does not wait at all. (Not counted: the cache write, which is local.)
    * When it rejects, every place that `addPlaces` registered in this process, that is not on disk yet and that
    * has no pair at all is removed from `files.matrix.places` (with any route line of it) before the caller sees
    * the rejection, so the same point can be registered and fetched again. A place that got some of its pairs
@@ -86,15 +91,18 @@ export interface TravelService {
    */
   ensurePairs(pairs: readonly PlacePair[]): Promise<{ fetched: number }>;
   /**
-   * The same for encoded route lines, within LIVE_LINES_DEADLINE_MS of the call. Only a call that is still
-   * waiting for an earlier `ensurePairs` when its own deadline passes settles later: when that one ends.
+   * The same for encoded route lines, within LIVE_LINES_DEADLINE_MS of the call. It waits only for an earlier
+   * `ensurePolylines` (another save's two lines), never for `ensurePairs` or `ensureLegPolylines`. That earlier
+   * call has the same limit and was made no later, so the wait never carries this call past its own deadline.
    */
   ensurePolylines(pairs: readonly PlacePair[]): Promise<{ fetched: number }>;
   /**
    * Route lines for the neighbouring pairs of each leg's `placeIds`. Best effort, for the map only: it never
    * rejects. `fetched` and `failed` count the distinct pairs that had no line when it was called: the ones
    * that have a line now, and the ones that still have none (those legs stay on the straight-line fallback).
-   * It has the live limits too and stops asking LIVE_LEG_LINES_DEADLINE_MS after the call.
+   * It has the live limits too and stops asking LIVE_LEG_LINES_DEADLINE_MS after the call. It waits only for an
+   * earlier `ensureLegPolylines`, and no `ensurePairs` or `ensurePolylines` waits for it. A line it did not get
+   * to stays missing, so the caller can ask again (the map does, with its next request).
    */
   ensureLegPolylines(legs: readonly Pick<Leg, 'placeIds'>[]): Promise<{ fetched: number; failed: number }>;
 }
@@ -204,10 +212,20 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
     });
   };
 
-  // One GoogleTravel for everything, so there is one queue: one Google fetch at a time across all methods.
+  // One GoogleTravel, and so one queue, per kind of live call, all over the same `files` and the same `persist`:
+  // a kind sends one Google request at a time and waits for nothing but its own earlier calls (#601).
+  // - `pairQueue`: `ensurePairs`, what a commute save cannot do without. Nothing else is ever in its way.
+  // - `saveLineQueue`: `ensurePolylines`, the two commute lines of a save.
+  // - `legLineQueue`: `ensureLegPolylines`, up to 60 lines for the map or a new delivery, for up to 10 s.
+  // Each queue checks the cache again in its turn and the line loop before each request, so a line is bought
+  // twice only when two kinds ask for it in the same moment. The cache write is synchronous and whole
+  // (cache.ts), and `persist` holds back a place without a pair, whichever queue writes first.
   // Every call brings its own client (`clientFor`); the one given here is never used.
   // With an empty key no client is ever called: `ensure` rejects first.
-  const google = createGoogleTravel({ files, client: clientFor(Infinity), persist });
+  const queue = () => createGoogleTravel({ files, client: clientFor(Infinity), persist });
+  const pairQueue = queue();
+  const saveLineQueue = queue();
+  const legLineQueue = queue();
 
   /** The distinct pairs of different places that `cached` does not hold. */
   const missingFrom = (pairs: readonly PlacePair[], cached: Record<string, unknown>): PlacePair[] => {
@@ -226,7 +244,9 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
     budgetMs: number,
   ): Promise<{ fetched: number }> => {
     if (!ready) throw new TravelNotLoadedError();
-    if (apiKey === '' && missingFrom(pairs, cached).length > 0) throw new GoogleKeyMissingError();
+    // Everything cached (a save of a known home): answered at once, without a turn in the queue.
+    if (missingFrom(pairs, cached).length === 0) return { fetched: 0 };
+    if (apiKey === '') throw new GoogleKeyMissingError();
     // Checks the cache again in its turn in the queue, so an overlapping call never buys the same pair twice.
     // No await above: the deadline starts when the method is called.
     return fetchMissing([...pairs], clientFor(budgetMs));
@@ -236,7 +256,7 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
 
   return {
     ready,
-    provider: ready ? google.provider : null,
+    provider: ready ? pairQueue.provider : null,
     files,
 
     addPlaces(places) {
@@ -273,7 +293,7 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
         }
       };
       try {
-        const result = await ensure(pairs, files.matrix.pairs, google.ensurePairs, LIVE_PAIRS_DEADLINE_MS);
+        const result = await ensure(pairs, files.matrix.pairs, pairQueue.ensurePairs, LIVE_PAIRS_DEADLINE_MS);
         release();
         return result;
       } catch (err) {
@@ -282,7 +302,7 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
         throw err;
       }
     },
-    ensurePolylines: (pairs) => ensure(pairs, files.polylines.polylines, google.ensurePolylines, LIVE_LINES_DEADLINE_MS),
+    ensurePolylines: (pairs) => ensure(pairs, files.polylines.polylines, saveLineQueue.ensurePolylines, LIVE_LINES_DEADLINE_MS),
 
     async ensureLegPolylines(legs) {
       let wanted: PlacePair[] = [];
@@ -293,7 +313,7 @@ export function createTravelService(options: TravelServiceOptions): TravelServic
         const fetchable = wanted.filter(({ from, to }) => hasPlace(from) && hasPlace(to));
         if (ready && apiKey !== '' && fetchable.length > 0) {
           // Lines fetched before a failure are already in `files` (and on disk); the count below sees them.
-          await google.ensurePolylines(fetchable, clientFor(LIVE_LEG_LINES_DEADLINE_MS)).catch(() => undefined);
+          await legLineQueue.ensurePolylines(fetchable, clientFor(LIVE_LEG_LINES_DEADLINE_MS)).catch(() => undefined);
         }
         const fetched = wanted.filter(({ from, to }) => Object.hasOwn(lines, pairKey(from, to))).length;
         return { fetched, failed: wanted.length - fetched };
