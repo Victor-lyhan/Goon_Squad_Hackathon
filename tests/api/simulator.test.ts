@@ -39,7 +39,8 @@ describe('simulator routes', () => {
     expect(body.clock.timeMin).toBe(930);
     expect(body.snapshot).toBeDefined();
     expect(Array.isArray(body.plans)).toBe(true);
-    expect(body.nextEventMin).toBeNull();
+    expect(body.plans.length).toBeGreaterThan(0);
+    expect(body.nextEventMin).toBeGreaterThan(930);
   });
 
   it('invalid action returns 400 ApiError', async () => {
