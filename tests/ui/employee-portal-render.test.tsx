@@ -26,7 +26,7 @@ describe('EmployeePortalView', () => {
     expect(html).toContain('$3.00');
     expect(html).toContain('Scheduled');
     expect(html).toContain('Completed jobs');
-    expect(html).toContain('History');
+    expect(html).toContain('Completed (');
     expect(html).toContain('View job');
     expect(html).toContain('My commute');
     expect(html).not.toContain('Accept');
@@ -35,7 +35,7 @@ describe('EmployeePortalView', () => {
     expect(render(dash({ phase: 'locked' }))).toContain('Planning is locked');
   });
   it('empty, loading and error states', () => {
-    expect(render(dash({ assigned: [], completed: [] }))).toContain('No jobs yet. Save your commute to get matched.');
+    expect(render(dash({ assigned: [], completed: [] }))).toContain('Matched packages appear here automatically');
     expect(render(null)).toContain('Loading');
     expect(render(null, 'boom')).toContain('boom');
   });
