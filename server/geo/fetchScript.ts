@@ -15,16 +15,23 @@
 //   A run points at it when Google refuses the first request to an API, and stops there (DECISIONS pass 51 and 52);
 // - a home typed into the commute editor has its coordinates as its ID (`home-c-<lat>_<lng>`), and the live server
 //   writes it into the cache, which is a committed file. `--drop-entered` removes those homes with all their pairs
-//   and route lines: no key, no `.env`, no Google call, and no line it prints holds an ID (SPEC "MVP II" rule 6);
+//   and route lines: no key, no `.env`, no Google call, and no line it prints holds an ID (SPEC "MVP II" rule 6).
+//   A run and a dry run say how many of them the cache holds, with that command, before their last line;
+// - a story row that is not as written and a package without a plan are explained, in a run and in a dry run:
+//   the matcher's own options for that package (server/domain/v2/storyExplain.ts), from the cache alone. The
+//   explanation only reports: it changes no plan and no exit code;
 // - exit 0 means "complete and no error flagged", so a human can commit `fixtures/nyc/` after reading the reports.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import type { Home, NycBusinessesFile, NycDemoStoryFile, NycNeighborhoodsFile } from '../../shared/v2/types';
+import type { AssignmentResult, Home, NycBusinessesFile, NycDemoStoryFile, NycNeighborhoodsFile, Scenario, Trip } from '../../shared/v2/types';
 import { generateHomePool } from '../domain/v2/generator';
+import type { MatchContext } from '../domain/v2/matching';
 import { checkPlans, checkStory, formatCheckReport } from '../domain/v2/planCheck';
-import type { StoryExpectation } from '../domain/v2/planCheck';
+import type { StoryExpectation, StoryRow } from '../domain/v2/planCheck';
+import { explainShipment, formatExplain } from '../domain/v2/storyExplain';
+import type { ExplainRow } from '../domain/v2/storyExplain';
 import { MATRIX_FILE, POLYLINES_FILE, emptyTravelFiles, readTravelFiles, writeTravelFiles } from './cache';
 import type { TravelFiles } from './cache';
 import { dropEnteredHomes, dropPlaces, enteredHomes, formatCacheEdit, formatEnteredDrop, hideEnteredIds, movedHomes } from './cacheEdit';
@@ -32,8 +39,8 @@ import type { CacheEditResult, MovedHome } from './cacheEdit';
 import { coverage, formatCacheReport, sanity } from './cacheReport';
 import { DEFAULT_ENV_PATH, SERVER_KEY_NAME, loadDotEnv, serverKey } from './env';
 import { commutePairs, planLegPairs } from './fetchPlan';
-import { estimateFetch, formatEstimate, runFetchRoutes } from './fetchRoutes';
-import type { FetchEstimate, FetchRoutesInput, FetchRoutesResult, SkippedStep } from './fetchRoutes';
+import { estimateFetch, formatEstimate, matchDefaultScenario, runFetchRoutes } from './fetchRoutes';
+import type { FetchEstimate, FetchRoutesInput, FetchRoutesResult, MatchOutcome, SkippedStep } from './fetchRoutes';
 import { FetchStopError, bindGoogleClient, formatSummary, scrubKeys } from './fetchRunner';
 import type { FetchClient } from './fetchRunner';
 import { GoogleApiError } from './googleClient';
@@ -74,6 +81,17 @@ export const DROP_ENTERED_COMMAND = 'npm run fetch:routes -- --drop-entered';
  */
 export const DROP_ENTERED_RUN_NOTE = 'A saved NYC run that uses one of them starts fresh after the drop (the server sets its state file aside, it does not delete it).';
 
+/** How many options of one package the explanation prints, best first. One more line says how many are left out. */
+export const EXPLAIN_OPTIONS = 8;
+/**
+ * Of those, the places kept for the kind the story row expects. Without them "expected direct, got relay" could
+ * print eight relays that work and not one direct option, which is the one the reader asks about.
+ */
+export const EXPLAIN_EXPECTED_KIND_OPTIONS = 3;
+
+/** The first line of the explanation in a dry run, which prints no plan check above it. */
+export const DRY_RUN_STORY_LINE = "Story check: the matcher's plans for the default scenario on the cached times (no Google call was made)";
+
 /**
  * The two points of the check's 1x1 matrix and route line: Midtown Manhattan (near 5th Avenue and 34th Street)
  * and Downtown Brooklyn (near Borough Hall). They are only asked about. Nothing Google says about them is cached
@@ -97,11 +115,15 @@ export const USAGE: readonly string[] = [
   '  3. builds the default scenario and runs the matcher on those times;',
   '  4. fetches the route lines of the baseline commutes and of the matched plans.',
   'Then it prints the fetch summary, the plan check and the travel cache report.',
+  'For every story package that did not match as demoStory.json expects, and for every package without a plan,',
+  `the plan check lists the package's options (at most ${EXPLAIN_OPTIONS}): each direct and relay option with the carrier's added`,
+  'minutes and limit, and for an option that is ruled out the first rule that ruled it out.',
   '',
   'Flags:',
   '  --dry-run   Show how many Google requests a run would make, and list the homes that moved since their travel',
   '              times were fetched, with the command that fixes it. Calls nothing, writes nothing, needs no key.',
-  '              Also says how many entered homes the cache holds (see --drop-entered), when there is one.',
+  '              Also says how many entered homes the cache holds (see --drop-entered), when there is one, and',
+  '              explains the story packages that are not as written, when the cache can answer the matcher.',
   '  --refetch <placeId>',
   '              For a home that moved or a business whose address was corrected after the fetch. Drops the place',
   '              from the cache with all its pairs and route lines, saves that, then runs the normal fetch, which',
@@ -126,6 +148,8 @@ export const USAGE: readonly string[] = [
   '  --help      Show this text.',
   '',
   `The key is read from ${SERVER_KEY_NAME}, in the environment or in .env at the repo root. It is never printed.`,
+  'When the cache holds homes typed into the commute editor, a run says how many before its last lines, with the',
+  '--drop-entered command: remove them before you commit.',
   'Re-running is safe: whatever is already in the two cache files is skipped, and every step is saved before the',
   'next one starts, so a run that stopped half way resumes where it was.',
   'A run never drops a place by itself. When a home is no longer where its cached point is, the run stops before',
@@ -370,7 +394,10 @@ function movedHomeLines(moved: readonly MovedHome[], alsoRefetch: readonly strin
 
 // ---------- homes entered in the commute editor ----------
 
-/** The one line a dry run adds when the cache holds entered homes. A count and the command: never an ID. */
+/**
+ * The one line a run and a dry run add when the cache holds entered homes: a run before its `Done:` or
+ * `NOT complete:` lines, because the first of them tells the human to commit. A count and the command: never an ID.
+ */
 function enteredHomesLine(entered: number): string {
   return (
     `Entered homes: ${entered} (${entered === 1 ? 'an address' : 'addresses'} typed into the commute editor; ` +
@@ -496,6 +523,144 @@ const STEP_NAMES: Record<SkippedStep['step'], string> = {
   polylines: 'route lines',
 };
 
+// ---------- why a story row is not as written ----------
+
+/** The matcher's result and the cache it ran on: step 3 of a run, or `matchDefaultScenario` in a dry run. */
+interface Matched {
+  scenario: Scenario;
+  trips: Trip[];
+  assignments: AssignmentResult;
+  files: TravelFiles;
+}
+
+/** The story file's rows against the matcher's result. */
+function storyRows(storyFile: NycDemoStoryFile, { scenario, assignments }: Matched): StoryRow[] {
+  // The generator gives the story's shipments their IDs in file order, so row i of the file is shipment i.
+  const expectations: StoryExpectation[] = storyFile.shipments.map((shipment, index) => ({
+    shipmentId: scenario.shipments[index]?.id ?? `(no shipment for story row ${index + 1})`,
+    label: shipment.label,
+    expect: shipment.expect,
+  }));
+  return checkStory(expectations, assignments);
+}
+
+/**
+ * The options to print, in the explainer's own order: the feasible ones as the matcher ranks them, then the ruled-out
+ * ones, nearest miss first. At most EXPLAIN_OPTIONS; when the story expects a kind, its EXPLAIN_EXPECTED_KIND_OPTIONS
+ * best options are among them even if that many others rank higher.
+ */
+function bestOptions(options: readonly ExplainRow[], expect: StoryExpectation['expect']): ExplainRow[] {
+  const miss = (row: ExplainRow) => row.missMin ?? Infinity;
+  const ordered = [
+    ...options.filter((row) => row.feasible),
+    ...options.filter((row) => !row.feasible).sort((a, b) => (miss(a) === miss(b) ? 0 : miss(a) - miss(b))),
+  ];
+  const expected = (row: ExplainRow) => expect !== 'any' && (row.kind === 'relay') === (expect === 'relay');
+  const kept = new Set(ordered.filter(expected).slice(0, EXPLAIN_EXPECTED_KIND_OPTIONS));
+  for (const row of ordered) {
+    if (kept.size >= EXPLAIN_OPTIONS) break;
+    kept.add(row);
+  }
+  return ordered.filter((row) => kept.has(row));
+}
+
+/**
+ * Why the story is not as written: for every story row that is not ok and every other package without a plan, one
+ * line with the package and then the explainer's lines for its best options (indented), and one line with how many
+ * options are left out. Empty when every story row is as written and every package has a plan.
+ *
+ * The explainer looks at one package alone. A package can also lose an option to another package: the matcher gives
+ * a commute to one package only. So a feasible option says when one of its commutes carries another package in the
+ * matcher's result, and which option is the plan the package got.
+ * The lines hold names, minutes and times of day: no place ID, no coordinates. Nothing here changes a plan.
+ */
+function explainStory(matched: Matched, rows: readonly StoryRow[]): string[] {
+  const { scenario, trips, assignments, files } = matched;
+  const failed = rows.filter((row) => !row.ok);
+  const inStory = new Set(failed.map((row) => row.shipmentId));
+  const labels = new Map(scenario.shipments.map((shipment) => [shipment.id, shipment.label]));
+  const others = assignments.unmatched.filter((entry) => !inStory.has(entry.shipmentId));
+  const subjects: { shipmentId: string; title: string; expect: StoryExpectation['expect'] }[] = [
+    ...failed.map((row) => ({
+      shipmentId: row.shipmentId,
+      title: `${row.shipmentId} ${row.label}: expected ${row.expect}, got ${row.actual}${row.reason ? ` — ${row.reason}` : ''}`,
+      expect: row.expect,
+    })),
+    ...others.map((entry) => ({
+      shipmentId: entry.shipmentId,
+      title: `${entry.shipmentId} ${labels.get(entry.shipmentId) ?? '(not in the default scenario)'}: unmatched — ${entry.reason}`,
+      expect: 'any' as const,
+    })),
+  ];
+  if (subjects.length === 0) return [];
+
+  const ctx: MatchContext = {
+    travel: createCachedProvider(files),
+    trips,
+    employees: scenario.employees,
+    businesses: scenario.businesses,
+    settings: scenario.settings,
+  };
+  const names: Record<string, string> = {};
+  for (const { id, name } of [...scenario.businesses, ...scenario.employees]) names[id] = name;
+  const planOf = new Map(assignments.plans.map((plan) => [plan.shipmentId, plan]));
+  const carries = new Map(assignments.plans.flatMap((plan) => plan.legs.map((leg): [string, string] => [leg.tripId, plan.shipmentId])));
+
+  /** What the matcher's result adds to a feasible option of `shipmentId`. */
+  const outcome = (shipmentId: string, row: ExplainRow): string => {
+    const plan = planOf.get(shipmentId);
+    const sameTrips = plan !== undefined && plan.legs.length === row.carriers.length && plan.legs.every((leg, i) => leg.tripId === row.carriers[i].tripId);
+    if (sameTrips && plan.relayBusinessId === row.relayBusinessId) return ' — the plan it got';
+    const taken = row.carriers.flatMap((carrier) => {
+      const other = carrier.tripId === null ? undefined : carries.get(carrier.tripId);
+      return other === undefined || other === shipmentId ? [] : [`the ${carrier.direction} commute of ${names[carrier.employeeId] ?? carrier.employeeId} carries ${other}`];
+    });
+    return taken.length > 0 ? ` — not free: ${taken.join(' and ')}` : '';
+  };
+
+  const parts = [
+    ...(failed.length > 0 ? [`${count(failed.length, 'story package')} not as written`] : []),
+    ...(others.length > 0 ? [`${count(others.length, failed.length > 0 ? 'other package' : 'package')} without a plan`] : []),
+  ];
+  const lines = [
+    `Why (${parts.join(', ')}): the options of each package taken alone, on the cached times. ` +
+      `At most ${EXPLAIN_OPTIONS} each: those that work first, in the matcher's order, then the nearest misses.`,
+  ];
+  for (const { shipmentId, title, expect } of subjects) {
+    lines.push(title);
+    const shipment = scenario.shipments.find((candidate) => candidate.id === shipmentId);
+    if (shipment === undefined) {
+      lines.push('  The default scenario has no package for this row, so there is nothing to explain.');
+      continue;
+    }
+    let options: ExplainRow[];
+    try {
+      options = explainShipment(shipment, ctx);
+    } catch (err) {
+      lines.push(`  The options could not be listed: ${messageOf(err)}`);
+      continue;
+    }
+    const best = bestOptions(options, expect);
+    const text = formatExplain(best, names, EXPLAIN_OPTIONS);
+    // formatExplain prints the rows in the order they are given here, after one "no feasible option" line when
+    // none of them works. If that ever changes, the lines are printed as they are, without the outcome.
+    const first = best.length > 0 && !best.some((row) => row.feasible) ? 1 : 0;
+    if (text.length === first + best.length) {
+      best.forEach((row, i) => {
+        if (row.feasible) text[first + i] += outcome(shipmentId, row);
+      });
+    }
+    for (const line of text) lines.push(`  ${line}`);
+    const left = options.length - best.length;
+    if (left > 0) {
+      const feasibleLeft = options.filter((row) => row.feasible).length - best.filter((row) => row.feasible).length;
+      lines.push(`  … ${count(left, 'more option')} (${feasibleLeft} feasible, ${left - feasibleLeft} ruled out)`);
+    }
+  }
+  // No place ID is printed above. This is for an error message, which may quote one.
+  return lines.map(hideEnteredIds);
+}
+
 // ---------- the reports after a run ----------
 
 interface Verdict {
@@ -547,14 +712,10 @@ function report(input: FetchRoutesInput, result: FetchRoutesResult, print: (line
         settings: scenario.settings,
         travel: createCachedProvider(result.files),
       });
-      // The generator gives the story's shipments their IDs in file order, so row i of the file is shipment i.
-      const expectations: StoryExpectation[] = input.storyFile.shipments.map((shipment, index) => ({
-        shipmentId: scenario.shipments[index]?.id ?? `(no shipment for story row ${index + 1})`,
-        label: shipment.label,
-        expect: shipment.expect,
-      }));
-      const rows = checkStory(expectations, assignments);
+      const matched: Matched = { scenario, trips: result.trips, assignments, files: result.files };
+      const rows = storyRows(input.storyFile, matched);
       for (const line of formatCheckReport(issues, rows, assignments.plans.length)) print(`  ${line}`);
+      for (const line of explainStory(matched, rows)) print(`  ${line}`);
       if (issues.length > 0) reasons.push(`the plan check found ${count(issues.length, 'problem')}`);
       const failed = rows.filter((row) => !row.ok).length;
       if (failed > 0) reasons.push(`${count(failed, 'story package')} did not match as written in ${STORY_FILE}`);
@@ -617,6 +778,9 @@ export interface FetchScriptArgs {
  *   that finds moved homes (nothing is dropped; the last line is the `--refetch` command), and a run that Google
  *   refuses at the first request to an API (it stops there; the last line is CHECK_KEY_LINE);
  * - 2: an unknown flag or a misused one. The usage text is printed; nothing is read, called or written.
+ * The explanation of a story row that is not as written (`explainStory`) and the entered-homes line change none of
+ * these codes: a dry run that explains a wrong row still exits 0, and a run with entered homes in the cache exits
+ * as it would without them.
  * With `--refetch` the order is: drop in memory, save, print, and only then the first Google call.
  * `--check-key` is its own command: exactly the three calls of `checkGoogleAccess`, 0 when all three rows are ok,
  * 1 when one is not or there is no key (then no call is made). It reads `.env` and businesses.json and writes nothing.
@@ -733,8 +897,12 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
     // the generator cannot use stop here, before a paid call. The same goes for the moved homes.
     let estimate: FetchEstimate;
     let moved: MovedHome[];
+    let dryMatch: MatchOutcome | null = null;
     try {
       estimate = estimateFetch(input);
+      // A dry run explains the story from the cache as it is. `planPolylines` is null exactly when the matcher
+      // cannot run on it yet; then there is nothing to explain.
+      if (dryRun && estimate.planPolylines !== null) dryMatch = matchDefaultScenario(input, input.files);
       // Tolerance 0: any difference counts, as in the matrix step, which refuses a home that is not exactly on its cached point.
       moved = movedHomes({ files: input.files, homes: fetchedHomes(input), toleranceM: 0 });
     } catch (err) {
@@ -750,6 +918,12 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
         print('');
       }
       for (const line of formatEstimate(estimate)) print(line);
+      if (dryMatch !== null && dryMatch.ok) {
+        const matched: Matched = { ...dryMatch, files: input.files };
+        const why = explainStory(matched, storyRows(input.storyFile, matched));
+        if (why.length > 0) print(DRY_RUN_STORY_LINE);
+        for (const line of why) print(`  ${line}`);
+      }
       for (const line of movedHomeLines(moved, refetch)) print(line);
       const entered = enteredHomes(input.files).length;
       if (entered > 0) print(enteredHomesLine(entered));
@@ -829,6 +1003,9 @@ export async function runFetchScript(args: FetchScriptArgs): Promise<number> {
     const verdict = report(input, result, print);
 
     print('');
+    // The cache as the run leaves it. The live server may have put entered homes in it; a run never drops them.
+    const entered = enteredHomes(result.files).length;
+    if (entered > 0) print(enteredHomesLine(entered));
     if (verdict.reasons.length === 0) {
       print(`Done: the cache is complete and no error is flagged. Read the two reports above (warnings too), then commit ${shownPath(dir)}.`);
       return EXIT_OK;
