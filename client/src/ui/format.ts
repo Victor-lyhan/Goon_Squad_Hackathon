@@ -11,8 +11,9 @@ export function formatClock(min: number): string {
 
 /** "Day 2, 8:30 AM" for minutes since Day 1 00:00. */
 export function formatMin(min: number): string {
-  const day = Math.floor(Math.round(min) / 1440) + 1;
-  return `Day ${day}, ${formatClock(min)}`;
+  const safe = Number.isFinite(min) ? Math.max(0, Math.round(min)) : 0;
+  const day = Math.floor(safe / 1440) + 1;
+  return `Day ${day}, ${formatClock(safe)}`;
 }
 
 /** Integer cents -> "$10.00" (negatives as "-$1.50"). */
@@ -24,6 +25,7 @@ export function formatCents(cents: number): string {
 
 /** Grams -> "0.3 kg" (at most one decimal, trailing ".0" dropped for whole kg). */
 export function formatKg(grams: number): string {
+  if (grams > 0 && grams < 50) return '<0.1 kg'; // never show a real parcel as "0 kg"
   const kg = Math.round(grams / 100) / 10;
   return `${Number.isInteger(kg) ? kg : kg.toFixed(1)} kg`;
 }
