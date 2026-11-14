@@ -55,6 +55,28 @@ export function dayTimeToMin(day: number, time: string): number {
   return (day - 1) * DAY + timeToMin(time);
 }
 
+/** Default planning window (settings.simStartMin / simEndMin): Day 1 15:30 to Day 2 12:00. */
+export const DEFAULT_WINDOW = { startMin: 930, endMin: 2160 } as const;
+export type TimeWindow = { startMin: number; endMin: number };
+
+function dayTimeLabel(min: number): string {
+  return `Day ${Math.floor(min / DAY) + 1} ${minToTime(min)}`;
+}
+
+/** Weight rule: kg with a dot, 0 < kg <= 2, stored as grams = round(kg * 1000) which must be >= 1. */
+export function parseWeightKg(raw: string): { kg: number; grams: number } | { error: string } {
+  const t = raw.trim();
+  if (t === '') return { error: 'Enter a weight in kg, for example 0.5' };
+  if (t.includes(',')) return { error: 'Use a dot for the decimal point, for example 1.5 kg' };
+  const n = Number(t);
+  if (!Number.isFinite(n)) return { error: 'Weight must be a number in kg, for example 0.5' };
+  if (n <= 0) return { error: 'Weight must be above 0 kg' };
+  if (n > 2) return { error: 'Max 2 kg' };
+  const grams = Math.round(n * 1000);
+  if (grams < 1) return { error: 'Weight is too small: the minimum is 0.001 kg (1 g)' };
+  return { kg: grams / 1000, grams };
+}
+
 function rawRequest(form: FormState, clientRequestId: string) {
   return {
     clientRequestId,
@@ -63,7 +85,7 @@ function rawRequest(form: FormState, clientRequestId: string) {
     label: form.label,
     category: form.category,
     description: form.description,
-    weightKg: form.weightKg.trim() === '' ? NaN : Number(form.weightKg),
+    weightKg: (() => { const w = parseWeightKg(form.weightKg); return 'kg' in w ? w.kg : NaN; })(),
     readyMin: dayTimeToMin(form.readyDay, form.readyTime),
     deadlineMin: dayTimeToMin(form.deadlineDay, form.deadlineTime),
     pickupInstructions: form.pickupInstructions,
@@ -77,21 +99,32 @@ export function toRequest(form: FormState, clientRequestId: string): CreateShipm
 }
 
 /** Field errors keyed by form field name (first message per field). Empty = valid. */
-export function validate(form: FormState): Record<string, string> {
-  const res = CreateShipmentRequest.safeParse(rawRequest(form, 'validate'));
-  if (res.success) return {};
+export function validate(form: FormState, window: TimeWindow = DEFAULT_WINDOW): Record<string, string> {
+  // A bad weight is reported by parseWeightKg; give zod a placeholder so refinements (same origin, order) still run.
+  const raw = rawRequest(form, 'validate');
+  const res = CreateShipmentRequest.safeParse(Number.isNaN(raw.weightKg) ? { ...raw, weightKg: 1 } : raw);
   const errors: Record<string, string> = {};
-  for (const issue of res.error.issues) {
+  for (const issue of res.success ? [] : res.error.issues) {
     const key = String(issue.path[0] ?? 'form');
     if (!(key in errors)) errors[key] = issue.message;
   }
-  // Zod's default message for a missing/NaN number is unhelpful.
-  if (errors.weightKg && !/kg/.test(errors.weightKg)) errors.weightKg = 'Enter a weight in kg';
+  const w = parseWeightKg(form.weightKg);
+  if ('error' in w) errors.weightKg = w.error;
   if (errors.destinationBusinessId && form.destinationBusinessId === '') {
     errors.destinationBusinessId = 'Choose a destination business';
   }
   for (const k of ['readyMin', 'deadlineMin'] as const) {
     if (errors[k] && !/after/.test(errors[k])) errors[k] = 'Enter a valid day and time';
+  }
+  // Out-of-window times (deadline-before-ready, reported above, takes precedence on the deadline field).
+  const range = `${dayTimeLabel(window.startMin)} and ${dayTimeLabel(window.endMin)}`;
+  const ready = dayTimeToMin(form.readyDay, form.readyTime);
+  const deadline = dayTimeToMin(form.deadlineDay, form.deadlineTime);
+  if (!errors.readyMin && (ready < window.startMin || ready > window.endMin)) {
+    errors.readyMin = `Ready time must be between ${range}`;
+  }
+  if (!errors.deadlineMin && (deadline < window.startMin || deadline > window.endMin)) {
+    errors.deadlineMin = `Deliver-by time must be between ${range}`;
   }
   return errors;
 }
@@ -146,3 +179,43 @@ export function actionErrorMessage(e: unknown): string {
   if (status === 409 && !/planning cycle|already matched/i.test(msg)) return `${msg}. Start a new planning cycle to change deliveries.`;
   return msg;
 }
+
+/** Holds one clientRequestId across retries; only a success (or a fresh form / Duplicate) calls reset(). */
+export function createRequestIdHolder(originId: () => string) {
+  let id = '';
+  return {
+    current(): string {
+      if (!id) id = newClientRequestId(originId());
+      return id;
+    },
+    reset() { id = ''; },
+  };
+}
+
+export type SubmitFailure =
+  | { kind: 'retry'; message: string }
+  | { kind: 'locked'; message: string }
+  | { kind: 'fields'; fieldErrors: Record<string, string>; message: string }
+  | { kind: 'other'; message: string };
+
+/** Classifies a failed create call: network/5xx keep the form and the id for a retry; 409 = locked; 400 = field errors. */
+export function classifySubmitFailure(e: unknown): SubmitFailure {
+  const status = (e as { status?: number } | null)?.status;
+  const fieldErrors = (e as { fieldErrors?: Record<string, string> } | null)?.fieldErrors;
+  if (status === 409) return { kind: 'locked', message: LOCKED_MESSAGE };
+  if (status === 400 && fieldErrors && Object.keys(fieldErrors).length > 0) {
+    return { kind: 'fields', fieldErrors, message: 'Please fix the highlighted fields.' };
+  }
+  if (status === 0 || (typeof status === 'number' && status >= 500)) {
+    return {
+      kind: 'retry',
+      message: "We couldn't reach the server. Your details are kept; press the button again to retry. It won't create a duplicate package.",
+    };
+  }
+  return { kind: 'other', message: e instanceof Error ? e.message : 'Request failed' };
+}
+
+export const LOCKED_MESSAGE = 'Simulation has started, so new requests are closed until the next planning cycle.';
+
+/** Form fields that have an inline slot; other server field keys are shown in the form-level message. */
+export const FORM_FIELDS = ['destinationBusinessId', 'label', 'category', 'weightKg', 'description', 'readyMin', 'deadlineMin'];

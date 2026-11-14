@@ -6,7 +6,7 @@ import { ApiRequestError, createShipment, matchShipment, patchShipment } from '.
 import { ShipmentForm } from '../ShipmentForm';
 import { MatchResultCard } from './MatchResultCard';
 import { patchFromRequest } from './businessPortalModel';
-import { actionErrorMessage, createSubmitGuard, formFromShipment, type FormState } from './shipmentFormModel';
+import { actionErrorMessage, classifySubmitFailure, createSubmitGuard, formFromShipment, type FormState } from './shipmentFormModel';
 import { Button } from '../../ui';
 import './BusinessPortal.css';
 
@@ -31,11 +31,12 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
   const [editing, setEditing] = useState<{ id: string; initial: Partial<FormState> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<{ kind: 'retry' | 'locked' | 'other'; message: string } | undefined>();
   const guard = useRef(createSubmitGuard()).current;
   const [lastReset, setLastReset] = useState(p.resetKey);
   if (lastReset !== p.resetKey) {
     setLastReset(p.resetKey);
-    setResult(null); setEditing(null); setFieldErrors({});
+    setResult(null); setEditing(null); setFieldErrors({}); setFormError(undefined);
   }
   const formInitial = useMemo(() => editing?.initial ?? p.initial, [editing, p.initial]);
 
@@ -44,13 +45,20 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
     await guard(async () => {
       setSubmitting(true);
       setFieldErrors({});
+      setFormError(undefined);
       try {
         const res = await action();
         setResult(res);
         setEditing(null);
         await p.onChanged();
       } catch (e) {
-        if (e instanceof ApiRequestError && e.status === 400 && e.fieldErrors) setFieldErrors(e.fieldErrors);
+        const f = classifySubmitFailure(e);
+        if (!editing && !result) {
+          // Create form: report inline and keep the form filled.
+          if (f.kind === 'fields') { setFieldErrors(f.fieldErrors); setFormError({ kind: 'other', message: f.message }); }
+          else setFormError({ kind: f.kind, message: f.message });
+          if (f.kind === 'locked') void p.onChanged();
+        } else if (e instanceof ApiRequestError && e.status === 400 && e.fieldErrors) setFieldErrors(e.fieldErrors);
         else p.onError(actionErrorMessage(e));
       } finally {
         setSubmitting(false);
@@ -88,6 +96,7 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
         locked={p.locked}
         submitting={submitting}
         fieldErrors={fieldErrors}
+        formError={editing ? undefined : formError}
         initial={formInitial}
         onSubmit={(r) => void onSubmit(r)}
       />
