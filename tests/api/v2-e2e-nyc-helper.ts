@@ -117,18 +117,29 @@ export type Answer<B> = { status: number; body: B };
 export type NycApi = Awaited<ReturnType<typeof startNycApi>>;
 
 /**
+ * A copy of the committed `fixtures/nyc` in a new temp folder, for a test that writes (a delivery request,
+ * a commute save): DECISIONS pass 56. The caller removes it.
+ */
+export function copyNycFixtures(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v2-e2e-nyc-fixtures-'));
+  fs.cpSync(NYC_DIR, dir, { recursive: true });
+  return dir;
+}
+
+/**
  * The whole server on a free port, MVP II booted from the real `fixtures/nyc` with no key.
  * `stateDir` is a folder of an earlier `startNycApi` (a restart on the same state file); it is then
- * not removed by `close`.
+ * not removed by `close`. `fixturesDir` is a copy of `fixtures/nyc` (`copyNycFixtures`) to boot from
+ * instead of the committed folder.
  */
-export async function startNycApi(net: FetchRecorder, opts: { stateDir?: string } = {}) {
+export async function startNycApi(net: FetchRecorder, opts: { stateDir?: string; fixturesDir?: string } = {}) {
   if (!net.installed()) throw new Error('v2-e2e-nyc: call recordFetch() before the server starts');
   const stateDir = opts.stateDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'v2-e2e-nyc-'));
   const statePath = path.join(stateDir, 'state-v2.json');
   const dataBefore = repoDataState();
   const nycBefore = nycFilesState();
 
-  const runtime: V2Runtime = createV2Runtime({ fixturesDir: NYC_DIR, statePath, key: undefined });
+  const runtime: V2Runtime = createV2Runtime({ fixturesDir: opts.fixturesDir ?? NYC_DIR, statePath, key: undefined });
   const mvp1Store = createStore({
     filePath: path.join(stateDir, 'state.json'),
     initial: () => createMvp1Run(loadDefaultScenario()),
