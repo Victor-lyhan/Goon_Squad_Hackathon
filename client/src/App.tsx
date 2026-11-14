@@ -9,8 +9,10 @@ import { getBusinesses, getEmployees, getSimulator } from './api';
 import { getBusinesses as getV2Businesses, getEmployees as getV2Employees, isTravelUnavailable } from './api/v2';
 import {
   activeDestination, DESTINATIONS, ENV_INDICATOR_TEXT, RUN_POLL_MS, reconcileSelection, runChanged, staleNote,
-  envIndicatorFor, isFullWidthPath, isPreviewPath, previewDestination, previewHrefs,
+  envIndicatorFor, helpPathFor, homePathFor, isFullWidthPath, isPreviewPath, previewDestination, previewHrefs,
+  PREVIEW_HELP_PATH, PREVIEW_HOME_PATH,
 } from './ui/shellModel';
+import type { NycSummary } from './pages/landingModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
 import NotFoundPage from './ui/NotFoundPage';
 import {
@@ -194,7 +196,11 @@ function DemoAccountSelector({ dir }: { dir: Directory }) {
   );
 }
 
-type ShellProps = { initial?: DirectoryData; initialV2?: V2Directory; initialV2Businesses?: V2BusinessDirectory };
+type ShellProps = {
+  initial?: DirectoryData; initialV2?: V2Directory; initialV2Businesses?: V2BusinessDirectory;
+  /** The /nyc homepage summary (tests); without it the page loads /api/v2. */
+  initialNycSummary?: NycSummary;
+};
 
 /** `initial` / `initialV2` / `initialV2Businesses` skip the API loads (used by tests). */
 export function Header({ initial, initialV2, initialV2Businesses }: ShellProps = {}) {
@@ -220,9 +226,10 @@ export function Header({ initial, initialV2, initialV2Businesses }: ShellProps =
       v2biz.status === 'ready' ? v2biz.businesses[0]?.id : undefined,
     )
     : { business: paths.business, employee: paths.employee, simulator: SIMULATOR_PATH };
+  const helpPath = helpPathFor(pathname);
   return (
     <header className="shell-header">
-      <Link to="/" className="shell-wordmark">Relay</Link>
+      <Link to={homePathFor(pathname)} className="shell-wordmark">Relay</Link>
       <nav aria-label="Workspaces" className="shell-nav">
         {DESTINATIONS.map(({ key, label }) => {
           const to = hrefs[key];
@@ -240,7 +247,7 @@ export function Header({ initial, initialV2, initialV2Businesses }: ShellProps =
         <div className="demo-account-slot" data-slot="demo-account-selector">
           {preview ? <PreviewAccountSelector employees={v2dir} businesses={v2biz} /> : <DemoAccountSelector dir={dir} />}
         </div>
-        <Link to="/help" className={pathname === '/help' ? 'shell-help active' : 'shell-help'} aria-current={pathname === '/help' ? 'page' : undefined}>Help</Link>
+        <Link to={helpPath} className={pathname === helpPath ? 'shell-help active' : 'shell-help'} aria-current={pathname === helpPath ? 'page' : undefined}>Help</Link>
         <span className="shell-env">{envIndicatorFor(pathname)}</span>
       </div>
     </header>
@@ -248,7 +255,7 @@ export function Header({ initial, initialV2, initialV2Businesses }: ShellProps =
 }
 
 /** Header + routes, without a router, so tests can wrap it in MemoryRouter. */
-export function AppShell({ initial, initialV2, initialV2Businesses }: ShellProps = {}) {
+export function AppShell({ initial, initialV2, initialV2Businesses, initialNycSummary }: ShellProps = {}) {
   const { pathname } = useLocation();
   return (
     <>
@@ -262,7 +269,9 @@ export function AppShell({ initial, initialV2, initialV2Businesses }: ShellProps
           <Route path="/employee/:id" element={<EmployeePortal />} />
           <Route path="/simulator" element={<Simulator />} />
           <Route path="/help" element={<Help initial={initial} />} />
-          {/* MVP II preview (DECISIONS pass 46, pass 52). */}
+          {/* MVP II preview (DECISIONS pass 46, pass 52, pass 55). */}
+          <Route path={PREVIEW_HOME_PATH} element={<Landing dataset="nyc" initialSummary={initialNycSummary} helpPath={PREVIEW_HELP_PATH} />} />
+          <Route path={PREVIEW_HELP_PATH} element={<Help dataset="nyc" initialEmployees={initialV2} initialBusinesses={initialV2Businesses} />} />
           <Route path="/nyc/business/:id" element={<BusinessV2 />} />
           <Route path="/nyc/simulator" element={<SimulatorV2 />} />
           <Route path="/nyc/employee/:id" element={<EmployeeV2 />} />
