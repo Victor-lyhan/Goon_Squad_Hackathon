@@ -27,7 +27,7 @@
 .bp-state p, .bp-missing p { margin: 0 0 var(--space-2, 8px); }
 .bp-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3, 12px); }
 .bp-links a { color: var(--accent, #28618A); }
-.bp-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); color: var(--muted, #5B6574); }
+.bp-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); color: var(--muted, #5B6472); }
 
 .bp-notices:empty { display: none; }
 .bp-notice {
@@ -38,8 +38,8 @@
   border-radius: var(--radius, 2px);
   background: var(--panel, #FFFFFF);
 }
-.bp-problem { border-left-color: var(--danger, #B42318); }
-.bp-state.bp-problem { border-left: 2px solid var(--danger, #B42318); }
+.bp-problem { border-left-color: var(--danger, #A4322A); }
+.bp-state.bp-problem { border-left: 2px solid var(--danger, #A4322A); }
 
 .bp-layout {
   display: grid;
@@ -57,7 +57,7 @@
 .bp-btn {
   min-height: 36px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--border-strong, #9AA4B2);
+  border: 1px solid var(--muted, #5B6472);
   border-radius: var(--radius, 2px);
   background: var(--panel, #FFFFFF);
   color: var(--text, #151B26);
@@ -79,4 +79,16 @@
   .bp-state, .bp-missing { padding: var(--space-3, 12px); }
   .bp-layout { gap: var(--space-3, 12px); }
   .bp-links .bp-btn { width: 100%; min-height: 44px; }
+}
+
+/* Reduced motion (#497): nothing in this file animates or transitions, now or later. */
+@media (prefers-reduced-motion: reduce) {
+  [class*='bp'],
+  [class*='bp'] *,
+  [class*='bp']::before,
+  [class*='bp']::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

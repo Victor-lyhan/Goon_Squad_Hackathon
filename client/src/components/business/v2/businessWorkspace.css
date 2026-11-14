@@ -16,7 +16,7 @@
 .bw-toolbar__label {
   font-size: var(--text-xs, 12px);
   font-weight: 600;
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -51,8 +51,8 @@
 .bw-segmented__btn:first-child { border-radius: var(--radius, 2px) 0 0 var(--radius, 2px); }
 .bw-segmented__btn:last-child { border-radius: 0 var(--radius, 2px) var(--radius, 2px) 0; }
 .bw-segmented__btn[aria-pressed='true'] {
-  background: var(--accent-soft, #E6EEF4);
-  color: var(--accent-dark, #1D4866);
+  background: var(--accent-soft, #E8F0F6);
+  color: var(--accent-dark, #1F4E70);
   font-weight: 600;
 }
 .bw-segmented__btn:hover { background: var(--bg, #F7F8FA); }
@@ -71,8 +71,8 @@
   cursor: pointer;
 }
 .bw-btn:hover { background: var(--bg, #F7F8FA); }
-.bw-btn--primary { background: var(--accent, #28618A); border-color: var(--accent, #28618A); color: #FFFFFF; }
-.bw-btn--primary:hover { background: var(--accent-dark, #1D4866); border-color: var(--accent-dark, #1D4866); }
+.bw-btn--primary { background: var(--accent, #28618A); border-color: var(--accent, #28618A); color: var(--panel, #FFFFFF); }
+.bw-btn--primary:hover { background: var(--accent-dark, #1F4E70); border-color: var(--accent-dark, #1F4E70); }
 .bw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .bw-btn:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
 
@@ -99,7 +99,7 @@
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   font-weight: 400;
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
 }
 .bw-table th,
 .bw-table td {
@@ -112,7 +112,7 @@
   background: var(--bg, #F7F8FA);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -135,13 +135,13 @@
 }
 .bw-sort:hover { color: var(--text, #151B26); }
 .bw-sort:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
-.bw-sort__icon { display: inline-block; width: 1em; font-size: 0.8em; }
+.bw-sort__icon { display: inline-block; width: 12px; font-size: 0.8em; }
 th[aria-sort] .bw-sort { color: var(--text, #151B26); }
 
 .bw-row { cursor: pointer; }
 .bw-row:hover { background: var(--bg, #F7F8FA); }
-.bw-row[aria-selected='true'] { background: var(--accent-soft, #E6EEF4); }
-.bw-row[aria-selected='true'] .bw-cell--primary { color: var(--accent-dark, #1D4866); }
+.bw-row[aria-selected='true'] { background: var(--accent-soft, #E8F0F6); }
+.bw-row[aria-selected='true'] .bw-cell--primary { color: var(--accent-dark, #1F4E70); }
 .bw-row:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: -2px; }
 
 .bw-cell--primary { font-weight: 600; }
@@ -150,12 +150,12 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
   font-size: var(--text-xs, 12px);
   white-space: nowrap;
 }
-.bw-muted { color: var(--muted, #5B6675); }
+.bw-muted { color: var(--muted, #5B6472); }
 .bw-reason {
   display: block;
   margin-top: var(--space-1, 4px);
   font-size: var(--text-xs, 12px);
-  color: var(--danger, #B42318);
+  color: var(--danger, #A4322A);
 }
 
 /* Status: rectangular label, 1px border, no pill. */
@@ -168,11 +168,11 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
   font-weight: 600;
   white-space: nowrap;
 }
-.bw-status--neutral { color: var(--muted, #5B6675); }
+.bw-status--neutral { color: var(--muted, #5B6472); }
 .bw-status--info { color: var(--accent, #28618A); }
 .bw-status--warn { color: var(--warn, #8A5A00); }
-.bw-status--success { color: var(--ok, #1E7A46); }
-.bw-status--danger { color: var(--danger, #B42318); }
+.bw-status--success { color: var(--ok, #2F6B4F); }
+.bw-status--danger { color: var(--danger, #A4322A); }
 
 /* ---------- Empty states ---------- */
 .bw-empty {
@@ -185,7 +185,7 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
   color: var(--text, #151B26);
 }
 .bw-empty__title { margin: 0 0 var(--space-1, 4px); font-weight: 600; font-size: var(--text-md, 16px); }
-.bw-empty__text { margin: 0 0 var(--space-4, 16px); color: var(--muted, #5B6675); font-size: var(--text-sm, 14px); }
+.bw-empty__text { margin: 0 0 var(--space-4, 16px); color: var(--muted, #5B6472); font-size: var(--text-sm, 14px); }
 
 .bw-visually-hidden {
   position: absolute;
@@ -218,6 +218,10 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
   .bw-table caption { padding: 0 0 var(--space-2, 8px); }
   /* Header row is replaced by per-cell labels; sorting stays available on wider screens. */
   .bw-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  /* A keyboard user who tabs into the sort buttons sees them: the header row shows as a wrapping strip. */
+  .bw-table thead:focus-within { position: static; display: block; width: auto; height: auto; overflow: visible; clip: auto; margin-bottom: var(--space-2, 8px); }
+  .bw-table thead:focus-within tr { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px); }
+  .bw-table thead:focus-within th { display: block; padding: var(--space-1, 4px) var(--space-2, 8px); border: 1px solid var(--border, #D7DDE5); }
   .bw-table tr.bw-row {
     margin-bottom: var(--space-2, 8px);
     border: 1px solid var(--border, #D7DDE5);
@@ -238,8 +242,20 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
     font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
     font-size: var(--text-xs, 12px);
     font-weight: 600;
-    color: var(--muted, #5B6675);
+    color: var(--muted, #5B6472);
   }
   .bw-table .bw-num { text-align: left; }
   .bw-mono { white-space: normal; }
+}
+
+/* Reduced motion (#497): nothing in this file animates or transitions, now or later. */
+@media (prefers-reduced-motion: reduce) {
+  [class*='bw-'],
+  [class*='bw-'] *,
+  [class*='bw-']::before,
+  [class*='bw-']::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
