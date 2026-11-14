@@ -1,7 +1,7 @@
 // Runtime travel service (server/geo/travelService.ts): registering a new home, fetching its pairs and route
 // lines live, and writing them back to the cache files. Temp directories and a fake fetch only: no network,
 // no real key, no .env.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pairKey } from '../../shared/v2/types';
@@ -12,9 +12,11 @@ import { TravelPlaceMissingError, TravelRouteError } from '../../server/geo/goog
 import type { PlacePair } from '../../server/geo/googleProvider';
 import { TravelPlaceError, createTravelService } from '../../server/geo/travelService';
 import {
-  BUSINESSES, KEY, NEW_HOME, NEW_HOME_POINT, POINTS, coordinateTexts, expectNoText, fakeGoogle, google500, lineFor, metersFor,
-  noSleep, secondsFor, seedFiles, tempDirs, watchSuite,
+  BUSINESSES, KEY, NEW_HOME, NEW_HOME_POINT, POINTS, TRAVEL_SERVICE_TEST_TIMEOUT_MS, coordinateTexts, expectNoText, fakeGoogle, google500, lineFor,
+  metersFor, noSleep, secondsFor, seedFiles, tempDirs, watchSuite,
 } from './travelServiceHarness';
+
+vi.setConfig({ testTimeout: TRAVEL_SERVICE_TEST_TIMEOUT_MS });
 
 const dirs = tempDirs();
 const suite = watchSuite();

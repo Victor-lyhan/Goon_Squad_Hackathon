@@ -1,6 +1,6 @@
 // runFetchRoutes (server/geo/fetchRoutes.ts) on the real fixtures/nyc/*.json with a fake Google client.
 // No network, no real key, no .env, no files written.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { pairKey } from '../../shared/v2/types';
 import { emptyTravelFiles } from '../../server/geo/cache';
 import { commutePairs, planLegPairs } from '../../server/geo/fetchPlan';
@@ -10,6 +10,7 @@ import { createCachedProvider } from '../../server/geo/providers';
 import {
   BUSINESS_IDS,
   BUSINESS_POINTS,
+  FETCH_ROUTES_TEST_TIMEOUT_MS,
   HOMES,
   HOME_IDS,
   KEY,
@@ -26,6 +27,8 @@ import {
   totalCalls,
   travel,
 } from './fetch-routes-helpers';
+
+vi.setConfig({ testTimeout: FETCH_ROUTES_TEST_TIMEOUT_MS });
 
 const sorted = (values: readonly string[]) => [...values].sort();
 const businessPlaces = (places: Record<string, unknown>) => Object.keys(places).filter((id) => id.startsWith('biz-'));
@@ -191,11 +194,13 @@ describe('runFetchRoutes: resuming', () => {
 describe('runFetchRoutes: a business that cannot be geocoded', () => {
   const lost = 'biz-sweetleaf';
   const others = BUSINESS_IDS.filter((id) => id !== lost);
-  const noResultFor = () => fakeClient({ geocode: (id) => (id === lost ? [] : undefined) });
+  let partial: ReturnType<typeof run> | undefined;
+  /** The run in which that business gets no geocode result: made once, read by both tests below. */
+  const partialRun = () => (partial ??= run(emptyTravelFiles(), fakeClient({ geocode: (id) => (id === lost ? [] : undefined) })));
 
   it('skips steps 3 and 4 with a reason, keeps the 17 geocodes and requests no pair of that business', async () => {
     expect(BUSINESS_IDS).toContain(lost);
-    const { result, calls, saves, lines } = await run(emptyTravelFiles(), noResultFor());
+    const { result, calls, saves, lines } = await partialRun();
 
     expect(result.scenario).toBeNull();
     expect(result.assignments).toBeNull();
@@ -226,8 +231,8 @@ describe('runFetchRoutes: a business that cannot be geocoded', () => {
   });
 
   it('finishes on the next run once the business geocodes, fetching only what that business adds', async () => {
-    const { result: partial } = await run(emptyTravelFiles(), noResultFor());
-    const { result, calls } = await run(partial.files);
+    const { result: stopped } = await partialRun();
+    const { result, calls } = await run(stopped.files);
     const { result: firstResult } = await firstRun();
 
     expect(calls.geocode).toEqual([businessesFile.businesses.find((business) => business.id === lost)!.address]);

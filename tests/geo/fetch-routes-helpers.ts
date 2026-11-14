@@ -12,6 +12,13 @@ import type { FetchRoutesInput } from '../../server/geo/fetchRoutes';
 import type { FetchClient } from '../../server/geo/fetchRunner';
 import type { GeocodeResult, LatLng, RouteMatrixResult, RoutePolyline } from '../../server/geo/googleClient';
 
+/**
+ * Explicit per-test limit for tests/geo/fetch-routes-*.test.ts, set at the top of each file with `vi.setConfig`
+ * (DECISIONS pass 17 and 19). These tests run the whole fetch on 4,986 pairs with a fake client; the slowest takes
+ * about 60 ms locally and a whole file about 0.5 s on a slow CI runner, so this is a guard, not a need.
+ */
+export const FETCH_ROUTES_TEST_TIMEOUT_MS = 10_000;
+
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 // Not a real key. It has characters that change when URL-encoded, so both forms are checked for leaks.

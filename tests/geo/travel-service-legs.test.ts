@@ -1,14 +1,16 @@
 // Runtime travel service (server/geo/travelService.ts): `ensureLegPolylines`, the best-effort route lines of a
 // newly matched delivery. It never rejects; a failure leaves the legs on the straight-line fallback.
 // Temp directories and a fake fetch only: no network, no real key, no .env.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pairKey } from '../../shared/v2/types';
 import type { Leg } from '../../shared/v2/types';
 import { MATRIX_FILE, POLYLINES_FILE, readTravelFiles } from '../../server/geo/cache';
 import { createTravelService } from '../../server/geo/travelService';
-import { KEY, NEW_HOME, fakeGoogle, google500, lineFor, noSleep, seedFiles, tempDirs, watchSuite } from './travelServiceHarness';
+import { KEY, NEW_HOME, TRAVEL_SERVICE_TEST_TIMEOUT_MS, fakeGoogle, google500, lineFor, noSleep, seedFiles, tempDirs, watchSuite } from './travelServiceHarness';
+
+vi.setConfig({ testTimeout: TRAVEL_SERVICE_TEST_TIMEOUT_MS });
 
 const dirs = tempDirs();
 const suite = watchSuite();

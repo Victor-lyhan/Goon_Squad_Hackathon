@@ -2,12 +2,14 @@
 // Also the source rules of the file: no disk, no environment, no terminal, nothing that is not on main.
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { pairKey } from '../../shared/v2/types';
 import { emptyTravelFiles } from '../../server/geo/cache';
 import { commutePairs } from '../../server/geo/fetchPlan';
 import { DEFAULT_SCENARIO_REQUEST, PLAN_POLYLINES_NOTE, estimateFetch, formatEstimate, nothingToFetch } from '../../server/geo/fetchRoutes';
-import { deepFreeze, firstRun, input, leakedLines, loggedLineCount, matrixPairsRequested, repoRoot, storyFile } from './fetch-routes-helpers';
+import { FETCH_ROUTES_TEST_TIMEOUT_MS, deepFreeze, firstRun, input, leakedLines, loggedLineCount, matrixPairsRequested, repoRoot, storyFile } from './fetch-routes-helpers';
+
+vi.setConfig({ testTimeout: FETCH_ROUTES_TEST_TIMEOUT_MS });
 
 describe('estimateFetch', () => {
   it('on empty files agrees with the calls the first run made for geocodes, matrix pairs and commute lines', async () => {
