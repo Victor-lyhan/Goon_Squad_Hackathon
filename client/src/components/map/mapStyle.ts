@@ -42,6 +42,46 @@ export const MAP_STYLE: MapTypeStyle[] = [
   { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#a3b1bf' }] },
 ];
 
+/**
+ * The same map at night (docs/mvp3.md P1, #649): identical rules (no POI, transit or road labels),
+ * dark slate colors. Only the basemap changes; the deck.gl routes, markers and names keep their colors.
+ */
+export const NIGHT_MAP_STYLE: MapTypeStyle[] = [
+  { elementType: 'geometry', stylers: [{ color: '#1c2430' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8f9bab' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#151b26' }] },
+
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#2f3a4a' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.neighborhood', elementType: 'labels.text.fill', stylers: [{ color: '#7f8b9c' }] },
+
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#202936' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1f2e2c' }] },
+
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c3644' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#232c38' }] },
+  { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#303b4a' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3a4657' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#2a3441' }] },
+  { featureType: 'road.highway', elementType: 'labels.text', stylers: [{ visibility: 'on' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#8492a4' }] },
+  { featureType: 'road.highway', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0f1620' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4f6074' }] },
+];
+
+/** The basemap style for a phase; a map without a day/night prop is always the light one. */
+export function mapStyleFor(phase: 'day' | 'night' | undefined): MapTypeStyle[] {
+  return phase === 'night' ? NIGHT_MAP_STYLE : MAP_STYLE;
+}
+
 /** NYC default view (about 40.73, -73.94, zoom 11). */
 export const NYC_CENTER = { lat: 40.73, lng: -73.94 };
 export const NYC_ZOOM = 11;

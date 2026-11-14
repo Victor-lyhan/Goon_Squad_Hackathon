@@ -3,6 +3,10 @@
 // places, routes and movers from plain props. The map is created once per mount; prop changes
 // (e.g. the 1 s simulator poll) only call overlay.setProps({ layers }).
 //
+// With the optional `dayNight` prop (the simulator, #649) the basemap switches between the light and
+// the dark style and a badge shows a sun or a moon with the time. Only the basemap gets dark: the
+// deck.gl routes, markers and names are never dimmed. Without the prop nothing changes.
+//
 // deck.gl is imported dynamically inside the load effect, so this file can be statically rendered
 // in Node tests (no WebGL) and the heavy deck bundle loads only when a key is present.
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
@@ -10,7 +14,9 @@ import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 import type { GoogleMapsOverlay } from '@deck.gl/google-maps';
 import type { PickingInfo } from '@deck.gl/core';
 import { Button, Spinner } from '../../ui';
+import { DAY_NIGHT_ALT, withNightCasing, type DayNight } from './dayNight';
 import { buildLayerSpecs, type LayerSpec, type PathDatum, type ScatterDatum, type TextDatum } from './layers';
+import { mapStyleFor } from './mapStyle';
 import {
   AUTH_ERROR_TEXT,
   FIT_PADDING_PX,
@@ -56,6 +62,13 @@ export type GoogleBaseMapProps = {
   labelBusinesses?: boolean;
   /** Places that are always named (a journey's sender, recipient and relay business). */
   alwaysLabelIds?: readonly string[];
+  /**
+   * Simulator only: `'night'` draws the dark basemap and a moon badge, `'day'` the light basemap and
+   * a sun badge. Routes, markers and names are never dimmed. Omitted: the light map and no badge.
+   */
+  dayNight?: DayNight;
+  /** The time shown next to the badge's icon, e.g. "Day 1 · 6:12 PM". Shown only with `dayNight`. */
+  clockText?: string;
 };
 
 type DeckLayersModule = typeof import('@deck.gl/layers');
@@ -176,6 +189,31 @@ function SelectedAnnouncement({ text }: { text: string }) {
   );
 }
 
+/**
+ * The sun or moon with the time, in the map's top-left corner. The icon carries the text alternative
+ * ("Day" / "Night"); the time is plain text and is not a live region (it changes every second in Play).
+ */
+export function DayNightBadge({ phase, clockText }: { phase: DayNight; clockText?: string }) {
+  return (
+    <div className={`map-v2__daynight map-v2__daynight--${phase}`} data-day-night={phase}>
+      <svg className="map-v2__daynight-icon" role="img" aria-label={DAY_NIGHT_ALT[phase]} viewBox="0 0 16 16" width="16" height="16">
+        {phase === 'night' ? (
+          <path fill="currentColor" d="M6.82 2.12A6 6 0 1 0 13.88 9.18 5 5 0 0 1 6.82 2.12Z" />
+        ) : (
+          <>
+            <circle cx="8" cy="8" r="3" fill="currentColor" />
+            <path
+              fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+              d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"
+            />
+          </>
+        )}
+      </svg>
+      {clockText ? <span className="map-v2__daynight-time">{clockText}</span> : null}
+    </div>
+  );
+}
+
 function pickedItem(info: PickingInfo): MapItem | null {
   const obj = info.object as { item?: MapItem } | null | undefined;
   return obj?.item ?? null;
@@ -194,6 +232,8 @@ export function GoogleBaseMap({
   panTo,
   labelBusinesses = false,
   alwaysLabelIds = NO_IDS,
+  dayNight,
+  clockText,
 }: GoogleBaseMapProps) {
   const apiKey = readBrowserKey(import.meta.env);
   const [status, dispatch] = useReducer(nextMapStatus, apiKey, (k) => initialStatus(k, authFailedThisPage));
@@ -208,11 +248,14 @@ export function GoogleBaseMap({
   const layersModRef = useRef<DeckLayersModule | null>(null);
   const lastHoverIdRef = useRef<string | null>(null);
   const lastPanKeyRef = useRef<string | null>(null);
+  // Whether the basemap now has the night style, so the style is set only when the phase changes.
+  const nightStyleRef = useRef(false);
+  const night = dayNight === 'night';
 
   // Latest callbacks/props for handlers attached once at creation.
-  const latest = useRef({ onHover, onSelect, fitTo, places, panTo });
+  const latest = useRef({ onHover, onSelect, fitTo, places, panTo, night });
   useEffect(() => {
-    latest.current = { onHover, onSelect, fitTo, places, panTo };
+    latest.current = { onHover, onSelect, fitTo, places, panTo, night };
   });
 
   // Watch for Google rejecting the key. Declared before the load effect, so it is installed before
@@ -240,7 +283,10 @@ export function GoogleBaseMap({
         ]);
         // Google rejected the key while the loader ran: create no map and no overlay.
         if (cancelled || authFailedThisPage || !containerRef.current) return;
-        const map = new Map(containerRef.current, mapOptions());
+        // A map that loads at night starts dark (no light flash).
+        const startNight = latest.current.night;
+        const map = new Map(containerRef.current, { ...mapOptions(), styles: mapStyleFor(startNight ? 'night' : 'day') });
+        nightStyleRef.current = startNight;
         const overlay = new gm.GoogleMapsOverlay({
           layers: [],
           onHover: (info: PickingInfo) => {
@@ -298,15 +344,25 @@ export function GoogleBaseMap({
     setHover(null);
   }, [status]);
 
+  // Day <-> night: swap the basemap style on the existing map (never re-created). The deck.gl layers
+  // are not touched, so nothing drawn on top gets darker. Skipped while the phase is unchanged, so a
+  // map without the prop (Business, Employee) never calls it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (status !== 'ready' || !map || nightStyleRef.current === night) return;
+    map.setOptions({ styles: mapStyleFor(night ? 'night' : 'day') });
+    nightStyleRef.current = night;
+  }, [night, status]);
+
   const hoveredId = hover?.item.id ?? null;
-  const specs = useMemo(
-    () =>
-      buildLayerSpecs({
-        places, routes, movers, visible, selectedIds, hoveredId, stops, labelBusinesses, alwaysLabelIds,
-        zoom: zoom ?? undefined,
-      }),
-    [places, routes, movers, visible, selectedIds, hoveredId, stops, labelBusinesses, alwaysLabelIds, zoom],
-  );
+  const specs = useMemo(() => {
+    const day = buildLayerSpecs({
+      places, routes, movers, visible, selectedIds, hoveredId, stops, labelBusinesses, alwaysLabelIds,
+      zoom: zoom ?? undefined,
+    });
+    // On the dark basemap each solid route gets a light casing, so it reads as well as by day.
+    return night ? withNightCasing(day) : day;
+  }, [places, routes, movers, visible, selectedIds, hoveredId, stops, labelBusinesses, alwaysLabelIds, zoom, night]);
 
   // Push layers to the existing overlay whenever the specs change. Never re-creates the map.
   useEffect(() => {
@@ -341,6 +397,7 @@ export function GoogleBaseMap({
     return (
       <div className="map-v2 map-v2--state">
         <MapKeyMissing />
+        {dayNight && <DayNightBadge phase={dayNight} clockText={clockText} />}
         <SelectedAnnouncement text={selectedText} />
       </div>
     );
@@ -348,7 +405,7 @@ export function GoogleBaseMap({
 
   return (
     <div
-      className="map-v2"
+      className={night ? 'map-v2 map-v2--night' : 'map-v2'}
       onMouseLeave={() => {
         setHover(null);
         if (lastHoverIdRef.current !== null) {
@@ -376,6 +433,7 @@ export function GoogleBaseMap({
           <MapAuthError origin={pageOrigin()} />
         </div>
       )}
+      {dayNight && status !== 'auth-error' && <DayNightBadge phase={dayNight} clockText={clockText} />}
       {status === 'ready' && hover && (
         <div className="map-v2__tooltip" role="tooltip" style={{ left: hover.x + 12, top: hover.y + 12 }}>
           <div className="map-v2__tooltip-label">{hover.item.label}</div>
