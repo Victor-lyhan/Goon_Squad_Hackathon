@@ -11,6 +11,14 @@ Full-screen, full-width, map-first layout inspired by the structure of kepler.gl
 - Right panel (inspect, collapsible): the selected business, employee or package: timeline, legs, ETA, extra minutes, reward. When nothing is selected, a compact summary: delivered/requested, matched/requested, average extra minutes.
 - Interactions: hover shows a tooltip with name and role; click selects the item, highlights its routes and packages, dims everything else and fills the right panel; Esc clears the selection. A package marker visibly travels with its carrier, waits at the relay business overnight, then travels with the second carrier. Interactions between businesses, employees and packages must be obvious.
 - Focus mode: choose one employee or one business; the map shows only their routes, packages and the businesses they interact with.
+- **Package journey mode (the primary way to understand Relay):** selecting a package, from the map, the package list in the left panel, or a link from the Business/Employee workspaces, switches the map to that package's journey only:
+  - Shows just the sender business, the recipient business, the relay business (if any) and the one or two carriers involved. Everything else is hidden or heavily dimmed.
+  - Each carrier's normal commute is a faint line; their actual route with the package stops is a highlighted line. Leg 1 and leg 2 use two distinct colors, and the legend says which carrier is which.
+  - Numbered stop markers on the map in order: 1 Pickup at sender → 2 Drop at relay business (relay only) → 3 Pickup at relay business next morning → 4 Delivered at recipient.
+  - The map auto-zooms to fit the journey. The package marker moves along with its current carrier and sits at the relay business overnight.
+  - The right panel shows a vertical journey timeline with the same numbered steps: time, place, carrier, extra minutes, plus the current status. Clicking a step seeks the simulation to that moment and pans the map to it.
+  - "Play journey" plays the simulation and auto-skips the empty gaps (overnight, before pickup) so the whole delivery can be watched in under ~30 seconds.
+  - A clear exit ("Back to network" / Esc) returns to the full view.
 - Desktop-first. On narrow screens, a simple message asking to open on desktop is acceptable.
 - Focus on clear functionality first; aesthetics are very important too.
 

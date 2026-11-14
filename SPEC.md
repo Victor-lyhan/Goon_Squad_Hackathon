@@ -136,7 +136,7 @@ MVP 1 works on a synthetic grid. MVP II moves Relay to **real NYC locations with
 - Must stay under 2 s on the default workload using the cache.
 
 ## Simulator and animation
-- UI per `docs/mvp2-ui-redesign.md` §1 (full-width map, left controls, right inspector, no top cards, focus mode, clear interactions).
+- UI per `docs/mvp2-ui-redesign.md` §1 (full-width map, left controls, right inspector, no top cards, focus mode, clear interactions). **Package journey mode is the centerpiece of the demo**: selecting one package shows only its two businesses, the relay business and its carriers, with numbered stops, a step timeline and "Play journey". Build it in M8 before any other simulator polish.
 - Map: Google Maps JavaScript API with a custom simplified light style (hide POI labels, transit, most road labels; muted water/parks; light gray roads) + deck.gl overlay (`@deck.gl/google-maps`). Google route lines are only drawn on the Google basemap.
 - Movement: interpolate along each leg's decoded polyline in proportion to elapsed travel time between stops; vehicles stop during handling; a package follows its carrier only between pickup and drop-off and stays at the relay business overnight.
 
@@ -154,7 +154,7 @@ MVP 1 works on a synthetic grid. MVP II moves Relay to **real NYC locations with
 
 ### M8: Integration (target 6:00 p.m. Sat)
 - Demo scenario on cached NYC data, fully matched on load, 2+ direct and 2+ relay.
-- Simulator: routes, moving vehicles/packages along polylines, selection, focus mode, right inspector, left controls wired to the existing API.
+- Simulator: routes, moving vehicles/packages along polylines, **package journey mode first**, then selection, employee/business focus mode, right inspector, left controls wired to the existing API.
 - Business workspace redesign (shipments table, New delivery, search/filters, details + match results).
 - Saving a new employee address calls Google live (server key), caches, and re-matches unmatched packages.
 - End-to-end test of the full demo flow on cached NYC data.
