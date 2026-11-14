@@ -17,3 +17,13 @@
 .route-mini-map{max-width:420px;margin:.5rem 0}
 .route-mini-map .route-mini-map__svg{max-height:220px}
 .route-mini-map__note{color:#64748b;font-size:.9rem;margin:.5rem 0}
+.trk-row:focus-visible{outline:3px solid var(--accent,#0e7c86);outline-offset:2px}
+.trk-row__label,.trk-row__who{overflow-wrap:anywhere}
+@media (max-width:599px){
+.trk-row{display:flex;flex-direction:column;align-items:flex-start;gap:.35rem;padding:.85rem;box-sizing:border-box}
+.trk-row__who,.trk-row__eta,.trk-row__nomatch{font-size:.95rem}
+.trk-facts{grid-template-columns:minmax(0,1fr)}
+.trk-facts dd{overflow-wrap:anywhere;margin-bottom:.35rem}
+.trk-legs{padding-left:1rem}
+.route-mini-map{max-width:100%}
+}
