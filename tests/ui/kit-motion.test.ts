@@ -44,9 +44,11 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 function tokens(): Record<string, string> {
-  const css = read(FILES[0]);
+  // Color tokens moved to tokens.css in #324; --navy is now an alias of --text.
+  const css = read('client/src/styles/tokens.css');
   const root = css.match(/:root\s*\{([^}]*)\}/)![1];
-  return Object.fromEntries([...root.matchAll(/--([\w-]+)\s*:\s*(#[0-9a-fA-F]{3,6})/g)].map((m) => [m[1], m[2]]));
+  const t: Record<string, string> = Object.fromEntries([...root.matchAll(/--([\w-]+)\s*:\s*(#[0-9a-fA-F]{3,6})/g)].map((m) => [m[1], m[2]]));
+  return { ...t, navy: t.navy ?? t.text };
 }
 
 describe('reduced motion', () => {
@@ -99,7 +101,7 @@ describe('focus rings and text contrast', () => {
     for (const bg of surfaces) {
       expect(contrast(t.accent, bg)).toBeGreaterThanOrEqual(3);
     }
-    expect(contrast('#7dd3d8', '#1e293b')).toBeGreaterThanOrEqual(3); // toast button ring
+    expect(contrast(t.accent, t.panel)).toBeGreaterThanOrEqual(3); // toast button ring (light toast since #324)
   });
   it('body text tokens reach 4.5:1', () => {
     for (const bg of surfaces) {

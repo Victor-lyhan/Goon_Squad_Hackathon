@@ -1,0 +1,38 @@
+/* MVP II design tokens (docs/mvp2-ui-redesign.md §2). Names are a contract (DECISIONS.md, #324):
+   other modules read them as var(--name, fallback). Change values here only. */
+:root {
+  /* Color */
+  --bg: #F7F8FA;
+  --panel: #FFFFFF;
+  --text: #151B26;
+  --navy: var(--text); /* legacy alias: MVP 1 CSS still uses --navy */
+  --muted: #5B6472;
+  --border: #D7DDE5;
+  --accent: #28618A;
+  --accent-dark: #1F4E70;
+  --accent-soft: #E8F0F6;
+  --ok: #2F6B4F;
+  --warn: #8A5A00;
+  --danger: #A4322A;
+
+  /* Shape and spacing (4px / 8px scale) */
+  --radius: 2px;
+  --radius-lg: 4px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Type */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 18px;
+  --text-xl: 28px;
+
+  color-scheme: light;
+}
