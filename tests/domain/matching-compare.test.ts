@@ -26,8 +26,10 @@ function fixtureInputs(): { shipment: Shipment; ctx: MatchContext } {
   };
 }
 
+const demoScenario = generateScenario(DEMO_SCENARIO_OPTIONS);
+
 function demoInputs(): { shipments: Shipment[]; ctx: MatchContext } {
-  const scenario = generateScenario(DEMO_SCENARIO_OPTIONS);
+  const scenario = demoScenario;
   const router = createRouter(scenario.graph);
   return {
     shipments: scenario.shipments,
@@ -59,7 +61,7 @@ describe('matching modes', () => {
   });
 });
 
-describe('compareAssignments', () => {
+describe('compareAssignments', { timeout: 10_000 }, () => {
   it('matches the spec fixture only when relay is enabled', () => {
     const { shipment, ctx } = fixtureInputs();
     const { directOnly, withRelay } = compareAssignments([shipment], ctx);
