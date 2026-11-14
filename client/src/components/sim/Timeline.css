@@ -1,0 +1,9 @@
+.tl { font-size: 14px; }
+.tl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.tl-row { display: flex; gap: 10px; padding: 6px 8px; border-left: 3px solid transparent; border-radius: 4px; }
+.tl-time { flex: none; width: 110px; color: #6b7280; font-variant-numeric: tabular-nums; }
+.tl-done { color: #374151; }
+.tl-done .tl-text { text-decoration: line-through; text-decoration-color: #9ca3af; }
+.tl-upcoming { opacity: 0.6; }
+.tl-next { background: #eff6ff; border-left-color: #2563eb; font-weight: 600; }
+.tl-empty { padding: 12px; color: #6b7280; text-align: center; }
