@@ -280,7 +280,8 @@ function grew(before: TravelFiles, after: TravelFiles): boolean {
  * 4. fetch the missing route lines of the baseline commutes and of the matched plans' legs.
  * `save(files)` is awaited after each step that changed the files, so a crash or Ctrl-C keeps what was paid for.
  * A request that fails is a line in `summary.failures`, not an exception; a step that lacks data is in `skipped`.
- * Only an error from `save` or from a broken fixture file is thrown.
+ * Only an error from `save` or from a broken fixture file is thrown, and a FetchStopError the client threw to end
+ * the run (fetchRunner.ts): the steps before it are saved.
  */
 export async function runFetchRoutes(
   args: FetchRoutesInput & { client: FetchClient; log: Log; save: (files: TravelFiles) => void | Promise<void> },
