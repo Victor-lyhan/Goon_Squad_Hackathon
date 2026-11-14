@@ -253,7 +253,9 @@ describe('Esc: the first stops the journey, the next goes back to the network', 
     const escape = vi.fn(() => true);
     const k = keys(escape);
     k.press('INPUT');
-    k.press('SELECT');
+    k.press('TEXTAREA');
     expect(escape).not.toHaveBeenCalled();
+    k.press('SELECT'); // #607: the focus dropdown is not a text field
+    expect(escape).toHaveBeenCalledTimes(1);
   });
 });

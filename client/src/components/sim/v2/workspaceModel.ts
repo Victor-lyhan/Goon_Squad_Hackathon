@@ -1,5 +1,6 @@
 // Pure state helpers for the MVP II simulator workspace frame (docs/mvp2-ui-redesign.md §1).
 // No React, no DOM: everything here is tested in Node.
+import { isTextTarget } from './page/keyMap';
 
 // ---------- Panels ----------
 export type PanelState = { leftOpen: boolean; rightOpen: boolean };
@@ -68,15 +69,16 @@ export function exitJourney(): WorkspaceMode {
 export type KeyLike = {
   key: string;
   defaultPrevented?: boolean;
-  target?: { tagName?: string; isContentEditable?: boolean } | null;
+  target?: { tagName?: string; type?: string; isContentEditable?: boolean } | null;
 };
 
-const TYPING_TAGS = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
-
+/**
+ * True where the user types (a text, search or number input, a textarea, editable text). The rule
+ * is the page key map's (#607), so both Esc listeners agree: a range input, a checkbox, a radio and
+ * a `<select>` are not typing targets.
+ */
 export function isTypingTarget(target: KeyLike['target']): boolean {
-  if (!target) return false;
-  if (target.isContentEditable) return true;
-  return TYPING_TAGS.has((target.tagName ?? '').toUpperCase());
+  return isTextTarget(target);
 }
 
 export type EscapeAction = 'exit_journey' | 'clear_selection';
@@ -84,7 +86,7 @@ export type EscapeAction = 'exit_journey' | 'clear_selection';
 /**
  * What a key press does in the workspace. Only Escape does anything: in journey mode it exits the
  * journey first (one press = one step back); otherwise it clears the selection. Ignored while the
- * user is typing in an input, select or textarea, and when another handler already took the event.
+ * user is typing in a text field, and when another handler already took the event.
  */
 export function workspaceKeyAction(e: KeyLike, ctx: { inJourney: boolean }): EscapeAction | null {
   if (e.key !== 'Escape' && e.key !== 'Esc') return null;

@@ -12,7 +12,7 @@ import { SIM_WINDOW } from '../compose/simPageView';
 import { playbackRequest, toPlaybackView } from '../controls/controlsModel';
 import type { SimDataState } from '../live/simDataModel';
 import type { Selection } from '../network/selectionModel';
-import { isTextTarget, simKeyAction, type SimKeyEvent, type SimKeyState } from './keyMap';
+import { isControlTarget, isTextTarget, simKeyAction, type SimKeyEvent, type SimKeyState } from './keyMap';
 import { parseSimUrl, simUrlFor } from './urlState';
 
 // ---------- URL <-> selection ----------
@@ -82,6 +82,7 @@ export function simKeyState({ selection, data }: SimKeyContext): SimKeyState {
  * The effect of a key press, or null. Esc changes the selection (works before the first poll too);
  * Space and the next-event key send the request the matching playback button sends, and do nothing
  * while that button would be disabled (no run yet, an action open, nothing left to play).
+ * Which focused elements keep a key for themselves is the key map's rule (`simKeyAction`).
  */
 export function simKeyEffect(event: SimKeyEvent, ctx: SimKeyContext): SimKeyEffect | null {
   const action = simKeyAction(event, simKeyState(ctx));
@@ -113,15 +114,19 @@ export type SimKeyHandlers = {
   /**
    * Asked first on Esc (#496): returns true when it used the key (a running Play journey stopped),
    * so the first Esc stops the journey and the next one goes back to the network. It is asked from
-   * a focused button too (the Stop button has focus after a click), never from a text field.
+   * a focused button, scrubber, checkbox or dropdown too (the Stop button has focus after a click),
+   * never from a text field.
    */
   escape?: () => boolean;
+  /**
+   * Called before every `control` a key sends (#607): stops a running Play journey, exactly as the
+   * playback buttons do (`createSimPageHandlers`), so the player's next step does not seek back
+   * over the key's request.
+   */
+  stopJourney?: () => void;
 };
 
 const isEscape = (key: string) => key === 'Escape' || key === 'Esc';
-
-/** A control that keeps Esc for itself (typing, choosing); a button is not one. */
-const isTextField = isTextTarget;
 
 /**
  * Attaches the page's keydown listener to `target` (the window) and returns the function that
@@ -131,25 +136,28 @@ const isTextField = isTextTarget;
  * window Esc listener from before the key map, which skips an event whose default is prevented.
  * So this listener runs in the capture phase (before that bubble listener) and prevents the default
  * of every key it handles: Esc changes the URL once, not twice, and Space does not scroll the page.
- * Esc on a focused button works like Esc anywhere else (#511: after a click on a package row the
- * focus is on that row, and Esc must still leave the journey); when it has nothing to do there it is
- * still claimed, so the workspace listener does not act on it. Esc in an input, select or textarea
- * is left alone.
+ * Esc on a focused button, scrubber, checkbox or dropdown works like Esc anywhere else (#511, #607:
+ * after a click the focus is on that control, and Esc must still leave the journey); when it has
+ * nothing to do there it is still claimed, so the workspace listener does not act on it. Esc in a
+ * text field (`isTextTarget`) is left alone.
  */
 export function attachSimKeys(target: SimKeyTarget, h: SimKeyHandlers): () => void {
   const listener = (e: SimKeyboardEvent) => {
-    if (h.escape && isEscape(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !isTextField(e.target) && h.escape()) {
+    if (h.escape && isEscape(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !isTextTarget(e.target) && h.escape()) {
       e.preventDefault();
       return;
     }
     const effect = simKeyEffect(e, h.context());
     if (!effect) {
-      if (isEscape(e.key) && (e.target?.tagName ?? '').toUpperCase() === 'BUTTON') e.preventDefault();
+      if (isEscape(e.key) && isControlTarget(e.target) && !isTextTarget(e.target)) e.preventDefault();
       return;
     }
     e.preventDefault();
     if (effect.kind === 'select') h.select(effect.selection);
-    else h.control(effect.request);
+    else {
+      h.stopJourney?.();
+      h.control(effect.request);
+    }
   };
   target.addEventListener('keydown', listener, { capture: true });
   return () => target.removeEventListener('keydown', listener, { capture: true });

@@ -131,6 +131,50 @@ describe('SimPageBody render', () => {
     assertClean(html);
   });
 
+  // #607 (pass 61): the list that opens a journey is directly under Playback, above the Scenario form.
+  describe('the order of the left panel', () => {
+    const leftOf = (html: string) => html.slice(0, html.indexOf('class="sw-map"'));
+    const sectionTitles = (html: string) =>
+      [...leftOf(html).matchAll(/class="sw-section-title"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    const scenarioHeading = (html: string) => html.indexOf('id="sw-section-scenario"');
+    const LEFT_ORDER = ['Playback', 'Packages', 'Scenario', 'Planning cycle', 'Layers', 'Focus', 'Direct only vs relay points'];
+
+    it('network mode: Playback, Packages, then the rest; the search field comes before the Scenario heading', () => {
+      const html = render(networkHook());
+      expect(sectionTitles(html)).toEqual(LEFT_ORDER);
+      const left = leftOf(html);
+      expect(scenarioHeading(left)).toBeGreaterThan(0);
+      expect(left.indexOf('Search packages')).toBeGreaterThan(left.indexOf('Simulation time'));
+      expect(left.indexOf('Search packages')).toBeLessThan(scenarioHeading(left));
+      expect(left.indexOf('Astoria product proofs')).toBeLessThan(scenarioHeading(left)); // the rows too
+      expect(left.indexOf('Direct only vs relay points')).toBeGreaterThan(left.indexOf('id="sw-section-focus"'));
+    });
+
+    it('before the map arrives the plain package list is in the same place', () => {
+      const html = render(networkHook({ map: null }));
+      expect(sectionTitles(html)).toEqual(LEFT_ORDER);
+      expect(leftOf(html).indexOf('Loading places…')).toBeLessThan(scenarioHeading(html));
+    });
+
+    it('journey mode: the journey header stays on top, then Playback and Packages', () => {
+      const html = render(journeyHook(), { kind: 'package', id: 'shp-2' });
+      expect(sectionTitles(html)).toEqual(LEFT_ORDER);
+      const left = leftOf(html);
+      const header = left.indexOf('class="sw-journey"');
+      expect(header).toBeGreaterThan(0);
+      expect(left.indexOf('Back to network')).toBeGreaterThan(header);
+      expect(left.indexOf('Back to network')).toBeLessThan(left.indexOf('id="sw-section-playback"'));
+      expect(left.indexOf('id="sw-section-playback"')).toBeLessThan(left.indexOf('Search packages'));
+      expect(left.indexOf('Search packages')).toBeLessThan(scenarioHeading(left));
+    });
+
+    it('an action error stays above Playback', () => {
+      const left = leftOf(render(networkHook({ actionError: 'Playback has started. Start a new planning cycle to recompute.' })));
+      expect(left.indexOf('spc-action-error')).toBeGreaterThan(0);
+      expect(left.indexOf('spc-action-error')).toBeLessThan(left.indexOf('id="sw-section-playback"'));
+    });
+  });
+
   it('network mode with a business selected: the business inspector', () => {
     const html = render(networkHook(), { kind: 'business', id: 'biz-etsy' });
     const t = text(html);

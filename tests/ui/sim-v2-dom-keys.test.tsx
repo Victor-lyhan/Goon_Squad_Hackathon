@@ -3,9 +3,11 @@
 // (SimulatorV2Workspace in a MemoryRouter) with its window listener. Space sends play or pause, `.`
 // sends next event, Esc leaves the journey or clears a selection, and none of them acts while the
 // focus is in a text field (package search, seed). The selection is read back from the URL.
+// #607: the scrubber, a layer checkbox and the focus dropdown do not keep the keys (a click leaves
+// the focus on them); Space on a checkbox or a button stays that control's own.
 // The map runs in its no-key state: the Google loader is replaced by a recorder that must stay unused.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { byLabel, button, click, press } from './kitDom';
+import { byLabel, button, click, press, select, textOf } from './kitDom';
 import {
   FakeSimServer, T, currentSearch, journeySteps, leftBody, mountPage, packageRow, readyState, runAt,
 } from './sim-v2-dom-helpers';
@@ -110,6 +112,89 @@ describe('Esc', () => {
     const { container: c } = mountPage(server, '?package=shp-2');
     click(button(c.querySelector('.spc-journey__foot')!, /Back to network/));
     expect(currentSearch(server)).toBe('');
+  }, T);
+});
+
+// #607: a click on the scrubber, a layer checkbox or the focus dropdown leaves the focus on it. These
+// are not text fields, so the page's keys still work from them.
+describe('keys after the scrubber, a layer checkbox or the focus dropdown was used', () => {
+  const scrubber = (c: ParentNode) => byLabel(leftBody(c), 'Simulation time') as HTMLInputElement;
+  const layerBox = (c: ParentNode, label: string) => {
+    const boxes = [...leftBody(c).querySelectorAll('label')].filter((l) => textOf(l) === label)
+      .map((l) => l.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    if (boxes.length !== 1) throw new Error(`layerBox(): ${boxes.length} checkboxes "${label}"`);
+    return boxes[0];
+  };
+  const focusDropdown = (c: ParentNode) => byLabel(leftBody(c), 'Focus on employee') as HTMLSelectElement;
+
+  it('Esc with the focus on "Simulation time" leaves the journey: the URL has no package', () => {
+    const server = new FakeSimServer(readyState(1000));
+    const { container: c } = mountPage(server, '?package=shp-2');
+    expect(journeySteps(c)).toHaveLength(4);
+    const range = scrubber(c);
+    expect(range.type).toBe('range');
+    range.focus();
+    expect(document.activeElement).toBe(range);
+
+    press('Escape', range);
+    expect(currentSearch(server)).toBe('');
+    expect(server.searches).toEqual(['?package=shp-2', '']); // one step, not two
+    expect(journeySteps(c)).toHaveLength(0);
+    expect(server.controls()).toEqual([]);
+  }, T);
+
+  it('Space and "." with the focus on the scrubber play, pause and go to the next event', () => {
+    const server = new FakeSimServer(readyState(1000));
+    const { container: c } = mountPage(server, '?package=shp-2');
+    const range = scrubber(c);
+    range.focus();
+    press(' ', range);
+    press(' ', range);
+    press('.', range);
+    expect(server.controls()).toEqual([{ action: 'play' }, { action: 'pause' }, { action: 'next_event' }]);
+    expect(currentSearch(server)).toBe('?package=shp-2');
+  }, T);
+
+  it('after a layer checkbox was clicked: Esc clears the selection and "." is next event; Space stays the checkbox\'s', () => {
+    const server = new FakeSimServer(readyState(1000));
+    const { container: c } = mountPage(server, '?business=biz-roast');
+    const box = layerBox(c, 'Homes');
+    click(box);
+    expect(document.activeElement).toBe(box);
+    expect(box.checked).toBe(false);
+
+    press(' ', box); // the checkbox's own key: playback is not toggled as well
+    expect(server.controls()).toEqual([]);
+    press('.', box);
+    expect(server.controls()).toEqual([{ action: 'next_event' }]);
+    press('Escape', box);
+    expect(currentSearch(server)).toBe('');
+    expect(server.searches).toEqual(['?business=biz-roast', '']);
+  }, T);
+
+  it('after the focus dropdown was used: Space plays and Esc leaves the journey', () => {
+    const server = new FakeSimServer(readyState(1000));
+    const { container: c } = mountPage(server, '?package=shp-2');
+    const dropdown = focusDropdown(c);
+    select(dropdown, dropdown.options[1].text);
+    expect(document.activeElement).toBe(dropdown);
+    expect(dropdown.selectedIndex).toBe(1);
+
+    press(' ', dropdown);
+    expect(server.controls()).toEqual([{ action: 'play' }]);
+    press('Escape', dropdown);
+    expect(currentSearch(server)).toBe('');
+    expect(journeySteps(c)).toHaveLength(0);
+    expect(focusDropdown(c).selectedIndex).toBe(1); // the focus choice is kept
+  }, T);
+
+  it('"." right after a click on a package row (focus on the row) is next event', () => {
+    const server = new FakeSimServer(readyState(1000));
+    const { container: c } = mountPage(server);
+    click(packageRow(c, 'Coffee samples'));
+    press('.', document.activeElement!);
+    expect(server.controls()).toEqual([{ action: 'next_event' }]);
+    expect(currentSearch(server)).toBe('?package=shp-2');
   }, T);
 });
 

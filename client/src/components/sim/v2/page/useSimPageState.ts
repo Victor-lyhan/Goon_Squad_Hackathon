@@ -75,13 +75,17 @@ function windowKeyTarget(): SimKeyTarget | null {
 }
 
 /**
- * Esc, Space and the next-event key on the page. The listener is attached once, reads the latest
- * selection and poll through a ref, and is removed on unmount. Play, pause and next event go to
- * the data hook's `control`; the server decides the result.
+ * The body's stop hook (#496): stops a running Play journey and says whether it did. Esc asks it
+ * first; a key that sends a control (Space, `.`) calls it before the request (#607).
  */
-/** The body's Esc hook (#496): stops a running Play journey and says whether it did. */
 export type EscapeRef = { current: (() => boolean) | null };
 
+/**
+ * Esc, Space and the next-event key on the page. The listener is attached once, reads the latest
+ * selection and poll through a ref, and is removed on unmount. Play, pause and next event go to
+ * the data hook's `control`, after a running Play journey is stopped (as the buttons do); the
+ * server decides the result.
+ */
 export function useSimKeys(sim: SimulatorV2, page: SimPageState, escapeRef?: EscapeRef): void {
   const latest = useRef<{ ctx: SimKeyContext; page: SimPageState; control: SimulatorV2['control'] }>({
     ctx: { selection: page.selection, data: sim }, page, control: sim.control,
@@ -96,6 +100,7 @@ export function useSimKeys(sim: SimulatorV2, page: SimPageState, escapeRef?: Esc
       select: (s) => latest.current.page.setSelection(s),
       control: (req) => void latest.current.control(req),
       escape: () => escapeRef?.current?.() ?? false,
+      stopJourney: () => void escapeRef?.current?.(),
     });
     // The ref object is the page's own and never changes.
   }, []);

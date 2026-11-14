@@ -72,13 +72,28 @@ describe('workspaceKeyAction', () => {
   it('ignores other keys', () => {
     for (const key of ['Enter', ' ', 'e', 'Backspace']) expect(workspaceKeyAction({ key }, net)).toBeNull();
   });
-  it('ignores Escape while typing in an input, select or textarea', () => {
-    for (const tagName of ['INPUT', 'select', 'TEXTAREA']) {
-      expect(workspaceKeyAction({ key: 'Escape', target: { tagName } }, net)).toBeNull();
-      expect(workspaceKeyAction({ key: 'Escape', target: { tagName } }, jour)).toBeNull();
+  it('ignores Escape while typing in a text input or textarea', () => {
+    const fields = [
+      { tagName: 'INPUT' }, { tagName: 'input', type: 'text' }, { tagName: 'INPUT', type: 'search' },
+      { tagName: 'INPUT', type: 'number' }, { tagName: 'TEXTAREA' },
+    ];
+    for (const target of fields) {
+      expect(workspaceKeyAction({ key: 'Escape', target }, net)).toBeNull();
+      expect(workspaceKeyAction({ key: 'Escape', target }, jour)).toBeNull();
     }
     expect(isTypingTarget({ tagName: 'DIV', isContentEditable: true })).toBe(true);
     expect(isTypingTarget({ tagName: 'DIV' })).toBe(false);
+  });
+  it('Escape works from the scrubber, a checkbox, a radio and a select (#607)', () => {
+    const controls = [
+      { tagName: 'INPUT', type: 'range' }, { tagName: 'INPUT', type: 'checkbox' }, { tagName: 'INPUT', type: 'radio' },
+      { tagName: 'SELECT' }, { tagName: 'select', type: 'select-one' },
+    ];
+    for (const target of controls) {
+      expect(isTypingTarget(target)).toBe(false);
+      expect(workspaceKeyAction({ key: 'Escape', target }, net)).toBe('clear_selection');
+      expect(workspaceKeyAction({ key: 'Escape', target }, jour)).toBe('exit_journey');
+    }
   });
   it('ignores Escape another handler already took', () => {
     expect(workspaceKeyAction({ key: 'Escape', defaultPrevented: true }, net)).toBeNull();
