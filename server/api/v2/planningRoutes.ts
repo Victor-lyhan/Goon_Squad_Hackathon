@@ -12,6 +12,7 @@ import type { ExportFile, SimulatorResponse, TravelUnavailable } from '../../../
 import type { ApiError } from '../../../shared/v2/schemas';
 import type { Notification, Run, Snapshot } from '../../../shared/v2/types';
 import type { Store } from '../../store';
+import { takesNoOptions } from './bodyGuard';
 import { sendTravelError, travelUnavailable } from './errors';
 import { createInitialRun } from './initialRun';
 import { matchPending, type PipelineDeps } from './pipeline';
@@ -77,13 +78,14 @@ export function registerPlanningRoutes(router: express.Router, deps: PlanningRou
     };
 
   // "Start new planning cycle": allowed in any phase, it is the way out of `locked`.
-  router.post('/planning/reset', route(async (_req, res) => {
+  // Neither this nor recompute has options: a body that is a list is a 400 and starts nothing.
+  router.post('/planning/reset', takesNoOptions, route(async (_req, res) => {
     // `draft` is the store's own copy of the newest run, so nothing here aliases the stored run.
     const run = await store.mutate((draft) => rematchAll(beginNewCycle(draft), draft.notifications, pipeline));
     sendRun(res, run);
   }));
 
-  router.post('/matches/recompute', route(async (_req, res) => {
+  router.post('/matches/recompute', takesNoOptions, route(async (_req, res) => {
     const run = await store.mutate((draft) => {
       // Decided inside the mutation queue: a Play queued before this request locks it out.
       const plan = clearForRecompute(draft);
