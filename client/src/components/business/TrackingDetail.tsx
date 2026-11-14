@@ -24,8 +24,8 @@ export function TrackingDetail({ view, businesses, hubs, employees, map }: Track
         <dt>Contents</dt>
         <dd>{s.description || s.label} ({s.category === 'envelope' ? 'Envelope' : 'Small box'}, {formatKg(s.weightGrams)})</dd>
         <dt>Requested ready time</dt><dd>{formatMin(s.readyMin)}</dd>
-        <dt>Requested deadline</dt><dd>{formatMin(s.deadlineMin)}</dd>
-        {plan && <><dt>Calculated arrival</dt><dd>{formatMin(plan.deliveryMin)}</dd></>}
+        <dt>Requested deadline</dt><dd className="trk-requested">{formatMin(s.deadlineMin)} <span className="trk-hint">(what you asked for)</span></dd>
+        {plan && <><dt>Calculated arrival</dt><dd className="trk-calculated">{formatMin(plan.deliveryMin)} <span className="trk-hint">(ETA from the plan)</span></dd></>}
         {view.deliveredAtMin != null && <><dt>Delivered</dt><dd>{formatMin(view.deliveredAtMin)}</dd></>}
         {plan?.kind === 'relay' && <><dt>Relay hub</dt><dd>{hub?.name ?? 'Hub'}</dd></>}
       </dl>
