@@ -152,7 +152,8 @@ describe('POST /api/v2/matches/recompute', () => {
     const seqs = (notes: Run['notifications']) => Object.fromEntries(notes.map((n) => [n.id, n.createdSeq]));
     const contractNotes = { 'ntf-plan-shp-2-biz-agency': 1, 'ntf-plan-shp-2-biz-print-shop': 2, 'ntf-plan-shp-2-L0': 3 };
     const proofNotes = {
-      'ntf-plan-shp-1-biz-print-shop': 4, 'ntf-plan-shp-1-biz-agency': 5, 'ntf-plan-shp-1-L0': 6, 'ntf-plan-shp-1-L1': 7,
+      'ntf-plan-shp-1-biz-print-shop': 4, 'ntf-plan-shp-1-biz-agency': 5, 'ntf-plan-shp-1-biz-cafe': 6,
+      'ntf-plan-shp-1-L0': 7, 'ntf-plan-shp-1-L1': 8,
     };
     expect(seqs(run.notifications)).toEqual(contractNotes);
     api = await startPlanningApi({ run });
@@ -168,9 +169,9 @@ describe('POST /api/v2/matches/recompute', () => {
     expect(ids(again.body.plans).sort()).toEqual(['plan-shp-1', 'plan-shp-2']);
     const notes = api.store.get().notifications;
     // The old three keep their ID and createdSeq and get the new text; the new plan's are numbered after
-    // them, although its plan comes first in the list. No ID twice.
+    // them, although its plan comes first in the list. No ID twice. The relay plan also tells its relay point.
     expect(seqs(notes)).toEqual({ ...contractNotes, ...proofNotes });
-    expect(notes).toHaveLength(7);
+    expect(notes).toHaveLength(8);
     for (const note of notes.filter((n) => n.planId === 'plan-shp-2')) {
       expect(note.message).toContain('"Countersigned contract"');
       expect(note.message).not.toContain('Signed contract');

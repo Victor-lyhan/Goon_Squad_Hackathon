@@ -104,7 +104,7 @@ describe('v2 createInitialRun on the hand-built scenario', () => {
     expect(run.jobs[2].pickup).toBe(direct.legs[0].stops[0]);
   });
 
-  it('notifies each business side and each job once, naming the relay business as a relay point', () => {
+  it('notifies each business side, the relay point and each job once, naming the relay business as a relay point', () => {
     const n = (id: string, audience: string, audienceId: string, planId: string, message: string, createdSeq: number, jobId?: string) => ({
       id, audience, audienceId, kind: audience === 'business' ? 'delivery_matched' : 'job_assigned',
       shipmentId: planId.replace('plan-', ''), planId, ...(jobId ? { jobId } : {}), message, createdSeq,
@@ -114,16 +114,19 @@ describe('v2 createInitialRun on the hand-built scenario', () => {
         'Delivery arranged: "Poster proofs" to Midtown Agency via Corner Cafe (relay point), $10.00.', 1),
       n('ntf-plan-shp-1-biz-agency', 'business', AGENCY, 'plan-shp-1',
         'Incoming delivery: "Poster proofs" from Northside Print Shop via Corner Cafe (relay point).', 2),
+      // The relay business itself (#535): it holds the package overnight.
+      n('ntf-plan-shp-1-biz-cafe', 'business', CAFE, 'plan-shp-1',
+        'Relay point: "Poster proofs" from Northside Print Shop to Midtown Agency is dropped here in the evening and collected the next morning.', 3),
       n('ntf-plan-shp-1-L0', 'employee', 'emp-1', 'plan-shp-1',
-        'New delivery job: "Poster proofs". Drop at Corner Cafe; another employee completes delivery. Reward $3.00.', 3, 'plan-shp-1-L0'),
+        'New delivery job: "Poster proofs". Drop at Corner Cafe; another employee completes delivery. Reward $3.00.', 4, 'plan-shp-1-L0'),
       n('ntf-plan-shp-1-L1', 'employee', 'emp-2', 'plan-shp-1',
-        'New delivery job: "Poster proofs". Collect from Corner Cafe and deliver to Midtown Agency. Reward $3.00.', 4, 'plan-shp-1-L1'),
+        'New delivery job: "Poster proofs". Collect from Corner Cafe and deliver to Midtown Agency. Reward $3.00.', 5, 'plan-shp-1-L1'),
       n('ntf-plan-shp-2-biz-agency', 'business', AGENCY, 'plan-shp-2',
-        'Delivery arranged: "Signed contract" to Northside Print Shop, $10.00.', 5),
+        'Delivery arranged: "Signed contract" to Northside Print Shop, $10.00.', 6),
       n('ntf-plan-shp-2-biz-print-shop', 'business', PRINT, 'plan-shp-2',
-        'Incoming delivery: "Signed contract" from Midtown Agency.', 6),
+        'Incoming delivery: "Signed contract" from Midtown Agency.', 7),
       n('ntf-plan-shp-2-L0', 'employee', 'emp-3', 'plan-shp-2',
-        'New delivery job: "Signed contract". Collect from Midtown Agency and deliver to Northside Print Shop. Reward $3.00.', 7, 'plan-shp-2-L0'),
+        'New delivery job: "Signed contract". Collect from Midtown Agency and deliver to Northside Print Shop. Reward $3.00.', 8, 'plan-shp-2-L0'),
     ]);
   });
 

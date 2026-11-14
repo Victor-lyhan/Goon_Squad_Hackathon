@@ -99,16 +99,18 @@ describe('POST /api/v2/shipments: a new delivery', () => {
     expect(run.jobs.map((j) => [j.id, j.employeeId, j.legIndex])).toEqual([
       ['plan-shp-1-L0', 'emp-1', 0], ['plan-shp-1-L1', 'emp-2', 1],
     ]);
-    // Sender, recipient and both carriers; each message names the relay business (DECISIONS pass 46).
+    // Sender, recipient and both carriers: each message names the relay business (DECISIONS pass 46).
+    // The relay business gets its own message, which says "here" (DECISIONS pass 57).
     const notes = notesFor(app, 'shp-1');
     expect(notes).toEqual([
       [PRINT, 'Delivery arranged: "Poster proofs" to Midtown Agency via Corner Cafe (relay point), $10.00.'],
       [AGENCY, 'Incoming delivery: "Poster proofs" from Northside Print Shop via Corner Cafe (relay point).'],
+      [CAFE, 'Relay point: "Poster proofs" from Northside Print Shop to Midtown Agency is dropped here in the evening and collected the next morning.'],
       ['emp-1', 'New delivery job: "Poster proofs". Drop at Corner Cafe; another employee completes delivery. Reward $3.00.'],
       ['emp-2', 'New delivery job: "Poster proofs". Collect from Corner Cafe and deliver to Midtown Agency. Reward $3.00.'],
     ]);
-    for (const [, message] of notes) {
-      expect(message).toContain('Corner Cafe');
+    for (const [audienceId, message] of notes) {
+      expect(message).toContain(audienceId === CAFE ? 'Relay point' : 'Corner Cafe');
       expect(message).not.toMatch(/hub/i);
     }
     expect(run.events).toHaveLength(2);
