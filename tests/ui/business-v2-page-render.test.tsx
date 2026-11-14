@@ -172,7 +172,7 @@ describe('?shipment= details', () => {
     expect(t).toContain('This delivery is not in the current city');
     expect(t).toContain('shp-404');
     expect(h).toMatch(/<button[^>]*>Back to deliveries<\/button>/);
-    expect(h).toContain('href="/simulator?package=shp-404"');
+    expect(h).toContain('href="/simulator?package=shp-404&amp;play=1"');
     expect(h).not.toContain('class="bd-panel"');
     expect(t).toContain('Sample boxes'); // the table is still there
   });

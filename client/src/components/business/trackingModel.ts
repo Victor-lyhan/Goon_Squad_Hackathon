@@ -48,9 +48,13 @@ export function carrierHref(employeeId: string, jobId: string): string {
   return `/employee/${encodeURIComponent(employeeId)}?job=${encodeURIComponent(jobId)}`;
 }
 
-/** Deep link to the simulator with a package selected (DECISIONS pass 8). */
+/**
+ * Deep link to the simulator that opens this package's journey and plays it once (DECISIONS pass 63, 64).
+ * The one builder of every simulator link on the Business page: the match result's "Watch in simulator",
+ * the delivery details' "View journey" and the missing-delivery link.
+ */
 export function simulatorHref(shipmentId: string): string {
-  return `/simulator?package=${encodeURIComponent(shipmentId)}`;
+  return `/simulator?package=${encodeURIComponent(shipmentId)}&play=1`;
 }
 
 /** One display row per carrier leg: who carries it and where/when. */

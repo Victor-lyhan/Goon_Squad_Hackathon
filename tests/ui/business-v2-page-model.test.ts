@@ -78,7 +78,7 @@ describe('links and the query string', () => {
   it('keeps the route prefix', () => {
     expect(siblingBusinessPath('/nyc/business/biz-old', 'biz-new')).toBe('/nyc/business/biz-new');
     expect(siblingBusinessPath('/business/biz-old/', 'biz new')).toBe('/business/biz%20new');
-    expect(simulatorHref('shp-1')).toBe('/simulator?package=shp-1');
+    expect(simulatorHref('shp-1')).toBe('/simulator?package=shp-1&play=1');
   });
 
   it('sets and removes only ?shipment=', () => {

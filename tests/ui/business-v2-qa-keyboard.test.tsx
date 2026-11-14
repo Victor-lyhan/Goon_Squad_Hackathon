@@ -112,7 +112,7 @@ describe('keyboard walk (#497)', () => {
     expect(close).toBeGreaterThan(TOOLBAR.length + SORTS.length + ROW_COUNT - 1);
     expect(names.slice(close, close + 3)).toEqual(['Close delivery details', 'Try matching again', 'View journey']);
     const journey = tabOrder(root)[close + 2];
-    expect(journey.attrs.href).toBe('/simulator?package=shp-9');
+    expect(journey.attrs.href).toBe('/simulator?package=shp-9&play=1');
     // The selected row says so.
     expect(all(root, (e) => e.tag === 'tr' && e.attrs['aria-selected'] === 'true')).toHaveLength(1);
   });

@@ -40,7 +40,7 @@ describe('DeliveryDetails render', () => {
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-current="step"[^>]*>.*?Picked up/);
     expect(html).toContain('href="/employee/emp-1?job=plan-shp-7-L0"');
-    expect(html).toMatch(/href="\/simulator\?package=shp-7"[^>]*>View journey/);
+    expect(html).toMatch(/href="\/simulator\?package=shp-7&amp;play=1"[^>]*>View journey/);
     expect(t).toContain('Evening commute, Day 1');
     expect(html).toContain('<table');
     expect(t).not.toContain('Try matching again');

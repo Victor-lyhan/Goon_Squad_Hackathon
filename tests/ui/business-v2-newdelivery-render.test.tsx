@@ -92,7 +92,7 @@ describe('NewDeliveryForm (static renders)', () => {
     expect(status).toContain('<dt>ETA</dt><dd class="nd-mono">Day 2, 9:10 AM</dd>');
     expect(status).toContain('<dt>Price</dt><dd class="nd-mono">$12.50</dd>');
     expect(status).toMatch(/<button[^>]*>View delivery<\/button>/);
-    expect(status).toMatch(/<a [^>]*href="\/simulator\?package=shp-9"[^>]*>Watch in simulator<\/a>/);
+    expect(status).toMatch(/<a [^>]*href="\/simulator\?package=shp-9&amp;play=1"[^>]*>Watch in simulator<\/a>/);
     expectClean(html);
   });
 

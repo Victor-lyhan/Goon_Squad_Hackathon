@@ -122,7 +122,7 @@ describe('arrangedCard (the model of the result card)', () => {
   it('an answer without a plan has no facts and no carriers (the card keeps the ID and both actions)', () => {
     const noPlan: ShipmentResponse = { ...unmatched('shp-41'), matched: true };
     const card = arrangedCard(noPlan, LOOKUPS);
-    expect(card).toEqual({ shipmentId: 'shp-41', facts: [], carriers: [], simulatorHref: '/simulator?package=shp-41' });
+    expect(card).toEqual({ shipmentId: 'shp-41', facts: [], carriers: [], simulatorHref: '/simulator?package=shp-41&play=1' });
   });
 });
 
@@ -167,7 +167,7 @@ describe('the Delivery arranged card in a real DOM', () => {
     expect(f.onOpenDelivery).toHaveBeenCalledWith('shp-41');
     const href = link(card, 'Watch in simulator').getAttribute('href');
     expect(href).toBe(deliveryDetails(answer, LOOKUPS).journeyHref);
-    expect(href).toBe('/simulator?package=shp-41');
+    expect(href).toBe('/simulator?package=shp-41&play=1');
   }, T);
 
   it('a direct answer reads Direct with one carrier and no relay point', async () => {

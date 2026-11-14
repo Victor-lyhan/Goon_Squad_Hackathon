@@ -224,7 +224,7 @@ describe('README demo request on the default NYC run, no key', () => {
     });
     // Step 5's link is the one the details show (the Employee page builds the same path).
     expect(card.journeyLabel).toBe('View journey');
-    expect(card.journeyHref).toBe(`/simulator?package=${created.shipment.id}`);
+    expect(card.journeyHref).toBe(`/simulator?package=${created.shipment.id}&play=1`); // the page's link also plays (#660)
     expect(step(5)).toContain('`/simulator?package=<shipment ID>`');
     expect(source('client/src/components/employee/v2/jobDetailV2Model.ts')).toContain('`/simulator?package=${');
   }, T);

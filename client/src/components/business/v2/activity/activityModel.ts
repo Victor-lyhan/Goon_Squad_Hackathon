@@ -28,7 +28,7 @@ export type HeaderModel = {
 };
 
 const PHASE: Record<BusinessDashboard['phase'], { label: string; text: string }> = {
-  planning: { label: 'Planning', text: 'Deliveries can be added and edited until the simulation starts.' },
+  planning: { label: 'Planning', text: 'Deliveries can be added until the simulation starts.' },
   locked: { label: 'Locked', text: 'The simulation is running; deliveries are read-only.' },
 };
 

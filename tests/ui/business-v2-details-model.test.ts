@@ -47,7 +47,7 @@ describe('deliveryDetails: direct plan', () => {
   });
 
   it('links to the journey and formats the package facts', () => {
-    expect(m.journeyHref).toBe('/simulator?package=shp-7');
+    expect(m.journeyHref).toBe('/simulator?package=shp-7&play=1');
     expect(m.journeyLabel).toBe('View journey');
     expect(m.facts).toEqual({
       category: 'Small box', weight: '1.5 kg', description: 'Fabric swatches',
@@ -105,7 +105,7 @@ describe('deliveryDetails: unmatched and incoming', () => {
     expect(m.result).toEqual({ kind: 'unmatched', title: 'No matching commute yet', reason: UNMATCHED_REASON });
     expect(m.steps).toEqual([]);
     expect(m.legs).toEqual([]);
-    expect(m.journeyHref).toBe('/simulator?package=shp-7');
+    expect(m.journeyHref).toBe('/simulator?package=shp-7&play=1');
   });
 
   it('is Incoming for the recipient and hides the price', () => {
