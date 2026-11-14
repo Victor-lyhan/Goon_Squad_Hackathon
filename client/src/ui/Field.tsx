@@ -17,7 +17,8 @@ export function Field({ label, children, hint, error }: FieldProps) {
   const inputId = (children.props.id as string | undefined) ?? `${uid}-input`;
   const hintId = `${uid}-hint`;
   const errorId = `${uid}-error`;
-  const describedBy = [hint ? hintId : '', error ? errorId : ''].filter(Boolean).join(' ') || undefined;
+  const existing = children.props['aria-describedby'] as string | undefined;
+  const describedBy = [existing ?? '', hint ? hintId : '', error ? errorId : ''].filter(Boolean).join(' ') || undefined;
   return (
     <div className={`ui-field${error ? ' ui-field--invalid' : ''}`}>
       <label className="ui-field__label" htmlFor={inputId}>{label}</label>
