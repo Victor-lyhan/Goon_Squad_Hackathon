@@ -1,4 +1,4 @@
-// MVP II simulator page. Mounted at /nyc/simulator by p2-a until the cutover (DECISIONS pass 46).
+// MVP II simulator page. Mounted at /simulator since the cutover (#548, PR #559); /nyc/simulator redirects here.
 // The one data hook owns all server traffic; the body renders it (#426).
 // #459: the selection lives in the URL (`?package=`, `?employee=`, `?business=`, pass 47), so a link
 // opens it and Back undoes it; Esc, Space and `.` drive the page; below 900 px only the
