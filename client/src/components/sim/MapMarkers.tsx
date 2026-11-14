@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Clock, Graph, Snapshot } from '../../../../shared/types';
 import { pointProjector } from './mapGeometry';
-import { REDUCED_MOTION_QUERY, shouldSnap, shouldTween, tweenMarkers, tweenPackages } from './markerTween';
+import {
+  REDUCED_MOTION_QUERY, advanceFrames, clampAlpha, framePositions, initialFrames, type FrameState,
+} from './markerTween';
 import './MapMarkers.css';
 
 export type MapMarkersProps = {
@@ -37,37 +39,36 @@ function useReducedMotion(): boolean {
 export function MapMarkers({ graph, snapshot, clock, pollMs = 1000, shipmentLabels = {}, employeeNames = {} }: MapMarkersProps) {
   const pkgName = (id: string) => shipmentLabels[id] ?? 'package';
   const reducedMotion = useReducedMotion();
-  const [alpha, setAlpha] = useState(1);
-  const prevRef = useRef<Frame>(snapshot);
-  const nextRef = useRef<Frame>(snapshot);
+  const [stored, setFrames] = useState<FrameState<Frame>>(() => initialFrames(snapshot));
 
-  // New snapshot arrived: the displayed frame becomes the previous one (unless snapping).
+  // Pick the frames during render (React's "adjust state while rendering" pattern), so the first
+  // paint with a new snapshot already shows the old positions. advanceFrames is pure and returns
+  // the same state for the same snapshot object, so this runs once per poll.
+  let frames = stored;
+  if (stored.next !== snapshot) {
+    frames = advanceFrames(stored, snapshot, clock, reducedMotion);
+    setFrames(frames);
+  }
+
+  // Drive alpha 0 → 1 for the snapshot being tweened to. Cancelled on unmount and when a newer
+  // snapshot replaces frames.next.
+  const target = frames.next;
+  const tweening = frames.tween;
   useEffect(() => {
-    if (nextRef.current === snapshot) return;
-    const last = nextRef.current;
-    nextRef.current = snapshot;
-    prevRef.current = last;
-    if (!shouldTween(reducedMotion) || shouldSnap(last, snapshot, clock)) {
-      prevRef.current = snapshot;
-      setAlpha(1);
-      return;
-    }
-    setAlpha(0);
+    if (!tweening) return;
+    const setAlpha = (a: number) => setFrames((f) => (f.next === target && f.alpha !== a ? { ...f, alpha: a } : f));
     if (typeof requestAnimationFrame !== 'function') { setAlpha(1); return; }
     const start = performance.now();
     let raf = requestAnimationFrame(function step(now) {
-      const a = Math.min(1, (now - start) / pollMs);
+      const a = clampAlpha((now - start) / pollMs);
       setAlpha(a);
       if (a < 1) raf = requestAnimationFrame(step);
     });
     return () => cancelAnimationFrame(raf);
-  }, [snapshot, clock, pollMs, reducedMotion]);
+  }, [target, tweening, pollMs]);
 
   const project = pointProjector(graph.nodes);
-  const prev = prevRef.current;
-  const next = snapshot;
-  const markers = tweenMarkers(prev.markers, next.markers, alpha, reducedMotion);
-  const packages = tweenPackages(prev.packagePositions, next.packagePositions, alpha, reducedMotion);
+  const { markers, packagePositions: packages } = framePositions(frames, reducedMotion);
 
   return (
     <g className="map-markers">
