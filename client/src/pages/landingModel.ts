@@ -1,7 +1,8 @@
 // Pure helpers for the homepage's NYC data source (dataset="nyc"). Plain TS so Node tests can run them.
 // Every number comes from an /api/v2 response; nothing is counted from deliveries in the browser.
 import type { BusinessesResponse, EmployeesResponse, SimulatorResponse } from '../../../shared/v2/api';
-import { ENV_LABELS, previewHrefs } from '../ui/shellModel';
+import type { DemoIdentity } from '../demoIdentity';
+import { ENV_LABELS, pickAccount, workspaceHrefs } from '../ui/shellModel';
 import {
   getBusinesses, getEmployees, getSimulator, isAbortError, isTravelUnavailable, type RequestOptions,
 } from '../api/v2';
@@ -19,7 +20,9 @@ export type NycSummary =
   | { status: 'unavailable' }
   | {
     status: 'ready'; businesses: number; commuters: number; relayPoints: number;
-    matched: number; requested: number; firstEmployeeId: string | undefined;
+    matched: number; requested: number;
+    /** The account IDs, in API order, for the workspace links (never counted or shown). */
+    businessIds: string[]; employeeIds: string[];
   };
 
 /** Relay points = network businesses: every network business is one (SPEC MVP II data model). */
@@ -31,7 +34,8 @@ export function nycSummaryFrom(b: BusinessesResponse, e: EmployeesResponse, sim:
     relayPoints: b.businesses.length,
     matched: sim.snapshot.metrics.matched,
     requested: sim.snapshot.metrics.requested,
-    firstEmployeeId: e.employees[0]?.id,
+    businessIds: b.businesses.map((x) => x.id),
+    employeeIds: e.employees.map((x) => x.id),
   };
 }
 
@@ -40,9 +44,13 @@ export function nycSummaryFromError(err: unknown): NycSummary {
   return isTravelUnavailable(err) ? { status: 'unavailable' } : { status: 'error' };
 }
 
-/** Workspace links for the NYC variant: the /nyc preview paths (Business is pending until it has one). */
-export function nycWorkspacePaths(summary: NycSummary) {
-  return previewHrefs(summary.status === 'ready' ? summary.firstEmployeeId : undefined);
+/**
+ * Workspace links for the homepage: the main paths (#548). The stored demo identity is used when it is in
+ * the NYC lists, else the first account; a link is pending until the lists are loaded.
+ */
+export function nycWorkspacePaths(summary: NycSummary, stored: DemoIdentity = {}) {
+  const ready = summary.status === 'ready' ? summary : null;
+  return workspaceHrefs(pickAccount(stored.businessId, ready?.businessIds), pickAccount(stored.employeeId, ready?.employeeIds));
 }
 
 type V2Reads = {

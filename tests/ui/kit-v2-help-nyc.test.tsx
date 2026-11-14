@@ -1,4 +1,4 @@
-// #504: the NYC Guided demo at /nyc/help (Help dataset="nyc"), rendered through the router.
+// #504, #548: the NYC Guided demo (Help dataset="nyc"), at /help since the cutover, rendered through the router.
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
@@ -10,9 +10,7 @@ import {
 } from '../../client/src/pages/Help';
 import type { V2BusinessDirectory, V2Directory } from '../../client/src/ui/shell';
 import { ENV_LABELS } from '../../client/src/ui/shellModel';
-import { loadDefaultScenario } from '../../server/api/initialRun';
 
-const { businesses, employees } = loadDefaultScenario();
 const empReady: V2Directory = { status: 'ready', employees: [{ id: 'emp-07', name: 'Maya Chen' }, { id: 'emp-01', name: 'Luis Ortega' }] };
 const bizReady: V2BusinessDirectory = { status: 'ready', businesses: [{ id: 'biz-chelsea-roasters', name: 'Chelsea Roasters' }, { id: 'biz-02', name: 'Hudson Print' }] };
 const loading = { status: 'loading' } as const;
@@ -22,7 +20,7 @@ const failed = { status: 'error', message: 'Server answered 500' } as const;
 const render = (path: string, e: V2Directory = empReady, b: V2BusinessDirectory = bizReady) =>
   renderToStaticMarkup(
     <MemoryRouter initialEntries={[path]}>
-      <AppShell initial={{ businesses, employees }} initialV2={e} initialV2Businesses={b} />
+      <AppShell initialV2={e} initialV2Businesses={b} />
     </MemoryRouter>,
   );
 const main = (html: string) => /<main[^>]*>([\s\S]*)<\/main>/.exec(html)![1];
@@ -31,67 +29,64 @@ const pending = (html: string) => (main(html).match(/help-step-link nav-pending/
 const allHrefs = (html: string) => [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]);
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ');
 
-describe('/nyc/help with both lists ready', () => {
-  const html = render('/nyc/help');
+describe('/help with both lists ready', () => {
+  const html = render('/help');
   it('renders the Guided demo with six steps', () => {
     expect(main(html)).toContain('<h1>Guided demo</h1>');
     expect(main(html)).toContain('class="help help-nyc"');
     expect(main(html).match(/<li class="help-step">/g)).toHaveLength(6);
     expect(main(html)).not.toContain('Page not found');
   });
-  it('links each step into /nyc with the first employee and first business', () => {
+  it('links each step to the main paths with the first employee and first business', () => {
     expect(stepLinks(html)).toEqual([
-      '/nyc/employee/emp-07', '/nyc/business/biz-chelsea-roasters', '/nyc/business/biz-chelsea-roasters',
-      '/nyc/employee/emp-07', '/nyc/simulator', '/nyc/business/biz-chelsea-roasters',
+      '/employee/emp-07', '/business/biz-chelsea-roasters', '/business/biz-chelsea-roasters',
+      '/employee/emp-07', '/simulator', '/business/biz-chelsea-roasters',
     ]);
     expect(pending(html)).toBe(0);
     expect(main(html)).not.toContain('help-status');
   });
-  it('has no MVP 1 business, employee or simulator link anywhere on the page', () => {
-    for (const h of allHrefs(html)) expect(h).not.toMatch(/^\/(business|employee|simulator)(\/|$|\?)/);
-    expect(allHrefs(html)).not.toContain('/help');
-  });
-  it('does not use the MVP 1 directory', () => {
-    for (const e of employees) expect(main(html)).not.toContain(`/employee/${e.id}"`);
+  it('has no /nyc link anywhere on the page', () => {
+    expect(allHrefs(html).length).toBeGreaterThan(6);
+    for (const h of allHrefs(html)) expect(h).not.toMatch(/^\/nyc(\/|$)/);
   });
 });
 
-describe('/nyc/help states', () => {
+describe('/help states', () => {
   it('loading: business, employee steps pending; simulator still linked; a status line', () => {
-    const html = render('/nyc/help', loading, loading);
-    expect(stepLinks(html)).toEqual(['/nyc/simulator']);
+    const html = render('/help', loading, loading);
+    expect(stepLinks(html)).toEqual(['/simulator']);
     expect(pending(html)).toBe(5);
     expect(main(html)).toMatch(/<p class="help-status" role="status">Loading NYC accounts…<\/p>/);
   });
   it('one list loaded: only its steps link', () => {
-    const html = render('/nyc/help', empReady, loading);
-    expect(stepLinks(html)).toEqual(['/nyc/employee/emp-07', '/nyc/employee/emp-07', '/nyc/simulator']);
+    const html = render('/help', empReady, loading);
+    expect(stepLinks(html)).toEqual(['/employee/emp-07', '/employee/emp-07', '/simulator']);
     expect(pending(html)).toBe(3);
   });
   it('503: the NYC travel data line, steps pending', () => {
     for (const [e, b] of [[down, bizReady], [empReady, down], [down, down]] as const) {
-      const html = render('/nyc/help', e, b);
+      const html = render('/help', e, b);
       expect(main(html)).toContain(`role="status">${NYC_HELP_UNAVAILABLE_TEXT}</p>`);
       expect(main(html)).toContain('help-status--problem');
     }
     expect(NYC_HELP_UNAVAILABLE_TEXT).toBe('NYC travel data is not loaded on this server yet.');
   });
   it('other errors show their message as an alert', () => {
-    const html = render('/nyc/help', empReady, failed);
+    const html = render('/help', empReady, failed);
     expect(main(html)).toMatch(/<p class="help-status help-status--problem" role="alert">Server answered 500<\/p>/);
-    expect(stepLinks(html)).toContain('/nyc/employee/emp-07');
+    expect(stepLinks(html)).toContain('/employee/emp-07');
     expect(pending(html)).toBe(3);
   });
   it('503 wins over an error and empty lists leave steps pending', () => {
     expect(nycHelpView(down, failed).note?.kind).toBe('unavailable');
     const empty = nycHelpView({ status: 'ready', employees: [] }, { status: 'ready', businesses: [] });
-    expect(empty).toEqual({ links: { employee: null, business: null, simulator: '/nyc/simulator' }, note: null });
-    expect(nycHelpView(empReady, { status: 'ready', businesses: [{ id: 'b 1', name: 'x' }] }).links.business).toBe('/nyc/business/b%201');
+    expect(empty).toEqual({ links: { employee: null, business: null, simulator: '/simulator' }, note: null });
+    expect(nycHelpView(empReady, { status: 'ready', businesses: [{ id: 'b 1', name: 'x' }] }).links.business).toBe('/business/b%201');
   });
 });
 
 describe('NYC copy', () => {
-  const html = render('/nyc/help');
+  const html = render('/help');
   const words = text(main(html));
   it('says relay point and explains it, never hub', () => {
     expect(words).toContain('relay point: a network business that holds the package overnight');
@@ -113,14 +108,9 @@ describe('NYC copy', () => {
     expect(about).toContain('homes are shown by neighborhood only');
     expect(about).not.toContain('demo data');
   });
-  it('shows the NYC indicator; /help keeps its MVP 1 copy and links', () => {
+  it('shows the NYC indicator and the same number of steps as the MVP 1 page', () => {
     expect(main(html)).toContain(`<p class="help-indicator">${ENV_LABELS.nyc}</p>`);
-    const mvp1 = main(render('/help'));
-    expect(mvp1).not.toContain('help-nyc');
-    expect(mvp1).not.toContain('Real NYC');
-    expect(mvp1.match(/<li class="help-step">/g)).toHaveLength(HELP_STEPS.length);
-    expect(mvp1).toContain(`href="/employee/${employees[0].id}"`);
-    expect(mvp1).not.toContain('/nyc/');
+    expect(NYC_HELP_STEPS).toHaveLength(HELP_STEPS.length);
   });
 });
 
@@ -165,11 +155,17 @@ describe('loading the lists', () => {
     startNycHelpLists(() => {}, () => {}, { employees: true, businesses: true }, { getEmployees: count, getBusinesses: count } as never)();
     expect(n).toBe(0);
   });
-  it('the NYC help never touches the stored demo identity', () => {
+  it('the NYC help reads the stored demo identity but never writes it or loads MVP 1 lists', () => {
     const src = readFileSync('client/src/pages/Help.tsx', 'utf8');
     const nyc = src.slice(src.indexOf('export const NYC_HELP_STEPS'), src.indexOf('function SyntheticHelp'));
-    expect(nyc).not.toMatch(/readIdentity|writeIdentity|resolveIdentity|localStorage|useDirectory/);
+    expect(nyc).not.toMatch(/writeIdentity|localStorage|useDirectory/);
     expect(src).toMatch(/useEffect\(\s*\(\) => startNycHelpLists\(/);
+  });
+  it('the step links use a stored identity that is in the lists, else the first account', () => {
+    expect(nycHelpView(empReady, bizReady, { employeeId: 'emp-01', businessId: 'biz-02' }).links)
+      .toEqual({ employee: '/employee/emp-01', business: '/business/biz-02', simulator: '/simulator' });
+    expect(nycHelpView(empReady, bizReady, { employeeId: 'emp-001', businessId: 'biz-sunrise' }).links)
+      .toEqual({ employee: '/employee/emp-07', business: '/business/biz-chelsea-roasters', simulator: '/simulator' });
   });
 });
 

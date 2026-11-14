@@ -135,11 +135,11 @@ function useNycSummary(initial?: NycSummary): NycSummary {
 
 function nycFacts(s: NycSummary): SummaryFacts {
   if (s.status !== 'ready') return s;
-  const { firstEmployeeId: _first, ...counts } = s;
+  const { businessIds: _b, employeeIds: _e, ...counts } = s;
   return counts;
 }
 
-/** The same homepage on the NYC network: /api/v2 only, links to the /nyc preview pages. */
+/** The homepage on the NYC network: /api/v2 only, links to the main paths. */
 function NycLanding({ initialSummary, helpPath }: { initialSummary?: NycSummary; helpPath: string }) {
   const summary = useNycSummary(initialSummary);
   return (
@@ -150,7 +150,7 @@ function NycLanding({ initialSummary, helpPath }: { initialSummary?: NycSummary;
         <p className="landing-indicator">{NYC_ENV_TEXT}</p>
       </section>
       <OperationalSummary facts={nycFacts(summary)} />
-      <WorkspaceEntries paths={nycWorkspacePaths(summary)} />
+      <WorkspaceEntries paths={nycWorkspacePaths(summary, readIdentity())} />
       <footer className="landing-footer">
         <span>{NYC_ENV_TEXT}</span>
         <Link to={helpPath}>Guided demo</Link>
@@ -162,11 +162,11 @@ function NycLanding({ initialSummary, helpPath }: { initialSummary?: NycSummary;
 export default function Landing(
   { initial, initialFacts, dataset = 'synthetic', initialSummary, helpPath = HELP_PATH }: {
     initial?: Parameters<typeof useDirectory>[0]; initialFacts?: SummaryFacts;
-    /** Which data the page shows. 'synthetic' (default) is the MVP 1 API; 'nyc' reads /api/v2 only. */
+    /** Which data the page shows. The app mounts 'nyc' (/api/v2 only); 'synthetic' is the MVP 1 page, no longer mounted. */
     dataset?: LandingDataset;
     /** NYC only: skip the /api/v2 requests and render this summary (tests). */
     initialSummary?: NycSummary;
-    /** NYC only: where "Guided demo" goes. /nyc mounts it with /nyc/help (pass 55); after the cutover the default. */
+    /** NYC only: where "Guided demo" goes (default /help). */
     helpPath?: string;
   } = {},
 ) {

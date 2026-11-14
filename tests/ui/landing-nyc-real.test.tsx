@@ -62,13 +62,15 @@ describe('NYC homepage on the real /api/v2', () => {
       relayPoints: b.businesses.length, // every network business is a relay point
       matched: sim.snapshot.metrics.matched,
       requested: sim.snapshot.metrics.requested,
-      firstEmployeeId: e.employees[0].id,
+      businessIds: b.businesses.map((x) => x.id),
+      employeeIds: e.employees.map((x) => x.id),
     });
 
     const html = renderToStaticMarkup(<MemoryRouter><Landing dataset="nyc" initialSummary={summary} /></MemoryRouter>);
     expect(values(html)).toEqual(expectedValues());
     expect(html).toContain('Relay points');
-    expect(html).toContain(`href="/nyc/employee/${encodeURIComponent(e.employees[0].id)}"`);
+    expect(html).toContain(`href="/employee/${encodeURIComponent(e.employees[0].id)}"`);
+    expect(html).toContain(`href="/business/${encodeURIComponent(b.businesses[0].id)}"`);
     expect(forbiddenIn(html)).toEqual([]);
   });
 

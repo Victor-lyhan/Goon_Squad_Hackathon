@@ -5,7 +5,6 @@ import { act } from 'react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { vi } from 'vitest';
 import { AppShell } from '../../client/src/App';
-import { loadDefaultScenario } from '../../server/api/initialRun';
 import { flush, mount } from './kitDom';
 
 export const V2_EMPLOYEES = [
@@ -17,13 +16,10 @@ export const V2_BUSINESSES = [
   { id: 'biz-02', name: 'Hudson Print Co' },
 ];
 
-/** The MVP 1 city, handed to the shell as `initial` so the MVP 1 header lists load without a request. */
-export const MVP1 = loadDefaultScenario();
-
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-/** Fake fetch: the /api/v2 lists, a healthy /api/health, 404 for anything else. Records every URL. */
+/** Fake fetch: the /api/v2 lists, a healthy /api/health, 404 for anything else (also the runId poll). Records every URL. */
 export function fakeApi() {
   const calls: string[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -58,7 +54,7 @@ export async function renderShell(path: string, before: string[] = []) {
   const history: { go?: (delta: number) => void } = {};
   const m = mount(
     <MemoryRouter initialEntries={[...before, path]} initialIndex={before.length}>
-      <AppShell initial={{ businesses: MVP1.businesses, employees: MVP1.employees }} />
+      <AppShell />
       <Probe out={where} history={history} />
     </MemoryRouter>,
   );
