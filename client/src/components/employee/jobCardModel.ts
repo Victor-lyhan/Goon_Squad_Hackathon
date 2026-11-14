@@ -4,6 +4,8 @@ import { formatCents, formatKg, formatMin } from '../../ui/format';
 
 export type JobCardModel = {
   jobId: string;
+  /** Link target for the View job action. */
+  href: string;
   title: string;
   status: JobStatus;
   statusLabel: string;
@@ -39,10 +41,11 @@ export function toJobCardModel(view: EmployeeJobView, businesses: Business[], hu
   const isRelay = plan.kind === 'relay';
   const hubName = hubs.find((h) => h.id === plan.hubId)?.name ?? 'the hub';
   const relayNote = !isRelay ? null
-    : job.legIndex === 0 ? `Drop at ${hubName}; another employee completes delivery`
+    : job.legIndex === 0 ? `Drop at ${hubName}; another employee completes delivery to ${bizName(shipment.destinationBusinessId)}`
     : `Collect from ${hubName} and deliver to ${bizName(shipment.destinationBusinessId)}`;
   return {
     jobId: job.id,
+    href: `/employee/${encodeURIComponent(job.employeeId)}?job=${encodeURIComponent(job.id)}`,
     title: 'New delivery job',
     status,
     statusLabel: STATUS_LABEL[status],

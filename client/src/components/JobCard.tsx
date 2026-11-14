@@ -1,6 +1,6 @@
 import type { EmployeeJobView } from '../../../shared/api';
 import type { Business, Hub } from '../../../shared/types';
-import { Button, Card, StatusPill } from '../ui';
+import { Card, StatusPill } from '../ui';
 import { toJobCardModel } from './employee/jobCardModel';
 import './employee/employee.css';
 
@@ -38,7 +38,17 @@ export function JobCard({ view, businesses, hubs, onView }: JobCardProps) {
       <div className="job-card__foot">
         <span>{m.addedTime} added</span>
         <span className="job-card__reward">{m.reward}</span>
-        <Button onClick={() => onView?.(m.jobId)}>View job</Button>
+        <a
+          className="ui-btn ui-btn--primary"
+          href={m.href}
+          onClick={(e) => {
+            if (!onView || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            onView(m.jobId);
+          }}
+        >
+          View job
+        </a>
       </div>
     </Card>
   );
