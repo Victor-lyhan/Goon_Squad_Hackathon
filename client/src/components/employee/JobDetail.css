@@ -6,3 +6,7 @@
 .job-detail__stop { display: flex; flex-direction: column; margin-bottom: 8px; overflow-wrap: anywhere; font-size: 0.9rem; }
 .job-detail__line { margin: 4px 0; overflow-wrap: anywhere; }
 .job-detail__reward { font-weight: 700; }
+.job-detail__progress { margin: 0; overflow-wrap: anywhere; }
+.job-detail__links { display: flex; flex-wrap: wrap; gap: 8px; }
+.job-detail__link { display: inline-block; padding: 10px 12px; min-height: 24px; border: 1px solid currentColor; border-radius: 8px; font-weight: 600; text-decoration: none; }
+.job-detail__link:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
