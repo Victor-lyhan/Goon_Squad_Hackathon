@@ -52,17 +52,17 @@ describe('activeDestination', () => {
 describe('compact header', () => {
   const routes: [string, string | null][] = [
     ['/', null], [`/business/${bid}`, 'Business'], [`/employee/${eid}`, 'Employee'],
-    ['/simulator', 'Simulator'], ['/help', null],
+    ['/simulator', 'Simulator'],
   ];
   it.each(routes)('%s: three nav links in order, correct active one, indicator once', (path, active) => {
     const html = render(path);
     expect(navLabels(html)).toEqual(['Business', 'Employee', 'Simulator']);
     expect(nav(html).match(/<a /g)).toHaveLength(3);
     expect(current(html)).toEqual(active ? [active] : []);
-    // The header says it once; the NYC homepage and Guided demo repeat it in their own copy.
+    // The header says it once.
     expect(header(html).split(ENV_INDICATOR_TEXT)).toHaveLength(2);
     expect(header(html)).toMatch(/<a [^>]*class="shell-wordmark"[^>]*>Relay<|<a [^>]*href="\/"[^>]*class="shell-wordmark"/);
-    expect(header(html)).toContain('href="/help"');
+    expect(header(html)).not.toContain('href="/help"'); // the Help page is deleted (#623)
     expect(header(html)).toContain(`class="shell-env">${ENV_INDICATOR_TEXT}<`);
   });
   it('nav links point to the current identity portals', () => {
@@ -74,8 +74,11 @@ describe('compact header', () => {
   it('marks the section active even for a different account id', () => {
     expect(current(render(`/business/${businesses[1].id}`))).toEqual(['Business']);
   });
-  it('Help link is marked current on /help', () => {
-    expect(header(render('/help'))).toMatch(/<a [^>]*aria-current="page"[^>]*>Help</);
+  it('/help is not a page: no Help link, nothing marked current, the 404 below (#623)', () => {
+    const html = render('/help');
+    expect(header(html)).not.toMatch(/>Help</);
+    expect(html).not.toContain('aria-current="page"');
+    expect(html).toContain('Page not found');
   });
   it('without an identity, portal items render as disabled text', () => {
     const html = render('/', { businesses: [], employees: [] });
@@ -107,9 +110,9 @@ describe('shell CSS', () => {
     expect(css).toContain('var(--border, #D7DDE5)');
     expect(css).toContain('var(--accent, #28618A)');
   });
-  it('every nav item, the Help link and the selector have a focus-visible style', () => {
+  it('every nav item and the selector have a focus-visible style', () => {
     const focus = /([^{}]*)\{[^}]*outline: 2px solid/.exec(css.slice(css.indexOf('.shell-wordmark:focus-visible')))![1];
-    for (const sel of ['.shell-wordmark:focus-visible', '.shell-nav-link:focus-visible', '.shell-help:focus-visible', '.demo-account select:focus-visible']) {
+    for (const sel of ['.shell-wordmark:focus-visible', '.shell-nav-link:focus-visible', '.demo-account select:focus-visible']) {
       expect(focus).toContain(sel);
     }
   });

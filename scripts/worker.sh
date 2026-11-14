@@ -35,7 +35,7 @@ steal_issue() {
     gh issue edit "$n" --remove-label "$LABEL" >/dev/null 2>&1; return 0
   fi
   gh issue comment "$n" --body "Taken over by $AGENT from ${victim#agent:} to balance the queue." >/dev/null 2>&1
-  log "took #$n from ${victim#agent:} (queue balancing)"
+  log "took #$n from ${victim#agent:} (queue balancing)" >&2
   echo "$n"
 }
 

@@ -106,9 +106,9 @@ describe('planCreateShipment: locked (409)', () => {
     expect(SHIPMENTS_LOCKED).toBe('Start a new planning cycle to change deliveries');
   });
 
-  it('the lock comes before the replay and before the business checks', () => {
-    expect(create(createBody({ clientRequestId: 'req-3' }), lockedRun).kind).toBe('locked');
+  it('the lock comes before the business checks', () => {
     expect(create(createBody({ originBusinessId: 'biz-nowhere' }), lockedRun).kind).toBe('locked');
+    expect(create(createBody({ destinationBusinessId: 'biz-nowhere' }), lockedRun).kind).toBe('locked');
   });
 });
 
@@ -132,6 +132,13 @@ describe('planCreateShipment: replay', () => {
       readyMin: 10, deadlineMin: 20,
     });
     expect(create(body)).toEqual({ kind: 'replay', shipmentId: 'shp-2' });
+  });
+
+  // DECISIONS pass 62: the delivery exists, so a repeated request is answered also after Play.
+  it('comes before the lock: a stored clientRequestId is a replay while the run is locked', () => {
+    expect(create(createBody({ clientRequestId: 'req-3' }), lockedRun)).toEqual({ kind: 'replay', shipmentId: 'shp-3' });
+    expect(create(createBody({ clientRequestId: 'req-1', originBusinessId: 'biz-gone' }), lockedRun))
+      .toEqual({ kind: 'replay', shipmentId: 'shp-1' });
   });
 
   it('a second POST after the first was stored is a replay of the new ID', () => {

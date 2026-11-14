@@ -10,6 +10,7 @@ import type { CompareResponse, MapResponse, SimulatorResponse } from '../../../.
 import { GenerateScenarioRequest } from '../../../../../../shared/v2/schemas';
 import type { Clock, Metrics } from '../../../../../../shared/v2/types';
 import type { LatLngBounds, MapMover, MapPanTarget, MapPlace, MapRoute, MapStop } from '../../../map/types';
+import { dayNightAt, dayNightClockText, type DayNight } from '../../../map/dayNight';
 import type { PackageListItem } from '../PackageList';
 import type { FocusOption } from '../FocusSelector';
 import { NO_FOCUS, type Focus, type LayerVisibility } from '../workspaceModel';
@@ -59,6 +60,10 @@ export type SimMapProps = {
   labelBusinesses: boolean;
   /** Journey: the sender, recipient and relay business are always named (never a carrier's home). */
   alwaysLabelIds: string[];
+  /** Dark map with a moon or light map with a sun, from the polled clock (presentation only, #649). */
+  dayNight: DayNight;
+  /** The polled clock as the map badge shows it: "Day 1 · 6:12 PM". */
+  clockText: string;
 };
 
 export type SimControlsView = {
@@ -207,11 +212,14 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
     actionError: data.actionError,
   };
 
+  // Day or night and the badge's time, from the polled clock, the same in network and journey mode.
+  const sky = { dayNight: dayNightAt(sim.clock.timeMin), clockText: dayNightClockText(sim.clock.timeMin) };
+
   const network = (sel: Selection): SimMapProps => {
     const v = buildNetworkView({ map, sim, selection: sel, focus });
     return {
       places: v.places, routes: v.routes, movers: v.movers, selectedIds: v.selectedIds, visible: layers, stops: [],
-      fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [],
+      fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [], ...sky,
     };
   };
 
@@ -265,6 +273,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
         fitTo: journey.bounds ?? 'places',
         labelBusinesses: false,
         alwaysLabelIds: journey.places.filter((p) => p.kind === 'business').map((p) => p.id),
+        ...sky,
       },
       legend: legendView('journey', selection, focus),
       selectedPackageId: shipmentId,

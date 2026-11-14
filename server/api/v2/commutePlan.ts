@@ -1,6 +1,7 @@
-// The pure steps of PUT /api/v2/employees/:id/commute (DECISIONS pass 46):
-//   resolveCommute -> (new home) fetch pairsToEnsure -> applyCommute -> retry unmatched shipments.
-// The route owns the HTTP handling, the live Google call and the retry. Nothing here reads fs, the
+// The pure steps of PUT /api/v2/employees/:id/commute (DECISIONS pass 46, 62):
+//   resolveCommute -> (new home) fetch pairsToEnsure -> applyCommute -> changedTripIds -> dropPlansOnTrips
+//   -> match the dropped and the unmatched shipments -> dropUnusedHomes.
+// The route owns the HTTP handling, the live Google call and the matching. Nothing here reads fs, the
 // network or process.env, and no message echoes request text, so no output can hold a street address.
 import type { PutCommuteRequest } from '../../../shared/v2/schemas';
 import type { Employee, Home, Run, TravelProvider, Trip } from '../../../shared/v2/types';
@@ -114,7 +115,9 @@ export function pairsToEnsure(
 /**
  * Writes a resolved commute into `run` (call it inside the store's mutation): replaces the employee,
  * lists the home, drops homes that are no longer used and rebuilds this employee's trips.
- * Existing plans are left as they are, like MVP 1; retrying unmatched shipments is the route's next step.
+ * Plans are not touched here. Trip IDs depend only on the employee, so a plan made on a trip this call
+ * changed now points at a different trip or at none: the route drops those plans next
+ * (`changedTripIds`, `dropPlansOnTrips`), matches their shipments again and calls `dropUnusedHomes`.
  *
  * Everything that can fail runs before the first write, so a missing travel pair
  * (`TravelDataMissingError` from `buildTrips`) leaves `run` exactly as it was.
@@ -130,8 +133,8 @@ export function applyCommute(
 
   const stored = scenario.homes.find((h) => h.id === home.id) ?? home;
   scenario.employees[index] = employee;
-  // A home stays listed while an employee lives there, or while a plan that was made before this save
-  // still drives to it (plans are not re-planned here, and the simulator needs the point to draw that leg).
+  // A home stays listed while an employee lives there, or while a plan still drives to it. A plan on
+  // the old trip is still in the run at this point; `dropUnusedHomes` runs again once it is re-planned.
   const inUse = new Set(scenario.employees.map((e) => e.homeId));
   for (const plan of run.assignments.plans) {
     for (const leg of plan.legs) for (const placeId of leg.placeIds) inUse.add(placeId);
@@ -140,4 +143,55 @@ export function applyCommute(
   scenario.homes = homes.filter((h) => inUse.has(h.id));
   run.trips = [...run.trips.filter((t) => t.employeeId !== employee.id), ...trips];
   return { employee, home: stored, trips };
+}
+
+/**
+ * The IDs of the trips in `before` that a plan can no longer ride as it was planned: the trip is not in
+ * `after` (the direction was switched off), or it leaves at another minute, from another place or to
+ * another place. A trip that is only in `after` carried nothing, so it is not listed.
+ * `maxExtraMin` is not part of a trip, so a save that changes only the limit lists nothing (DECISIONS pass 8).
+ */
+export function changedTripIds(before: readonly Trip[], after: readonly Trip[]): string[] {
+  const next = new Map(after.map((t) => [t.id, t]));
+  return before
+    .filter((old) => {
+      const now = next.get(old.id);
+      return !now
+        || now.departureMin !== old.departureMin
+        || now.originPlaceId !== old.originPlaceId
+        || now.destinationPlaceId !== old.destinationPlaceId;
+    })
+    .map((t) => t.id);
+}
+
+/**
+ * Removes every plan that has a leg on one of `tripIds` (call it inside the store's mutation). A plan goes
+ * as a whole, so a relay loses both legs even when only one carrier's trip changed. Its jobs, its events
+ * and its notifications go with it: a shipment that is matched again gets new ones, like a first match.
+ * Returns the shipments that lost their plan, in the order of the plans. They are in neither `plans` nor
+ * `unmatched` until the route matches them again.
+ */
+export function dropPlansOnTrips(run: Run, tripIds: readonly string[]): string[] {
+  const changed = new Set(tripIds);
+  const dropped = run.assignments.plans.filter((p) => p.legs.some((leg) => changed.has(leg.tripId)));
+  if (dropped.length === 0) return [];
+  const planIds = new Set(dropped.map((p) => p.id));
+  run.assignments.plans = run.assignments.plans.filter((p) => !planIds.has(p.id));
+  run.jobs = run.jobs.filter((j) => !planIds.has(j.planId));
+  run.events = run.events.filter((e) => !planIds.has(e.planId));
+  run.notifications = run.notifications.filter((n) => !planIds.has(n.planId));
+  return dropped.map((p) => p.shipmentId);
+}
+
+/**
+ * Removes every home that no employee lives at and no plan leg names (SPEC MVP II rule 5: a home is only
+ * a commute endpoint). The list keeps its array when nothing goes.
+ */
+export function dropUnusedHomes(run: Run): void {
+  const { scenario } = run;
+  const inUse = new Set(scenario.employees.map((e) => e.homeId));
+  for (const plan of run.assignments.plans) {
+    for (const leg of plan.legs) for (const placeId of leg.placeIds) inUse.add(placeId);
+  }
+  if (scenario.homes.some((h) => !inUse.has(h.id))) scenario.homes = scenario.homes.filter((h) => inUse.has(h.id));
 }

@@ -157,6 +157,7 @@ describe('POST /api/v2/shipments: a new delivery', () => {
 
   it('reads status and delivered time from snapshotAt, taken once at the clock of the stored run', async () => {
     const app = await start();
+    // A preview moved the clock. The request that stores the delivery puts it back at the start (930).
     await app.store.mutate((run) => {
       run.clock.timeMin = 1100;
     });
@@ -168,7 +169,8 @@ describe('POST /api/v2/shipments: a new delivery', () => {
     expect(body).toMatchObject({ status: 'delivered', deliveredAtMin: 1054, matched: true });
     expect(app.snapshots).toHaveLength(1);
     expect(app.snapshots[0].run).toBe(app.store.get());
-    expect(app.snapshots[0].timeMin).toBe(1100);
+    expect(app.snapshots[0].timeMin).toBe(930);
+    expect(app.store.get().clock).toEqual({ phase: 'planning', playing: false, timeMin: 930, speed: 120 });
   });
 });
 

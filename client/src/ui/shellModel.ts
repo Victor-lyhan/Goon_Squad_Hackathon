@@ -73,15 +73,9 @@ export function activeDestination(pathname: string): Destination | null {
 }
 
 export const HOME_PATH = '/';
-export const HELP_PAGE_PATH = '/help';
 export const SIMULATOR_PAGE_PATH = '/simulator';
 export const businessPath = (id: string) => `/business/${encodeURIComponent(id)}`;
 export const employeePath = (id: string) => `/employee/${encodeURIComponent(id)}`;
-
-/** True when the path is the Help page (a trailing slash counts, as in the router). */
-export function isHelpPath(pathname: string): boolean {
-  return pathname.replace(/\/+$/, '') === HELP_PAGE_PATH;
-}
 
 /**
  * The old MVP II preview prefix. Since the cutover every `/nyc/...` path redirects to the same path
@@ -110,7 +104,37 @@ export function pickAccount(storedId: string | undefined, ids: readonly string[]
   return ids.find((id) => id === storedId) ?? ids[0];
 }
 
-/** Header, homepage and Guided demo links. A link whose list is not loaded (or answered 503) is pending (null). */
+/** The account a page shows: the field of the demo identity it belongs to, and its ID. */
+export type OpenAccount = { key: 'businessId' | 'employeeId'; id: string };
+
+/**
+ * The account the path opens, if it is in its loaded list: `/business/<id>` or `/employee/<id>`, read as the
+ * router reads them (any case, a trailing slash, the ID decoded). Opening an account page counts as choosing
+ * that account (DECISIONS pass 62). null on any other path, for an ID that is not in the list (a stale link
+ * is never stored, pass 9) and while the list is loading, failed or unavailable (`ids` undefined).
+ */
+export function openAccount(
+  pathname: string,
+  businessIds: readonly string[] | undefined,
+  employeeIds: readonly string[] | undefined,
+): OpenAccount | null {
+  const m = /^\/(business|employee)\/([^/]+)\/*$/i.exec(pathname);
+  if (!m) return null;
+  const business = m[1].toLowerCase() === 'business';
+  let id = m[2];
+  try { id = decodeURIComponent(id); } catch { /* a malformed escape: the raw text, as the router does */ }
+  return (business ? businessIds : employeeIds)?.includes(id) ? { key: business ? 'businessId' : 'employeeId', id } : null;
+}
+
+/**
+ * The demo identity with the open account as its business or its employee; the other one is kept. Returns
+ * `identity` itself when nothing changes, so `withOpenAccount(x, open) !== x` means "store it".
+ */
+export function withOpenAccount<T extends { businessId?: string; employeeId?: string }>(identity: T, open: OpenAccount | null): T {
+  return !open || identity[open.key] === open.id ? identity : { ...identity, [open.key]: open.id };
+}
+
+/** Header, homepage and 404 links. A link whose list is not loaded (or answered 503) is pending (null). */
 export function workspaceHrefs(businessId: string | undefined, employeeId: string | undefined): Record<Destination, string | null> {
   return {
     business: businessId ? businessPath(businessId) : null,

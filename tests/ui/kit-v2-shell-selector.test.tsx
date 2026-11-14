@@ -16,7 +16,6 @@ const { page } = vi.hoisted(() => ({
   page: (name: string) => async () => ({ default: (await import('./kit-dom-shell-pages')).stubPage(name) }),
 }));
 vi.mock('../../client/src/pages/Landing', page('Landing'));
-vi.mock('../../client/src/pages/Help', page('Help'));
 vi.mock('../../client/src/pages/v2/SimulatorV2', page('SimulatorV2'));
 vi.mock('../../client/src/pages/v2/EmployeeV2', page('EmployeeV2'));
 vi.mock('../../client/src/pages/v2/BusinessV2', page('BusinessV2'));

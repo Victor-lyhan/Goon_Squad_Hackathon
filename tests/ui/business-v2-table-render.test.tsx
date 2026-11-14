@@ -84,6 +84,25 @@ describe('ShipmentsTable', () => {
     expect(table({ rows: rows.slice(0, 2) })).toContain('2 of 4 shipments');
   });
 
+  it('keeps the Plan cell to one child: relay point and unmatched reason sit inside it (#609)', () => {
+    const html = table();
+    const plans = [...html.matchAll(/<td data-label="Plan"[^>]*>(.*?)<\/td>/g)].map((m) => m[1]);
+    expect(plans).toHaveLength(4);
+    // One wrapper element holds the whole value, so the stacked 390 px cell stays label + value.
+    for (const p of plans) expect(p).toMatch(/^<div class="bw-plan">(?:(?!<\/?div).)*<\/div>$/);
+    expect(plans).toContain('<div class="bw-plan">Relay <span class="bw-muted">via Atlas Books</span></div>');
+    expect(plans).toContain(
+      '<div class="bw-plan">—<span class="bw-reason">No commute passes both businesses before the deadline.</span></div>',
+    );
+    expect(plans.filter((p) => p === '<div class="bw-plan">Direct</div>')).toHaveLength(2);
+  });
+
+  it('the caption and the empty titles can take focus without being tab stops (#609)', () => {
+    expect(table()).toMatch(/<caption class="bw-table__caption" tabindex="-1">/);
+    expect(table({ rows: [], totalCount: 4 })).toMatch(/<p class="bw-empty__title" tabindex="-1">No shipments match/);
+    expect(table({ rows: [], totalCount: 0 })).toMatch(/<p class="bw-empty__title" tabindex="-1">No shipments yet/);
+  });
+
   it('empty state: no shipments yet, with New delivery', () => {
     const html = table({ rows: [], totalCount: 0 });
     expect(html).toContain('No shipments yet');

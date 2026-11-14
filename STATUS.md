@@ -1,54 +1,48 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14, 17:10 (Sat), planner pass 62 (started 16:50)_
+_Last update: 2026-11-14, 17:55 (Sat), planner pass 65 (started 17:45)_
 
-## Current milestone: M9 Polish (target 10:00 p.m. Sat)
-The NYC app is the only app a visitor can reach. Twelve PRs merged since 16:45, so when this pass looked again only one issue was still `ready` and workers were going idle. Five code audits over the files no open issue touches gave the next 16 issues (#623 to #628, #630, #631, #633 to #640), at least one for each of the ten workers. Step 2 of the MVP 1 deletion (the API) is queued and already in progress (#628).
+## Current milestone: MVP III (docs/mvp3.md, added 5:15 p.m.), feature freeze 9:30 p.m.
+Goal: a judge understands Relay in 30 seconds by watching one package move. Order P1 simulator readability, P2 removals, P3 story retune, P4 restyle. Issues are tagged P1 to P4.
 
 ## HUMAN TO-DO
-1. **GitHub Actions is still not running** (billing). The check of PR #613 failed in 2 s with the same message at about 16:50 (run 43644795644). Fix it in GitHub Settings, Billing & plans. Until then a red check means nothing; reviewers run `bash scripts/test.sh` themselves.
-2. **Open `/simulator`, `/business/<id>` and `/employee/<id>` with the browser key.** No agent has seen the Google map. Write what looks wrong in QUESTIONS.md and I queue it first.
-3. **Three calls of this pass change behaviour; overrule them in QUESTIONS.md if you disagree:** the clock goes back to the start when a delivery is added in planning (#624); a commute save re-plans the deliveries on a trip it changed (#627); the Guided demo names the README's example request (#630).
-4. Four one-line config changes only you may make (QUESTIONS pass 62): Node `engines`, the Vite proxy port, the chunk warning limit, `.env.example`.
-5. Run `npm run fetch:routes -- --drop-entered` before committing `fixtures/nyc/` again. Optional contract edits in `shared/v2/api.ts` (QUESTIONS pass 61).
+1. **GitHub Actions still not running (billing).** The 3 latest runs on main (#637, #626, the planner commit) are red; reviewers run `bash scripts/test.sh` locally. Fix in GitHub Settings, Billing & plans.
+2. **Open `/simulator` with the browser key** once #648, #649 and #659 merge. Nobody has seen the map; the MVP III look can only be judged there.
+3. Overrule the MVP III calls of passes 63 to 65 in QUESTIONS.md if you disagree.
+4. Watch QUESTIONS.md for "NEEDS FETCH" lines from #650, then run `npm run fetch:routes -- --drop-entered` and commit `fixtures/nyc/`.
+5. Still open from pass 62: four config lines (Node `engines`, Vite proxy port, chunk limit, `.env.example`).
 
-## Main health: not broken as far as I can tell; CI cannot run (billing)
-- Every run on main is red for the billing reason, not for the code. I read the run of PR #613 and the review of PR #612: the reviewer ran the suite locally, 5709 passed and 1 failed (`tests/api/commute-latency.test.ts`, an MVP 1 timing test, on a loaded machine; it passes alone). #628 deletes that test with the MVP 1 API. No fix issue created.
+## Main health: no code failure known; CI cannot run (billing)
+- Same billing cause as every run since 16:19 (DECISIONS pass 61). No fix issue. This pass could not run `gh run list` (needs approval); it read the checkout at a83f78b (main after PR #663).
 
 ## Stuck
 - Nothing labeled `stuck`.
 
-## Queued this pass (16 issues, the cap of this pass)
-- Demo path first: #623 header links open the account on screen (victor-5); #624 clock back to the start when a delivery is added after a preview (victor-3, in progress); #627 a commute save re-plans the deliveries on a changed trip (victor-4); #630 Guided demo leads to a request that matches (victor-7).
-- Simulator: #625 a journey stays complete when a layer is off, no "Leg 2" for a direct one (victor-2); #631 Inspector opens when a journey starts (victor-8, in progress); #635 one set of status words, real extra minutes in the timeline (victor-2); #638 keyboard in Scenario and Compare (victor-8).
-- Employee: #626 departure once, as "5:30 PM" (victor-6); #634 job screens: heading, honest missing-delivery text, focus, saved note (victor-10, in progress); #633 a new delivery is announced, "3 min shorter" in the list (victor-9).
-- Shell and docs: #636 header lists retry after a failed load (victor-5); #637 README for a fresh clone and a tab icon (victor-3).
-- Server: #628 delete the MVP 1 API (victor-1, in progress); #639 a reason of its own when nobody commutes (victor-4); #640 no typed address in any line of the fetch command (victor-9).
+## Queued this pass (2 new)
+- P2 #669 delete MVP 1 `employee/commuteModel.ts` + `jobDetailModel.ts` and their 6 tests (victor-4, idle).
+- P2 #670 move the 4 live helpers into `business/v2/newDeliveryModel.ts`, delete MVP 1 `business/shipmentFormModel.ts` + its tests (victor-3, idle).
+- Only 2: every other MVP III step shares a file with an open issue or waits for one (see Next up).
 
-## In progress / in review (from before this pass)
-- In review: #532 left-panel controls over HTTP (victor-1), #581 Business page 1320 px and relay point (victor-4).
-- In progress: #595 route tooltips (victor-7), #597 Employee poller (victor-6), #602 address search deadline (victor-9), #608 delete the SVG city map (victor-2), #609 Business table at 390 px (victor-5). Ready: #604 Random city at the edges of the form (victor-7).
+## In progress / in review
+- In review: PR #665 (#640 fetch command hides typed homes, victor-9), PR #664 (#623 header links + delete Help, victor-5).
+- In progress: #648 Play/Pause (victor-8), #649 day/night (victor-10), #650 story retune (victor-7), #651 tokens (victor-9), #652 homepage "Watch a package" (victor-1), #653 Navy Yard HTTP test (victor-6), #636 header lists retry (victor-5), #608 delete SVG city map (victor-2).
+- Ready: #659 journey map (victor-2), #660 Business `?play=1` (victor-7), #661 Employee `?play=1` (victor-6), #669, #670.
 
-## Merged since pass 61 (16:45)
-- Simulator: PR #614 (#594) Play journey no longer flickers the left panel. #607 (keys after the scrubber, Packages under Playback) closed during this pass; I did not see its PR.
-- Business and shell: PR #606 (#568) account selector "Name · Employer"; PR #612 (#599) poller; PR #616 (#582) full match result in the form; PR #622 (#610) homepage retries.
-- Employee: PR #613 (#596) a new job's route without a reload; PR #618 (#598) commute editor messages.
-- Server: PR #611 (#570) import check; PR #615 (#600) start lines and a log line per 500; PR #620 (#601) commute save ahead of line fetches; PR #621 (#603) names without numbers; PR #617 (#605) §9 tests without the MVP 1 router.
+## Merged since pass 64 (17:36)
+- PR #663 (#637) README fresh clone + tab icon; PR #662 (#626) departure once; PR #658 (#635) one set of status words; PR #657 (#604) Random city edges test; PR #656 (#624) clock back to start after a new delivery.
 
 ## Next up (each needs the issues in brackets merged first)
-- Status words of the journey panel ("Waiting for pickup" becomes "Scheduled") [#595, same file `journey/journeyModel.ts`, and #635].
-- Business header no longer promises that deliveries can be edited [#581, same file `activity/activityModel.ts`].
-- Button label "Find a delivery match" in the form, Help, README and seven test files [#581, #630, #637]; table rows as links [#581, #609].
-- Move `createRng` into the v2 engine, then delete the MVP 1 engine files (step 3) [#628, #639].
-- Last sweep: the unused first argument of `createApp`, unused kit components and dead rules in `styles/global.css`, the four MVP 1 model files the v2 pages still import [#628, #634].
+- P1 journey timeline with the same symbols instead of numbers [#659].
+- P1 map legend: A/B carrier rows, no "Leg 2" row for a direct journey [#648 (`legend/`), #659].
+- P2 delete the hook's `generate` / `recompute` / `resetPlanning` and the leftover controls fields in `simPageView.ts` [#648, #649].
+- P2 move `clampAlpha` / `REDUCED_MOTION_QUERY` into `sim/v2/motion/`, delete `sim/markerTween.ts` and `sim/playbackModel.ts` with their MVP 1 tests [#608, #648].
+- P2 move `carrierHref` / `simulatorHref` into `business/v2/`, delete MVP 1 `business/trackingModel.ts` and its tests [#660].
+- P4 lighter restyle passes: simulator, Business, Employee pages [#651; #648/#649/#659 for the simulator].
+- README: MVP III demo steps ("Watch a package"), no Help page [#623, #652].
+- "Find a delivery match" button label [#623, #670].
+- UI test of the demo path: homepage button to a playing Navy Yard journey [#648, #652].
+- MVP 1 server sweep (`server/api/{initialRun,pipeline,simulator,views,map}.ts`, MVP 1 engine) with the `createRng` move [#648, #669, #670].
 
 ## Known bugs / gaps
-- Header: Business and Employee links open the first account, not the one on screen (#623); they stay greyed out after a failed first load (#636).
-- A delivery added after "Play journey" in planning shows as already delivered and paid (#624).
-- A commute save for an employee who carries a delivery leaves a job that answers 404 and a package with no position (#627).
-- Simulator: a journey loses its route lines when Routes is unchecked (#625); no timeline when the Inspector was collapsed (#631); a route's hover text has no name (#595).
-- Employee: the departure is shown twice in two formats (#626); "The city was changed" for a re-matched delivery (#634).
-- Business: relay and unmatched rows break at 390 px (#609). Address search can offer Mount Vernon or Yonkers (#602).
-- README says Node 22; Vite needs 22.12 or newer (#637). `PORT` does not work with `npm run dev` (needs your config change).
-- The Employee job view marks a stop "done" from the job status only (needs a contract field, QUESTIONS pass 61).
-- This planner run cannot use `gh run list`, `gh pr list`, `gh label list`, `git fetch`, `node` or `npm`; `gh run view <id>` and `gh pr view <n>` work. The audits read the checkout of 16:50, six PRs behind main; none of those PRs touched the audited files.
+- Header link lists stay greyed after a failed load (#636).
+- `PORT` does not work with `npm run dev` (needs your config change; README says `npm start` only).

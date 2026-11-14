@@ -111,3 +111,43 @@
 .map-v2__checks li + li {
   margin-top: 4px;
 }
+
+/* Day and night (simulator only, #649). Only the basemap gets dark (the Google style); this colours
+   the area behind the tiles and the badge. The badge is ink on white by day and white on ink at
+   night (both far above 4.5:1). It takes no clicks, so the map under it still pans. The switch is
+   instant: no transition or animation here, so there is nothing to turn off under reduced motion. */
+.map-v2--night {
+  background: var(--text, #151B26);
+}
+
+.map-v2__daynight {
+  position: absolute;
+  top: var(--space-3, 12px);
+  left: var(--space-3, 12px);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  background: var(--panel, #FFFFFF);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  color: var(--text, #151B26);
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: var(--text-xs, 12px);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.map-v2__daynight--night {
+  background: var(--text, #151B26);
+  border-color: var(--muted, #5B6472);
+  color: var(--panel, #FFFFFF);
+}
+
+.map-v2__daynight-icon {
+  flex: none;
+  display: block;
+}

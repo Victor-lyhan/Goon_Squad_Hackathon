@@ -7,16 +7,13 @@ import type {
   DeliveryPlan, Job, JobStatus, Leg, NetworkBusiness, Shipment, ShipmentProgress, Stop, StopKind,
 } from '../../../../../../shared/v2/types';
 import { formatCents, formatMin } from '../../../../ui/format';
+import {
+  NO_MATCH, packageName, SHIPMENT_STATUS_TEXT, shipmentStatusText,
+} from '../packages/statusText';
 
 // ---------- Labels (UI copy says "relay point", never "hub") ----------
-export const SHIPMENT_STATUS_LABEL: Record<ShipmentProgress, string> = {
-  unmatched: 'Not matched',
-  scheduled: 'Scheduled',
-  picked_up: 'Picked up',
-  at_hub: 'At relay point',
-  out_for_delivery: 'Out for delivery',
-  delivered: 'Delivered',
-};
+/** The status words of packages/statusText.ts, the same map the left list reads (#635). */
+export const SHIPMENT_STATUS_LABEL: Record<ShipmentProgress, string> = SHIPMENT_STATUS_TEXT;
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
   assigned: 'Assigned',
@@ -47,12 +44,15 @@ export type PlaceRef = { id: string | null; name: string };
 
 export type PackageRow = {
   shipmentId: string;
+  /** The package's own name, "Untitled package" when it has none. */
   label: string;
   /** "To" for sent, "From" for received, both for a package held as relay point. */
   parties: { role: 'From' | 'To'; business: PlaceRef }[];
-  planKind: 'Direct' | 'Relay' | 'Not matched';
+  /** "No match" for a package without a plan, the left list's word. */
+  planKind: 'Direct' | 'Relay' | typeof NO_MATCH;
   /** The carriers of the plan's legs, in leg order (empty when unmatched). */
   carriers: Ref[];
+  /** The snapshot's status in the words of statusText.ts; "Status unavailable" when the snapshot has none. */
   statusLabel: string;
   /** "ETA Day 2, 9:10 AM" from plan.deliveryMin, "Delivered Day 2, 9:05 AM", or null when unmatched. */
   timeLabel: string | null;
@@ -186,14 +186,14 @@ function packageRow(
   }
   return {
     shipmentId: s.id,
-    label: s.label || 'Untitled package',
+    label: packageName(s.label),
     parties: roles.map((role) => ({
       role,
       business: placeRef(role === 'From' ? s.originBusinessId : s.destinationBusinessId, ctx.businesses),
     })),
-    planKind: plan ? (plan.kind === 'relay' ? 'Relay' : 'Direct') : 'Not matched',
+    planKind: plan ? (plan.kind === 'relay' ? 'Relay' : 'Direct') : NO_MATCH,
     carriers: plan ? plan.legs.map((l) => ({ id: l.employeeId, name: ctx.names.get(l.employeeId) ?? UNKNOWN_PERSON })) : [],
-    statusLabel: (status && SHIPMENT_STATUS_LABEL[status]) || NO_STATUS,
+    statusLabel: shipmentStatusText(status),
     timeLabel,
     reason: plan ? null : ctx.reasons.get(s.id) ?? null,
     role,
@@ -285,7 +285,7 @@ export function employeeInspector(
     return {
       jobId: job?.id ?? jobIdFor(plan.id, legIndex),
       shipmentId: plan.shipmentId,
-      packageLabel: shipments.get(plan.shipmentId)?.label || 'Untitled package',
+      packageLabel: packageName(shipments.get(plan.shipmentId)?.label),
       legLabel: legLabel(plan, legIndex),
       stops: leg.stops.map((stop, i) => ({
         key: `${i}-${stop.kind}`,

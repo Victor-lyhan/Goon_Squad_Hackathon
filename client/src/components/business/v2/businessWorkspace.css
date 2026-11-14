@@ -145,6 +145,11 @@ th[aria-sort] .bw-sort { color: var(--text, #151B26); }
 .bw-row[aria-selected='true'] { background: var(--accent-soft, #E8F0F6); }
 .bw-row[aria-selected='true'] .bw-cell--primary { color: var(--accent-dark, #1F4E70); }
 .bw-row:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: -2px; }
+/* The caption and an empty state's title take focus when a closed delivery has no row to return to
+   (#609). Not tab stops; the ring shows for keyboard focus only, inside the box so the table's wrapper
+   does not clip it. */
+.bw-table__caption:focus, .bw-empty__title:focus { outline: none; }
+.bw-table__caption:focus-visible, .bw-empty__title:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: -2px; }
 
 .bw-cell--primary { font-weight: 600; }
 .bw-mono {

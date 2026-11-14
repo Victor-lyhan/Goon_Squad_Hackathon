@@ -1,11 +1,14 @@
-// The delivery-request routes of /api/v2 (DECISIONS pass 47, 48, 50):
-//   POST  /shipments            planCreateShipment -> withShipment -> matchPending -> shipmentView
-//   PATCH /shipments/:id        planPatchShipment  -> withShipment -> matchPending -> shipmentView
-//   POST  /shipments/:id/match  planMatchRetry     -> matchPending -> shipmentView
+// The delivery-request routes of /api/v2 (DECISIONS pass 47, 48, 50, 62):
+//   POST  /shipments            planCreateShipment -> withShipment -> atPlanningStart -> matchPending -> shipmentView
+//   PATCH /shipments/:id        planPatchShipment  -> withShipment -> atPlanningStart -> matchPending -> shipmentView
+//   POST  /shipments/:id/match  planMatchRetry     -> atPlanningStart -> matchPending -> shipmentView
 // The handlers only put merged pieces in order. Each request is decided inside one store mutation, so
 // two requests can never both create the same `clientRequestId` or both take the same shipment ID.
-// A request that stores nothing (a refusal, a replay, a retry of a matched delivery) leaves the run
-// and its version exactly as they were, and so does a request that fails.
+// A request that stores something also puts the clock back at the start of the run, in that same
+// mutation: a preview (a seek, Play journey) moves the clock without locking the run, and a delivery
+// stored after it must not be answered as already under way or delivered.
+// A request that stores nothing (a refusal, a replay, a retry of a matched delivery) leaves the run,
+// its clock and its version exactly as they were, and so does a request that fails.
 // A delivery that finds no match is a success with `matched: false` and the matcher's reason.
 // Travel errors go to the router's handler (errors.ts), which answers the 503 TravelUnavailable body.
 import type express from 'express';
@@ -16,7 +19,7 @@ import type { Store } from '../../store';
 import { takesNoOptions } from './bodyGuard';
 import { matchPending, type PipelineDeps } from './pipeline';
 import {
-  planCreateShipment, planMatchRetry, planPatchShipment, withShipment, type ShipmentRefusal,
+  atPlanningStart, planCreateShipment, planMatchRetry, planPatchShipment, withShipment, type ShipmentRefusal,
 } from './shipmentOps';
 import { shipmentView } from './views';
 
@@ -108,9 +111,9 @@ export function registerShipmentRoutes(router: express.Router, deps: ShipmentRou
     }
   };
 
-  /** Stores `shipment` (new or edited) in the draft and matches it. */
+  /** Stores `shipment` (new or edited) in the draft, with the clock back at the start, and matches it. */
   const storeAndMatch = (draft: RunV2, shipment: Shipment): Decision => {
-    const run = withShipment(draft, shipment);
+    const run = atPlanningStart(withShipment(draft, shipment));
     matchPending(run, [shipment.id], pipeline);
     return { kind: 'stored', shipmentId: shipment.id, run };
   };
@@ -129,7 +132,8 @@ export function registerShipmentRoutes(router: express.Router, deps: ShipmentRou
   router.post('/shipments/:id/match', takesNoOptions, write(200, (draft, req) => {
     const plan = planMatchRetry(draft, String(req.params.id));
     if (plan.kind !== 'match') return plan;
-    matchPending(draft, [plan.shipmentId], pipeline);
-    return { kind: 'stored', shipmentId: plan.shipmentId, run: draft };
+    const run = atPlanningStart(draft);
+    matchPending(run, [plan.shipmentId], pipeline);
+    return { kind: 'stored', shipmentId: plan.shipmentId, run };
   }));
 }

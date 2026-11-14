@@ -129,7 +129,7 @@ describe('commute route preview on the real map response, every employee', () =>
     expect(model.routes.find((r) => r.id === 'commute-evening')).toBeUndefined();
     expect(model.notes).toContain(ROUTE_NOT_LOADED);
     // The trip's text is still there.
-    expect(model.summary[0].startsWith('Evening: leaves')).toBe(true);
+    expect(model.summary[0]).toMatch(/^Evening: (\d+ min|\d+ h( \d+ min)?), /);
   }, T);
 
   it('renders the preview on the page with clean text for every employee and every open job', () => {
@@ -138,8 +138,11 @@ describe('commute route preview on the real map response, every employee', () =>
       const html = renderPage(readyState(d, real.businesses, end.run.runId), null, real.map);
       expect(html, d.employee.id).toContain('aria-label="Your commute on the map"');
       const t = textOf(html);
-      expect(t, d.employee.id).toMatch(/Evening: leaves \d{1,2}:\d{2} [ap]\.m\./);
-      expect(t, d.employee.id).toMatch(/Morning: leaves \d{1,2}:\d{2} [ap]\.m\./);
+      // #626: the preview names both directions with no clock time; the commute card has the departures.
+      expect(t, d.employee.id).toMatch(/Evening: (\d+ min|\d+ h( \d+ min)?), [\d.]+ k?m\b/);
+      expect(t, d.employee.id).toMatch(/Morning: (\d+ min|\d+ h( \d+ min)?), [\d.]+ k?m\b/);
+      expect(t, d.employee.id).not.toMatch(/[ap]\.m\./);
+      expect(t, d.employee.id).not.toContain(': leaves ');
       expectCleanPage(html, d.employee.id, real.run.scenario.homes, real.businesses);
     }
   }, T);

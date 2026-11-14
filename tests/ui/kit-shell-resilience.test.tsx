@@ -63,7 +63,7 @@ describe('shell render', () => {
     expect(render(`/business/${bids[0]}`)).not.toContain('current city');
   });
   it('badge is on every route', () => {
-    for (const p of ['/', `/business/${bids[0]}`, `/employee/${eids[0]}`, '/simulator', '/help', '/nope']) {
+    for (const p of ['/', `/business/${bids[0]}`, `/employee/${eids[0]}`, '/simulator', '/nope']) {
       expect(render(p)).toContain('Real NYC locations · simulated deliveries');
     }
   });

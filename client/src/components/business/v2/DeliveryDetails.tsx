@@ -42,7 +42,14 @@ export function DeliveryDetails(props: DeliveryDetailsProps) {
   const { header, result, steps, legs, facts } = m;
 
   return (
-    <section className="bd-panel" aria-labelledby={headingId}>
+    <section
+      className="bd-panel"
+      aria-labelledby={headingId}
+      onKeyDown={(e) => {
+        // Esc closes the details, unless a control inside already used the key.
+        if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); props.onClose(); }
+      }}
+    >
       <header className="bd-head">
         <div className="bd-head__top">
           <span className="bd-eyebrow">{header.directionLabel}</span>
