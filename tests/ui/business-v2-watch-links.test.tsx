@@ -7,11 +7,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ShipmentResponse } from '../../shared/v2/api';
 import type { DeliveryPlan } from '../../shared/v2/types';
-import { simulatorHref as trackingSimulatorHref } from '../../client/src/components/business/trackingModel';
 import { BusinessHeader } from '../../client/src/components/business/v2/activity/BusinessHeader';
 import { headerModel } from '../../client/src/components/business/v2/activity/activityModel';
 import { DeliveryDetails } from '../../client/src/components/business/v2/DeliveryDetails';
 import { deliveryDetails } from '../../client/src/components/business/v2/deliveryDetailsModel';
+import { carrierHref, simulatorHref as linksSimulatorHref } from '../../client/src/components/business/v2/links';
 import { NewDeliveryForm } from '../../client/src/components/business/v2/NewDeliveryForm';
 import type { BusinessWorkspaceState } from '../../client/src/components/business/v2/live/businessWorkspaceState';
 import { arrangedCard } from '../../client/src/components/business/v2/newDeliveryModel';
@@ -64,9 +64,23 @@ describe('simulatorHref', () => {
   });
 
   it('is one helper: the page model exports the function the delivery details use', () => {
-    expect(simulatorHref).toBe(trackingSimulatorHref);
+    expect(simulatorHref).toBe(linksSimulatorHref);
     expect(deliveryDetails(matched(relayPlan, ODD_ID), LOOKUPS).journeyHref).toBe(simulatorHref(ODD_ID));
     expect(arrangedCard(matched(relayPlan, ODD_ID), LOOKUPS).simulatorHref).toBe(simulatorHref(ODD_ID));
+  });
+});
+
+describe('carrierHref', () => {
+  it('opens the carrier\'s job on the Employee page, URL-encoded', () => {
+    expect(carrierHref('emp-1', 'plan-shp-7-L0')).toBe('/employee/emp-1?job=plan-shp-7-L0');
+    expect(carrierHref('emp 1/x', 'plan&job=2#y')).toBe('/employee/emp%201%2Fx?job=plan%26job%3D2%23y');
+  });
+
+  it('is the helper the delivery details use for each leg', () => {
+    const legs = deliveryDetails(view(relayPlan, 'scheduled'), LOOKUPS).legs;
+    expect(legs.map((l) => l.carrierHref)).toStrictEqual([
+      carrierHref('emp-1', 'plan-shp-7-L0'), carrierHref('emp-2', 'plan-shp-7-L1'),
+    ]);
   });
 });
 
