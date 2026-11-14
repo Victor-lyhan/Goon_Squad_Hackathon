@@ -195,6 +195,8 @@ describe('runFetchScript: a run that fetches everything but gets flagged', () =>
   // cache report finds businesses on the same point and the story's relay packages match as direct ones.
   let dir: string;
   let flagged: Awaited<ReturnType<typeof script>>;
+  // The rows of the story that expect a relay, read from the story file (0-based), so a retune changes nothing here.
+  const relayRows = storyFile.shipments.flatMap((row, index) => (row.expect === 'relay' ? [index] : []));
 
   beforeAll(async () => {
     dir = tempFixturesDir();
@@ -212,7 +214,8 @@ describe('runFetchScript: a run that fetches everything but gets flagged', () =>
     const { lines } = flagged;
     expect(lines).toContain(`  FAIL shp-4 ${storyFile.shipments[3].label}: expected relay, got direct`);
     expect(lines.some((line) => line.startsWith('  [same-point] '))).toBe(true);
-    expect(lines).toContain(`  - 3 story packages did not match as written in demoStory.json`);
+    expect(relayRows.length).toBeGreaterThanOrEqual(3);
+    expect(lines).toContain(`  - ${relayRows.length} story packages did not match as written in demoStory.json`);
     expect(lines.some((line) => /^ {2}- the travel cache report has \d+ errors$/.test(line))).toBe(true);
   });
 
@@ -222,16 +225,16 @@ describe('runFetchScript: a run that fetches everything but gets flagged', () =>
     expect(Object.keys(polylines.polylines).length).toBe(flagged.calls.polyline.length);
   });
 
-  it("explains each of the three story rows with the explainer's lines, at most 8 options each", () => {
+  it("explains each of the story's relay rows with the explainer's lines, at most 8 options each", () => {
     const { header, packages } = explanationOf(flagged.lines);
-    expect(header).toMatch(/^Why \(3 story packages not as written\): /);
+    expect(header).toMatch(new RegExp(`^Why \\(${relayRows.length} story packages not as written\\): `));
     expect(packages.map((entry) => entry.title)).toEqual(
-      [3, 4, 5].map((row) => `shp-${row + 1} ${storyFile.shipments[row].label}: expected relay, got direct`),
+      relayRows.map((row) => `shp-${row + 1} ${storyFile.shipments[row].label}: expected relay, got direct`),
     );
 
     const explainer = explainerOn(dir);
     for (const [index, entry] of packages.entries()) {
-      const { rows, lines } = explainer.options(`shp-${index + 4}`);
+      const { rows, lines } = explainer.options(`shp-${relayRows[index] + 1}`);
       expect(entry.options).toHaveLength(Math.min(EXPLAIN_OPTIONS, rows.length));
       for (const option of entry.options) expect(lines).toContain(withoutOutcome(option));
       expect(entry.more).toMatch(new RegExp(`^… ${rows.length - entry.options.length} more options? \\(\\d+ feasible, \\d+ ruled out\\)$`));

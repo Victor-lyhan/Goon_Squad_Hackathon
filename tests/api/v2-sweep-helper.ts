@@ -7,11 +7,12 @@
 // Nothing here touches fixtures/nyc/, data/ or .env, and nothing leaves localhost.
 import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import { expect } from 'vitest';
 import { createV2Router, type V2Deps } from '../../server/api/v2/router';
 import { ApiError } from '../../shared/v2/schemas';
-import type { Employee, NetworkBusiness, Run as RunV2 } from '../../shared/v2/types';
-import { startBootstrapApi, type BootstrapApi } from './v2-bootstrap-helper';
+import type { Employee, NetworkBusiness, NycDemoStoryFile, Run as RunV2 } from '../../shared/v2/types';
+import { startBootstrapApi, tempRepo, type BootstrapApi, type TempRepo } from './v2-bootstrap-helper';
 
 /**
  * Timeout of every test and hook in the sweep files (DECISIONS pass 19): each talks to a real HTTP server.
@@ -366,10 +367,28 @@ export function expectSameState(after: RunState, before: RunState, what: string)
 
 export type SweepApi = Awaited<ReturnType<typeof startSweepApi>>;
 
+/**
+ * The temp copy of fixtures/nyc on the sample cache, with the last story package made impossible to carry
+ * (its deadline is one minute after it is ready). So the fresh run always has one unmatched delivery to
+ * edit, whatever the real story matches on the made-up sample times: since the retune of #650 it matches
+ * all 24 there. Only the copy is changed, before the server reads it, so no state file is written.
+ */
+function sweepRepo(): TempRepo {
+  const repo = tempRepo('sample');
+  const storyPath = path.join(repo.fixturesDir, 'demoStory.json');
+  const story = JSON.parse(fs.readFileSync(storyPath, 'utf8')) as NycDemoStoryFile;
+  const last = story.shipments.at(-1);
+  if (!last) throw new Error('v2-sweep-helper: the story has no package');
+  last.deadlineMin = last.readyMin + 1;
+  fs.writeFileSync(storyPath, JSON.stringify(story));
+  return repo;
+}
+
 /** The real v2 server on the sample cache with no key, with the sweep's requests and checks. */
 export async function startSweepApi() {
   // No key, and the helper's default `fetch` throws: a broken request must never reach Google.
-  const api = await startBootstrapApi({ cache: 'sample' });
+  const repo = sweepRepo();
+  const api = await startBootstrapApi({ cache: 'sample', repo });
   const store = api.store;
   if (!store) throw new Error('v2-sweep-helper: /api/v2 did not load on the sample cache');
   const rawSend = sender(await originOf(api));
@@ -507,6 +526,9 @@ export async function startSweepApi() {
       expect(Object.keys(Object.prototype)).toStrictEqual([]);
     },
 
-    close: () => api.close(),
+    close: async () => {
+      await api.close();
+      repo.remove(); // `startBootstrapApi` leaves a repo it was given
+    },
   };
 }

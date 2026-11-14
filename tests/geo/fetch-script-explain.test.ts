@@ -30,7 +30,10 @@ type Run = Awaited<ReturnType<typeof script>>;
 // In the city of fetch-script-helpers.ts the story is as written: row 1 is a direct plan, row 4 a relay.
 const DIRECT_ROW = 0;
 const RELAY_ROW = 3;
+// A row outside the opening eight. Whatever the story expects of it (read from the story file), it fails when
+// nobody can carry it in time.
 const ANY_ROW = 8;
+const expectedOfAnyRow = storyFile.shipments[ANY_ROW].expect;
 const idOfRow = (row: number) => `shp-${row + 1}`;
 const titleStart = (row: number) => `${idOfRow(row)} ${storyFile.shipments[row].label}: `;
 
@@ -268,7 +271,7 @@ describe('runFetchScript: a package nobody can carry in time', () => {
   it('is a failed story row, as before: exit 1 and the check line', () => {
     expect(run.code).toBe(1);
     expect(run.lines.at(-1)).toBe(CHECK_LINE);
-    expect(run.lines.some((line) => line.startsWith(`  FAIL ${titleStart(ANY_ROW)}expected any, got unmatched — `))).toBe(true);
+    expect(run.lines.some((line) => line.startsWith(`  FAIL ${titleStart(ANY_ROW)}expected ${expectedOfAnyRow}, got unmatched — `))).toBe(true);
   });
 
   it('is explained once, with the reason of the matcher and no option that works', () => {
@@ -278,7 +281,7 @@ describe('runFetchScript: a package nobody can carry in time', () => {
 
     const { assignments } = explainerOn(dir);
     const reason = assignments.unmatched.find((entry) => entry.shipmentId === idOfRow(ANY_ROW))!.reason;
-    expect(packages[0].title).toBe(`${titleStart(ANY_ROW)}expected any, got unmatched — ${reason}`);
+    expect(packages[0].title).toBe(`${titleStart(ANY_ROW)}expected ${expectedOfAnyRow}, got unmatched — ${reason}`);
 
     const { rows, options } = expectExplainerLines(dir, idOfRow(ANY_ROW), packages[0]);
     expect(rows.some((row) => row.feasible)).toBe(false);
