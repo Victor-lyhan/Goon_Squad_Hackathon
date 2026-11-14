@@ -253,7 +253,8 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
         path: r.path,
         color: hasSelection && !sel ? dim(colorOf(r)) : colorOf(r),
         width: r.id === hoveredId ? width + 2 : width,
-        item: { id: r.id, kind: r.kind, label: kind === 'leg' ? 'Delivery route' : 'Commute', role: roleOf(r.kind) },
+        // Tooltip: the route's own label (package and carrier names) when its builder knows them.
+        item: { id: r.id, kind: r.kind, label: r.label?.trim() || (kind === 'leg' ? 'Delivery route' : 'Commute'), role: roleOf(r.kind) },
       }));
     return {
       type: 'path',

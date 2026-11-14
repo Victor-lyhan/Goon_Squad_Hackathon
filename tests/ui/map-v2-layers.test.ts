@@ -101,6 +101,31 @@ describe('buildLayerSpecs', () => {
     expect(pkg.data[0].item.role).toBe('Package');
   });
 
+  it('a route\'s tooltip uses its label; without one it keeps the generic text', () => {
+    const named: MapRoute[] = [
+      { ...routes[0], label: 'Cy Lam · evening' },
+      routes[1],
+      { ...routes[2], label: 'Coffee samples · leg 1 of 2 · carried by Cy Lam' },
+      { id: 'leg-blank', kind: 'leg', path: routes[2].path, ownerIds: [], label: '   ' },
+    ];
+    const specs = buildLayerSpecs({ places, routes: named, movers, visible: all });
+    const item = (layer: string, id: string) => {
+      const spec = byId(specs, layer);
+      return spec.type === 'path' ? spec.data.find((d) => d.id === id)?.item : undefined;
+    };
+    expect(item('routes-baseline', 'base-e1')).toEqual({ id: 'base-e1', kind: 'baseline', label: 'Cy Lam · evening', role: 'Normal commute' });
+    expect(item('routes-baseline', 'base-e2')).toEqual({ id: 'base-e2', kind: 'baseline', label: 'Commute', role: 'Normal commute' });
+    expect(item('routes-leg', 'leg-1')).toEqual({
+      id: 'leg-1', kind: 'leg', label: 'Coffee samples · leg 1 of 2 · carried by Cy Lam', role: 'Delivery route',
+    });
+    expect(item('routes-leg', 'leg-blank')).toEqual({ id: 'leg-blank', kind: 'leg', label: 'Delivery route', role: 'Delivery route' });
+
+    // A selected route is drawn again on top with the same tooltip.
+    const sel = buildLayerSpecs({ places, routes: named, movers, visible: all, selectedIds: ['shp-1'] });
+    const top = byId(sel, 'routes-leg-selected');
+    expect(top.type === 'path' && top.data.map((d) => d.item.label)).toEqual(['Coffee samples · leg 1 of 2 · carried by Cy Lam']);
+  });
+
   it('has no dimming without a selection', () => {
     const specs = buildLayerSpecs({ places, routes, movers, visible: all, selectedIds: [] });
     for (const s of specs) {

@@ -9,6 +9,7 @@ import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2
 import type { DeliveryPlan, Leg, ShipmentProgress, SimEventKind, StopKind } from '../../../../../../shared/v2/types';
 import { decodePath } from '../../../map/layers';
 import type { LatLngBounds, MapMover, MapPlace, MapRoute, MapStop, RouteTone } from '../../../map/types';
+import { commuteLabel, journeyLegLabel } from '../network/networkIndex';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 export const UNKNOWN_CARRIER = 'Unknown carrier';
@@ -195,7 +196,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   }
 
   // ---- Routes: per carrier, the faint normal commute and the actual route through the stops ----
-  const routes = buildRoutes(plan, shipmentId, map);
+  const routes = buildRoutes(plan, shipmentId, map, (employeeId) => employees.get(employeeId)?.name);
 
   // ---- Numbered stop markers ----
   const stops: MapStop[] = steps
@@ -262,21 +263,32 @@ function pairPath(map: MapResponse, from: string, to: string): [number, number][
  * one line per run of consecutive place pairs that all have a polyline: a missing pair splits the
  * line instead of bridging the gap with an invented straight segment (DECISIONS pass 44).
  */
-function buildRoutes(plan: DeliveryPlan, shipmentId: string, map: MapResponse): MapRoute[] {
+function buildRoutes(
+  plan: DeliveryPlan,
+  shipmentId: string,
+  map: MapResponse,
+  nameOf: (employeeId: string) => string | undefined,
+): MapRoute[] {
   const routes: MapRoute[] = [];
   plan.legs.forEach((leg: Leg, legIndex) => {
     const ownerIds = [shipmentId, plan.id, leg.employeeId];
     const tone = toneOf(legIndex);
     const ids = leg.placeIds;
+    // Hover labels (the tooltip's first line): the real name only, never "Unknown carrier" or an ID.
+    const name = nameOf(leg.employeeId);
+    const commute = commuteLabel(name, leg.tripId);
+    const label = journeyLegLabel(name, legIndex);
     if (ids.length >= 2) {
       const base = pairPath(map, ids[0], ids[ids.length - 1]);
-      if (base) routes.push({ id: `journey-${shipmentId}-L${legIndex}-baseline`, kind: 'baseline', path: base, ownerIds });
+      if (base) {
+        routes.push({ id: `journey-${shipmentId}-L${legIndex}-baseline`, kind: 'baseline', path: base, ownerIds, ...(commute ? { label: commute } : {}) });
+      }
     }
     let run: [number, number][] = [];
     let part = 0;
     const flush = () => {
       if (run.length >= 2) {
-        routes.push({ id: `journey-${shipmentId}-L${legIndex}-leg-${part}`, kind: 'leg', tone, path: run, ownerIds });
+        routes.push({ id: `journey-${shipmentId}-L${legIndex}-leg-${part}`, kind: 'leg', tone, path: run, ownerIds, label });
         part += 1;
       }
       run = [];
