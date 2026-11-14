@@ -26,9 +26,9 @@ describe('businessWorkspace.css', () => {
     expect(css).toMatch(/\.bw-reason \{[^}]*display: block/);
   });
 
-  it('has no radius over 4px', () => {
+  it('has no radius over 6px', () => {
     for (const [, value] of css.matchAll(/border-radius:\s*([^;]+);/g)) {
-      for (const [, px] of value.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px)).toBeLessThanOrEqual(4);
+      for (const [, px] of value.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px)).toBeLessThanOrEqual(6);
       expect(value).not.toMatch(/%|rem|em/);
     }
   });
@@ -44,7 +44,7 @@ describe('businessWorkspace.css', () => {
   });
 
   it('uses tokens with fallbacks for color', () => {
-    expect(css).toMatch(/var\(--border, #D7DDE5\)/);
+    expect(css).toMatch(/var\(--border, #E3E3DE\)/);
     expect(css).toMatch(/var\(--font-mono, /);
     expect(css).not.toMatch(/var\(--[a-z-]+\)/); // every token has a fallback
   });

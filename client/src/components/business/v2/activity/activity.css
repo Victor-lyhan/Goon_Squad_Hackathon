@@ -1,15 +1,18 @@
-/* MVP II Business workspace: header strip + notifications.
-   Tokens as var(--name, fallback) (DECISIONS pass 44). Square corners, 1px dividers, no cards, no shadows.
-   Fluid widths only: works at 390 px. */
+/* Business workspace: header strip + notifications.
+   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
+   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
+   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
+   IDs, weights and prices; Inter (--font-sans) for everything else.
+   No cards. Fluid widths only: works at 390 px. */
 
 .ba-header {
   display: flex;
   flex-direction: column;
   gap: var(--space-1, 4px);
   padding: var(--space-3, 12px) 0;
-  border-bottom: 1px solid var(--border, #D7DDE5);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  color: var(--text, #151B26);
+  border-bottom: 1px solid var(--border, #E3E3DE);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  color: var(--text, #171C24);
   min-width: 0;
 }
 .ba-header__who { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px); min-width: 0; }
@@ -31,13 +34,13 @@
   font-size: var(--text-sm, 13px);
   color: var(--muted, #5B6472);
 }
-.ba-header__role { color: var(--text, #151B26); font-weight: 600; }
+.ba-header__role { color: var(--text, #171C24); font-weight: 600; }
 .ba-header__phase { display: inline-flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
 .ba-header__phase-label {
   padding: 0 var(--space-1, 4px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
-  color: var(--accent-dark, #1F4E70);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  color: var(--accent-dark, #173E5B);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
 }
@@ -46,7 +49,7 @@
   display: flex;
   flex-wrap: wrap;
   margin: var(--space-2, 8px) 0 0;
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
 }
 .ba-totals__item {
   display: flex;
@@ -54,15 +57,15 @@
   gap: var(--space-1, 4px);
   padding: var(--space-2, 8px) var(--space-3, 12px) 0 0;
   margin-right: var(--space-3, 12px);
-  border-right: 1px solid var(--border, #D7DDE5);
+  border-right: 1px solid var(--border, #E3E3DE);
 }
 .ba-totals__item:last-child { border-right: 0; margin-right: 0; }
-.ba-totals__value { order: -1; margin: 0; font-size: var(--text-md, 14px); font-weight: 600; color: var(--text, #151B26); }
+.ba-totals__value { order: -1; margin: 0; font-size: var(--text-md, 14px); font-weight: 600; color: var(--text, #171C24); }
 .ba-totals__label { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 
 .ba-notes {
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  color: var(--text, #171C24);
   min-width: 0;
 }
 .ba-notes__title {
@@ -70,14 +73,14 @@
   padding: var(--space-3, 12px) 0 var(--space-2, 8px);
   font-size: var(--text-md, 14px);
   font-weight: 600;
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .ba-notes__count { margin-left: var(--space-1, 4px); font-weight: 400; color: var(--muted, #5B6472); }
 .ba-notes__empty { margin: 0; padding: var(--space-3, 12px) 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
 .ba-notes__list { list-style: none; margin: 0; padding: 0; }
 
-.ba-note { border-bottom: 1px solid var(--border, #D7DDE5); }
-.ba-note--new { background: var(--accent-soft, #E8F0F6); }
+.ba-note { border-bottom: 1px solid var(--border, #E3E3DE); }
+.ba-note--new { background: var(--accent-soft, #E8EEF1); }
 .ba-note__btn,
 .ba-note__static {
   display: grid;
@@ -94,8 +97,8 @@
   border-radius: 0;
 }
 .ba-note__btn { cursor: pointer; }
-.ba-note__btn:hover { background: var(--accent-soft, #E8F0F6); }
-.ba-note__btn:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: -2px; }
+.ba-note__btn:hover { background: var(--accent-soft, #E8EEF1); }
+.ba-note__btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
 .ba-note__time { color: var(--muted, #5B6472); white-space: nowrap; }
 .ba-note__text { min-width: 0; overflow-wrap: anywhere; }
 .ba-note__new,
@@ -103,26 +106,26 @@
   display: inline-block;
   margin-right: var(--space-1, 4px);
   padding: 0 var(--space-1, 4px);
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
 }
-.ba-note__new { color: var(--panel, #FFFFFF); background: var(--accent, #28618A); }
+.ba-note__new { color: var(--panel, #FFFFFF); background: var(--accent, #1D5075); }
 .ba-note__tag { color: var(--warn, #8A5A00); border: 1px solid var(--warn, #8A5A00); }
-.ba-note__open { grid-column: 2; font-size: var(--text-xs, 12px); color: var(--accent-dark, #1F4E70); }
+.ba-note__open { grid-column: 2; font-size: var(--text-xs, 12px); color: var(--accent-dark, #173E5B); }
 
 .ba-notes__more {
   margin-top: var(--space-2, 8px);
   padding: var(--space-1, 4px) var(--space-2, 8px);
   font: inherit;
   font-size: var(--text-sm, 13px);
-  color: var(--accent-dark, #1F4E70);
+  color: var(--accent-dark, #173E5B);
   background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   cursor: pointer;
 }
-.ba-notes__more:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 0; }
+.ba-notes__more:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 0; }
 
 @media (max-width: 390px) {
   .ba-totals__item { padding-right: var(--space-2, 8px); margin-right: var(--space-2, 8px); }

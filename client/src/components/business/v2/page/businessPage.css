@@ -1,5 +1,9 @@
-/* MVP II Business page (#461): page states, notices and the two-column layout around the merged pieces.
-   Square corners (2px), 1px borders, no shadows. Fluid widths only: works at 390 px. */
+/* Business page (#461): page states, notices and the two-column layout around the merged pieces.
+   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
+   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
+   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
+   IDs, weights and prices; Inter (--font-sans) for everything else.
+   Fluid widths only: works at 390 px. */
 
 /* The shell's column is 960 px for every page. This page was laid out for 1320 px, so it widens the shell's
    <main> only while a Business page is inside it (#581, DECISIONS pass 60). The rule is local on purpose:
@@ -10,9 +14,9 @@
   max-width: 1320px;
   margin: 0 auto;
   padding: var(--space-4, 16px);
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: var(--text-sm, 14px);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
   line-height: 1.45;
   overflow-wrap: anywhere;
   min-width: 0;
@@ -22,25 +26,25 @@
 .bp-state, .bp-missing {
   margin: var(--space-4, 16px) 0;
   padding: var(--space-4, 16px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
-.bp-state h1 { font-size: 18px; font-weight: 600; margin: 0 0 var(--space-2, 8px); }
+.bp-state h1 { font-size: var(--text-lg, 18px); font-weight: 600; margin: 0 0 var(--space-2, 8px); }
 .bp-missing { margin: 0; }
-.bp-missing h2 { font-size: 16px; font-weight: 600; margin: 0 0 var(--space-2, 8px); }
+.bp-missing h2 { font-size: var(--text-md, 14px); font-weight: 600; margin: 0 0 var(--space-2, 8px); }
 .bp-state p, .bp-missing p { margin: 0 0 var(--space-2, 8px); }
 .bp-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3, 12px); }
-.bp-links a { color: var(--accent, #28618A); }
+.bp-links a { color: var(--accent, #1D5075); }
 .bp-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); color: var(--muted, #5B6472); }
 
 .bp-notices:empty { display: none; }
 .bp-notice {
   margin: var(--space-2, 8px) 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-left: 2px solid var(--accent, #28618A);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-left: 2px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 .bp-problem { border-left-color: var(--danger, #A4322A); }
@@ -65,15 +69,16 @@
 .bp-btn {
   min-height: 36px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--muted, #5B6472);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
   cursor: pointer;
 }
-.bp-btn:focus-visible, .bp-links a:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
-.bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #28618A); text-decoration: underline; }
+.bp-btn:hover { border-color: var(--muted, #5B6472); }
+.bp-btn:focus-visible, .bp-links a:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); text-decoration: underline; }
 
 /* One column: the open delivery comes first, then the table, then the notifications.
    Up to 1160 px the 440 px details column would leave the table under about 640 px, so the page stacks. */

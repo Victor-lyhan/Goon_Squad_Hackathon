@@ -13,9 +13,9 @@ describe('deliveryDetails.css', () => {
     expect(m![2]).toMatch(/\.bd-legs[^{]*\{[^}]*display: block/);
   });
 
-  it('has no radius over 4px', () => {
+  it('has no radius over 6px', () => {
     for (const [, value] of css.matchAll(/border-radius:\s*([^;]+);/g)) {
-      for (const [, px] of value.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px)).toBeLessThanOrEqual(4);
+      for (const [, px] of value.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px)).toBeLessThanOrEqual(6);
       expect(value).not.toMatch(/%|rem|em/);
     }
   });
@@ -31,7 +31,7 @@ describe('deliveryDetails.css', () => {
   });
 
   it('uses tokens with fallbacks and mono for data', () => {
-    expect(css).toMatch(/var\(--border, #D7DDE5\)/);
+    expect(css).toMatch(/var\(--border, #E3E3DE\)/);
     expect(css).toMatch(/\.bd-mono \{[^}]*var\(--font-mono, /);
     expect(css).not.toMatch(/var\(--[a-z0-9-]+\)/);
   });

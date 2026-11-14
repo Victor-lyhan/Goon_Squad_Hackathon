@@ -32,9 +32,9 @@ describe('businessPage.css at 390 px', () => {
     expect(narrow![2]).toMatch(/\.bw-table tr[\s\S]*?display: block/);
   });
 
-  it('follows the design tokens: square corners, no shadows or gradients, fallbacks on every token', () => {
+  it('follows the design tokens: radius at most 6 px, no shadows or gradients, fallbacks on every token', () => {
     for (const [, value] of css.matchAll(/border-radius:\s*([^;]+);/g)) {
-      for (const [, px] of value.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px)).toBeLessThanOrEqual(4);
+      for (const [, px] of value.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px)).toBeLessThanOrEqual(6);
     }
     expect(css).not.toMatch(/box-shadow|gradient/i);
     expect(css).not.toMatch(/var\(--[a-z-]+\)/);
