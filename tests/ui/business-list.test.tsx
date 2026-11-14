@@ -46,7 +46,7 @@ describe('TrackingDetail', () => {
     const html = renderToStaticMarkup(
       <MemoryRouter><TrackingDetail view={mk(relayPlan, 'at_hub')} businesses={businesses} hubs={hubs} employees={employees} /></MemoryRouter>,
     );
-    for (const t of ['Signed contracts', 'Deadline', 'Calculated arrival', 'Relay hub', 'Hub H', 'Ann', 'Ben', 'Out for delivery', 'trk-step--current'])
+    for (const t of ['Signed contracts', 'Requested deadline', 'Calculated arrival', 'Relay hub', 'Hub H', 'Ann', 'Ben', 'Out for delivery', 'trk-step--current'])
       expect(html).toContain(t);
   });
   it('omits hub and hub steps for a direct plan', () => {

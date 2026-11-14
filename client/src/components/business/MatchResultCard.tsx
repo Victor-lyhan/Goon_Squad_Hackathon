@@ -44,10 +44,10 @@ export function MatchResultCard({ response, businesses, hubs, employees, onViewT
     <Card className="match-card match-card--matched" title={<span>Delivery arranged</span>}>
       <dl className="match-card__list">
         <dt>Shipment ID</dt><dd>{shipment.id}</dd>
-        <dt>Package</dt><dd>{shipment.label} ({formatKg(shipment.weightGrams)})</dd>
+        <dt>Package</dt><dd>{shipment.label} ({shipment.category === 'envelope' ? 'Envelope' : 'Small box'}, {formatKg(shipment.weightGrams)})</dd>
         <dt>Recipient</dt><dd>{recipient}</dd>
         {collectionMin !== undefined && (<><dt>Collection</dt><dd>{formatMin(collectionMin)}</dd></>)}
-        <dt>Estimated arrival</dt><dd>{formatMin(plan.deliveryMin)}</dd>
+        <dt>Estimated arrival</dt><dd>{formatMin(plan.deliveryMin)} (calculated)</dd>
         <dt>Requested deadline</dt><dd>{formatMin(shipment.deadlineMin)}</dd>
         <dt>Price</dt><dd>{formatCents(plan.customerPriceCents)}</dd>
         <dt>{carriers.length > 1 ? 'Carriers' : 'Carrier'}</dt><dd>{carriers.map((c, i) => (

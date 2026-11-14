@@ -23,8 +23,8 @@ export function TrackingDetail({ view, businesses, hubs, employees, map }: Track
       <dl className="trk-facts">
         <dt>Contents</dt>
         <dd>{s.description || s.label} ({s.category === 'envelope' ? 'Envelope' : 'Small box'}, {formatKg(s.weightGrams)})</dd>
-        <dt>Ready</dt><dd>{formatMin(s.readyMin)}</dd>
-        <dt>Deadline</dt><dd>{formatMin(s.deadlineMin)}</dd>
+        <dt>Requested ready time</dt><dd>{formatMin(s.readyMin)}</dd>
+        <dt>Requested deadline</dt><dd>{formatMin(s.deadlineMin)}</dd>
         {plan && <><dt>Calculated arrival</dt><dd>{formatMin(plan.deliveryMin)}</dd></>}
         {view.deliveredAtMin != null && <><dt>Delivered</dt><dd>{formatMin(view.deliveredAtMin)}</dd></>}
         {plan?.kind === 'relay' && <><dt>Relay hub</dt><dd>{hub?.name ?? 'Hub'}</dd></>}
