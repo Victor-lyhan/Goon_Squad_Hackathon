@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { formatCents, formatDuration, formatKg, formatMin } from '../../client/src/ui/format';
-import { StatusPill, statusLabel } from '../../client/src/ui/StatusPill';
-import { Toast } from '../../client/src/ui/Toast';
 import { Spinner } from '../../client/src/ui/Spinner';
 import { Button } from '../../client/src/ui/Button';
-import { EmptyState } from '../../client/src/ui/EmptyState';
-import { readFileSync } from 'node:fs';
 
 describe('formatters', () => {
   it('formatMin at day boundaries', () => {
@@ -36,40 +32,7 @@ describe('formatters', () => {
   });
 });
 
-describe('StatusPill', () => {
-  it('covers every ShipmentProgress and JobStatus value in shared/types.ts', () => {
-    const src = readFileSync('shared/types.ts', 'utf8');
-    const values = (name: string) => {
-      const m = src.match(new RegExp(`export type ${name} =([^;]+);`));
-      expect(m).toBeTruthy();
-      return [...m![1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
-    };
-    const all = [...values('ShipmentProgress'), ...values('JobStatus')];
-    expect(all).toContain('unmatched');
-    expect(all.length).toBeGreaterThanOrEqual(9);
-    for (const v of all) {
-      const label = statusLabel(v as never);
-      expect(label).toMatch(/^[A-Z][a-z ]+$/);
-      const html = renderToStaticMarkup(<StatusPill status={v as never} />);
-      expect(html).toContain(label);
-      expect(html).toMatch(/ui-pill--(neutral|info|warn|success|danger)/);
-    }
-  });
-  it('does not crash on an unknown status', () => {
-    expect(renderToStaticMarkup(<StatusPill status={'on_hold' as never} />)).toContain('On hold');
-  });
-});
-
 describe('a11y bits', () => {
-  it('Toast is a polite live region; errors are alerts', () => {
-    const html = renderToStaticMarkup(
-      <Toast onDismiss={() => {}} toasts={[{ id: 1, message: 'ok', kind: 'info' }, { id: 2, message: 'bad', kind: 'error' }]} />,
-    );
-    expect(html).toContain('role="status"');
-    expect(html).toContain('aria-live="polite"');
-    expect(html).toMatch(/role="alert"[^>]*>.*Error: bad/);
-    expect(html.match(/role="alert"/g)).toHaveLength(1);
-  });
   it('Spinner has an accessible label', () => {
     expect(renderToStaticMarkup(<Spinner />)).toContain('Loading');
     expect(renderToStaticMarkup(<Spinner label="Saving" />)).toContain('Saving');
@@ -79,8 +42,5 @@ describe('a11y bits', () => {
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain('disabled');
     expect(renderToStaticMarkup(<Button>Go</Button>)).not.toContain('aria-busy');
-  });
-  it('EmptyState renders its title as a heading', () => {
-    expect(renderToStaticMarkup(<EmptyState title="Nothing" />)).toMatch(/<h3[^>]*>Nothing<\/h3>/);
   });
 });

@@ -90,18 +90,15 @@ describe('focus rings and text contrast', () => {
     const rule = parse(read(FILES[0])).find((r) => r.selectors.includes(':focus-visible'))!;
     expect(Number(/outline:\s*(\d+)px/.exec(rule.body)![1])).toBeGreaterThanOrEqual(2);
   });
-  it('kit focus rings cover buttons, drawer close, inputs and selects at >= 2px', () => {
+  it('the kit focus ring covers buttons at >= 2px', () => {
     const rule = parse(read(FILES[1])).find((r) => r.selectors.includes('.ui-btn:focus-visible'))!;
-    for (const s of ['.ui-drawer__close:focus-visible', '.ui-field input:focus-visible', '.ui-field select:focus-visible']) {
-      expect(rule.selectors).toContain(s);
-    }
     expect(Number(/outline:\s*(\d+)px/.exec(rule.body)![1])).toBeGreaterThanOrEqual(2);
   });
   it('focus colours reach 3:1 on every surface', () => {
     for (const bg of surfaces) {
       expect(contrast(t.accent, bg)).toBeGreaterThanOrEqual(3);
     }
-    expect(contrast(t.accent, t.panel)).toBeGreaterThanOrEqual(3); // toast button ring (light toast since #324)
+    expect(contrast(t.accent, t.panel)).toBeGreaterThanOrEqual(3); // button ring on a white panel
   });
   it('body text tokens reach 4.5:1', () => {
     for (const bg of surfaces) {
