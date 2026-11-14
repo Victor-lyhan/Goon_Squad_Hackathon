@@ -151,6 +151,17 @@ export function formatKm(meters: number): string {
   return `${Number.isInteger(km) ? km : km.toFixed(1)} km`;
 }
 
+/**
+ * Extra distance with its sign: "+3.4 km", or "-5.5 km" when the detour route is shorter than the usual one
+ * (real Google routes: the fastest path with stops can be shorter than the fastest path without). The API value
+ * is shown as sent; before #513 a negative value read "+0 km".
+ */
+export function signedKm(meters: number): string {
+  if (!Number.isFinite(meters)) return '+0 km';
+  const km = formatKm(Math.abs(meters));
+  return meters < 0 && km !== '0 km' ? `-${km}` : `+${km}`;
+}
+
 /** Simulator deep link with this package selected (DECISIONS pass 8). */
 export const watchHref = (job: JobResponse) => `/simulator?package=${encodeURIComponent(job.shipment.id)}`;
 
@@ -168,7 +179,7 @@ export function jobDetail(job: JobResponse, businesses: NetworkBusiness[], homeN
     route: routeRows(job, businesses, homeNeighborhood),
     numbers: [
       { label: 'Extra time', value: `+${Number.isFinite(extraMin) ? extraMin : 0} min` },
-      { label: 'Extra distance', value: `+${formatKm(extraM)}` },
+      { label: 'Extra distance', value: signedKm(extraM) },
       { label: 'Reward', value: formatCents(Number.isFinite(job.job.rewardCents) ? job.job.rewardCents : 0) },
       { label: 'Usual commute', value: formatDuration(Number.isFinite(job.trip.baselineDurationMin) ? job.trip.baselineDurationMin : 0) },
     ],
