@@ -7,6 +7,7 @@ import { createInitialRun, loadDefaultScenario } from './api/initialRun';
 import { getBusinesses } from './api/businesses';
 import { getEmployees } from './api/employees';
 import { getMap } from './api/map';
+import { putCommute } from './api/commute';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.resolve(here, '../client/dist');
@@ -21,6 +22,7 @@ export function createApp(store: Store) {
   app.get('/api/businesses', getBusinesses(store));
   app.get('/api/employees', getEmployees(store));
   app.get('/api/map', getMap(store));
+  app.put('/api/employees/:id/commute', putCommute(store));
 
   // Unknown API paths never fall through to the SPA.
   app.use('/api', (_req, res) => {

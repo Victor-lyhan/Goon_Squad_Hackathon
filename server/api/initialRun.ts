@@ -1,23 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Run, Scenario, Settings } from '../../shared/types';
+import type { Run, Scenario } from '../../shared/types';
+import { DEFAULT_SETTINGS } from '../domain/pricing';
+import { buildTrips, createRouter } from '../domain/routing';
 
 const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures');
-
-// TODO: switch to DEFAULT_SETTINGS from server/domain/pricing.ts once #2 merges.
-const DEFAULT_SETTINGS: Settings = {
-  handlingMin: 2,
-  defaultMaxExtraMin: 8,
-  priceCents: 1000,
-  legRewardCents: 300,
-  hubCostCents: 50,
-  platformVariableCostCents: 50,
-  courierPriceCents: 1400,
-  simStartMin: 930,
-  simEndMin: 2160,
-  allowRelay: true,
-};
 
 const readJson = (file: string): unknown => JSON.parse(fs.readFileSync(path.join(fixturesDir, file), 'utf8'));
 
@@ -54,11 +42,12 @@ export function loadDefaultScenario(): Scenario {
 }
 
 export function createInitialRun(scenario: Scenario): Run {
+  const router = createRouter(scenario.graph);
   return {
     runId: 'run-1',
     version: 0,
     scenario,
-    trips: [], // computed once routing is wired in (follow-up issue)
+    trips: scenario.employees.flatMap((e) => buildTrips(e, scenario.businesses, router)),
     assignments: { plans: [], unmatched: [], computeMs: 0 },
     jobs: [],
     notifications: [],
