@@ -111,6 +111,16 @@ export type GenerateScenarioOptions = {
   name?: string;
 };
 
+export const DEMO_SCENARIO_OPTIONS: GenerateScenarioOptions = {
+  preset: 'demo',
+  employees: 60,
+  packages: 24,
+  hubs: 6,
+  maxExtraMin: 8,
+  seed: 0,
+  name: 'Demo city',
+};
+
 const MAX_EMPLOYEES = 200;
 
 const businessBlueprints = [
