@@ -37,9 +37,12 @@ const second: EmployeeDashboard = { ...first, assigned: [directView, relayView],
 
 type Api = { dispatch: Dispatch<WorkspaceAction> };
 
+/** The business list is in, so the first dashboard is the first load on screen (#712). */
+const listed = employeeWorkspaceReducer(initialWorkspaceState, { type: 'businesses', businesses });
+
 /** The workspace with the real reducer; `api.dispatch` stands in for the poller and for "job opened". */
 function Harness({ api }: { api: Api }) {
-  const [state, dispatch] = useReducer(employeeWorkspaceReducer, initialWorkspaceState);
+  const [state, dispatch] = useReducer(employeeWorkspaceReducer, listed);
   api.dispatch = dispatch;
   if (!state.dashboard) return <p>Loading</p>;
   return <EmployeeWorkspace dashboard={state.dashboard} businesses={businesses} newJobIds={state.newJobIds} />;

@@ -1,6 +1,8 @@
 // Pure state for the MVP II Employee workspace (#388). Tested in Node; no React, no fetch.
 // Rules: a poll with the same version returns the same state object (DECISIONS pass 43/46),
 // the "New" highlight lives in memory only (pass 9), and errors after the first success keep the data.
+// The workspace is 'ready' only when the business list has arrived once (#712): until then a dashboard
+// is kept but the view stays 'loading', so no place reads "Unknown place" for a list that is on its way.
 import type { EmployeeDashboard, JobResponse } from '../../../../../../shared/v2/api';
 import type { NetworkBusiness } from '../../../../../../shared/v2/types';
 import { ApiRequestError, isTravelUnavailable, type TravelUnavailableCode } from '../../../../api/v2';
@@ -14,6 +16,8 @@ export type WorkspaceView = 'loading' | 'ready' | 'not_found' | 'unavailable' | 
 export type EmployeeWorkspaceState = {
   dashboard: EmployeeDashboard | null;
   businesses: NetworkBusiness[];
+  /** true once a business list has arrived (also an empty one). A later reload keeps it true. */
+  businessesLoaded: boolean;
   job: JobResponse | null;
   jobMissing: boolean;
   view: WorkspaceView;
@@ -41,7 +45,7 @@ export type WorkspaceAction =
   | { type: 'seen'; jobId: string };
 
 export const initialWorkspaceState: EmployeeWorkspaceState = {
-  dashboard: null, businesses: [], job: null, jobMissing: false, view: 'loading', unavailable: null,
+  dashboard: null, businesses: [], businessesLoaded: false, job: null, jobMissing: false, view: 'loading', unavailable: null,
   reconnecting: false, newJobIds: [], runChanged: false, error: null, fallbackEmployeeId: null, baseline: null,
 };
 
@@ -58,7 +62,9 @@ function onDashboard(s: EmployeeWorkspaceState, d: EmployeeDashboard, runId: str
   const b = s.baseline;
   const sameRun = b !== null && (b.runId === null || runId === null || b.runId === runId);
   const sameEmployee = b !== null && b.employeeId === d.employee.id;
-  const unchanged = s.dashboard !== null && s.view === 'ready' && !s.reconnecting && s.unavailable === null
+  // Before the first business list the dashboard is kept, but the page still shows the loading view.
+  const view: WorkspaceView = s.businessesLoaded ? 'ready' : 'loading';
+  const unchanged = s.dashboard !== null && s.view === view && !s.reconnecting && s.unavailable === null
     && s.dashboard.version === d.version && sameRun && sameEmployee;
   if (unchanged) return s; // equal poll: same object, so forms keep their draft
   // Recovering on the same version keeps the old dashboard object too.
@@ -66,7 +72,9 @@ function onDashboard(s: EmployeeWorkspaceState, d: EmployeeDashboard, runId: str
 
   const ids = jobIdsOf(d);
   // A different run or employee (or an older version: reset/import) starts a new baseline: nothing is new.
-  const restart = b === null || !sameRun || !sameEmployee || (s.dashboard !== null && d.version < s.dashboard.version);
+  // So does a dashboard that was never on screen (the business list is still missing).
+  const restart = b === null || !s.businessesLoaded || !sameRun || !sameEmployee
+    || (s.dashboard !== null && d.version < s.dashboard.version);
   const runChanged = b !== null && !sameRun;
   let newJobIds: string[];
   if (restart) newJobIds = [];
@@ -81,13 +89,14 @@ function onDashboard(s: EmployeeWorkspaceState, d: EmployeeDashboard, runId: str
   return {
     ...s,
     dashboard: sameData ? s.dashboard : d,
-    view: 'ready',
+    view,
     unavailable: null,
     reconnecting: false,
     error: null,
     fallbackEmployeeId: null,
     newJobIds,
-    runChanged: runChanged || s.runChanged,
+    // The note is for a workspace that was on screen when the city changed.
+    runChanged: (runChanged && s.businessesLoaded) || s.runChanged,
     // A changed run drops the old run's job and its missing flag; the poller refetches it.
     ...(runChanged ? { job: null, jobMissing: false } : {}),
     baseline: { runId: runId ?? b?.runId ?? null, employeeId: d.employee.id, jobIds: knownIds },
@@ -123,9 +132,16 @@ export function employeeWorkspaceReducer(s: EmployeeWorkspaceState, a: Workspace
     case 'notFound':
       // The employee is not in the current city (stale link): drop its data and the highlight baseline.
       if (s.view === 'not_found' && s.fallbackEmployeeId === a.fallbackEmployeeId) return s;
-      return { ...initialWorkspaceState, businesses: s.businesses, view: 'not_found', fallbackEmployeeId: a.fallbackEmployeeId };
+      return {
+        ...initialWorkspaceState, businesses: s.businesses, businessesLoaded: s.businessesLoaded,
+        view: 'not_found', fallbackEmployeeId: a.fallbackEmployeeId,
+      };
     case 'businesses':
-      return { ...s, businesses: a.businesses };
+      // The first list shows a dashboard that was waiting for it. Every other view stays as it is.
+      return {
+        ...s, businesses: a.businesses, businessesLoaded: true,
+        view: s.view === 'loading' && s.dashboard !== null ? 'ready' : s.view,
+      };
     case 'job':
       if (s.job !== null && !s.jobMissing && JSON.stringify(s.job) === JSON.stringify(a.job)) return s;
       return { ...s, job: a.job, jobMissing: false };

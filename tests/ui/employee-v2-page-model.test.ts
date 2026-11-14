@@ -72,7 +72,10 @@ describe('save outcomes', () => {
 });
 
 describe('pageScreen', () => {
-  const ready = employeeWorkspaceReducer(initialWorkspaceState, { type: 'dashboard', dashboard: dash(1, ['j1']), runId: 'run-1' });
+  const ready = employeeWorkspaceReducer(
+    employeeWorkspaceReducer(initialWorkspaceState, { type: 'businesses', businesses: [] }),
+    { type: 'dashboard', dashboard: dash(1, ['j1']), runId: 'run-1' },
+  );
 
   it('maps every hook view', () => {
     expect(pageScreen(initialWorkspaceState, null)).toEqual({ kind: 'loading' });
