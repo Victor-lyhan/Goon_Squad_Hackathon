@@ -1,9 +1,9 @@
 import type { MapResponse, ShipmentView } from '../../../../shared/api';
 import type { Business, Employee, Hub } from '../../../../shared/types';
 import { Link } from 'react-router-dom';
-import { StatusPill, formatKg, formatMin } from '../../ui';
+import { Button, StatusPill, formatKg, formatMin } from '../../ui';
 import { RouteMiniMap } from './RouteMiniMap';
-import { legRows, progressSteps, simulatorHref } from './trackingModel';
+import { STALE_SHIPMENT_MESSAGE, legRows, progressSteps, simulatorHref } from './trackingModel';
 import './tracking.css';
 
 export type TrackingDetailProps = { view: ShipmentView; businesses: Business[]; hubs: Hub[]; employees: Employee[]; map?: MapResponse | null };
@@ -60,6 +60,16 @@ export function TrackingDetail({ view, businesses, hubs, employees, map }: Track
           <p><Link to={simulatorHref(s.id)}>Watch in simulator</Link></p>
         </>
       )}
+    </div>
+  );
+}
+
+/** Drawer body when ?shipment= points at a package that is not in the current city. */
+export function StaleShipmentNotice({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="trk-detail" role="status">
+      <p>{STALE_SHIPMENT_MESSAGE}</p>
+      <Button variant="secondary" onClick={onClose}>Close</Button>
     </div>
   );
 }

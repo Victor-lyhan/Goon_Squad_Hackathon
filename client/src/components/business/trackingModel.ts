@@ -77,3 +77,28 @@ export function etaText(view: ShipmentView): string {
   if (view.plan) return `ETA ${formatMin(view.plan.deliveryMin)}`;
   return '';
 }
+
+export const UNKNOWN_BUSINESS_TITLE = "We couldn't find that business";
+export const STALE_SHIPMENT_MESSAGE = "This package isn't in the current city (it may be from before a new city was generated)";
+
+/** True once the API's business list has loaded and does not contain this id. Never uses a hardcoded id. */
+export function isUnknownBusiness(id: string, businesses: Business[], listsReady: boolean): boolean {
+  return listsReady && !businesses.some((b) => b.id === id);
+}
+
+/** Link target for "go to a business that exists": the first one the API returned, else null. */
+export function firstBusinessHref(businesses: Business[]): string | null {
+  return businesses.length > 0 ? `/business/${encodeURIComponent(businesses[0].id)}` : null;
+}
+
+export type ShipmentLookup =
+  | { kind: 'none' }
+  | { kind: 'found'; view: ShipmentView }
+  | { kind: 'missing' };
+
+/** Resolves ?shipment=<id> against the dashboard: nothing asked, found, or stale (not in this city). */
+export function lookupShipment(selectedId: string | null, dashboard: { outgoing: ShipmentView[]; incoming: ShipmentView[] } | null): ShipmentLookup {
+  if (!selectedId || !dashboard) return { kind: 'none' };
+  const view = [...dashboard.outgoing, ...dashboard.incoming].find((v) => v.shipment.id === selectedId);
+  return view ? { kind: 'found', view } : { kind: 'missing' };
+}
