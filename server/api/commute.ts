@@ -4,6 +4,7 @@ import { PutCommuteRequest, type ApiError } from '../../shared/schemas';
 import type { Employee, Trip } from '../../shared/types';
 import { buildTrips, createRouter } from '../domain/routing';
 import type { Store } from '../store';
+import { matchPending } from './pipeline';
 
 export const putCommute = (store: Store) => async (req: Request, res: Response<CommuteResponse | ApiError>) => {
   const parsed = PutCommuteRequest.safeParse(req.body);
@@ -41,6 +42,7 @@ export const putCommute = (store: Store) => async (req: Request, res: Response<C
   }
 
   let result: { employee: Employee; trips: Trip[] } | undefined;
+  let rematchedShipmentIds: string[] = [];
   try {
     await store.mutate((r) => {
       const idx = r.scenario.employees.findIndex((e) => e.id === existing.id);
@@ -50,11 +52,16 @@ export const putCommute = (store: Store) => async (req: Request, res: Response<C
       const trips = buildTrips(employee, r.scenario.businesses, createRouter(r.scenario.graph));
       r.trips = [...r.trips.filter((t) => t.employeeId !== employee.id), ...trips];
       result = { employee, trips };
+      const retry = r.assignments.unmatched.map((u) => u.shipmentId);
+      if (retry.length) {
+        matchPending(r, retry);
+        const planned = new Set(r.assignments.plans.map((p) => p.shipmentId));
+        rematchedShipmentIds = retry.filter((id) => planned.has(id));
+      }
     });
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });
     return;
   }
-  // TODO(matching.ts follow-up): retry unmatched shipments after this save and fill rematchedShipmentIds.
-  res.json({ ...result!, rematchedShipmentIds: [] });
+  res.json({ ...result!, rematchedShipmentIds });
 };

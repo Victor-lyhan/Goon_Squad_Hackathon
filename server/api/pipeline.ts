@@ -2,6 +2,8 @@ import {
   jobIdFor,
   type AssignmentResult, type DeliveryPlan, type Job, type Notification, type Run, type SimEvent,
 } from '../../shared/types';
+import { assignShipments } from '../domain/matching';
+import { createRouter } from '../domain/routing';
 import { buildTimeline } from '../domain/simulation';
 
 export type Materialized = {
@@ -78,4 +80,25 @@ export function materializeAssignment(run: Run, result: AssignmentResult): Mater
     }
   }
   return { assignments: result, jobs, notifications, events };
+}
+
+/**
+ * Matches the given shipments against the free trips, keeping every existing plan
+ * untouched, and writes the result into `run` (call inside `store.mutate`).
+ */
+export function matchPending(run: Run, shipmentIds: string[]): void {
+  const { scenario } = run;
+  const ids = new Set(shipmentIds);
+  const pending = scenario.shipments.filter((s) => ids.has(s.id));
+  const t0 = performance.now();
+  const result = assignShipments(pending, {
+    router: createRouter(scenario.graph), trips: run.trips, employees: scenario.employees,
+    businesses: scenario.businesses, hubs: scenario.hubs, settings: scenario.settings,
+  }, { existing: run.assignments.plans });
+  result.computeMs = performance.now() - t0;
+  result.unmatched = [
+    ...run.assignments.unmatched.filter((u) => !ids.has(u.shipmentId)),
+    ...result.unmatched,
+  ];
+  Object.assign(run, materializeAssignment(run, result));
 }

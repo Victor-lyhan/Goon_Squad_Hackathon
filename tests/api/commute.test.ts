@@ -119,3 +119,42 @@ describe('PUT /api/employees/:id/commute', () => {
     expect(((await r.json()) as ApiError).error).toBe('Start a new planning cycle to edit commutes');
   });
 });
+
+describe('PUT commute retries unmatched shipments', () => {
+  it('rematches a waiting shipment and lists the job on the employee dashboard', async () => {
+    const sc = scenario();
+    sc.businesses.push({ id: 'biz-2', name: 'B2', nodeId: 'n-5-4', district: 'D' });
+    sc.employees[0].availableEvening = false;
+    sc.employees[0].availableMorning = false;
+    sc.shipments = [{
+      id: 'shp-1', clientRequestId: 'c1', label: 'Box', originBusinessId: 'biz-1', destinationBusinessId: 'biz-2',
+      readyMin: 960, deadlineMin: 2100, category: 'envelope', description: 'd', weightGrams: 500,
+      pickupInstructions: '', dropoffInstructions: '', createdSeq: 1,
+    }];
+    const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rematch-')), 'state.json');
+    const st = createStore({ filePath: f, initial: () => createInitialRun(sc) });
+    const srv = createApp(st).listen(0);
+    await new Promise((r) => srv.once('listening', r));
+    const url = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+    try {
+      expect(st.get().assignments.unmatched.map((u) => u.shipmentId)).toEqual(['shp-1']);
+      const e = st.get().scenario.employees[0];
+      const body = {
+        businessId: e.businessId, homeNodeId: e.homeNodeId, eveningDepartureMin: e.eveningDepartureMin,
+        morningDepartureMin: e.morningDepartureMin, availableEvening: true, availableMorning: false,
+        maxExtraMin: 8, eveningViaNodeIds: [], morningViaNodeIds: [],
+      };
+      const r = await fetch(`${url}/api/employees/${e.id}/commute`, {
+        method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+      });
+      expect(r.status).toBe(200);
+      expect(((await r.json()) as CommuteResponse).rematchedShipmentIds).toEqual(['shp-1']);
+      expect(st.get().assignments.unmatched).toEqual([]);
+      const dash = (await (await fetch(`${url}/api/employees/${e.id}/dashboard`)).json()) as
+        { assigned: { shipment: { id: string } }[] };
+      expect(dash.assigned.map((j) => j.shipment.id)).toEqual(['shp-1']);
+    } finally {
+      await new Promise((r) => srv.close(r));
+    }
+  });
+});
