@@ -2,8 +2,11 @@
 // each a button that seeks the simulation to that moment and pans the map to that place. Under the
 // header: the planned delivery time (and the delivered time once the snapshot has it) and one line
 // per leg with its carrier, home neighbourhood, extra minutes and reward. All read from the plan and
-// the snapshot by journeyModel.ts; nothing is computed here.
+// the snapshot by journeyModel.ts; nothing is computed here. The extra minutes are the leg's own
+// value with its sign, as in the employee inspector (DECISIONS pass 62): "-3 min extra" for a shorter route.
 import { formatCents, formatMin } from '../../../../ui/format';
+import { formatExtraMin } from '../inspector/inspectorModel';
+import { SHIPMENT_STATUS_TEXT } from '../packages/statusText';
 import type { Journey, JourneyCarrier, JourneyResult, JourneyStep, StepState } from './journeyModel';
 import './journey.css';
 
@@ -15,7 +18,7 @@ export type JourneyTimelineProps = {
 const STATE_TEXT: Record<StepState, string> = { done: 'Done', current: 'Next', upcoming: 'Upcoming' };
 
 function extraText(min: number): string {
-  return Number.isFinite(min) ? `+${Math.max(0, Math.round(min))} min extra` : 'Extra time unavailable';
+  return typeof min === 'number' && Number.isFinite(min) ? `${formatExtraMin(min)} extra` : 'Extra time unavailable';
 }
 
 function timeText(min: number): string {
@@ -91,7 +94,7 @@ export function JourneyTimeline({ journey, onSeek }: JourneyTimelineProps) {
         <header className="jt__header">
           <h2 className="jt__title">{journey.title}</h2>
           <p className="jt__status">
-            <span className="jt__status-label">Status</span> <strong>Unmatched</strong>
+            <span className="jt__status-label">Status</span> <strong>{SHIPMENT_STATUS_TEXT.unmatched}</strong>
           </p>
         </header>
         <p className="jt__reason">{journey.reason}</p>

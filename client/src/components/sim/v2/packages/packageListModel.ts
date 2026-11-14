@@ -1,15 +1,17 @@
 // Rows for the simulator's left-panel package list (#418). Pure: no React, no DOM.
 // It only reads the polled SimulatorResponse and the MapResponse. Status, kind and the unmatched
-// reason come from the server; nothing about a delivery is computed here.
+// reason come from the server; nothing about a delivery is computed here. The words are those of
+// statusText.ts, shared with the inspectors (#635).
 import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
 import type { ShipmentProgress } from '../../../../../../shared/v2/types';
 import type { PackageListItem } from '../PackageList';
+import { knownStatus, NO_MATCH, packageName, shipmentStatusText } from './statusText';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 
 export type PackageRow = {
   id: string;
-  /** The package's own name. */
+  /** The package's own name, "Untitled package" when it has none. */
   label: string;
   senderName: string;
   recipientName: string;
@@ -20,7 +22,9 @@ export type PackageRow = {
   kindLabel: string;
   /** Relay business name for a relay plan, else null. */
   relayName: string | null;
-  status: ShipmentProgress;
+  /** The snapshot's status; null when the snapshot has none for this shipment (never guessed from the plan). */
+  status: ShipmentProgress | null;
+  /** The status word of statusText.ts, "Status unavailable" for a null status. */
   statusLabel: string;
   /** The server's unmatched reason for a shipment without a plan, else null. */
   reason: string | null;
@@ -36,18 +40,9 @@ export const STATUS_ORDER: ShipmentProgress[] = [
   'unmatched', 'scheduled', 'picked_up', 'at_hub', 'out_for_delivery', 'delivered',
 ];
 
-const STATUS_LABELS: Record<ShipmentProgress, string> = {
-  unmatched: 'Unmatched',
-  scheduled: 'Scheduled',
-  picked_up: 'Picked up',
-  at_hub: 'At relay point',
-  out_for_delivery: 'Out for delivery',
-  delivered: 'Delivered',
-};
-
-/** UI label for a shipment status. Says "At relay point" for the relay status. */
-export function packageStatusLabel(status: ShipmentProgress): string {
-  return STATUS_LABELS[status] ?? 'Status unknown';
+/** UI label for a shipment status (statusText.ts); "Status unavailable" when the snapshot has none. */
+export function packageStatusLabel(status: ShipmentProgress | null | undefined): string {
+  return shipmentStatusText(status);
 }
 
 export function buildPackageRows(sim: SimulatorResponse, map: MapResponse): PackageRow[] {
@@ -66,11 +61,11 @@ export function buildPackageRows(sim: SimulatorResponse, map: MapResponse): Pack
     const recipientName = nameOf(s.destinationBusinessId);
     const relayName = plan?.kind === 'relay' ? nameOf(plan.relayBusinessId) : null;
     const kind: PackageRow['kind'] = plan ? plan.kind : 'none';
-    const kindLabel = kind === 'direct' ? 'Direct' : kind === 'relay' ? `Relay via ${relayName}` : 'No match';
-    const status: ShipmentProgress = sim.snapshot.shipmentStatus[s.id] ?? (plan ? 'scheduled' : 'unmatched');
+    const kindLabel = kind === 'direct' ? 'Direct' : kind === 'relay' ? `Relay via ${relayName}` : NO_MATCH;
+    const status = knownStatus(sim.snapshot.shipmentStatus[s.id]);
     return {
       id: s.id,
-      label: s.label,
+      label: packageName(s.label),
       senderName,
       recipientName,
       routeLabel: `${senderName} → ${recipientName}`,
@@ -85,12 +80,13 @@ export function buildPackageRows(sim: SimulatorResponse, map: MapResponse): Pack
 }
 
 /**
- * "All" plus one entry per status that occurs, with counts, in STATUS_ORDER.
+ * "All" plus one entry per status that occurs, with counts, in STATUS_ORDER. A row whose status the
+ * snapshot does not have counts under "All" only.
  * `keep` is always listed (count 0 if absent), so a chosen filter never disappears after a poll.
  */
 export function statusFilters(rows: PackageRow[], keep?: StatusFilter): StatusFilterOption[] {
   const counts = new Map<ShipmentProgress, number>();
-  for (const r of rows) counts.set(r.status, (counts.get(r.status) ?? 0) + 1);
+  for (const r of rows) if (r.status) counts.set(r.status, (counts.get(r.status) ?? 0) + 1);
   const options: StatusFilterOption[] = [{ value: 'all', label: 'All', count: rows.length }];
   for (const status of STATUS_ORDER) {
     const count = counts.get(status) ?? 0;

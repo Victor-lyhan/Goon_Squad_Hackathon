@@ -36,6 +36,33 @@ describe('buildPackageRows', () => {
     });
   });
 
+  it('a status missing from the snapshot is "Status unavailable", never derived from the plan', () => {
+    const noStatus = buildPackageRows(makeSim({}), makeMap());
+    expect(noStatus.map((r) => [r.id, r.kind, r.status, r.statusLabel])).toEqual([
+      ['shp-1', 'direct', null, 'Status unavailable'],
+      ['shp-2', 'relay', null, 'Status unavailable'],
+      ['shp-3', 'none', null, 'Status unavailable'],
+      ['shp-4', 'direct', null, 'Status unavailable'],
+    ]);
+    expect(toListItems(noStatus).map((i) => i.statusLabel)).toEqual([
+      'Direct · Status unavailable', 'Relay via Front Street Café · Status unavailable',
+      'No match · Status unavailable', 'Direct · Status unavailable',
+    ]);
+    // Such a row is under "All" only and passes no status filter.
+    expect(statusFilters(noStatus)).toEqual([{ value: 'all', label: 'All', count: 4 }]);
+    expect(filterPackageRows(noStatus, { status: 'scheduled', query: '' })).toEqual([]);
+    expect(filterPackageRows(noStatus, { status: 'unmatched', query: '' })).toEqual([]);
+    expect(packageStatusLabel(undefined)).toBe('Status unavailable');
+  });
+
+  it('a package with an empty label reads "Untitled package"', () => {
+    const sim = makeSim();
+    sim.shipments = sim.shipments.map((s) => (s.id === 'shp-1' ? { ...s, label: '' } : s));
+    const untitled = buildPackageRows(sim, makeMap());
+    expect(untitled[0]).toMatchObject({ id: 'shp-1', label: 'Untitled package' });
+    expect(toListItems(untitled)[0].label).toBe('Untitled package');
+  });
+
   it('an unresolved place reads "Unknown place", never a raw ID', () => {
     expect(row('shp-4').routeLabel).toBe('Midtown Ad Agency → Unknown place');
     expect(JSON.stringify(rows)).not.toContain('biz-closed-shop');
@@ -118,7 +145,7 @@ describe('copy', () => {
   it('no string in the packages folder says "hub" or "synthetic" (the at_hub enum value aside)', () => {
     const dir = resolve(__dirname, '../../client/src/components/sim/v2/packages');
     const files = readdirSync(dir);
-    expect(files.sort()).toEqual(['PackageFilterBar.tsx', 'PackagePanel.tsx', 'packageListModel.ts', 'packages.css'].sort());
+    expect(files.sort()).toEqual(['PackageFilterBar.tsx', 'PackagePanel.tsx', 'packageListModel.ts', 'packages.css', 'statusText.ts'].sort());
     for (const f of files) {
       const src = readFileSync(join(dir, f), 'utf8').replace(/\bat_hub\b/g, '');
       expect(src, f).not.toMatch(/hub|synthetic/i);
