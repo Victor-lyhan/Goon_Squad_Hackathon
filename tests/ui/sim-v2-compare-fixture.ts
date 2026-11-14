@@ -4,8 +4,7 @@ import { createFakeProvider, type FakePair } from '../../server/geo/fakeProvider
 import { compareAssignments, type MatchContext } from '../../server/domain/v2/matching';
 import { buildTrips } from '../../server/domain/v2/trips';
 import { DEFAULT_SETTINGS } from '../../server/domain/pricing';
-import { computeMetrics } from '../../server/domain/metrics';
-import type { DeliveryPlan as V1DeliveryPlan } from '../../shared/types';
+import { computeMetrics } from '../../server/domain/v2/metrics';
 import type { CompareResponse } from '../../shared/v2/api';
 import type { AssignmentResult, Employee, NetworkBusiness, Shipment } from '../../shared/v2/types';
 
@@ -33,14 +32,10 @@ export const shipment = (id: string, from: string, to: string, seq: number): Shi
   pickupInstructions: '', dropoffInstructions: '', createdSeq: seq,
 });
 
-/**
- * The server's compare side: metrics with no events yet. `server/domain/v2/metrics.ts` is not merged;
- * DECISIONS pass 45 says it keeps MVP 1's rules, and computeMetrics reads only plan fields both shapes share.
- */
+/** The server's compare side (`server/api/v2/compareOps.ts`): the v2 metrics with no events yet. */
 function side(shipments: Shipment[], result: AssignmentResult) {
   const metrics = computeMetrics({
-    shipments, plans: result.plans as unknown as V1DeliveryPlan[], unmatched: result.unmatched,
-    occurredEvents: [], settings: DEFAULT_SETTINGS,
+    shipments, plans: result.plans, unmatched: result.unmatched, occurredEvents: [], settings: DEFAULT_SETTINGS,
   });
   return { result, metrics };
 }
