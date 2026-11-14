@@ -114,8 +114,12 @@ describe('createSimPoller', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(actions.map((a) => a.type)).toEqual(['pollFailed', 'sim', 'pollFailed']);
     api.getMap = failMap;
+    // The retry waits for the 2 s gap after the failed map request (t = 1050 ms -> 3050 ms, #528).
     await vi.advanceTimersByTimeAsync(1000);
-    expect(actions.map((a) => a.type)).toEqual(['pollFailed', 'sim', 'pollFailed', 'sim', 'map']);
+    expect(f.mapCalls).toBe(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(f.mapCalls).toBe(2);
+    expect(actions.map((a) => a.type)).toEqual(['pollFailed', 'sim', 'pollFailed', 'sim', 'sim', 'map']);
   });
 
   it('refetchNow() drops the open poll and polls at once', async () => {
