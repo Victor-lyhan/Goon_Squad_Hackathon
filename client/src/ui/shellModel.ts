@@ -53,6 +53,7 @@ export function activeDestination(pathname: string): Destination | null {
 export const PREVIEW_PREFIX = '/nyc';
 export const PREVIEW_SIMULATOR_PATH = '/nyc/simulator';
 export const previewEmployeePath = (id: string) => `/nyc/employee/${encodeURIComponent(id)}`;
+export const previewBusinessPath = (id: string) => `/nyc/business/${encodeURIComponent(id)}`;
 
 /** True on any /nyc or /nyc/… path. */
 export function isPreviewPath(pathname: string): boolean {
@@ -64,16 +65,19 @@ export function envIndicatorFor(pathname: string): string {
   return isPreviewPath(pathname) ? ENV_LABELS.nyc : ENV_INDICATOR_TEXT;
 }
 
-/** Which destination a preview path belongs to (/nyc/simulator, /nyc/employee/<id>), or null. */
+/** Which destination a preview path belongs to (/nyc/simulator, /nyc/employee/<id>, /nyc/business/<id>), or null. */
 export function previewDestination(pathname: string): Destination | null {
   const m = /^\/nyc\/(business|employee|simulator)(?:\/|$)/.exec(pathname);
   return m ? (m[1] as Destination) : null;
 }
 
-/** Header links on the preview. Business has no preview page yet, so it is pending (null). */
-export function previewHrefs(firstEmployeeId: string | undefined): Record<Destination, string | null> {
+/** Header links on the preview. A link whose list is not loaded (or answered 503) is pending (null). */
+export function previewHrefs(
+  firstEmployeeId: string | undefined,
+  firstBusinessId?: string,
+): Record<Destination, string | null> {
   return {
-    business: null,
+    business: firstBusinessId ? previewBusinessPath(firstBusinessId) : null,
     employee: firstEmployeeId ? previewEmployeePath(firstEmployeeId) : null,
     simulator: PREVIEW_SIMULATOR_PATH,
   };

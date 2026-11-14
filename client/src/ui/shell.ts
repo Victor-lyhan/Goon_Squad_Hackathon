@@ -15,6 +15,12 @@ export function switchPreviewEmployeePath(pathname: string, id: string): string 
   return `/nyc/employee/${encodeURIComponent(id)}`;
 }
 
+/** Path after switching the account on /nyc/business/:id; null elsewhere. Path only, so `?shipment=` is dropped. */
+export function switchPreviewBusinessPath(pathname: string, id: string): string | null {
+  if (!id || !/^\/nyc\/business\/[^/]+\/?$/.test(pathname)) return null;
+  return `/nyc/business/${encodeURIComponent(id)}`;
+}
+
 /** The header's v2 employee list. `unavailable` = /api/v2 answered 503 (no travel data yet). */
 export type V2Directory =
   | { status: 'loading' }
@@ -44,4 +50,26 @@ export function startV2Directory(
     },
   );
   return () => { alive = false; ctrl.abort(); };
+}
+
+/** The header's v2 business list (same states as V2Directory). */
+export type V2BusinessDirectory =
+  | { status: 'loading' }
+  | { status: 'ready'; businesses: { id: string; name: string }[] }
+  | { status: 'unavailable' }
+  | { status: 'error'; message: string };
+
+type FetchV2Businesses = (opts: { signal: AbortSignal }) => Promise<{ businesses: { id: string; name: string }[] }>;
+
+/** Like startV2Directory, for GET /api/v2/businesses. Returns a cancel function that aborts the request. */
+export function startV2BusinessDirectory(
+  fetchBusinesses: FetchV2Businesses,
+  isUnavailable: (e: unknown) => boolean,
+  onState: (d: V2BusinessDirectory) => void,
+): () => void {
+  return startV2Directory(
+    (opts) => fetchBusinesses(opts).then((r) => ({ employees: r.businesses })),
+    isUnavailable,
+    (d) => onState(d.status === 'ready' ? { status: 'ready', businesses: d.employees } : d),
+  );
 }
