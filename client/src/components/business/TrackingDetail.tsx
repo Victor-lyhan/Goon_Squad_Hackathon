@@ -1,0 +1,52 @@
+import type { ShipmentView } from '../../../../shared/api';
+import type { Business, Employee, Hub } from '../../../../shared/types';
+import { StatusPill, formatKg, formatMin } from '../../ui';
+import { legRows, progressSteps } from './trackingModel';
+import './tracking.css';
+
+export type TrackingDetailProps = { view: ShipmentView; businesses: Business[]; hubs: Hub[]; employees: Employee[] };
+
+export function TrackingDetail({ view, businesses, hubs, employees }: TrackingDetailProps) {
+  const { shipment: s, plan } = view;
+  const name = (id: string) => businesses.find((b) => b.id === id)?.name ?? 'Business';
+  const hub = plan?.hubId ? hubs.find((h) => h.id === plan.hubId) : undefined;
+  const rows = legRows(view, { businesses, hubs, employees });
+  return (
+    <div className="trk-detail">
+      <h3>{s.label}</h3>
+      <p>{name(s.originBusinessId)} → {name(s.destinationBusinessId)}</p>
+      {plan ? <StatusPill status={view.status} /> : <span className="trk-row__nomatch">No match yet</span>}
+      <dl className="trk-facts">
+        <dt>Contents</dt>
+        <dd>{s.description || s.label} ({s.category === 'envelope' ? 'Envelope' : 'Small box'}, {formatKg(s.weightGrams)})</dd>
+        <dt>Ready</dt><dd>{formatMin(s.readyMin)}</dd>
+        <dt>Deadline</dt><dd>{formatMin(s.deadlineMin)}</dd>
+        {plan && <><dt>Calculated arrival</dt><dd>{formatMin(plan.deliveryMin)}</dd></>}
+        {view.deliveredAtMin != null && <><dt>Delivered</dt><dd>{formatMin(view.deliveredAtMin)}</dd></>}
+        {plan?.kind === 'relay' && <><dt>Relay hub</dt><dd>{hub?.name ?? 'Hub'}</dd></>}
+      </dl>
+      {!plan && view.unmatchedReason && <p className="trk-reason">{view.unmatchedReason}</p>}
+      <h4>Progress</h4>
+      <ol className="trk-steps">
+        {progressSteps(view).map((st) => (
+          <li key={st.key} className={`trk-step trk-step--${st.state}`} aria-current={st.state === 'current' ? 'step' : undefined}>
+            {st.label}
+          </li>
+        ))}
+      </ol>
+      {rows.length > 0 && (
+        <>
+          <h4>Carriers</h4>
+          <ol className="trk-legs">
+            {rows.map((r) => (
+              <li key={r.key}>
+                <strong>{r.employeeName}</strong>
+                <span>{r.pickupPlace} ({r.pickupTime}) → {r.dropoffPlace} ({r.dropoffTime})</span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+    </div>
+  );
+}
