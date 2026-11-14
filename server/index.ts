@@ -10,6 +10,7 @@ import { getMap } from './api/map';
 import { putCommute } from './api/commute';
 import { getSimulator, postSimulatorControl } from './api/simulator';
 import { getBusinessDashboard, getEmployeeDashboard, getJob, getShipment } from './api/portals';
+import { postShipment, patchShipment, postShipmentMatch } from './api/shipments';
 import { startClockTicker } from './api/ticker';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -30,6 +31,9 @@ export function createApp(store: Store) {
   app.post('/api/simulator/control', postSimulatorControl(store));
   app.get('/api/businesses/:id/dashboard', getBusinessDashboard(store));
   app.get('/api/employees/:id/dashboard', getEmployeeDashboard(store));
+  app.post('/api/shipments', postShipment(store));
+  app.patch('/api/shipments/:id', patchShipment(store));
+  app.post('/api/shipments/:id/match', postShipmentMatch(store));
   app.get('/api/shipments/:id', getShipment(store));
   app.get('/api/jobs/:id', getJob(store));
 
