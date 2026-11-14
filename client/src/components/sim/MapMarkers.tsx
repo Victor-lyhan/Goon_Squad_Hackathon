@@ -21,8 +21,22 @@ const prefersReducedMotion = (): boolean =>
   typeof window !== 'undefined' && typeof window.matchMedia === 'function'
   && window.matchMedia(REDUCED_MOTION_QUERY).matches;
 
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(prefersReducedMotion);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia(REDUCED_MOTION_QUERY);
+    const onChange = () => setReduced(mql.matches);
+    onChange();
+    mql.addEventListener?.('change', onChange);
+    return () => mql.removeEventListener?.('change', onChange);
+  }, []);
+  return reduced;
+}
+
 export function MapMarkers({ graph, snapshot, clock, pollMs = 1000, shipmentLabels = {}, employeeNames = {} }: MapMarkersProps) {
   const pkgName = (id: string) => shipmentLabels[id] ?? 'package';
+  const reducedMotion = useReducedMotion();
   const [alpha, setAlpha] = useState(1);
   const prevRef = useRef<Frame>(snapshot);
   const nextRef = useRef<Frame>(snapshot);
@@ -33,7 +47,7 @@ export function MapMarkers({ graph, snapshot, clock, pollMs = 1000, shipmentLabe
     const last = nextRef.current;
     nextRef.current = snapshot;
     prevRef.current = last;
-    if (!shouldTween(prefersReducedMotion()) || shouldSnap(last, snapshot, clock)) {
+    if (!shouldTween(reducedMotion) || shouldSnap(last, snapshot, clock)) {
       prevRef.current = snapshot;
       setAlpha(1);
       return;
@@ -47,13 +61,13 @@ export function MapMarkers({ graph, snapshot, clock, pollMs = 1000, shipmentLabe
       if (a < 1) raf = requestAnimationFrame(step);
     });
     return () => cancelAnimationFrame(raf);
-  }, [snapshot, clock, pollMs]);
+  }, [snapshot, clock, pollMs, reducedMotion]);
 
   const project = pointProjector(graph.nodes);
   const prev = prevRef.current;
   const next = snapshot;
-  const markers = tweenMarkers(prev.markers, next.markers, alpha);
-  const packages = tweenPackages(prev.packagePositions, next.packagePositions, alpha);
+  const markers = tweenMarkers(prev.markers, next.markers, alpha, reducedMotion);
+  const packages = tweenPackages(prev.packagePositions, next.packagePositions, alpha, reducedMotion);
 
   return (
     <g className="map-markers">
