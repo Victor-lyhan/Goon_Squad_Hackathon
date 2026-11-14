@@ -202,14 +202,14 @@ export function Header({ initialV2, initialV2Businesses }: ShellProps = {}) {
 
 /** Header + routes, without a router, so tests can wrap it in MemoryRouter. */
 export function AppShell({ initialV2, initialV2Businesses, initialNycSummary }: ShellProps = {}) {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <ConnectionMonitor />
       <Header initialV2={initialV2} initialV2Businesses={initialV2Businesses} />
       <main className={isFullWidthPath(pathname) ? 'app-main app-main--full' : 'app-main'} id="main-content" tabIndex={-1}>
-        <ErrorBoundary resetKey={pathname} homeHref={HOME_PATH}>
+        <ErrorBoundary resetKey={pathname + search} homeHref={HOME_PATH}>
         <Routes>
           {/* MVP II on the real NYC run since the cutover (#548). The MVP 1 pages are no longer mounted. */}
           <Route path="/" element={<Landing dataset="nyc" initialSummary={initialNycSummary} />} />
