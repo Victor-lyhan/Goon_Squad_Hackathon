@@ -10,6 +10,7 @@ import { employeeLookup, jobLinkState, type EmployeeLookup } from '../components
 import { EmployeePortalView } from '../components/employee/EmployeePortalView';
 import { useEmployeeDashboard } from '../components/employee/useEmployeeDashboard';
 import { saveErrorMessage } from '../components/employee/employeePortalModel';
+import { RECONNECTING_TEXT } from '../components/employee/dashboardState';
 import { toastText } from '../components/employee/newJobsModel';
 
 export default function EmployeePortal() {
@@ -46,20 +47,22 @@ export default function EmployeePortal() {
         if (e instanceof ApiRequestError && e.status === 404) { setJob(null); setJobError(null); setJobMissing(true); return; }
         setJobError(e instanceof Error ? e.message : 'Could not load job');
       });
-    void load();
-    const t = setInterval(load, 1000);
-    return () => { alive = false; clearInterval(t); };
-  }, [jobId]);
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const loop = () => { void load().finally(() => { if (alive) t = setTimeout(loop, 1000); }); };
+    loop();
+    return () => { alive = false; if (t) clearTimeout(t); };
+  }, [jobId, data.runId]);
 
   // Unknown employee: when the dashboard fails, ask the API who exists (also catches a runId change).
   useEffect(() => {
-    if (!data.error) { setLookup({ kind: 'found' }); return; }
+    // While reconnecting with data on screen there is nothing to look up; only a missing dashboard needs it.
+    if (!data.error || data.reconnecting) { setLookup({ kind: 'found' }); return; }
     let alive = true;
     getEmployees()
       .then((r) => { if (alive) setLookup(employeeLookup(r.employees, id)); })
       .catch(() => { if (alive) setLookup({ kind: 'found' }); });
     return () => { alive = false; };
-  }, [data.error, id]);
+  }, [data.error, data.reconnecting, id]);
 
   const onViewJob = (j: string) => setParams((p) => { const n = new URLSearchParams(p); n.set('job', j); return n; });
   const onCloseJob = () => setParams((p) => { const n = new URLSearchParams(p); n.delete('job'); return n; });
@@ -92,6 +95,11 @@ export default function EmployeePortal() {
 
   return (
     <>
+      {data.reconnecting && (
+        <p className="emp-portal__reconnect" role="status" style={{ opacity: 0.7, fontSize: 13, margin: '8px 16px 0', textAlign: 'right' }}>
+          {RECONNECTING_TEXT}
+        </p>
+      )}
       <EmployeePortalView
         {...data}
         saving={saving}
