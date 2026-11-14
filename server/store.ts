@@ -2,9 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Run } from '../shared/types';
 
-export type Store = {
-  get(): Run;
-  mutate(fn: (run: Run) => Run | void): Promise<Run>;
+// The least a run needs for the store: a version to bump and a clock to pause on load.
+// Both the MVP 1 Run and the MVP II Run (shared/v2/types) fit.
+type StoreRun = { version: number; clock: { playing: boolean } };
+
+export type Store<R = Run> = {
+  get(): R;
+  mutate(fn: (run: R) => R | void): Promise<R>;
   flush(): Promise<void>;
 };
 
@@ -25,13 +29,13 @@ function backupBad(filePath: string): string | null {
   return null;
 }
 
-function startFresh(filePath: string, initial: () => Run, reason: string): Run {
+function startFresh<R>(filePath: string, initial: () => R, reason: string): R {
   const copy = backupBad(filePath);
   console.warn(`[store] ${filePath} is unusable (${reason}); starting from the demo city${copy ? `, bad file kept at ${copy}` : ''}`);
   return initial();
 }
 
-function load(filePath: string, initial: () => Run): Run {
+function load<R extends StoreRun>(filePath: string, initial: () => R): R {
   let text: string;
   try {
     text = fs.readFileSync(filePath, 'utf8');
@@ -46,7 +50,7 @@ function load(filePath: string, initial: () => Run): Run {
     if (!parsed || parsed.schemaVersion !== SCHEMA_VERSION || !parsed.run?.clock) {
       throw new Error('unexpected schemaVersion or shape');
     }
-    const run = parsed.run as Run;
+    const run = parsed.run as R;
     run.clock.playing = false; // restart restores a paused state
     return run;
   } catch (e) {
@@ -54,19 +58,26 @@ function load(filePath: string, initial: () => Run): Run {
   }
 }
 
-async function writeAtomic(filePath: string, run: Run): Promise<void> {
+async function writeAtomic(filePath: string, run: unknown): Promise<void> {
   await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp`;
   await fs.promises.writeFile(tmp, JSON.stringify({ schemaVersion: SCHEMA_VERSION, run }));
   await fs.promises.rename(tmp, filePath);
 }
 
-export function createStore(opts: { filePath: string; initial: () => Run }): Store {
+// Overloads rather than one generic signature with a default, so every MVP 1 caller compiles unchanged:
+// - the first keeps `initial: () => { throw ... }` (returns `never`) typed as Store<Run>;
+// - the second is the generic one: `createStore<RunV2>(...)`, or inferred from `initial`;
+// - the last repeats the first because `ReturnType<typeof createStore>` reads the last overload.
+export function createStore(opts: { filePath: string; initial: () => Run }): Store;
+export function createStore<R extends StoreRun>(opts: { filePath: string; initial: () => R }): Store<R>;
+export function createStore(opts: { filePath: string; initial: () => Run }): Store;
+export function createStore<R extends StoreRun>(opts: { filePath: string; initial: () => R }): Store<R> {
   const { filePath } = opts;
   let run = load(filePath, opts.initial);
   let queue: Promise<unknown> = Promise.resolve();
 
-  function mutate(fn: (run: Run) => Run | void): Promise<Run> {
+  function mutate(fn: (run: R) => R | void): Promise<R> {
     const result = queue.then(async () => {
       const draft = structuredClone(run); // so a throwing mutator leaves state untouched
       const next = fn(draft) ?? draft;
