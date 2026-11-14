@@ -12,3 +12,13 @@
 .bp-error { padding: 8px 10px; border-radius: 8px; background: #fde8e8; color: #7a1010; }
 .bp-drawer-actions { margin-top: 16px; }
 @media (max-width: 720px) { .bp { grid-template-columns: 1fr; } .bp-nav { flex-direction: row; flex-wrap: wrap; } }
+.bp-nav button:focus-visible, .bp-notes__btn:focus-visible { outline: 3px solid var(--accent, #0e7c86); outline-offset: 2px; }
+@media (max-width: 599px) {
+  .bp { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .bp-nav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+  .bp-nav button { white-space: nowrap; flex: 0 0 auto; }
+  .bp-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bp-summary__value { font-size: 1.4rem; overflow-wrap: anywhere; }
+  .bp-send { max-width: 100%; align-items: stretch; }
+  .bp-main { overflow-wrap: anywhere; }
+}

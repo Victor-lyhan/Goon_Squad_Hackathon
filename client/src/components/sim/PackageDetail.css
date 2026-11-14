@@ -9,3 +9,4 @@
 .pd-leg { border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; }
 .pd-leg-top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
 .pd a { color: #2563eb; }
+.pd-h { margin: 10px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #475569; }

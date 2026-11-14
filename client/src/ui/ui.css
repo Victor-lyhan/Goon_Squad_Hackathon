@@ -1,6 +1,6 @@
 /* UI kit styles (plain CSS). Uses CSS variables with fallbacks so it works without the global theme. */
 .ui-btn{font:inherit;font-weight:600;border-radius:8px;padding:.5rem 1rem;border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:.5rem}
-.ui-btn:focus-visible,.ui-drawer__close:focus-visible,.ui-toast button:focus-visible,.ui-field input:focus-visible,.ui-field select:focus-visible,.ui-field textarea:focus-visible{outline:3px solid var(--accent,#0e7c86);outline-offset:2px}
+.ui-btn:focus-visible,.ui-drawer__close:focus-visible,.ui-drawer:focus-visible,.ui-toast button:focus-visible,.ui-field input:focus-visible,.ui-field select:focus-visible,.ui-field textarea:focus-visible{outline:3px solid var(--accent,#0e7c86);outline-offset:2px}
 .ui-toast button:focus-visible{outline-color:#7dd3d8}
 .ui-btn--primary{background:var(--accent,#0e7c86);color:#fff}
 .ui-btn--secondary{background:#fff;color:#1e293b;border-color:#94a3b8}
@@ -42,6 +42,9 @@
 .ui-btn,.ui-drawer__close,.ui-toast button{transition:none}
 .ui-drawer__backdrop,.ui-drawer,.ui-toast{animation:none}
 .ui-spinner{animation:none;border-style:dotted;border-right-color:currentColor;opacity:.7}
+}
+@media (max-width:599px){
+.ui-drawer{width:100vw;left:0;box-sizing:border-box}
 }
 @media (max-width:480px){
 .ui-drawer{width:100vw;left:0}

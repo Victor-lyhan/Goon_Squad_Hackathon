@@ -14,9 +14,11 @@ export type MatchResultCardProps = {
   onViewTracking: () => void;
   onEdit: () => void;
   onRetry: () => void;
+  /** A match/edit request is in flight: disable the actions. */
+  busy?: boolean;
 };
 
-export function MatchResultCard({ response, businesses, hubs, employees, onViewTracking, onEdit, onRetry }: MatchResultCardProps) {
+export function MatchResultCard({ response, businesses, hubs, employees, onViewTracking, onEdit, onRetry, busy = false }: MatchResultCardProps) {
   const { shipment, plan } = response;
   const recipient = businesses.find((b) => b.id === shipment.destinationBusinessId)?.name ?? 'Recipient';
 
@@ -26,8 +28,8 @@ export function MatchResultCard({ response, businesses, hubs, employees, onViewT
         <p>{response.unmatchedReason ?? 'No employee commute fits this package yet.'}</p>
         <p>{shipment.label} to {recipient}. Your request stays in your list.</p>
         <div className="match-card__actions">
-          <Button variant="secondary" onClick={onEdit}>Edit request</Button>
-          <Button onClick={onRetry}>Try again</Button>
+          <Button variant="secondary" onClick={onEdit} disabled={busy}>Edit request</Button>
+          <Button onClick={onRetry} disabled={busy} loading={busy}>Try again</Button>
         </div>
       </Card>
     );

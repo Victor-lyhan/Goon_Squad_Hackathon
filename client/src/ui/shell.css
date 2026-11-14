@@ -1,0 +1,4 @@
+.skip-link { position: absolute; left: .5rem; top: -4rem; z-index: 100; background: #fff; color: var(--navy, #123); padding: .5rem .9rem; border-radius: 6px; border: 2px solid var(--accent, #2563eb); }
+.skip-link:focus { top: .5rem; }
+.not-found h1 { margin-top: 0; }
+.not-found-links { display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: 0; list-style: none; }

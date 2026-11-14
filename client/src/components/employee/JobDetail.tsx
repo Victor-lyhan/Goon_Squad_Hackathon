@@ -1,8 +1,11 @@
 import type { JobResponse, MapResponse } from '../../../../shared/api';
 import type { Business, Hub, ShipmentProgress } from '../../../../shared/types';
 import { CityMap } from '../CityMap';
-import { Card, StatusPill } from '../../ui';
-import { toJobDetailModel } from './jobDetailModel';
+import { Button, Card, EmptyState, StatusPill } from '../../ui';
+import {
+  EMPLOYEE_MISSING_TITLE, JOB_MISSING_TITLE, JOB_OTHER_TITLE, toJobDetailModel,
+  type JobLinkState,
+} from './jobDetailModel';
 import './JobDetail.css';
 
 export type JobDetailProps = { job: JobResponse; map: MapResponse; businesses: Business[]; hubs: Hub[]; progress?: ShipmentProgress };
@@ -49,6 +52,47 @@ export function JobDetail({ job, map, businesses, hubs, progress }: JobDetailPro
         <p className="job-detail__line">Added time: {m.added}</p>
         <p className="job-detail__line job-detail__reward">Reward: {m.reward}</p>
       </Card>
+    </div>
+  );
+}
+
+export function JobLinkNotice({ state, onBack }: { state: JobLinkState; onBack: () => void }) {
+  if (state.kind === 'missing') {
+    return (
+      <div className="job-detail" role="status">
+        <h3>{JOB_MISSING_TITLE}</h3>
+        <p>The city was changed, so this job link is out of date.</p>
+        <Button onClick={onBack}>Back to my jobs</Button>
+      </div>
+    );
+  }
+  if (state.kind === 'other') {
+    return (
+      <div className="job-detail" role="status">
+        <h3>{JOB_OTHER_TITLE}</h3>
+        <p>You can only see details for your own jobs here.</p>
+        <p><a className="job-detail__link" href={state.href}>Open it on the right employee page</a></p>
+        <Button onClick={onBack}>Back to my jobs</Button>
+      </div>
+    );
+  }
+  return null;
+}
+
+export function EmployeeNotFound({ firstId }: { firstId: string | null }) {
+  return (
+    <div className="emp-portal">
+      <EmptyState
+        title={EMPLOYEE_MISSING_TITLE}
+        description="The city may have been regenerated or imported since this link was made."
+        action={(
+          <nav aria-label="Where to go">
+            {firstId && <a className="job-detail__link" href={`/employee/${encodeURIComponent(firstId)}`}>Go to the first employee</a>}
+            {' '}
+            <a className="job-detail__link" href="/">Back to home</a>
+          </nav>
+        )}
+      />
     </div>
   );
 }
