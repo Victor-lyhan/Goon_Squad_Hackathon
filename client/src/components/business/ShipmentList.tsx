@@ -1,6 +1,6 @@
 import type { ShipmentView } from '../../../../shared/api';
 import type { Business } from '../../../../shared/types';
-import { EmptyState, StatusPill } from '../../ui';
+import { EmptyState, StatusPill, statusLabel } from '../../ui';
 import { etaText } from './trackingModel';
 import './tracking.css';
 
@@ -28,6 +28,7 @@ export function ShipmentList({ views, direction, businesses, selectedId, onSelec
               type="button"
               className={`trk-row${selectedId === s.id ? ' trk-row--selected' : ''}`}
               aria-current={selectedId === s.id ? 'true' : undefined}
+              aria-label={`${s.label}, ${v.plan ? statusLabel(v.status) : 'No match yet'}, ${direction === 'outgoing' ? 'to' : 'from'} ${counterpart}`}
               onClick={() => onSelect(s.id)}
             >
               <span className="trk-row__label">{s.label}</span>
