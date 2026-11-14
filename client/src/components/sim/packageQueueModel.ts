@@ -1,4 +1,4 @@
-import type { Business, DeliveryPlan, Shipment, ShipmentProgress } from '../../../../shared/types';
+import type { Business, DeliveryPlan, Shipment, ShipmentProgress, UnmatchedReason } from '../../../../shared/types';
 
 export type QueueFilter = 'all' | ShipmentProgress;
 export type QueueRow = {
@@ -8,6 +8,8 @@ export type QueueRow = {
   recipient: string;
   status: ShipmentProgress;
   tag?: 'Direct' | 'Relay';
+  /** Backend reason text, only for unmatched packages. */
+  reason?: string;
 };
 
 export const STATUS_ORDER: ShipmentProgress[] = [
@@ -28,19 +30,23 @@ export function toQueueRows(
   plans: DeliveryPlan[],
   shipmentStatus: Record<string, ShipmentProgress>,
   businesses: Business[],
+  unmatched: UnmatchedReason[] = [],
 ): QueueRow[] {
+  const reasons = new Map(unmatched.map((u) => [u.shipmentId, u.reason]));
   const names = new Map(businesses.map((b) => [b.id, b.name]));
   const planByShipment = new Map(plans.map((p) => [p.shipmentId, p]));
   return [...shipments]
     .sort((a, b) => a.createdSeq - b.createdSeq)
     .map((s) => {
       const plan = planByShipment.get(s.id);
+      const status = shipmentStatus[s.id] ?? 'unmatched';
       return {
         id: s.id,
         label: s.label,
         sender: names.get(s.originBusinessId) ?? 'Unknown business',
         recipient: names.get(s.destinationBusinessId) ?? 'Unknown business',
-        status: shipmentStatus[s.id] ?? 'unmatched',
+        status,
+        reason: status === 'unmatched' ? reasons.get(s.id) : undefined,
         tag: plan ? (plan.kind === 'relay' ? 'Relay' : 'Direct') : undefined,
       };
     });
@@ -79,4 +85,15 @@ export function moveSelection(ids: string[], currentId: string | undefined, key:
     case 'ArrowDown': return ids[i < 0 ? 0 : Math.min(ids.length - 1, i + 1)];
     default: return ids[i < 0 ? ids.length - 1 : Math.max(0, i - 1)];
   }
+}
+
+/** Friendly empty-state copy for the current filter and search. */
+export function emptyCopy(total: number, filter: QueueFilter, query: string): { title: string; description?: string } {
+  if (total === 0) return { title: 'No packages yet' };
+  if (query.trim() !== '') return { title: 'No packages match your search', description: 'Try other search text or the All filter.' };
+  if (filter === 'all') return { title: 'No packages yet' };
+  return {
+    title: `No ${STATUS_LABEL[filter].toLowerCase()} packages`,
+    description: 'Nothing has this status at the current time. Try another filter or move the clock.',
+  };
 }

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import type { Business, DeliveryPlan, Shipment, Snapshot } from '../../../../shared/types';
+import type { Business, DeliveryPlan, Shipment, Snapshot, UnmatchedReason } from '../../../../shared/types';
 import {
-  STATUS_LABEL, STATUS_ORDER, countByStatus, filterRows, moveSelection, toQueueRows, type QueueFilter,
+  STATUS_LABEL, STATUS_ORDER, countByStatus, emptyCopy, filterRows, moveSelection, toQueueRows, type QueueFilter,
 } from './packageQueueModel';
 import { EmptyState } from '../../ui';
 import './PackageQueue.css';
@@ -11,15 +11,17 @@ export type PackageQueueProps = {
   plans: DeliveryPlan[];
   snapshot: Pick<Snapshot, 'shipmentStatus'>;
   businesses: Business[];
+  /** Backend reasons for unmatched packages (SimulatorResponse.unmatched). */
+  unmatched?: UnmatchedReason[];
   selectedId?: string;
   onSelect: (shipmentId: string) => void;
 };
 
-export function PackageQueue({ shipments, plans, snapshot, businesses, selectedId, onSelect }: PackageQueueProps) {
+export function PackageQueue({ shipments, plans, snapshot, businesses, unmatched, selectedId, onSelect }: PackageQueueProps) {
   const [filter, setFilter] = useState<QueueFilter>('all');
   const rows = useMemo(
-    () => toQueueRows(shipments, plans, snapshot.shipmentStatus, businesses),
-    [shipments, plans, snapshot.shipmentStatus, businesses],
+    () => toQueueRows(shipments, plans, snapshot.shipmentStatus, businesses, unmatched),
+    [shipments, plans, snapshot.shipmentStatus, businesses, unmatched],
   );
   const counts = useMemo(() => countByStatus(rows), [rows]);
   const [query, setQuery] = useState('');
@@ -53,10 +55,7 @@ export function PackageQueue({ shipments, plans, snapshot, businesses, selectedI
         onChange={(e) => setQuery(e.target.value)}
       />
       {visible.length === 0 ? (
-        <EmptyState
-          title={rows.length === 0 ? 'No packages yet' : 'No matching packages'}
-          description={rows.length === 0 ? undefined : 'Try another status filter or search text.'}
-        />
+        <EmptyState {...emptyCopy(rows.length, filter, query)} />
       ) : (
         <ul className="pq-list" aria-label="Packages (Up/Down, Home/End to move)" onKeyDown={onKeyDown} ref={listRef}>
           {visible.map((r) => (
@@ -73,7 +72,12 @@ export function PackageQueue({ shipments, plans, snapshot, businesses, selectedI
                   <span className={`pq-pill pq-pill-${r.status}`}>{STATUS_LABEL[r.status]}</span>
                 </div>
                 <div className="pq-route">{r.sender} → {r.recipient}</div>
-                {r.tag && <div className="pq-meta"><span className="pq-tag">{r.tag}</span></div>}
+                {(r.tag || r.reason) && (
+                  <div className="pq-meta">
+                    {r.tag && <span className="pq-tag">{r.tag}</span>}
+                    {r.reason && <span className="pq-reason">{r.reason}</span>}
+                  </div>
+                )}
               </button>
             </li>
           ))}
