@@ -70,6 +70,27 @@ describe('hook states', () => {
   });
 });
 
+// #584: the shell's <main id="main-content"> is the page's only main landmark.
+describe('root element', () => {
+  it('every screen is a <div class="ep"> and renders no <main>', () => {
+    const job = { ...eveningDirect(), job: { ...eveningDirect().job, employeeId: dashboard.employee.id } } as JobResponse;
+    const screens = [
+      render(initialWorkspaceState),
+      render({ ...initialWorkspaceState, view: 'not_found', fallbackEmployeeId: 'emp-007' }),
+      render({ ...initialWorkspaceState, view: 'unavailable', unavailable: { code: 'travel_data_missing', message: 'x' } }),
+      render({ ...initialWorkspaceState, view: 'error', error: 'HTTP 500' }),
+      render(ready()),
+      render(ready(), { jobId: 'job-x' }),
+      render({ ...ready(), job }, { jobId: job.job.id }),
+      render({ ...ready(), jobMissing: true }, { jobId: 'job-x' }),
+    ];
+    for (const h of screens) {
+      expect(h.startsWith('<div class="ep"')).toBe(true);
+      expect(h).not.toMatch(/<main[\s>]/);
+    }
+  });
+});
+
 describe('ready', () => {
   it('shows the workspace with the commute, deliveries and New marks', () => {
     const s = { ...ready(), newJobIds: [dashboard.assigned[0].job.id] };

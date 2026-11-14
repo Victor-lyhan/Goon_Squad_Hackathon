@@ -249,6 +249,40 @@ describe('Employee page in a real DOM: a job from ?job=', () => {
     expect(row.contains(document.activeElement)).toBe(true);
   }, T);
 
+  // #584: the row link is a router link now, so the page stays mounted while the job's detail loads.
+  it('a job opened from its row keeps the list on screen until its detail arrives, then focuses the job', () => {
+    const p = setup(ready(), null);
+    const target = relayView.job.id;
+    const viewJob = p.row(target)!.querySelector<HTMLAnchorElement>('a')!;
+    viewJob.focus();
+    p.setJob(target); // the row link changes `?job=`; the poller clears the old job and fetches this one
+    p.send({ type: 'jobCleared' });
+    expect(p.row(target)).not.toBeNull();
+    expect(p.row(directView.job.id)).not.toBeNull();
+    expect(p.c.textContent).not.toContain('Loading delivery');
+    expect(p.c.querySelector('.ep')!.getAttribute('aria-busy')).toBe('true');
+    expect(document.activeElement).toBe(viewJob);
+    // A poll in between changes nothing.
+    p.poll({ ...dashboard, version: dashboard.version + 1 });
+    expect(p.row(target)).not.toBeNull();
+    expect(p.c.textContent).not.toContain('Loading delivery');
+
+    p.send({ type: 'job', job: jobResponseFor(relayView) });
+    expect(p.row(target)).toBeNull();
+    expect(p.c.querySelector('.ep')!.hasAttribute('aria-busy')).toBe(false);
+    expect(document.activeElement).toBe(p.c.querySelector('#job-v2-title'));
+  }, T);
+
+  it('moving from one open job to another shows the loading line, not the list (#584)', () => {
+    const p = setup(ready(), directView.job.id);
+    p.send({ type: 'job', job: jobResponseFor(directView) });
+    p.setJob(relayView.job.id);
+    expect(p.c.textContent).toContain('Loading delivery');
+    expect(p.row(relayView.job.id)).toBeNull();
+    p.send({ type: 'job', job: jobResponseFor(relayView) });
+    expect(document.activeElement).toBe(p.c.querySelector('#job-v2-title'));
+  }, T);
+
   it('closing a job opened from its row returns focus to that row (#550)', () => {
     const p = setup(ready(), null);
     const target = relayView.job.id;
