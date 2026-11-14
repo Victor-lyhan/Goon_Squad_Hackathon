@@ -144,10 +144,15 @@ describe('curated NYC fixture data', () => {
       expect(shipment.weightGrams).toBeLessThanOrEqual(2000);
       expect(['envelope', 'small_box']).toContain(shipment.category);
       expect(['direct', 'relay', 'any']).toContain(shipment.expect);
+      expect(shipment.readyMin).toBeLessThanOrEqual(1440);
     }
 
     const storyShipments = shipments.slice(0, 8);
     expect(storyShipments.filter((shipment) => shipment.expect === 'direct').length).toBeGreaterThanOrEqual(3);
     expect(storyShipments.filter((shipment) => shipment.expect === 'relay').length).toBeGreaterThanOrEqual(3);
+    for (const shipment of storyShipments.filter((shipment) => shipment.expect === 'relay')) {
+      expect(shipment.note).toEqual(expect.any(String));
+      expect(shipment.note).not.toHaveLength(0);
+    }
   });
 });
