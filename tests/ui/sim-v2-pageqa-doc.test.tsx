@@ -219,12 +219,13 @@ describe('doc §1: package journey mode', () => {
   it.each(JOURNEYS)('$name: the legend says which carrier has which colour', (s) => {
     const plan = planOf(s);
     const legend = one(s.right, (n) => n.attrs['aria-label'] === 'Journey legend', 'journey legend');
-    const items = byClass(legend, 'jl__item').filter((li) => byClass(li, 'jl__leg').length > 0);
+    // One row per carrier (#659): its letter badge in its colour, then "A · <name>" / "B · <name>".
+    const items = byClass(legend, 'jl__item').filter((li) => byClass(li, 'jl__badge').length > 0);
     const colours = [rgbHex(layers.LEG1), rgbHex(layers.LEG2)];
     expect(items.map((li) => [
-      readText(byClass(li, 'jl__leg')[0]), readText(byClass(li, 'jl__name')[0]),
-      byClass(li, 'jl__swatch')[0].attrs.style.toUpperCase(),
-    ])).toEqual(plan.legs.map((leg, i) => [`Leg ${i + 1}`, nameOf(s, leg.employeeId), `BACKGROUND:${colours[i]}`]));
+      readText(byClass(li, 'jl__badge')[0]), readText(byClass(li, 'jl__name')[0]),
+      byClass(li, 'jl__badge')[0].attrs.style.toUpperCase(),
+    ])).toEqual(plan.legs.map((leg, i) => [['A', 'B'][i], `${['A', 'B'][i]} · ${nameOf(s, leg.employeeId)}`, `BACKGROUND:${colours[i]}`]));
     // The step numbers use the same leg colour classes.
     const tones = all(s.right, (n) => hasClass(n, 'jt-step__n')).map((n) => n.attrs.class.match(/jt-step__n--(leg\d)/)?.[1]);
     expect(tones).toEqual(plan.legs.flatMap((leg, i) => leg.stops.map(() => `leg${i + 1}`)));

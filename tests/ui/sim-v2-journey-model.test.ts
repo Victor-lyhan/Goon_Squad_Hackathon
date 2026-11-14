@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import * as L from '../../client/src/components/map/layers';
+import type { PathSpec, ScatterSpec, TextSpec } from '../../client/src/components/map/layers';
 import {
   buildJourney, statusLabelOf, UNKNOWN_PLACE, type Journey, type JourneyResult,
 } from '../../client/src/components/sim/v2/journey/journeyModel';
@@ -37,7 +39,7 @@ describe('buildJourney: steps', () => {
     ]);
     expect(j.steps.every((s) => typeof s.lat === 'number' && typeof s.lng === 'number')).toBe(true);
     expect(j.stops.map((s) => s.n)).toEqual([1, 2, 3, 4]);
-    expect(j.stops[1].label).toBe('Drop at relay point · Brooklyn Roasting');
+    expect(j.stops[1].detail).toBe('Drop at relay point · Brooklyn Roasting');
   });
 });
 
@@ -80,11 +82,11 @@ describe('buildJourney: places, carriers and movers', () => {
   });
   it('relay has two carriers with two tones; direct has one with leg1', () => {
     expect(relayAt(T.overnight).carriers).toEqual([
-      { employeeId: 'emp-3', name: 'Cy Lam', legIndex: 0, tone: 'leg1', homeNeighborhood: 'Crown Heights', extraMin: 5, rewardCents: 300 },
-      { employeeId: 'emp-2', name: 'Ben Okafor', legIndex: 1, tone: 'leg2', homeNeighborhood: 'Park Slope', extraMin: 4, rewardCents: 300 },
+      { employeeId: 'emp-3', name: 'Cy Lam', legIndex: 0, tone: 'leg1', letter: 'A', homeNeighborhood: 'Crown Heights', extraMin: 5, rewardCents: 300 },
+      { employeeId: 'emp-2', name: 'Ben Okafor', legIndex: 1, tone: 'leg2', letter: 'B', homeNeighborhood: 'Park Slope', extraMin: 4, rewardCents: 300 },
     ]);
     const direct = directAt(T.beforePickup);
-    expect(direct.carriers.map((c) => c.tone)).toEqual(['leg1']);
+    expect(direct.carriers.map((c) => [c.tone, c.letter])).toEqual([['leg1', 'A']]);
     expect(new Set(direct.routes.filter((r) => r.kind === 'leg').map((r) => r.tone))).toEqual(new Set(['leg1']));
     expect(new Set(relayAt(T.overnight).routes.filter((r) => r.kind === 'leg').map((r) => r.tone))).toEqual(new Set(['leg1', 'leg2']));
   });
@@ -96,17 +98,34 @@ describe('buildJourney: places, carriers and movers', () => {
 });
 
 describe('buildJourney: routes', () => {
-  it('per carrier: a baseline commute and the actual route, in [lng, lat] order', () => {
+  it('per carrier: the whole commute (thin) and the carried part (thick), in [lng, lat] order; no grey baseline', () => {
     const j = directAt(T.beforePickup);
-    const base = j.routes.filter((r) => r.kind === 'baseline');
-    const legs = j.routes.filter((r) => r.kind === 'leg');
-    expect(base).toHaveLength(1);
-    expect(base[0].path).toEqual(decoded('biz-dumbo', 'home-story-ana'));
-    expect(base[0].path[0]).toEqual([-73.9881, 40.7033]);
-    expect(legs).toHaveLength(1);
-    // dumbo → etsy → home, joined without repeating etsy
-    expect(legs[0].path).toEqual([...decoded('biz-dumbo', 'biz-etsy'), ...decoded('biz-etsy', 'home-story-ana').slice(1)]);
-    expect(legs[0].ownerIds).toContain('shp-1');
+    expect(j.routes.filter((r) => r.kind === 'baseline')).toHaveLength(0);
+    const trip = j.routes.filter((r) => r.carried === false);
+    const carried = j.routes.filter((r) => r.carried === true);
+    expect(j.routes).toHaveLength(2);
+    // dumbo → etsy → home: the whole evening commute, joined without repeating etsy
+    expect(trip).toHaveLength(1);
+    expect(trip[0]).toMatchObject({ kind: 'leg', tone: 'leg1' });
+    expect(trip[0].path).toEqual([...decoded('biz-dumbo', 'biz-etsy'), ...decoded('biz-etsy', 'home-story-ana').slice(1)]);
+    expect(trip[0].path[0]).toEqual([-73.9881, 40.7033]);
+    // pickup (dumbo) → delivery (etsy): the part with the package
+    expect(carried).toHaveLength(1);
+    expect(carried[0]).toMatchObject({ kind: 'leg', tone: 'leg1' });
+    expect(carried[0].path).toEqual(decoded('biz-dumbo', 'biz-etsy'));
+    for (const r of j.routes) expect(r.ownerIds).toContain('shp-1');
+  });
+
+  it('relay: each carrier\'s whole commute in its tone, the carried part from its pickup to its drop', () => {
+    const j = relayAt(T.overnight);
+    const of = (tone: string, carried: boolean) => j.routes.filter((r) => r.tone === tone && r.carried === carried).map((r) => r.path);
+    // Cy (A): dumbo → roast → home, carrying dumbo → roast.
+    expect(of('leg1', false)).toEqual([[...decoded('biz-dumbo', 'biz-roast'), ...decoded('biz-roast', 'home-007').slice(1)]]);
+    expect(of('leg1', true)).toEqual([decoded('biz-dumbo', 'biz-roast')]);
+    // Ben (B): home → roast → etsy; roast → etsy has no cached polyline, so only home → roast is drawn
+    // and the carried part (roast → etsy) has no line.
+    expect(of('leg2', false)).toEqual([decoded('home-story-ben', 'biz-roast')]);
+    expect(of('leg2', true)).toEqual([]);
   });
 
   it('a null polyline draws no line for that pair (never an invented one)', () => {
@@ -155,5 +174,140 @@ describe('buildJourney: unknown and unmatched', () => {
     expect(j.steps[3].placeName).toBe(UNKNOWN_PLACE);
     expect(j.stops.map((s) => s.n)).toEqual([1, 2, 3]);
     expect(j.places.map((p) => p.id)).not.toContain('biz-etsy');
+  });
+});
+
+// #659 (docs/mvp3.md P1 + P4): what a judge sees on the map for a relay and a direct journey.
+describe('the journey on the map: colors, widths, symbols, labels, badges and draw order', () => {
+  const all = { routes: true, businesses: true, homes: true, packages: true };
+  const specsOf = (j: Journey, selectedIds: string[] = []) =>
+    L.buildLayerSpecs({
+      places: j.places, routes: j.routes, movers: j.movers, stops: j.stops, visible: all, selectedIds,
+      alwaysLabelIds: j.places.filter((p) => p.kind === 'business').map((p) => p.id), zoom: 14,
+    });
+  const spec = <S extends L.LayerSpec>(specs: L.LayerSpec[], id: string) => specs.find((x) => x.id === id) as S | undefined;
+  const hex = (c: L.RGBA) => `#${c.slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+  const withDelivered = (t: number, at: Record<string, number>) => {
+    const sim = simAt(t, { 'shp-2': 'delivered', 'shp-1': 'delivered' });
+    return { ...sim, snapshot: { ...sim.snapshot, deliveredAtMin: at } };
+  };
+
+  it('the palette: A blue, B green, package orange, relay ink, faded grey', () => {
+    expect(hex(L.LEG1)).toBe('#1D5075');
+    expect(hex(L.LEG2)).toBe('#0F8A5F');
+    expect(hex(L.PACKAGE_FILL)).toBe('#E8590C');
+    expect(hex(L.RELAY_INK)).toBe('#171C24');
+    expect(hex(L.FADED)).toBe('#A8ABB2');
+    expect(hex(L.HOME_FILL)).toBe('#A8ABB2');
+    expect(hex(L.BASELINE)).toBe('#A8ABB2');
+  });
+
+  it('relay: sender square, relay diamond, swap and recipient flag with short labels', () => {
+    const j = relayAt(T.overnight, 'at_hub');
+    expect(j.stops.map((s) => [s.n, s.symbol, s.label])).toEqual([
+      [1, 'sender', 'DUMBO Studio'],
+      [2, 'relay', 'Overnight · Brooklyn Roasting'],
+      [3, 'swap', 'Handed to Ben Okafor'],
+      [4, 'recipient', 'To Etsy'],
+    ]);
+    // The old step text stays as the tooltip's second line.
+    expect(j.stops.map((s) => s.detail)).toEqual([
+      'Pickup at sender · DUMBO Studio',
+      'Drop at relay point · Brooklyn Roasting',
+      'Pickup at relay point · Brooklyn Roasting',
+      'Delivered to recipient · Etsy',
+    ]);
+  });
+
+  it('the flag says "Delivered <clock time>" once the snapshot has deliveredAtMin, never computed', () => {
+    const sim = withDelivered(T.afterDelivery, { 'shp-2': 1979, 'shp-1': 1072 });
+    const relay = journeyOf(buildJourney({ shipmentId: 'shp-2', sim, map }));
+    expect(relay.stops.at(-1)!.label).toBe('Delivered 8:59 AM'); // 1979 = Day 2, 8:59 AM: the clock time only
+    const direct = journeyOf(buildJourney({ shipmentId: 'shp-1', sim, map }));
+    expect(direct.stops.at(-1)!.label).toBe('Delivered 5:52 PM');
+    // Without the field it is still "To <recipient>".
+    expect(relayAt(T.afterDelivery, 'delivered').stops.at(-1)!.label).toBe('To Etsy');
+  });
+
+  it('direct: a square and a flag, no diamond and no swap', () => {
+    const j = directAt(T.beforePickup);
+    expect(j.stops.map((s) => [s.symbol, s.label])).toEqual([['sender', 'DUMBO Studio'], ['recipient', 'To Etsy']]);
+    const glyphs = spec<TextSpec>(specsOf(j), 'stops-symbol')!.data.map((d) => d.text);
+    expect(glyphs).toEqual([L.SYMBOL_GLYPH.sender, L.SYMBOL_GLYPH.recipient]);
+  });
+
+  it('relay layers: no grey baseline, no numbered stops; thin whole commutes below thick carried parts', () => {
+    const specs = specsOf(relayAt(T.onLeg1));
+    const order = specs.map((x) => x.id);
+    expect(order).not.toContain('routes-baseline');
+    expect(order).not.toContain('stops');
+    expect(order).not.toContain('stops-number');
+    expect(order.indexOf('routes-commute')).toBeLessThan(order.indexOf('routes-leg'));
+    const thin = spec<PathSpec>(specs, 'routes-commute')!.data;
+    const thick = spec<PathSpec>(specs, 'routes-leg')!.data;
+    expect(thin.map((d) => [hex(d.color), d.width])).toEqual([['#1D5075', L.COMMUTE_WIDTH], ['#0F8A5F', L.COMMUTE_WIDTH]]);
+    expect(thick.map((d) => [hex(d.color), d.width])).toEqual([['#1D5075', L.CARRIED_WIDTH]]);
+    expect(L.CARRIED_WIDTH).toBeGreaterThanOrEqual(L.LEG_WIDTH);
+    expect(L.COMMUTE_WIDTH).toBeLessThan(L.LEG_WIDTH);
+  });
+
+  it('relay layers: symbols in ink in stop order, pickable with their tooltip; labels outside the package ring', () => {
+    const specs = specsOf(relayAt(T.overnight, 'at_hub'));
+    const symbols = spec<TextSpec>(specs, 'stops-symbol')!;
+    expect(symbols.data.map((d) => d.text)).toEqual(['\u25A0', '\u25C6', '\u21C4', '\u2691']);
+    for (const d of symbols.data) expect(d.color).toEqual(L.RELAY_INK);
+    expect(symbols.props.pickable).toBe(true);
+    expect(symbols.props.characterSet).toEqual(Object.values(L.SYMBOL_GLYPH));
+    expect(symbols.data[1].item).toEqual({ id: 'stop-shp-2-2', kind: 'stop', label: 'Overnight · Brooklyn Roasting', role: 'Drop at relay point · Brooklyn Roasting' });
+    // The swap sits beside the diamond, at the same place.
+    expect(symbols.data[2].position).toEqual(symbols.data[1].position);
+    expect(symbols.data[2].offset).toEqual([L.SWAP_DX, 0]);
+    const labels = spec<TextSpec>(specs, 'stops-label')!;
+    expect(labels.data.map((d) => d.text)).toEqual(['DUMBO Studio', 'Overnight · Brooklyn Roasting', 'Handed to Ben Okafor', 'To Etsy']);
+    for (const d of labels.data) expect(Math.abs(d.offset![1])).toBeGreaterThanOrEqual(L.SYMBOL_LABEL_GAP);
+    expect(labels.props.characterSet).toBe('auto');
+    // A business named by its symbol's label is not named a second time.
+    expect(spec<TextSpec>(specs, 'labels-places')).toBeUndefined();
+  });
+
+  it('carrier vehicles carry their letter, in their colour; a direct journey has only A', () => {
+    const specs = specsOf(relayAt(T.onLeg1));
+    const vehicles = spec<ScatterSpec>(specs, 'movers-vehicle')!.data;
+    expect(vehicles.map((d) => [d.id, hex(d.fillColor), d.radius])).toEqual([
+      ['emp-3', '#1D5075', L.BADGED_VEHICLE_RADIUS],
+      ['emp-2', '#0F8A5F', L.BADGED_VEHICLE_RADIUS],
+    ]);
+    const badges = spec<TextSpec>(specs, 'movers-vehicle-badge')!;
+    expect(badges.data.map((d) => [d.id, d.text, d.position])).toEqual(vehicles.map((v, i) => [v.id, ['A', 'B'][i], v.position]));
+    expect(badges.props.pickable).toBe(false);
+    expect(specs.map((x) => x.id).indexOf('movers-vehicle-badge')).toBe(specs.map((x) => x.id).indexOf('movers-vehicle') + 1);
+    const sim = simAt(T.onLeg1);
+    const withAna = { ...sim, snapshot: { ...sim.snapshot, markers: [...sim.snapshot.markers, { employeeId: 'emp-1', lat: 40.7, lng: -73.99, servicing: false }] } };
+    const direct = journeyOf(buildJourney({ shipmentId: 'shp-1', sim: withAna, map }));
+    expect(direct.carriers.map((c) => c.letter)).toEqual(['A']);
+    expect(direct.movers.filter((m) => m.kind === 'vehicle').map((m) => [m.id, m.badge, m.tone])).toEqual([['emp-1', 'A', 'leg1']]);
+  });
+
+  it('the package: orange ring about twice the old size, with a white halo, drawn last and never dimmed', () => {
+    for (const j of [relayAt(T.onLeg1), relayAt(T.overnight, 'at_hub'), directAt(T.beforePickup)]) {
+      for (const selectedIds of [[], ['emp-9']]) {
+        const specs = specsOf(j, selectedIds);
+        expect(specs.slice(-2).map((x) => x.id)).toEqual(['movers-package-halo', 'movers-package']);
+        const [halo, ring] = specs.slice(-2) as ScatterSpec[];
+        expect(ring.data).toHaveLength(1);
+        expect(ring.data[0].lineColor).toEqual([232, 89, 12, 255]);
+        expect(ring.data[0].lineWidth).toBe(6); // was 3
+        expect(ring.data[0].radius).toBeGreaterThanOrEqual(18); // was 10 alone
+        expect(halo.data[0].lineColor.slice(0, 3)).toEqual([255, 255, 255]);
+        expect(halo.data[0].lineWidth).toBeGreaterThan(ring.data[0].lineWidth);
+      }
+    }
+    // Waiting overnight: around the relay diamond, outside the glyph.
+    const night = specsOf(relayAt(T.overnight, 'at_hub'));
+    const ring = night.at(-1) as ScatterSpec;
+    const diamond = spec<TextSpec>(night, 'stops-symbol')!.data[1];
+    expect(ring.data[0].position[0]).toBeCloseTo(-73.9867, 6);
+    expect(ring.data[0].radius).toBe(L.PACKAGE_RING_AT_SYMBOL);
+    expect(diamond.position).toEqual([-73.9867, 40.7041]);
   });
 });

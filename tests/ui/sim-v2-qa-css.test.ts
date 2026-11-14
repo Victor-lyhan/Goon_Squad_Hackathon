@@ -14,7 +14,7 @@ describe('sim v2 + map CSS: the redesign rules', () => {
   it('reads every file and finds rules in each', () => {
     for (const f of QA_CSS_FILES) expect(RULES.some((r) => r.file === f), f).toBe(true);
     expect(ALLOWED_COLORS.has('40,97,138')).toBe(true); // accent
-    expect(ALLOWED_COLORS.has('192,58,100')).toBe(true); // LEG2 from layers.ts
+    expect(ALLOWED_COLORS.has('15,138,95')).toBe(true); // LEG2 from layers.ts
   });
 
   it('border-radius is at most 4px; 50% only on the listed round markers and status dots', () => {
