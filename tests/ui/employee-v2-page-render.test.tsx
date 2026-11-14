@@ -172,6 +172,16 @@ describe('commute editor', () => {
     expect(none).not.toContain('were matched');
   });
 
+  // #634: the note is for the moment after a save; it is not carried into a job view or the playback.
+  it('the saved note is not shown in a job view or while the run is locked', () => {
+    const saved = { initialOutcome: { kind: 'saved', matched: 1 } as const };
+    expect(text(render(ready(), saved))).toContain('Commute saved.');
+    expect(text(render(ready(), { ...saved, jobId: 'job-x' }))).not.toContain('Commute saved');
+    const locked = text(render(ready({ ...dashboard, phase: 'locked' }), saved));
+    expect(locked).not.toContain('Commute saved');
+    expect(locked).toContain('Assigned deliveries');
+  });
+
   it("a 409 keeps the form open with the server's text", () => {
     const outcome = outcomeFromError(new ApiRequestError(409, 'Planning is locked: start a new planning cycle.'));
     const h = render(ready(), { initialEditing: true, initialOutcome: outcome });
@@ -196,6 +206,14 @@ describe('commute editor', () => {
 describe('?job=', () => {
   const own: JobResponse = (() => { const j = eveningDirect(); return { ...j, job: { ...j.job, employeeId: 'emp-001' } }; })();
 
+  /** #634: a job screen has exactly one h1, the employee's name, before the first h2. */
+  function expectNameHeading(html: string) {
+    expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
+    expect(html).toMatch(/<h1[^>]*>Maya Chen<\/h1>/);
+    const h2 = html.search(/<h2[\s>]/);
+    if (h2 >= 0) expect(html.search(/<h1[\s>]/)).toBeLessThan(h2);
+  }
+
   it('shows the job detail for one of my jobs', () => {
     const s = employeeWorkspaceReducer(ready(), { type: 'job', job: own });
     const h = render(s, { jobId: own.job.id });
@@ -203,25 +221,39 @@ describe('?job=', () => {
     expect(h).toMatch(/Back to deliveries/);
     expect(text(h)).not.toContain('Assigned deliveries');
     expectClean(h);
+    expectNameHeading(h);
   });
 
   it('a missing job renders JobV2Missing', () => {
     const s = employeeWorkspaceReducer(ready(), { type: 'jobMissing' });
-    const t = text(render(s, { jobId: 'job-gone' }));
-    expect(t).toContain("This job isn't in the current city");
+    const h = render(s, { jobId: 'job-gone' });
+    const t = text(h);
+    expect(t).toContain('This delivery is no longer assigned to you');
+    expect(t).toContain('It was re-matched or the run changed. Your current deliveries are on your page.');
+    expect(t).not.toMatch(/city/i);
     expect(t).toContain('Back to deliveries');
+    expectNameHeading(h);
   });
 
   it("another employee's job renders JobV2Other with a link to its owner", () => {
     const s = employeeWorkspaceReducer(ready(), { type: 'job', job: eveningDirect() });
     const h = render(s, { jobId: eveningDirect().job.id });
-    expect(text(h)).toContain('This job is assigned to someone else');
+    expect(text(h)).toContain('This delivery is assigned to another carrier');
+    expect(text(h)).not.toMatch(/city/i);
+    expect(text(h)).toContain('Back to deliveries');
     expect(h).toContain(`href="/employee/emp-01?job=${eveningDirect().job.id}"`);
     expect(text(h)).not.toContain('Brand proofs');
+    expectNameHeading(h);
   });
 
   it('shows a loading line until the job arrives', () => {
-    expect(text(render(ready(), { jobId: 'job-x' }))).toContain('Loading delivery');
+    const h = render(ready(), { jobId: 'job-x' });
+    expect(text(h)).toContain('Loading delivery');
+    expectNameHeading(h);
+  });
+
+  it('the workspace keeps its one h1', () => {
+    expect(render(ready()).match(/<h1[\s>]/g)).toHaveLength(1);
   });
 });
 

@@ -3,7 +3,9 @@ import { resolve } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { JobDetailV2, JobV2Missing, JobV2Other } from '../../client/src/components/employee/v2/JobDetailV2';
-import { JOB_MISSING_TITLE, JOB_OTHER_TITLE } from '../../client/src/components/employee/jobDetailModel';
+import {
+  JOB_MISSING_TEXT, JOB_MISSING_TITLE, JOB_OTHER_TEXT, JOB_OTHER_TITLE,
+} from '../../client/src/components/employee/v2/jobDetailV2Model';
 import { businesses, eveningDirect, morningDirect, relayLeg1, relayLeg2, STATUSES } from './employeeV2JobSample';
 
 const noop = () => {};
@@ -81,14 +83,38 @@ describe('JobDetailV2 render', () => {
 
   it('missing-job and other-employee states', () => {
     const missing = renderToStaticMarkup(<JobV2Missing onBack={noop} />);
-    expect(missing).toContain(JOB_MISSING_TITLE.replace("'", '&#x27;'));
+    expect(missing).toContain(`>${JOB_MISSING_TITLE}</h2>`);
+    expect(missing).toContain(`>${JOB_MISSING_TEXT}</p>`);
     expect(missing).toContain('Back to deliveries');
     expectClean(missing);
     const other = renderToStaticMarkup(<JobV2Other href="/employee/emp-02?job=job-1" onBack={noop} />);
-    expect(other).toContain(JOB_OTHER_TITLE);
+    expect(other).toContain(`>${JOB_OTHER_TITLE}</h2>`);
+    expect(other).toContain(`>${JOB_OTHER_TEXT}</p>`);
     expect(other).toContain('href="/employee/emp-02?job=job-1"');
     expect(other).toContain('Back to deliveries');
     expectClean(other);
+  });
+
+  // #634: a 404 also follows a re-match, so neither state blames a city change, and both say "delivery".
+  it('the two states use the #634 wording: "delivery", not "job", and no claim that the city changed', () => {
+    expect(JOB_MISSING_TITLE).toBe('This delivery is no longer assigned to you');
+    expect(JOB_MISSING_TEXT).toBe('It was re-matched or the run changed. Your current deliveries are on your page.');
+    expect(JOB_OTHER_TITLE).toBe('This delivery is assigned to another carrier');
+    for (const html of [
+      renderToStaticMarkup(<JobV2Missing onBack={noop} />),
+      renderToStaticMarkup(<JobV2Other href="/employee/emp-02?job=job-1" onBack={noop} />),
+    ]) {
+      expect(text(html)).toMatch(/delivery/);
+      expect(text(html)).not.toMatch(/\bjobs?\b/i);
+      expect(text(html)).not.toMatch(/city/i);
+      expect(text(html)).not.toMatch(/own deliveries/);
+    }
+  });
+
+  it('JobDetailV2.tsx takes its titles from the v2 model, not from the MVP 1 file', () => {
+    const src = readFileSync(resolve(__dirname, '../../client/src/components/employee/v2/JobDetailV2.tsx'), 'utf8');
+    expect(src).not.toMatch(/from '\.\.\/jobDetailModel'/);
+    expect(src).toMatch(/JOB_MISSING_TITLE[^;]*from '\.\/jobDetailV2Model'/);
   });
 });
 

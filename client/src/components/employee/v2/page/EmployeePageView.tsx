@@ -1,6 +1,8 @@
 // MVP II Employee page (#438): puts the merged Employee pieces together. Props only, so tests render
 // every screen without the data hook. Local UI state: whether the commute form is open, the last save
 // outcome, and the run whose "city changed" note was dismissed. All data comes from the hook state.
+// The job screens (#634) carry the employee's name as their h1, because the workspace with its h1 is
+// not on screen there.
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { CommuteResponse } from '../../../../../../shared/v2/api';
 import type { PutCommuteRequest } from '../../../../../../shared/v2/schemas';
@@ -41,6 +43,13 @@ export type EmployeePageViewProps = {
   initialDraft?: Draft;
 };
 
+/** Focuses an element that is not a control (a heading), without putting it in the tab order. */
+function focusStatic(el: HTMLElement | null | undefined) {
+  if (!el) return;
+  if (!el.hasAttribute('tabindex')) el.tabIndex = -1;
+  el.focus();
+}
+
 export function EmployeePageView({
   state, jobId, saveCommute, refetchNow, markSeen, onCloseJob, search, employeeHref, routePreview,
   initialEditing = false, initialOutcome = null, initialDraft,
@@ -57,6 +66,10 @@ export function EmployeePageView({
   const jobOpening = screen.kind === 'job_loading' && listShown;
   const showsList = screen.kind === 'workspace' || jobOpening;
   if (showsList !== listShown) setListShown(showsList);
+
+  // "Commute saved" is for the moment after a save (#634): it goes when a job view opens and when the
+  // run is locked (playback), and it does not come back. Opening the editor clears it as before.
+  if (outcome?.kind === 'saved' && (jobId || state.dashboard?.phase === 'locked')) setOutcome(null);
 
   useEffect(() => { if (jobId) markSeen(jobId); }, [jobId, markSeen]);
 
@@ -76,7 +89,11 @@ export function EmployeePageView({
     lastJob.current = jobId;
     if (closedJob && !jobId && root) {
       const row = [...root.querySelectorAll<HTMLElement>('[data-job-id]')].find((r) => r.dataset.jobId === closedJob);
-      row?.querySelector<HTMLElement>('[data-row-focus]')?.focus();
+      const link = row?.querySelector<HTMLElement>('[data-row-focus]');
+      // A job that was re-matched away or belongs to another carrier has no row (#634): focus goes to
+      // the heading of the list that "Back to deliveries" leads to, never to <body>.
+      if (link) link.focus();
+      else focusStatic(root.querySelector<HTMLElement>('#ew-assigned-heading') ?? root);
     }
   });
 
@@ -262,9 +279,13 @@ export function EmployeePageView({
       body = workspace;
   }
 
+  // Every screen but the workspace (which has its own h1, also while a job opens over the list).
+  const jobScreen = screen.kind !== 'workspace' && !jobOpening;
+
   return (
     <div className="ep" ref={rootRef} aria-busy={jobOpening || undefined}>
       {notices}
+      {jobScreen && <h1 className="ep-name">{dashboard.employee.name}</h1>}
       {body}
     </div>
   );
