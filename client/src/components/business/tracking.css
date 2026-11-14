@@ -45,3 +45,6 @@
 .trk-row{min-width:0;max-width:100%}
 .trk-row__label,.trk-row__id,.trk-row__who,.trk-row__mode,.trk-row__reason{max-width:100%;overflow-wrap:anywhere}
 }
+.trk-requested{color:#475569;border-left:3px dashed #94a3b8;padding-left:.5rem}
+.trk-calculated{font-weight:600;border-left:3px solid #1d4ed8;padding-left:.5rem}
+.trk-hint{font-weight:400;color:#64748b;font-size:.85rem}
