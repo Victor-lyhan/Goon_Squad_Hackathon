@@ -208,7 +208,11 @@ describe('useSimulatorV2', () => {
     expect(current.sim?.clock.timeMin).toBe(1440);
     await current.generate({ preset: 'random' });
     expect(current.sim?.runId).toBe('run-b');
-    await vi.advanceTimersByTimeAsync(10); // the refetch after the write
+    // The refetch after the write: the first map was requested < 2 s ago, so the new run's map waits
+    // for the rest of the 2 s gap between map requests (#528).
+    await vi.advanceTimersByTimeAsync(10);
+    expect(current.map).toBeNull();
+    await vi.advanceTimersByTimeAsync(2000);
     expect(current.map?.runId).toBe('run-b');
     expect(current.busy).toBe(false);
   });

@@ -45,6 +45,46 @@ export function mapKey(sim: Pick<SimulatorResponse, 'runId' | 'plans'>): string 
   return [sim.runId, ...sim.plans.map((p) => p.id).sort()].join('|');
 }
 
+/**
+ * True when a neighbouring place pair of any plan leg has no route line in the map: no entry for the
+ * ordered pair, or `encoded: null` (#528). A live delivery's lines arrive after its response
+ * (DECISIONS pass 47), so the poller refetches the map while this holds. Only compares the two answers.
+ */
+export function planLegsMissingLine(sim: Pick<SimulatorResponse, 'plans'>, map: Pick<MapResponse, 'polylines'>): boolean {
+  const drawn = new Set<string>();
+  for (const p of map.polylines) if (p.encoded !== null) drawn.add(`${p.from}\u0000${p.to}`);
+  for (const plan of sim.plans) {
+    for (const leg of plan.legs ?? []) {
+      const ids = leg.placeIds ?? [];
+      for (let i = 0; i + 1 < ids.length; i++) {
+        if (!drawn.has(`${ids[i]}\u0000${ids[i + 1]}`)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** Deep equality of two JSON answers (plain objects, arrays, primitives); key order does not matter. */
+export function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bb = b as unknown[];
+    if (a.length !== bb.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameJson(a[i], bb[i])) return false;
+    return true;
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const keys = Object.keys(ao);
+  if (keys.length !== Object.keys(bo).length) return false;
+  for (const k of keys) {
+    if (!Object.prototype.hasOwnProperty.call(bo, k) || !sameJson(ao[k], bo[k])) return false;
+  }
+  return true;
+}
+
 /** The page message for a TravelUnavailable 503: fixed text for missing data, the server's text otherwise. */
 export function unavailableMessage(code: SimUnavailable['code'], serverText: string): string {
   return code === 'travel_data_missing' ? TRAVEL_DATA_MISSING_MESSAGE : serverText;
@@ -104,7 +144,10 @@ export function simDataReducer(state: SimDataState, action: SimDataAction): SimD
     case 'map':
       // A late map of another run is dropped; the poller fetches the right one.
       if (state.sim && action.map.runId !== state.sim.runId) return state;
-      return state.map === action.map ? state : { ...state, map: action.map };
+      // A refetch with the same content keeps the loaded object, so the layers are not rebuilt and the
+      // map does not re-fit (#528). A new line, a moved home or another employee list replaces it.
+      if (state.map === action.map || (state.map !== null && sameJson(state.map, action.map))) return state;
+      return { ...state, map: action.map };
     case 'pollFailed':
       return pollFailed(state, action.error);
     case 'busy':
