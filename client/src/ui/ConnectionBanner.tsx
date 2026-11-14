@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import './ui.css';
+import { probeHealth } from '../api';
+import { createHealthPoller } from './healthPoller';
 import {
-  HEALTH_POLL_MS, initialConnection, nextConnection, probeHealth, type ConnectionState,
+  HEALTH_POLL_MS, initialConnection, nextConnection, type ConnectionState,
 } from './connectionModel';
 
 export const OFFLINE_TEXT = "Can't reach the Relay server. Retrying…";
@@ -16,13 +18,9 @@ export function ConnectionBanner({ status }: { status: ConnectionState['status']
 export function ConnectionMonitor() {
   const [state, setState] = useState(initialConnection);
   useEffect(() => {
-    let alive = true;
-    const tick = async () => {
-      const ok = await probeHealth();
-      if (alive) setState((s) => nextConnection(s, ok));
-    };
-    const id = setInterval(tick, HEALTH_POLL_MS);
-    return () => { alive = false; clearInterval(id); };
+    const poller = createHealthPoller(probeHealth, (ok) => setState((s) => nextConnection(s, ok)));
+    const id = setInterval(() => { void poller.tick(); }, HEALTH_POLL_MS);
+    return () => { clearInterval(id); poller.stop(); };
   }, []);
   return <ConnectionBanner status={state.status} />;
 }
