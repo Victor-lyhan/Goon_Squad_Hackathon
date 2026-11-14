@@ -1,17 +1,32 @@
-// MVP II simulator page, first cut (#426). Mounted at /nyc/simulator by p2-a until the cutover
-// (DECISIONS pass 46). The one data hook owns all server traffic; the body renders it.
-// Selection is local state, seeded once from `?package=<shipmentId>` so a link opens the journey.
-// The full URL state (#407) replaces this in the follow-up.
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+// MVP II simulator page. Mounted at /nyc/simulator by p2-a until the cutover (DECISIONS pass 46).
+// The one data hook owns all server traffic; the body renders it (#426).
+// #459: the selection lives in the URL (`?package=`, `?employee=`, `?business=`, pass 47), so a link
+// opens it and Back undoes it; Esc, Space and `.` drive the page; below 900 px only the
+// desktop-only notice renders, so the data hook (its poll and map request) and the map never mount.
 import { SimPageBody } from '../../components/sim/v2/compose/SimPageBody';
-import { initialSelectionFromSearch } from '../../components/sim/v2/compose/simPageView';
-import { useSimulatorV2 } from '../../components/sim/v2/live/useSimulatorV2';
-import type { Selection } from '../../components/sim/v2/network/selectionModel';
+import { useSimulatorV2, type SimulatorV2 } from '../../components/sim/v2/live/useSimulatorV2';
+import { DesktopOnlyNotice } from '../../components/sim/v2/page/DesktopOnlyNotice';
+import type { MatchMediaFn } from '../../components/sim/v2/page/simPageState';
+import { useNarrowScreen, useSimPageState } from '../../components/sim/v2/page/useSimPageState';
 
-export default function SimulatorV2() {
-  const sim = useSimulatorV2();
-  const [params] = useSearchParams();
-  const [selection, setSelection] = useState<Selection>(() => initialSelectionFromSearch(params));
+/** The workspace for one data hook value; tests pass a hand-built one. */
+export function SimulatorV2Workspace({ sim }: { sim: SimulatorV2 }) {
+  const { selection, setSelection } = useSimPageState(sim);
   return <SimPageBody sim={sim} selection={selection} onSelectionChange={setSelection} />;
+}
+
+function LiveWorkspace() {
+  const sim = useSimulatorV2();
+  return <SimulatorV2Workspace sim={sim} />;
+}
+
+export type SimulatorV2PageProps = {
+  /** Defaults to the browser's; tests pass a fake to render the narrow layout. */
+  matchMedia?: MatchMediaFn;
+};
+
+export default function SimulatorV2({ matchMedia }: SimulatorV2PageProps = {}) {
+  const narrow = useNarrowScreen(matchMedia);
+  if (narrow) return <DesktopOnlyNotice />;
+  return <LiveWorkspace />;
 }
