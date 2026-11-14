@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { EmployeeWorkspace } from '../../client/src/components/employee/v2/EmployeeWorkspace';
 import { EMPTY_TEXT, LOCKED_TEXT } from '../../client/src/components/employee/v2/employeeWorkspaceModel';
-import { businesses, dashboard, emptyDashboard, lockedDashboard, noMorning } from './employee-v2-workspace-sample';
+import { businesses, dashboard, directView, emptyDashboard, lockedDashboard, noMorning, relayView } from './employee-v2-workspace-sample';
 
 const text = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 
@@ -98,6 +98,18 @@ describe('EmployeeWorkspace states', () => {
     expect(html.match(/class="ew-new"/g)).toHaveLength(1);
     const row = html.match(/<li class="ew-row" data-job-id="plan-shp-002-L1">.*?<\/li>/)![0];
     expect(row).toContain('>New<');
+    expectClean(html);
+  });
+
+  it('a leg shorter than the commute reads "3 min shorter" in its row, never "+-3 min" (#633)', () => {
+    const plan = { ...directView.plan, legs: [{ ...directView.plan.legs[0], extraMin: -3 }] };
+    const html = renderToStaticMarkup(
+      <EmployeeWorkspace dashboard={{ ...dashboard, assigned: [{ ...directView, plan }, relayView] }} businesses={businesses} />,
+    );
+    const row = (id: string) => html.match(new RegExp(`<li class="ew-row" data-job-id="${id}">.*?</li>`))![0];
+    expect(row(directView.job.id)).toContain('<dt>Extra time</dt><dd class="ew-mono">3 min shorter</dd>');
+    expect(row(relayView.job.id)).toContain('<dt>Extra time</dt><dd class="ew-mono">+4 min</dd>');
+    expect(html).not.toContain('+-');
     expectClean(html);
   });
 
