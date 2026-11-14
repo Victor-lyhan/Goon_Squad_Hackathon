@@ -1,0 +1,7 @@
+.sp { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+.sp-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.sp-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sp-map { min-width: 0; }
+.sp-loading { display: flex; justify-content: center; padding: 48px; }
+.sp-error { background: #fdecea; color: #8a1c13; border: 1px solid #f5c2bd; border-radius: 6px; padding: 8px 12px; }
+@media (max-width: 800px) { .sp-main { grid-template-columns: 1fr; } }
