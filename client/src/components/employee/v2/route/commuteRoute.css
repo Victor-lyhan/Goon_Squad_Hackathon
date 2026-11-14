@@ -19,7 +19,7 @@
   overflow: hidden;
   border: 1px solid var(--border, #D7DDE5);
   border-radius: var(--radius, 2px);
-  background: var(--canvas, #F7F8FA);
+  background: var(--bg, #F7F8FA);
 }
 
 /* The shared map has its own min-height; inside this block it fills the fixed height. */
@@ -83,4 +83,8 @@
   .ecr__map {
     height: 240px;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecr, .ecr *, .ecr *::before, .ecr *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }

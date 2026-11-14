@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState, type KeyboardEvent } from 'react';
 import { LOCKED_TEXT } from '../commuteModel';
 import {
-  DEFAULT_DEBOUNCE_MS, addressSearchReducer, describeSearchError, initialSearchState, isOpen, pickHome, statusText,
+  DEFAULT_DEBOUNCE_MS, addressSearchReducer, describeSearchError, initialSearchState, isOpen, keyIntent, pickHome, statusText,
   type AddressResult, type AddressSearchAction, type AddressSearchState, type HomeChoice, type SearchFn,
 } from './addressSearchModel';
 import './AddressSearch.css';
@@ -182,29 +182,13 @@ export function AddressSearch({ search, value, onChoose, disabled = false, debou
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (disabled) return;
-    switch (e.key) {
-      case 'ArrowDown':
-      case 'ArrowUp':
-        if (!isOpen(state)) return;
-        e.preventDefault();
-        dispatch({ type: 'highlight', delta: e.key === 'ArrowDown' ? 1 : -1 });
-        return;
-      case 'Enter':
-        // Never submit a surrounding form from the search box.
-        e.preventDefault();
-        if (isOpen(state) && state.highlight >= 0) choose(state.highlight);
-        return;
-      case 'Escape':
-        e.preventDefault();
-        if (isOpen(state) || state.status !== 'idle') {
-          abortInFlight();
-          dispatch({ type: 'close' });
-        } else if (value !== null && editing) {
-          cancel();
-        }
-        return;
-      default:
-    }
+    const intent = keyIntent(state, e.key, { hasValue: value !== null, editing });
+    if (intent.kind === 'none') return;
+    e.preventDefault();
+    if (intent.kind === 'highlight') dispatch({ type: 'highlight', delta: intent.delta });
+    else if (intent.kind === 'choose') choose(intent.index);
+    else if (intent.kind === 'close') { abortInFlight(); dispatch({ type: 'close' }); }
+    else if (intent.kind === 'cancel') cancel();
   };
 
   return (

@@ -141,7 +141,12 @@ export function CommuteForm({
         {fieldError('businessId')}
       </div>
 
-      <div className="cf-field" role="group" aria-labelledby={id('home-label')}>
+      <div
+        className="cf-field"
+        role="group"
+        aria-labelledby={id('home-label')}
+        aria-describedby={errors.home ? id('home-err') : undefined}
+      >
         <p className="cf-label" id={id('home-label')}>
           Home: <span className="cf-home-name">{draft.home.neighborhood}</span>
         </p>
@@ -190,6 +195,8 @@ export function CommuteForm({
           <input
             type="checkbox"
             id={id('availableEvening')}
+            aria-invalid={errors.availableEvening ? true : undefined}
+            aria-describedby={errors.availableEvening ? id('availableEvening-err') : undefined}
             checked={draft.availableEvening}
             onChange={(e) => update({ availableEvening: e.target.checked })}
           />
@@ -199,11 +206,15 @@ export function CommuteForm({
           <input
             type="checkbox"
             id={id('availableMorning')}
+            aria-invalid={errors.availableMorning ? true : undefined}
+            aria-describedby={errors.availableMorning ? id('availableMorning-err') : undefined}
             checked={draft.availableMorning}
             onChange={(e) => update({ availableMorning: e.target.checked })}
           />
           Available on the morning commute
         </label>
+        {fieldError('availableEvening')}
+        {fieldError('availableMorning')}
       </fieldset>
 
       <div className="cf-field">
@@ -226,6 +237,7 @@ export function CommuteForm({
             step={1}
             id={id('maxExtraMin-range')}
             aria-label="Maximum detour slider (minutes)"
+            aria-describedby={errors.maxExtraMin ? id('maxExtraMin-err') : undefined}
             disabled={locked || saving}
             value={rangeValue}
             onChange={(e) => update({ maxExtraMin: Number(e.target.value) })}
