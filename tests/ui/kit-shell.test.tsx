@@ -31,7 +31,7 @@ const render = (path: string) =>
 
 describe('app shell with the NYC lists', () => {
   it('skip link comes first, targets main', () => {
-    for (const p of ['/', `/business/${bid}`, `/employee/${eid}`, '/simulator', '/help', '/nope']) {
+    for (const p of ['/', `/business/${bid}`, `/employee/${eid}`, '/simulator', '/nope']) {
       const html = render(p);
       expect(html.indexOf('Skip to main content')).toBeGreaterThanOrEqual(0);
       expect(html.indexOf('<a')).toBe(html.indexOf('<a class="skip-link"'));

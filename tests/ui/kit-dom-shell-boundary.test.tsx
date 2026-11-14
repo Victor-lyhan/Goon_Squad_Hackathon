@@ -14,7 +14,6 @@ const { page } = vi.hoisted(() => ({
   page: (name: string) => async () => ({ default: (await import('./kit-dom-shell-pages')).stubPage(name) }),
 }));
 vi.mock('../../client/src/pages/Landing', page('Landing'));
-vi.mock('../../client/src/pages/Help', page('Help'));
 vi.mock('../../client/src/pages/v2/SimulatorV2', page('SimulatorV2'));
 vi.mock('../../client/src/pages/v2/EmployeeV2', page('EmployeeV2'));
 vi.mock('../../client/src/pages/v2/BusinessV2', page('BusinessV2'));
@@ -94,16 +93,16 @@ describe('a page that throws on a main path', () => {
   }, T);
 });
 
-describe('Help and the homepage', () => {
-  it('Help from a crashed page shows Help', async () => {
+describe('the homepage', () => {
+  it('the brand link from a crashed page shows the homepage', async () => {
     crashing.add('SimulatorV2');
     const s = await renderShell('/simulator');
     const fb = fallback(s.main())!;
     expect(link(fb, 'Go to the homepage').getAttribute('href')).toBe('/');
-    click(link(s.header(), 'Help'));
-    expect(s.where.path).toBe('/help');
+    click(link(s.header(), 'Relay'));
+    expect(s.where.path).toBe('/');
     expect(fallback(s.main())).toBeNull();
-    expect(textOf(s.main())).toBe('Help at /help');
+    expect(textOf(s.main())).toBe('Landing at /');
   }, T);
 
   it('a page that renders does not show the fallback', async () => {
