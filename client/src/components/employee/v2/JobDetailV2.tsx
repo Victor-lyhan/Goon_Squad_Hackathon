@@ -59,7 +59,7 @@ export function JobDetailV2({ job, businesses, homeNeighborhood, onBack }: JobDe
         <h3 id="job-v2-numbers" className="job-v2__h3">What it adds</h3>
         <dl className="job-v2__numbers">
           {m.numbers.map((n) => (
-            <div key={n.label} className="job-v2__number">
+            <div key={n.key} className="job-v2__number" data-number={n.key}>
               <dt>{n.label}</dt>
               <dd>{n.value}</dd>
             </div>

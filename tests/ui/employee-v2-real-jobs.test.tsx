@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { JobResponse } from '../../shared/v2/api';
 import type { Stop } from '../../shared/v2/types';
 import { formatCents } from '../../client/src/ui/format';
-import { STOP_ACTION, clock24, signedKm } from '../../client/src/components/employee/v2/jobDetailV2Model';
+import { STOP_ACTION, clock24, extraDistanceText } from '../../client/src/components/employee/v2/jobDetailV2Model';
 import {
   STATUS_LABEL, T, at, buildRealRun, businessName, dashboardAt, elementWith, expectCleanPage, jobAt, momentsOf,
   readyState, renderPage, textOf, type Moment, type RealRun,
@@ -110,23 +110,38 @@ describe('job detail on the real NYC run, every job at five moments', () => {
   it('shows the API extra minutes, reward and status', () => {
     eachJob((j, html, where) => {
       const numbers = textOf(elementWith(html, 'class="job-v2__numbers"')!);
-      expect(numbers, where).toContain(`Extra time +${legOf(j).extraMin} min`);
-      expect(numbers, where).toContain(`Reward ${formatCents(j.job.rewardCents)}`);
-      // The API's extra distance with its own sign (#513: a shorter detour used to read "+0 km").
-      const km = (Math.round(Math.abs(legOf(j).extraDistanceM) / 100) / 10).toString();
-      const sign = legOf(j).extraDistanceM < 0 && km !== '0' ? '-' : '+';
-      expect(numbers, where).toContain(`Extra distance ${sign}${km} km`);
+      // Reward first, then extra time, then extra distance (#551).
+      expect(numbers, where).toContain(`Reward ${formatCents(j.job.rewardCents)} Extra time +${legOf(j).extraMin} min Extra distance `);
+      // The API's extra distance in words (#551): "+3.4 km", "5.5 km shorter" or "No extra distance".
+      const d = legOf(j).extraDistanceM;
+      const km = (Math.round(Math.abs(d) / 100) / 10).toString();
+      const words = km === '0' ? 'No extra distance' : d < 0 ? `${km} km shorter` : `+${km} km`;
+      expect(numbers, where).toContain(`Extra distance ${words}`);
       expect(html, where).toContain(`data-status="${j.status}"`);
       expect(textOf(elementWith(html, 'class="job-v2__status"')!), where).toContain(STATUS_LABEL[j.status]);
     });
   }, T);
 
-  it('has a leg whose detour is shorter than the usual commute, so the sign rule above is exercised', () => {
+  it('has a leg whose detour is shorter than the usual commute, so the "shorter" wording above is exercised', () => {
     // Real Google routes do this; the sample data never did. Not a count: just that the case exists.
     expect(real.run.assignments.plans.some((p) => p.legs.some((l) => l.extraDistanceM <= -50))).toBe(true);
-    expect(signedKm(-5496)).toBe('-5.5 km');
-    expect(signedKm(-16)).toBe('+0 km');
-    expect(signedKm(3400)).toBe('+3.4 km');
+    expect(extraDistanceText(-5496)).toBe('5.5 km shorter');
+    expect(extraDistanceText(-16)).toBe('No extra distance');
+    expect(extraDistanceText(3400)).toBe('+3.4 km');
+  }, T);
+
+  it('never puts a minus sign directly before a number, nor NaN or undefined, anywhere in the job view (#551)', () => {
+    eachJob((_j, html, where) => {
+      const view = elementWith(html, 'class="job-v2"');
+      expect(view, where).not.toBeNull();
+      const t = textOf(view!);
+      // A sign: an ASCII hyphen or Unicode minus not joined to a word before it. Queens house numbers
+      // ("10-93 Jackson Avenue") and the en dash of "17:32–17:34" are not signs.
+      const m = /(?:^|[^\w])[-\u2212]\s*\d/.exec(t);
+      if (m) throw new Error(`${where}: a minus before a number in the job view: ${t.slice(Math.max(0, m.index - 60), m.index + 20)}`);
+      expect(t, where).not.toMatch(/NaN|undefined/);
+      expect(textOf(elementWith(html, 'class="job-v2__numbers"')!), where).not.toContain('+0 km');
+    });
   }, T);
 
   it('numbers the same stops under the route preview, by business name', () => {

@@ -22,6 +22,8 @@ export type RouteRow = {
   done: boolean;
 };
 
+export type NumberKey = 'reward' | 'extra-time' | 'extra-distance' | 'usual-commute';
+
 export type JobDetailV2Model = {
   title: string;
   legKind: string;
@@ -30,7 +32,8 @@ export type JobDetailV2Model = {
   statusLabel: string;
   statusNote: string;
   route: RouteRow[];
-  numbers: { label: string; value: string }[];
+  /** "What it adds", reward first (#551). `key` is a stable hook for styling and tests. */
+  numbers: { key: NumberKey; label: string; value: string }[];
   relay: string | null;
   watchHref: string;
 };
@@ -151,15 +154,27 @@ export function formatKm(meters: number): string {
   return `${Number.isInteger(km) ? km : km.toFixed(1)} km`;
 }
 
+export const NO_EXTRA_DISTANCE = 'No extra distance';
+export const DISTANCE_UNAVAILABLE = 'Distance unavailable';
+
 /**
- * Extra distance with its sign: "+3.4 km", or "-5.5 km" when the detour route is shorter than the usual one
- * (real Google routes: the fastest path with stops can be shorter than the fastest path without). The API value
- * is shown as sent; before #513 a negative value read "+0 km".
+ * The API's extra distance in plain words (#551, DECISIONS pass 58): "+3.4 km" when the detour is longer,
+ * "5.5 km shorter" when the route with the stops is shorter than the usual one (real Google routes: the fastest
+ * path with stops can be shorter than the fastest path without), "No extra distance" for zero (or a value that
+ * rounds to 0.0 km), "Distance unavailable" for a value that is not a number. Only formatting: the number is the
+ * matcher's `extraDistanceM`.
  */
-export function signedKm(meters: number): string {
-  if (!Number.isFinite(meters)) return '+0 km';
+export function extraDistanceText(meters: number | null | undefined): string {
+  if (typeof meters !== 'number' || !Number.isFinite(meters)) return DISTANCE_UNAVAILABLE;
   const km = formatKm(Math.abs(meters));
-  return meters < 0 && km !== '0 km' ? `-${km}` : `+${km}`;
+  if (km === '0 km') return NO_EXTRA_DISTANCE;
+  return meters < 0 ? `${km} shorter` : `+${km}`;
+}
+
+/** Extra minutes as sent: "+8 min" ("+0 min" for zero), "3 min shorter" if a matcher ever sends less. */
+export function extraTimeText(minutes: number | null | undefined): string {
+  if (typeof minutes !== 'number' || !Number.isFinite(minutes)) return 'Time unavailable';
+  return minutes < 0 ? `${Math.abs(minutes)} min shorter` : `+${minutes} min`;
 }
 
 /** Simulator deep link with this package selected (DECISIONS pass 8). */
@@ -167,8 +182,6 @@ export const watchHref = (job: JobResponse) => `/simulator?package=${encodeURICo
 
 export function jobDetail(job: JobResponse, businesses: NetworkBusiness[], homeNeighborhood: string): JobDetailV2Model {
   const leg = job.plan.legs[job.job.legIndex];
-  const extraMin = leg?.extraMin ?? 0;
-  const extraM = leg?.extraDistanceM ?? 0;
   return {
     title: job.shipment.label,
     legKind: legKindLabel(job),
@@ -178,10 +191,11 @@ export function jobDetail(job: JobResponse, businesses: NetworkBusiness[], homeN
     statusNote: STATUS_NOTE[job.status] ?? '',
     route: routeRows(job, businesses, homeNeighborhood),
     numbers: [
-      { label: 'Extra time', value: `+${Number.isFinite(extraMin) ? extraMin : 0} min` },
-      { label: 'Extra distance', value: signedKm(extraM) },
-      { label: 'Reward', value: formatCents(Number.isFinite(job.job.rewardCents) ? job.job.rewardCents : 0) },
-      { label: 'Usual commute', value: formatDuration(Number.isFinite(job.trip.baselineDurationMin) ? job.trip.baselineDurationMin : 0) },
+      // Reward first: it is what the carrier gets; then what it costs them (#551).
+      { key: 'reward', label: 'Reward', value: formatCents(Number.isFinite(job.job.rewardCents) ? job.job.rewardCents : 0) },
+      { key: 'extra-time', label: 'Extra time', value: extraTimeText(leg?.extraMin) },
+      { key: 'extra-distance', label: 'Extra distance', value: extraDistanceText(leg?.extraDistanceM) },
+      { key: 'usual-commute', label: 'Usual commute', value: formatDuration(Number.isFinite(job.trip.baselineDurationMin) ? job.trip.baselineDurationMin : 0) },
     ],
     relay: relaySentence(job, businesses),
     watchHref: watchHref(job),
