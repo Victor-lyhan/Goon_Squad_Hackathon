@@ -138,11 +138,17 @@ export function CityMap({
         <rect className="legend-bg" x={lx} y={ly} width={260} height={88} rx={6} />
         <rect className="biz" x={lx + 12} y={ly + 10} width={14} height={14} rx={2} />
         <text x={lx + 36} y={ly + 23}>Business</text>
-        <circle className="hub" cx={lx + 19} cy={ly + 45} r={8} />
-        <text x={lx + 36} y={ly + 52}>Hub</text>
+        {hubs.length > 0 ? (
+          <>
+            <circle className="hub" cx={lx + 19} cy={ly + 45} r={8} />
+            <text x={lx + 36} y={ly + 52}>Hub</text>
+          </>
+        ) : (
+          <text className="legend-muted" x={lx + 12} y={ly + 52}>No hubs in this city</text>
+        )}
         <circle className="home" cx={lx + 19} cy={ly + 72} r={7} />
         <text x={lx + 36} y={ly + 79}>Home</text>
-        <line className="route-hi" x1={lx + 130} x2={lx + 160} y1={ly + 20} y2={ly + 20} />
+        <line className="legend-route" x1={lx + 130} x2={lx + 160} y1={ly + 20} y2={ly + 20} />
         <text x={lx + 168} y={ly + 26}>Route</text>
       </g>
     </svg>
