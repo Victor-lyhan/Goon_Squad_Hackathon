@@ -12,6 +12,8 @@ export type StopRow = {
   arrival: string;
   service: string;
   instructions: string;
+  /** Done per the API's job status (pickup once in progress, drop-off once completed). */
+  done: boolean;
 };
 
 export type JobDetailModel = {
@@ -23,6 +25,8 @@ export type JobDetailModel = {
   added: string;
   reward: string;
   relay: string | null;
+  hubNote: string | null;
+  trip: string;
   progress: string;
   trackHref: string;
   watchHref: string;
@@ -51,6 +55,26 @@ export function relayExplanation(job: JobResponse, l: JobLookups): string | null
   return `Collect from ${hub} and deliver to ${dest}`;
 }
 
+/** Marks a stop done from the API job status alone: pickup once in progress, drop-off once completed. */
+function stopDone(job: JobResponse, s: { nodeId: string; kind: StopKind }): boolean {
+  if (job.status === 'completed') return true;
+  if (job.status !== 'in_progress') return false;
+  return s.nodeId === job.job.pickup.nodeId && s.kind === job.job.pickup.kind;
+}
+
+/** Which commute this job rides, from the API trip. */
+export const tripLabel = (job: JobResponse) =>
+  job.trip.direction === 'evening' ? 'Evening commute, Day 1' : 'Morning commute, Day 2';
+
+/** Where this leg meets the hub; null for direct plans. */
+export function hubNote(job: JobResponse, l: JobLookups): string | null {
+  if (job.plan.kind !== 'relay') return null;
+  const hub = l.hubs.find((h) => h.id === job.plan.hubId)?.name ?? 'the hub';
+  return job.job.legIndex === 0
+    ? `Your leg ends at ${hub}. The package waits there overnight.`
+    : `Your leg starts at ${hub}, where the package waited overnight.`;
+}
+
 /** Ordered stops of this job's leg with names, times and instructions. */
 export function stopRows(job: JobResponse, l: JobLookups): StopRow[] {
   const leg = job.plan.legs[job.job.legIndex];
@@ -62,6 +86,7 @@ export function stopRows(job: JobResponse, l: JobLookups): StopRow[] {
     place: placeName(s.nodeId, l),
     arrival: formatMin(s.arrivalMin),
     service: `${formatMin(s.serviceStartMin)} to ${formatMin(s.serviceEndMin)}`,
+    done: stopDone(job, s),
     instructions: s.kind === 'pickup' ? shipment.pickupInstructions
       : s.kind === 'delivery' ? shipment.dropoffInstructions : '',
   }));
@@ -116,6 +141,8 @@ export function toJobDetailModel(job: JobResponse, l: JobLookups, progress?: Shi
     added: `+${leg?.extraMin ?? 0} min`,
     reward: formatCents(job.job.rewardCents),
     relay: relayExplanation(job, l),
+    hubNote: hubNote(job, l),
+    trip: tripLabel(job),
     progress: progressNote(job, l, progress),
     trackHref: trackHref(job),
     watchHref: watchHref(job),
