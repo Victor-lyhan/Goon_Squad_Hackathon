@@ -6,7 +6,7 @@ import type {
   Employee, Leg, NetworkBusiness, PackageCategory, Phase, ShipmentProgress, StopKind,
 } from '../../../../../shared/v2/types';
 import { jobIdFor } from '../../../../../shared/v2/types';
-import { carrierHref, simulatorHref } from '../trackingModel';
+import { carrierHref, simulatorHref } from './links';
 import { formatCents, formatDuration, formatKg, formatMin } from '../../../ui/format';
 
 export const UNKNOWN_PLACE = 'Unknown place';
