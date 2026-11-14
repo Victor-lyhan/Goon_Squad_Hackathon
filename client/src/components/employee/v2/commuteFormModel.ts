@@ -222,8 +222,9 @@ export function saveReducer(state: SaveState, action: SaveAction): SaveState {
 
 // ---------- Copy ----------
 
+/** The one locked sentence of the editor (#598); the address search prints none of its own. */
 export const LOCKED_MESSAGE =
-  'The run is playing, so the commute is read-only. Start a new planning cycle to edit it.';
+  'The run is playing, so the commute is read-only. To edit it, press "Start new planning cycle" in the simulator.';
 
 export function unavailableMessage(code: UnavailableCode): string {
   return code === 'google_key_missing'

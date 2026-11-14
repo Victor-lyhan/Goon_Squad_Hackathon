@@ -40,6 +40,21 @@
   font-weight: 400;
 }
 
+/* #598: the home is printed once, with its control (Change) on the same line. When the control shows
+   the search input it takes a line of its own, as do the hint and the error. */
+.cf-home {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.cf-home > .cf-hint,
+.cf-home > .cf-error,
+.cf-home:has(.cf-home-control input) > .cf-home-control {
+  flex: 1 1 100%;
+}
+
 .cf-hint {
   margin: 0;
   color: var(--muted, #5B6472);

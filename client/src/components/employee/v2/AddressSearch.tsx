@@ -1,8 +1,9 @@
 // MVP II home address search (#331): replaces clicking a grid node in the commute editor.
 // ARIA combobox pattern; debounced, abortable search through an injected SearchFn.
 // Only { neighborhood, lat, lng } ever leaves this control (SPEC MVP II rule 6).
+// #598: the control prints neither the home nor a locked sentence. The commute form around it does both,
+// once: its group label reads "Home: <neighborhood>" and its message says why a locked run is read-only.
 import { useCallback, useEffect, useId, useReducer, useRef, useState, type KeyboardEvent } from 'react';
-import { LOCKED_TEXT } from '../commuteModel';
 import {
   DEFAULT_DEBOUNCE_MS, addressSearchReducer, describeSearchError, initialSearchState, isOpen, keyIntent, pickHome, statusText,
   type AddressResult, type AddressSearchAction, type AddressSearchState, type HomeChoice, type SearchFn,
@@ -49,8 +50,6 @@ export function AddressSearchView({
     <div className="addr-search">
       {value !== null && !showSearch && (
         <div className="addr-search__chosen">
-          <span className="addr-search__label">Home:</span>{' '}
-          <span className="addr-search__neighborhood">{value.neighborhood}</span>
           <button type="button" className="addr-search__btn" onClick={onChange} disabled={disabled}>Change</button>
         </div>
       )}
@@ -106,7 +105,6 @@ export function AddressSearchView({
           <button type="button" className="addr-search__btn" onClick={onRetry}>Retry</button>
         )}
       </div>
-      {disabled && <p className="addr-search__locked">{LOCKED_TEXT}</p>}
     </div>
   );
 }
