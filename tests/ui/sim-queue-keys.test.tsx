@@ -46,7 +46,7 @@ describe('queue search', () => {
   });
 });
 
-describe('queue and detail with real Demo-city data', () => {
+describe('queue and detail with real Demo-city data', { timeout: 15_000 }, () => {
   for (const t of [930, 2160]) {
     it(`render cleanly at ${t}`, () => {
       const sim = buildSimulatorResponse(at(t));

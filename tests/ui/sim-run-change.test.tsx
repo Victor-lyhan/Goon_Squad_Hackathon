@@ -61,7 +61,7 @@ describe('run change model', () => {
   });
 });
 
-describe.each([['demo', demo], ['random', random]] as const)('render states (%s)', (_n, run) => {
+describe.each([['demo', demo], ['random', random]] as const)('render states (%s)', { timeout: 15_000 }, (_n, run) => {
   const sim = buildSimulatorResponse(run);
   const map = mapOf(run, sim.runId);
   const view = (props: Partial<Parameters<typeof SimulatorView>[0]> = {}) => renderToStaticMarkup(

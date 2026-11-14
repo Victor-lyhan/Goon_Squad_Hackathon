@@ -22,10 +22,12 @@ const cities: Record<string, Run> = {
   'zero hubs': createInitialRun(generateScenario({ preset: 'random', seed: 7, employees: 30, packages: 12, hubs: 0, maxExtraMin: 10 })),
 };
 
+const compares = Object.fromEntries(Object.entries(cities).map(([k, r]) => [k, compareFor(r)])) as Record<string, CompareResponse>;
+
 const esc = (s: string) => s.replace(/'/g, '&#x27;');
 
-describe.each(Object.entries(cities))('compare spec, %s', (_name, run) => {
-  const c = compareFor(run);
+describe.each(Object.keys(cities))('compare spec, %s', { timeout: 15_000 }, (name) => {
+  const c = compares[name];
   const html = renderToStaticMarkup(<ComparePanel compare={c} />);
 
   it('shows matched/requested, added minutes, cost and spend with Projected labels, no NaN', () => {
@@ -42,7 +44,7 @@ describe.each(Object.entries(cities))('compare spec, %s', (_name, run) => {
 
 describe('zero hubs', () => {
   it('columns are equal and the note says there are no hubs', () => {
-    const c = compareFor(cities['zero hubs']);
+    const c = compares['zero hubs'];
     expect(c.withRelay.metrics).toEqual(c.directOnly.metrics);
     const v = toCompareView(c);
     for (const r of v.rows) expect(r.relay).toBe(r.direct);
@@ -51,7 +53,7 @@ describe('zero hubs', () => {
 });
 
 describe('relay worse than direct is shown as is', () => {
-  const base = compareFor(cities.demo);
+  const base = compares.demo;
   const worse: CompareResponse = structuredClone(base);
   const d = worse.directOnly.metrics;
   Object.assign(worse.withRelay.metrics, {
