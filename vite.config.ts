@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 // Client lives in client/, builds to client/dist. Dev: 5173, /api proxied to Express on 3001.
 export default defineConfig({
   root: 'client',
+  envDir: '..', // read the repo-root .env (VITE_GOOGLE_MAPS_BROWSER_KEY); root is client/
   plugins: [react()],
   server: {
     port: 5173,

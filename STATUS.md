@@ -1,51 +1,53 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 11:07 (Sat), planner pass 43_
+_Last update: 2026-11-14, about 12:05 (Sat), planner pass 44 (started 11:37)_
 
-## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). GitHub was unchanged again (no open issues or PRs since pass 23), so this pass I read the interactive UI code (pages, hooks, effects) for bugs that static-render tests can't see. I found three and queued four issues (#317–#320). No test has failed; these come from reading the code, not from running the app in a browser.
+## Current milestone: M7 Foundation (MVP II, target 2:00 p.m. Sat)
+MVP II landed in SPEC.md at 11:36–11:45 (real NYC + Google travel times, relay points = network businesses, full UI redesign, package journey mode, new worker victor-3 for the geo layer). MVP 1 (M0–M6) is complete on main. This pass set the migration plan and queued the 10 M7 issues that don't need the new contracts. Everything else waits for #322.
 
-## Main health: GREEN
-- The three latest main runs in the state handed to the planner passed (10:08, 10:30, 10:32 planner commits). The last code merge is #316.
-- `gh run list` and `gh pr list` still need approval in this run, so I couldn't recheck them. `gh issue list` ran and showed no open issues before I queued.
+**Plan: build MVP II side by side, then swap** (DECISIONS pass 44). New code goes in `shared/v2/`, `server/domain/v2/`, `server/api/v2/` (routes under `/api/v2`), `server/geo/` and `v2` subfolders of the UI. MVP 1 files stay untouched and its demo keeps working on main until the route swap. Tokens, shell and homepage are restyled in place.
+
+## Main health: GREEN (last finished runs passed; the three human MVP II commits are docs only)
+- I can't run `gh run list` in this run, so the 11:36–11:45 commits' CI is unconfirmed. They change only SPEC.md, AGENTS.md, DECISIONS.md and docs/.
 
 ## Stuck
 - None.
 
-## In review
-- None.
+## In progress (picked up within minutes)
+- #322 victor-1 **[P0, first]**: `shared/v2` contracts (data model, `TravelProvider`, API types, schemas, fixture formats). Blocks p1-a and most next issues.
+- #327 p1-b: NYC data set (18 businesses without coordinates, 8–10 neighborhoods, demo story with 24 packages).
+- #329 victor-2: Google basemap + deck.gl map component; installs all seven MVP II client dependencies; adds `envDir` to vite.config.ts.
+- #323 victor-3: Google HTTP client (geocode, route matrix in ≤ 625-element batches, polylines), injected fetch, no key leaks.
 
 ## Queued (label `ready`)
-- #317 p2-b **[P0 demo]**: unsaved commute edits are wiped by the 1 s poll (`CommuteEditor.tsx:33`). Affects demo steps 1 and 7 and waypoints.
-- #318 victor-2: map markers are drawn at the new position for one frame on each poll, then jump back and tween (`MapMarkers.tsx:45-64`).
-- #319 p2-a: business mini-maps never get `runId`, so they keep the old city after Generate/Import (`ShipmentForm.tsx:126`, `TrackingDetail.tsx:34`).
-- #320 p2-a: real-DOM test harness (`jsdom` devDependency, per-file) with UI-kit interaction tests.
-- p1-a, p1-b and victor-1 have nothing queued: their code is fully exercised by domain and API tests (no filler, DECISIONS pass 13).
+- #328 p1-b: polyline geometry for the simulation (decode, position by share of travel time).
+- #330 victor-2: simulator workspace frame (full-width map slot, left/right panels, layer toggles, focus selector, journey-mode frame, package list).
+- #324, #325, #326 p2-a: design tokens + UI kit restyle; enterprise header + `/help` page; new homepage.
+- #317 p2-b **[P0 for the MVP 1 fallback]**: commute editor form resets on every 1 s poll.
+- #331 p2-b: home address search control (stores neighborhood + coordinates only).
+- p1-a: nothing yet. The matcher port needs #322 merged (dependency rule).
 
-## Next up
-- After #320 merges: one DOM interaction test issue per UI worker (edit a commute while polling, send flow, playback bar and Setup drawer clicks).
-- From the humans: the M6 bug list, a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and answers on a global `testTimeout`, the Codex sandbox's EPERM on listen, and `scripts/worker.sh` hiding `gh pr create` errors (QUESTIONS passes 18–23). Then M6 (11 p.m. Sat): bug fixes only.
+## Next up (after #322 merges)
+- victor-3: `CachedProvider` / `GoogleProvider` / `FakeProvider`, `scripts/fetch-routes.ts` + `npm run fetch:routes`, geocode route, loading `.env` on the server.
+- p1-a: matcher on `TravelProvider` in `server/domain/v2/matching.ts` (relay = any other business), spec tests ported to `FakeProvider`.
+- p1-b: 120-home pool + NYC scenario generator, v2 timeline and `snapshotAt` (lat/lng, polyline movement), metrics.
+- victor-1: `/api/v2` routes, store and pipeline on the v2 model, `client/src/api` v2 helpers.
+- victor-2: compose frame + map + playback; then **package journey mode first** (M8). p2-a: font imports, business workspace. p2-b: employee workspace + v2 commute editor.
+- **HUMAN CHECKPOINT:** when the providers, the script and #327 are merged, Victor runs `npm run fetch:routes` and commits `fixtures/nyc/`. Nothing NYC can run before that.
+- Then: cutover (routes swap to the v2 pages, indicator text becomes "Real NYC locations · simulated deliveries"), delete MVP 1 code.
+
+## Closed this pass
+- #319 (business mini-maps `runId`): the SVG mini-maps are replaced in MVP II.
+- #320 (jsdom harness): deferred to M9; it competes with #329 for package.json and with M7 for p2-a's time.
 
 ## Done (newest first)
-- PR #316 (#303) p1-a: matcher/routing CI timing sweep. Matcher perf is 218 ms (default) and 554 ms (maximum), against limits of 2,000 and 5,000 ms.
-- PR #315 (#314) victor-1: `notifications-cycles` cut from 8.4 s to about 1.0 s. New `commute-latency` test: demo commute PUT median about 26 ms, against a 150 ms budget.
-- PR #313 (#304) p1-b, #312 (#305) victor-1, #311 (#307) p2-a, #310 (#308) p2-b, #309 (#306) victor-2: CI timing sweeps (explicit 3x timeouts, data built once per file, perf limits unchanged)
-- PR #302 (#301) p1-b: metrics-timeline test per city, CI-sized timeouts (main green again)
-- PR #299 (#298) p2-a: connection banner uses the `client/src/api` health probe, no overlapping probes
-- PR #297 (#259), #294 (#257), #293 (#136), #292 (#134) p1-a: matcher property tests on 20 seeds; routing insertion §6; spec test 10; matcher edge cases
-- PR #285 (#271), #283 (#256), #270 (#255), #267 (#254) p1-b: metrics at every event minute; spec test 7; simulation §7 audit; generator §5 audit
-- PR #296 (#295), #284 (#277), #282 (#276), #280 (#275) p2-a: business poll cancellation; accessible toasts; tracking drawer §3A; reconnect/runId
-- PR #290 (#287), #281 (#274), #278 (#273), #268 (#250) victor-2: simulator poll cancellation; map on the largest city; package queue §3C; compare honesty
-- PR #289 (#286), #279 (#272), #269 (#247), #266 (#245) victor-1: health probe in client/src/api; clean shutdown + busy port; notifications across cycles; abortable GETs
-- PR #291 (#288), #261 (#253), #246 (#227) p2-b: employee poll abort on identity switch; job feed; reconnect/runId
-- PR #240 and earlier: see git log
+- PR #321 (#318) victor-2: map markers no longer flash forward on each poll.
+- MVP 1 complete: must-haves 1–10, nice-to-haves 11–15, scrubber, Duplicate request; CI timing sweeps #309–#316. See git log for PR #316 and earlier.
 
 ## Known bugs / gaps
-- **Commute editor resets every second in a browser (#317).** Until it merges, an edit only sticks if Save is pressed within about a second.
-- Simulator markers flicker once per poll while moving (#318). Cosmetic.
-- Business mini-maps show the old city after Generate/Import until a page reload (#319).
-- No test runs effects, clicks or timers; all UI tests are static renders (#320 starts fixing this). Nobody has done a real two-tab browser walkthrough.
-- A commute PUT that rescues unmatched packages takes about 77 ms on the test city; the demo city is about 26 ms. Not being optimized before the freeze (DECISIONS pass 21).
-- The `GET /api/simulator` payload is about 103 KB on the largest random city, against a 150 KB budget (#312).
-- The p1-b Codex sandbox can't run the API tests (EPERM on `listen(0)`), so its PRs rely on CI.
-- Setup drawer CRUD (nice-to-have 16) is blocked on `shared/` contracts.
+- **p2-a and p2-b have not picked up an issue since about 6:30 a.m.** (#317, #319, #320 sat `ready` for 30+ min while victor-2 took #318 in 4 min). If those workers are down, tokens, shell, homepage and the employee workspace stall (QUESTIONS pass 44).
+- Git tag `mvp1` (the fallback named in SPEC) does not exist in this clone.
+- Commute editor resets every second in a browser (#317), on the MVP 1 pages.
+- No agent can see the Google map: workers have no keys. The first visual check of #329 must be done by a human.
+- Until the human fetch, MVP II runs only on `FakeProvider` in tests; `/api/v2` will answer 503 without the cache.
+- The p1-b Codex sandbox can't run the API tests (EPERM on listen), so its PRs rely on CI.
