@@ -5,10 +5,15 @@
 // Nothing here computes a status, an ETA or money. Steps, times, extra minutes, rewards and the
 // planned delivery time are read from the plan; step states from `snapshot.occurredEvents`; the
 // status from `snapshot.shipmentStatus`; the delivered time from `snapshot.deliveredAtMin`.
+//
+// The map (docs/mvp3.md P1, P4): each carrier's whole commute of that trip thin in its colour, the part
+// where it has the package thick; symbols instead of numbered stops (sender square, relay diamond, swap
+// at the handoff, recipient flag) with short labels; carrier A and B letters on the vehicles.
 import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
 import type { DeliveryPlan, Leg, ShipmentProgress, SimEventKind, StopKind } from '../../../../../../shared/v2/types';
-import { decodePath } from '../../../map/layers';
-import type { LatLngBounds, MapMover, MapPlace, MapRoute, MapStop, RouteTone } from '../../../map/types';
+import { formatClock } from '../../../../ui/format';
+import { decodePath, toneLetter } from '../../../map/layers';
+import type { LatLngBounds, MapMover, MapPlace, MapRoute, MapStop, RouteTone, StopSymbol } from '../../../map/types';
 import { commuteLabel, journeyLegLabel } from '../network/networkIndex';
 
 export const UNKNOWN_PLACE = 'Unknown place';
@@ -44,6 +49,8 @@ export type JourneyCarrier = {
   name: string;
   legIndex: number;
   tone: RouteTone;
+  /** "A" for the first leg's carrier, "B" for the second: the letter on the vehicle and in the legend. */
+  letter: 'A' | 'B';
   homeNeighborhood: string;
   /** `Leg.extraMin` of this carrier's leg. */
   extraMin: number;
@@ -169,6 +176,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
       name: carrierName(leg.employeeId),
       legIndex,
       tone: toneOf(legIndex),
+      letter: toneLetter(toneOf(legIndex)),
       homeNeighborhood: (homeId && homes.get(homeId)?.neighborhood) || UNKNOWN_NEIGHBORHOOD,
       extraMin: leg.extraMin,
       rewardCents: leg.rewardCents,
@@ -195,13 +203,41 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
     places.push({ id: h.id, kind: 'home', lat: h.lat, lng: h.lng, label: `Home of ${c.name}`, sublabel: h.neighborhood });
   }
 
-  // ---- Routes: per carrier, the faint normal commute and the actual route through the stops ----
+  // ---- Routes: per carrier, the whole commute (thin) and the part with the package (thick) ----
   const routes = buildRoutes(plan, shipmentId, map, (employeeId) => employees.get(employeeId)?.name);
 
-  // ---- Numbered stop markers ----
+  // ---- Stop symbols with short labels (times are clock times; the day/night badge gives the day) ----
+  const deliveredAt = sim.snapshot.deliveredAtMin?.[shipmentId];
+  const deliveredAtMin = typeof deliveredAt === 'number' && Number.isFinite(deliveredAt) ? deliveredAt : null;
+  const knownName = (id: string) => businesses.get(id)?.name?.trim() || '';
+  const carrierB = carriers[1] ? employees.get(carriers[1].employeeId)?.name?.trim() : undefined;
+  const symbolOf = (s: JourneyStep): { symbol: StopSymbol; label: string } => {
+    switch (s.kind) {
+      case 'pickup':
+        return { symbol: 'sender', label: knownName(s.placeId) || 'Sender' };
+      case 'hub_drop':
+        return { symbol: 'relay', label: joinLabel('Overnight', knownName(s.placeId)) };
+      case 'hub_pickup':
+        return { symbol: 'swap', label: carrierB ? `Handed to ${carrierB}` : 'Handed to carrier B' };
+      default:
+        return {
+          symbol: 'recipient',
+          label: deliveredAtMin !== null
+            ? `Delivered ${formatClock(deliveredAtMin)}`
+            : knownName(s.placeId) ? `To ${knownName(s.placeId)}` : 'To recipient',
+        };
+    }
+  };
   const stops: MapStop[] = steps
     .filter((s): s is JourneyStep & { lat: number; lng: number } => s.lat !== null && s.lng !== null)
-    .map((s) => ({ id: `stop-${shipmentId}-${s.n}`, n: s.n, lat: s.lat, lng: s.lng, label: `${s.label} · ${s.placeName}` }));
+    .map((s) => ({
+      id: `stop-${shipmentId}-${s.n}`,
+      n: s.n,
+      lat: s.lat,
+      lng: s.lng,
+      ...symbolOf(s),
+      detail: `${s.label} · ${s.placeName}`,
+    }));
 
   // ---- Movers: the package and its carriers' vehicles, as the snapshot places them ----
   const movers: MapMover[] = [];
@@ -209,14 +245,14 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   if (pkg && Number.isFinite(pkg.lat) && Number.isFinite(pkg.lng)) {
     movers.push({ id: shipmentId, kind: 'package', lat: pkg.lat, lng: pkg.lng, label: title });
   }
-  // Each carrier's vehicle has its leg's tone (first carrier leg1, second leg2). If one person carries
-  // both legs, the vehicle keeps the first leg's tone, the same dot JourneyLegend shows for them.
-  const toneOfCarrier = new Map<string, RouteTone>();
-  for (const c of carriers) if (!toneOfCarrier.has(c.employeeId)) toneOfCarrier.set(c.employeeId, c.tone);
+  // Each carrier's vehicle has its leg's tone and letter (first carrier leg1 "A", second leg2 "B"). If one
+  // person carries both legs, the vehicle keeps the first leg's tone and letter.
+  const carrierOf = new Map<string, JourneyCarrier>();
+  for (const c of carriers) if (!carrierOf.has(c.employeeId)) carrierOf.set(c.employeeId, c);
   for (const m of sim.snapshot.markers) {
-    const tone = toneOfCarrier.get(m.employeeId);
-    if (!tone || !Number.isFinite(m.lat) || !Number.isFinite(m.lng)) continue;
-    movers.push({ id: m.employeeId, kind: 'vehicle', lat: m.lat, lng: m.lng, label: carrierName(m.employeeId), tone });
+    const c = carrierOf.get(m.employeeId);
+    if (!c || !Number.isFinite(m.lat) || !Number.isFinite(m.lng)) continue;
+    movers.push({ id: m.employeeId, kind: 'vehicle', lat: m.lat, lng: m.lng, label: carrierName(m.employeeId), tone: c.tone, badge: c.letter });
   }
 
   const points: [number, number][] = [
@@ -226,7 +262,6 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   ];
 
   const status = sim.snapshot.shipmentStatus[shipmentId] ?? null;
-  const delivered = sim.snapshot.deliveredAtMin?.[shipmentId];
   return {
     kind: 'journey',
     shipmentId,
@@ -235,7 +270,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
     status,
     statusLabel: statusLabelOf(status),
     deliveryMin: plan.deliveryMin,
-    deliveredAtMin: typeof delivered === 'number' && Number.isFinite(delivered) ? delivered : null,
+    deliveredAtMin,
     steps,
     carriers,
     places,
@@ -258,10 +293,19 @@ function pairPath(map: MapResponse, from: string, to: string): [number, number][
   }
 }
 
+/** "Overnight · Roastery", or "Overnight" alone when the name is unknown. */
+function joinLabel(head: string, name: string): string {
+  return name ? `${head} · ${name}` : head;
+}
+
 /**
- * Baseline = the trip's origin → destination (first and last `Leg.placeIds`). Leg = the actual route,
- * one line per run of consecutive place pairs that all have a polyline: a missing pair splits the
- * line instead of bridging the gap with an invented straight segment (DECISIONS pass 44).
+ * Per carrier, two kinds of `leg` route in the carrier's tone:
+ * - `carried: false`: the whole trip of that commute (`Leg.placeIds`: home to work in the morning, work to
+ *   home in the evening, through the stops), drawn thin;
+ * - `carried: true`: the part from the carrier's pickup stop to its drop stop, drawn thick on top.
+ * Each is one line per run of consecutive place pairs that all have a polyline: a missing pair splits
+ * the line instead of bridging the gap with an invented straight segment (DECISIONS pass 44). The grey
+ * normal commute (origin to destination without stops) is not drawn in a journey.
  */
 function buildRoutes(
   plan: DeliveryPlan,
@@ -278,33 +322,41 @@ function buildRoutes(
     const name = nameOf(leg.employeeId);
     const commute = commuteLabel(name, leg.tripId);
     const label = journeyLegLabel(name, legIndex);
-    if (ids.length >= 2) {
-      const base = pairPath(map, ids[0], ids[ids.length - 1]);
-      if (base) {
-        routes.push({ id: `journey-${shipmentId}-L${legIndex}-baseline`, kind: 'baseline', path: base, ownerIds, ...(commute ? { label: commute } : {}) });
-      }
-    }
-    let run: [number, number][] = [];
-    let part = 0;
-    const flush = () => {
-      if (run.length >= 2) {
-        routes.push({ id: `journey-${shipmentId}-L${legIndex}-leg-${part}`, kind: 'leg', tone, path: run, ownerIds, label });
-        part += 1;
-      }
-      run = [];
-    };
-    for (let i = 0; i + 1 < ids.length; i += 1) {
-      const seg = pairPath(map, ids[i], ids[i + 1]);
-      if (!seg) {
-        flush();
-        continue;
-      }
-      // Consecutive segments share their joining place; drop the duplicate first point.
-      run = run.length ? [...run, ...seg.slice(1)] : seg;
-    }
-    flush();
+    runsOf(map, ids).forEach((path, part) => {
+      routes.push({ id: `journey-${shipmentId}-L${legIndex}-trip-${part}`, kind: 'leg', tone, carried: false, path, ownerIds, ...(commute ? { label: commute } : {}) });
+    });
+    // The carried part: from the first stop's place to the last stop's place, in travel order.
+    const first = leg.stops[0]?.placeId;
+    const last = leg.stops[leg.stops.length - 1]?.placeId;
+    const from = first ? ids.indexOf(first) : -1;
+    const to = last && from >= 0 ? ids.indexOf(last, from + 1) : -1;
+    if (from < 0 || to < 0) return;
+    runsOf(map, ids.slice(from, to + 1)).forEach((path, part) => {
+      routes.push({ id: `journey-${shipmentId}-L${legIndex}-leg-${part}`, kind: 'leg', tone, carried: true, path, ownerIds, label });
+    });
   });
   return routes;
+}
+
+/** The decoded lines through `ids` in order, split where a pair has no cached polyline. */
+function runsOf(map: MapResponse, ids: string[]): [number, number][][] {
+  const runs: [number, number][][] = [];
+  let run: [number, number][] = [];
+  const flush = () => {
+    if (run.length >= 2) runs.push(run);
+    run = [];
+  };
+  for (let i = 0; i + 1 < ids.length; i += 1) {
+    const seg = pairPath(map, ids[i], ids[i + 1]);
+    if (!seg) {
+      flush();
+      continue;
+    }
+    // Consecutive segments share their joining place; drop the duplicate first point.
+    run = run.length ? [...run, ...seg.slice(1)] : seg;
+  }
+  flush();
+  return runs;
 }
 
 /** Bounds of [lng, lat] points, padded slightly; null when there are none. */

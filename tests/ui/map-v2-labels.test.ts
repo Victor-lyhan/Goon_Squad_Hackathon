@@ -1,11 +1,14 @@
 // Names on the simulator map without hovering (#578): business names in the network view, the
-// journey's sender / relay / recipient always named, and the package drawn above the numbered stops.
+// journey's sender / relay / recipient always named, and the package drawn above the journey symbols (#659).
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   NAME_BOX_HEIGHT,
-  STOP_RADIUS,
+  PACKAGE_HALO_WIDTH,
+  SWAP_DX,
+  SYMBOL_GLYPH,
+  SYMBOL_SIZE,
   boxesOverlap,
   buildLayerSpecs,
   nameWidthPx,
@@ -219,50 +222,64 @@ describe('a relay journey at 1440 (the package waits overnight at the relay poin
     return { v, plan, relay, shipment, journey: v.right.journey };
   }
 
-  it('draws the package after the stops, as a ring around the relay stop, even with the Packages toggle off', () => {
+  it('draws the package last, as a ring with a halo around the relay diamond, even with the Packages toggle off', () => {
     const { v, relay } = relayJourney();
     expect(v.map.visible.packages).toBe(true);
     const zoom = fitZoom(v.map.fitTo === 'places' ? placesBounds(v.map.places)! : v.map.fitTo, VIEWPORT);
     const specs = buildLayerSpecs({ ...v.map, zoom });
-    const order = ids(specs);
-    expect(order.indexOf('movers-package')).toBeGreaterThan(order.indexOf('stops'));
-    expect(order.indexOf('movers-package')).toBeGreaterThan(order.indexOf('stops-number'));
+    expect(ids(specs).slice(-4)).toEqual(['stops-symbol', 'stops-label', 'movers-package-halo', 'movers-package']);
     const ring = byId<ScatterSpec>(specs, 'movers-package')!;
-    expect(ring.props.filled).toBe(false); // hollow: the stop numbers under it stay readable
+    const halo = byId<ScatterSpec>(specs, 'movers-package-halo')!;
+    expect(ring.props.filled).toBe(false); // hollow: the diamond under it stays visible
     expect(ring.data).toHaveLength(1);
     const [lng, lat] = ring.data[0].position;
     expect(Math.abs(lng - relay.lng)).toBeLessThan(1e-5);
     expect(Math.abs(lat - relay.lat)).toBeLessThan(1e-5);
-    const stopsHere = byId<ScatterSpec>(specs, 'stops')!.data.filter((d) => Math.abs(d.position[0] - relay.lng) < 1e-5 && Math.abs(d.position[1] - relay.lat) < 1e-5);
-    const stopRadius = Math.max(...stopsHere.map((d) => d.radius));
-    expect(stopRadius).toBeGreaterThan(STOP_RADIUS);
-    expect(ring.data[0].radius - ring.data[0].lineWidth / 2).toBeGreaterThan(stopRadius + stopsHere[0].lineWidth / 2);
+    // Outside the diamond glyph, and the halo wider than the ring on both sides.
+    expect(ring.data[0].radius - ring.data[0].lineWidth / 2).toBeGreaterThan(SYMBOL_SIZE / 2);
+    expect(halo.data[0].radius).toBe(ring.data[0].radius);
+    expect(halo.data[0].lineWidth).toBe(ring.data[0].lineWidth + 2 * PACKAGE_HALO_WIDTH);
+    // The swap symbol beside the diamond is outside the ring and its halo.
+    expect(SWAP_DX - SYMBOL_SIZE / 2).toBeGreaterThanOrEqual(ring.data[0].radius + halo.data[0].lineWidth / 2 - 2);
   }, T);
 
-  it('the relay shows two numbers side by side (drop and next-morning pickup)', () => {
+  it('the relay shows the diamond "Overnight · <relay>" and, beside it, the swap "Handed to <carrier B>"', () => {
     const { v, relay, journey } = relayJourney();
-    const relaySteps = journey.steps.filter((s) => s.placeId === relay.id).map((s) => String(s.n));
-    expect(relaySteps).toHaveLength(2);
-    const numbers = byId<TextSpec>(buildLayerSpecs({ ...v.map, zoom: 13 }), 'stops-number')!.data
-      .filter((d) => Math.abs(d.position[0] - relay.lng) < 1e-5 && Math.abs(d.position[1] - relay.lat) < 1e-5);
-    expect(numbers.map((d) => d.text).sort()).toEqual(relaySteps.sort());
-    const xs = numbers.map((d) => (d.offset ?? [0, 0])[0]);
-    expect(Math.abs(xs[0] - xs[1])).toBeGreaterThanOrEqual(10);
+    const at = (d: { position: [number, number] }) => Math.abs(d.position[0] - relay.lng) < 1e-5 && Math.abs(d.position[1] - relay.lat) < 1e-5;
+    const specs = buildLayerSpecs({ ...v.map, zoom: 13 });
+    expect(ids(specs)).not.toContain('stops');
+    expect(ids(specs)).not.toContain('stops-number');
+    const glyphs = byId<TextSpec>(specs, 'stops-symbol')!.data.filter(at);
+    expect(glyphs.map((d) => [d.text, d.offset])).toEqual([[SYMBOL_GLYPH.relay, [0, 0]], [SYMBOL_GLYPH.swap, [SWAP_DX, 0]]]);
+    const labels = byId<TextSpec>(specs, 'stops-label')!.data.filter(at).map((d) => d.text);
+    expect(labels).toEqual([`Overnight · ${relay.name}`, `Handed to ${journey.carriers[1].name}`]);
   }, T);
 
-  it('names the sender, the recipient and the relay business, never a carrier home', () => {
+  it('names the sender, the recipient and the relay business once each, never a carrier home, without overlaps', () => {
     const { v, relay, shipment } = relayJourney();
     const want = [shipment.originBusinessId, shipment.destinationBusinessId, relay.id].sort();
     expect([...v.map.alwaysLabelIds].sort()).toEqual(want);
+    const name = (id: string) => v.map.places.find((p) => p.id === id)!.label;
     // At any zoom, however crowded.
     for (const zoom of [9, 11, 13]) {
       const specs = buildLayerSpecs({ ...v.map, zoom });
-      expect(namedIds(specs).sort()).toEqual(want);
+      const texts = [...(byId<TextSpec>(specs, 'labels-places')?.data ?? []), ...byId<TextSpec>(specs, 'stops-label')!.data].map((d) => d.text);
+      expect(texts).toContain(name(shipment.originBusinessId));
+      expect(texts).toContain(`Overnight · ${relay.name}`);
+      expect(texts).toContain(`To ${name(shipment.destinationBusinessId)}`);
+      for (const id of want) expect(texts.filter((t) => t.includes(name(id)))).toHaveLength(1);
       const homes = v.map.places.filter((p) => p.kind === 'home').map((p) => p.id);
       expect(homes.length).toBeGreaterThan(0);
       for (const h of homes) expect(namedIds(specs)).not.toContain(h);
-      const texts = byId<TextSpec>(specs, 'labels-places')!.data.map((d) => d.text);
-      expect(texts).toContain(relay.name);
     }
+    // At the zoom the journey opens at, no two names or symbol labels overlap.
+    const fit = fitZoom(v.map.fitTo === 'places' ? placesBounds(v.map.places)! : v.map.fitTo, VIEWPORT);
+    const specs = buildLayerSpecs({ ...v.map, zoom: fit });
+    const together: TextSpec = {
+      type: 'text', id: 'all', props: {},
+      data: [...(byId<TextSpec>(specs, 'labels-places')?.data ?? []), ...byId<TextSpec>(specs, 'stops-label')!.data],
+    };
+    expect(together.data.length).toBeGreaterThanOrEqual(4);
+    expect(overlappingPairs(together, fit)).toEqual([]);
   }, T);
 });

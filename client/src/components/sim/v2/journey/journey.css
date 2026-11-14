@@ -63,9 +63,9 @@
   align-items: baseline;
   gap: 0 var(--space-2, 8px);
   padding-left: var(--space-2, 8px);
-  border-left: 2px solid #28618A;
+  border-left: 2px solid #1D5075; /* LEG1: carrier A */
 }
-.jt-leg--leg2 { border-left-color: #C03A64; }
+.jt-leg--leg2 { border-left-color: #0F8A5F; } /* LEG2: carrier B */
 .jt-leg__n,
 .jt-leg__home,
 .jt-leg__extra {
@@ -151,10 +151,10 @@
   background: var(--text, #151B26);
   color: var(--panel, #FFFFFF);
 }
-.jt-step__n--leg1 { border-color: #28618A; }
-.jt-step__n--leg2 { border-color: #C03A64; }
-.jt-step--done .jt-step__n--leg1 { background: #28618A; }
-.jt-step--done .jt-step__n--leg2 { background: #C03A64; }
+.jt-step__n--leg1 { border-color: #1D5075; }
+.jt-step__n--leg2 { border-color: #0F8A5F; }
+.jt-step--done .jt-step__n--leg1 { background: #1D5075; }
+.jt-step--done .jt-step__n--leg2 { background: #0F8A5F; }
 
 .jt-step__body {
   display: flex;
@@ -221,24 +221,33 @@
 .jl__swatches {
   display: inline-flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  gap: 3px;
   width: 20px;
 }
+/* Thick and thin line of the key row, in ink: the carriers' own colours are on their badges. */
 .jl__swatch {
   display: block;
   width: 20px;
-  height: 4px;
+  height: 5px;
+  background: var(--text, #151B26);
 }
-.jl__swatch--baseline {
+.jl__swatch--thin {
   height: 2px;
 }
-/* The carrier's vehicle (a dot on the map) in its leg colour; square like every other corner here. */
-.jl__dot {
+/* The carrier's letter badge, as on its vehicle on the map (background set inline from layers.ts). */
+.jl__badge {
   flex: 0 0 auto;
-  display: block;
-  width: 10px;
-  height: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius, 2px);
+  color: #FFFFFF;
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: var(--text-xs, 12px);
+  font-weight: 700;
 }
 .jl__text {
   display: inline-flex;
@@ -246,7 +255,6 @@
   align-items: baseline;
   gap: 0 var(--space-2, 8px);
 }
-.jl__leg,
 .jl__sub {
   color: var(--muted, #5B6472);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
@@ -254,8 +262,4 @@
 }
 .jl__name {
   font-weight: 600;
-}
-.jl__item--baseline .jl__name {
-  font-weight: 400;
-  color: var(--muted, #5B6472);
 }

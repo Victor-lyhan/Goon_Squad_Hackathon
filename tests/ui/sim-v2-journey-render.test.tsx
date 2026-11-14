@@ -115,26 +115,34 @@ describe('JourneyTimeline', () => {
 });
 
 describe('JourneyLegend', () => {
-  it('names each carrier once, with its leg, plus the normal commute', () => {
+  it('relay: "A · <name>" and "B · <name>", each with its letter badge in its colour; no normal commute', () => {
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map }) as Journey;
     const html = renderToStaticMarkup(<JourneyLegend carriers={j.carriers} />);
     const t = text(html);
+    expect(t).toContain('A · Cy Lam');
+    expect(t).toContain('B · Ben Okafor');
     expect(t.match(/Cy Lam/g)).toHaveLength(1);
     expect(t.match(/Ben Okafor/g)).toHaveLength(1);
-    expect(t).toContain('Leg 1');
-    expect(t).toContain('Leg 2');
-    expect(t).toContain('Normal commute');
-    expect(html).toContain('#28618A');
-    expect(html).toContain('#C03A64');
+    expect(t).not.toContain('Normal commute');
+    expect(t).toContain('Thick: carrying the package');
+    expect(html).toContain('jl__badge--leg1" aria-hidden="true" style="background:#1D5075">A<');
+    expect(html).toContain('jl__badge--leg2" aria-hidden="true" style="background:#0F8A5F">B<');
     assertClean(html);
   });
 
-  it('the same person on both legs is named once', () => {
+  it('direct: only A', () => {
+    const j = buildJourney({ shipmentId: 'shp-1', sim: simAt(T.overnight), map }) as Journey;
+    const t = text(renderToStaticMarkup(<JourneyLegend carriers={j.carriers} />));
+    expect(t).toContain('A · Ana Ruiz');
+    expect(t).not.toMatch(/\bB · /);
+  });
+
+  it('the same person on both legs: one row per leg, A and B', () => {
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map }) as Journey;
     const same = j.carriers.map((c) => ({ ...c, employeeId: 'emp-3', name: 'Cy Lam' }));
     const t = text(renderToStaticMarkup(<JourneyLegend carriers={same} />));
-    expect(t.match(/Cy Lam/g)).toHaveLength(1);
-    expect(t).toContain('Legs 1 and 2');
+    expect(t).toContain('A · Cy Lam');
+    expect(t).toContain('B · Cy Lam');
   });
 });
 
