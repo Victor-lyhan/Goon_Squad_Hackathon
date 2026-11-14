@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BusinessDashboard } from '../../../../shared/api';
 import type { Business, Employee, Hub } from '../../../../shared/types';
-import { getBusinessDashboard, getBusinesses, getEmployees } from '../../api';
+import { ApiRequestError, getBusinessDashboard, getBusinesses, getEmployees } from '../../api';
 import { POLL_MS } from './businessPortalModel';
+import { isUnknownBusiness } from './trackingModel';
 
 export type DashboardState = {
-  status: 'loading' | 'ready' | 'error';
+  status: 'loading' | 'ready' | 'error' | 'not_found';
   error: string | null;
   dashboard: BusinessDashboard | null;
   businesses: Business[];
@@ -23,6 +24,7 @@ export function useBusinessDashboard(businessId: string): DashboardState {
   const [lists, setLists] = useState<{ businesses: Business[]; hubs: Hub[]; employees: Employee[] }>({ businesses: [], hubs: [], employees: [] });
   const [error, setError] = useState<string | null>(null);
   const [listsReady, setListsReady] = useState(false);
+  const [gone, setGone] = useState(false);
   const current = useRef(businessId);
   current.current = businessId;
   const inFlight = useRef(false);
@@ -33,9 +35,11 @@ export function useBusinessDashboard(businessId: string): DashboardState {
     inFlight.current = true;
     try {
       const d = await getBusinessDashboard(id);
-      if (current.current === id) { setDashboard(d); setError(null); }
+      if (current.current === id) { setDashboard(d); setError(null); setGone(false); }
     } catch (e) {
-      if (current.current === id) setError(msg(e));
+      if (current.current !== id) return;
+      if (e instanceof ApiRequestError && e.status === 404) { setGone(true); setDashboard(null); setError(null); }
+      else setError(msg(e));
     } finally {
       inFlight.current = false;
     }
@@ -44,12 +48,14 @@ export function useBusinessDashboard(businessId: string): DashboardState {
   useEffect(() => {
     setDashboard(null);
     setError(null);
+    setGone(false);
     inFlight.current = false;
     void refetch();
     const t = setInterval(() => void refetch(), POLL_MS);
     return () => clearInterval(t);
   }, [businessId, refetch]);
 
+  // Load the directories; reload when the business is reported gone (a new city may have been generated).
   useEffect(() => {
     let cancelled = false;
     Promise.all([getBusinesses(), getEmployees()])
@@ -60,8 +66,9 @@ export function useBusinessDashboard(businessId: string): DashboardState {
       })
       .catch((e: unknown) => { if (!cancelled) setError(msg(e)); });
     return () => { cancelled = true; };
-  }, []);
+  }, [gone]);
 
-  const status = dashboard && listsReady ? 'ready' : error ? 'error' : 'loading';
+  const notFound = gone || (!dashboard && isUnknownBusiness(businessId, lists.businesses, listsReady));
+  const status = notFound ? 'not_found' : dashboard && listsReady ? 'ready' : error ? 'error' : 'loading';
   return { status, error, dashboard, ...lists, refetch };
 }

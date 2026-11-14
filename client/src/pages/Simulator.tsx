@@ -4,6 +4,7 @@ import { SimulatorView } from '../components/sim/SimulatorView';
 import { SetupDrawer } from '../components/sim/SetupDrawer';
 import { useSimulatorData } from '../components/sim/useSimulatorData';
 import { PACKAGE_PARAM, handleRunIdChange, resolveDeepLink, withPackageParam } from '../components/sim/simPageModel';
+import { hintEmployeeId } from '../components/sim/setupModel';
 import { Button, Toast, useToasts } from '../ui';
 
 export default function Simulator() {
@@ -35,6 +36,7 @@ export default function Simulator() {
       <SimulatorView sim={sim} map={map} employees={employees} error={error} busy={busy}
         selectedId={selectedId} onSelect={select} onControl={(r) => { void control(r); }} />
       <SetupDrawer open={setupOpen} onClose={() => setSetupOpen(false)}
+        phase={sim?.clock.phase} hintEmployeeId={hintEmployeeId(sim?.jobs, employees)}
         onChanged={(message) => { setSetupOpen(false); push(message ?? 'Run updated.', 'success'); void refresh(); }} />
       <Toast toasts={toasts} onDismiss={dismiss} />
     </>
