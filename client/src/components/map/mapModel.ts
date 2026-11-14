@@ -1,6 +1,6 @@
 // Pure helpers for GoogleBaseMap (no DOM, no Google, no deck.gl), tested in Node.
 import { MAP_STYLE, NYC_CENTER, NYC_ZOOM } from './mapStyle';
-import type { LatLngBounds, MapPlace } from './types';
+import type { LatLngBounds, MapPanTarget, MapPlace } from './types';
 
 export type MapStatus = 'missing-key' | 'loading' | 'ready' | 'error';
 
@@ -68,4 +68,19 @@ export function fitKey(fitTo: 'places' | LatLngBounds | undefined, places: MapPl
 export function resolveFit(fitTo: 'places' | LatLngBounds | undefined, places: MapPlace[]): LatLngBounds | null {
   if (!fitTo) return null;
   return fitTo === 'places' ? placesBounds(places) : fitTo;
+}
+
+/**
+ * Whether to pan now. Pans once per new `panTo.key` (a re-render or poll with the same key does
+ * nothing; neither does `panTo` being undefined, which also keeps the last key). `key` is the key to
+ * remember afterwards; `target` is the point to pan to, or null. A non-finite point is consumed
+ * without panning.
+ */
+export function panDecision(
+  lastKey: string | null,
+  panTo: MapPanTarget | undefined,
+): { key: string | null; target: { lat: number; lng: number } | null } {
+  if (!panTo || panTo.key === lastKey) return { key: lastKey, target: null };
+  const ok = Number.isFinite(panTo.lat) && Number.isFinite(panTo.lng);
+  return { key: panTo.key, target: ok ? { lat: panTo.lat, lng: panTo.lng } : null };
 }
