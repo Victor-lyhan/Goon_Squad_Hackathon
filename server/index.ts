@@ -11,6 +11,7 @@ import { putCommute } from './api/commute';
 import { getSimulator, postSimulatorControl } from './api/simulator';
 import { getBusinessDashboard, getEmployeeDashboard, getJob, getShipment } from './api/portals';
 import { postShipment, patchShipment, postShipmentMatch } from './api/shipments';
+import { postCompare, postRecompute, postPlanningReset } from './api/planning';
 import { startClockTicker } from './api/ticker';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -18,7 +19,7 @@ const clientDist = path.resolve(here, '../client/dist');
 
 export function createApp(store: Store) {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '5mb' }));
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
@@ -36,6 +37,10 @@ export function createApp(store: Store) {
   app.post('/api/shipments/:id/match', postShipmentMatch(store));
   app.get('/api/shipments/:id', getShipment(store));
   app.get('/api/jobs/:id', getJob(store));
+
+  app.post('/api/matches/compare', postCompare(store));
+  app.post('/api/matches/recompute', postRecompute(store));
+  app.post('/api/planning/reset', postPlanningReset(store));
 
   // Unknown API paths never fall through to the SPA.
   app.use('/api', (_req, res) => {
