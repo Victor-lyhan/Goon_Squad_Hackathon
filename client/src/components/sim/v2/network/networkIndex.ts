@@ -8,6 +8,10 @@
 //   package  = the shipment ID
 //   baseline = `baseline:<tripId>`            e.g. baseline:emp-3-eve
 //   leg      = `leg:<planId>:<legIndex>`      plus `:<part>` (2, 3, …) when a missing polyline splits the line
+//
+// Each route also carries its hover label (`MapRoute.label`, the tooltip's first line; the role
+// "Delivery route" / "Normal commute" is the second). The words are those of `hoverText` in
+// networkModel.ts, minus the role: "Ceramic samples · leg 2 of 2 · carried by Li Chen", "Li Chen · morning".
 import { decodePath } from '../../../map/layers';
 import type { MapPlace, MapRoute } from '../../../map/types';
 import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
@@ -31,6 +35,47 @@ export type RouteMeta = {
 /** Plain string order (not locale-dependent), so output is identical on every machine. */
 export const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 export const sortedUnique = (ids: Iterable<string>) => [...new Set(ids)].sort(byId);
+
+// ---------- Hover labels of routes ----------
+const joinParts = (...parts: (string | null | undefined | false)[]) => parts.filter((p): p is string => !!p).join(' · ');
+const clean = (text: string | null | undefined) => (text ?? '').trim();
+
+/**
+ * A commute line's label: the employee's name, plus "evening" or "morning" when the trip ID says which.
+ * undefined without a name, so the map keeps its generic text (never an ID, never a made-up name).
+ */
+export function commuteLabel(employeeName: string | null | undefined, tripIdOfCommute: string): string | undefined {
+  const name = clean(employeeName);
+  if (!name) return undefined;
+  const when = tripIdOfCommute.endsWith('-eve') ? 'evening' : tripIdOfCommute.endsWith('-morn') ? 'morning' : null;
+  return joinParts(name, when);
+}
+
+/**
+ * A delivery line's label in the network view: package name, "leg n of m" for a relay, "carried by <name>".
+ * A missing package name reads "Package"; a missing carrier leaves its part out. undefined when neither
+ * name is known, so the map keeps its generic text.
+ */
+export function deliveryLabel(
+  packageName: string | null | undefined,
+  carrierName: string | null | undefined,
+  legIndex: number,
+  legCount: number,
+): string | undefined {
+  const pkg = clean(packageName);
+  const carrier = clean(carrierName);
+  if (!pkg && !carrier) return undefined;
+  return joinParts(pkg || 'Package', legCount > 1 && `leg ${legIndex + 1} of ${legCount}`, carrier && `carried by ${carrier}`);
+}
+
+/**
+ * A leg line's label in a package journey (the map shows one package, so it is not named again):
+ * "Leg 1 · carried by Cy Lam", in the journey legend's words. Without a carrier name, just "Leg 1".
+ */
+export function journeyLegLabel(carrierName: string | null | undefined, legIndex: number): string {
+  const carrier = clean(carrierName);
+  return joinParts(`Leg ${legIndex + 1}`, carrier && `carried by ${carrier}`);
+}
 
 // ---------- Static part: depends only on MapResponse, cached per response object ----------
 type MapIndex = {
@@ -135,7 +180,7 @@ function buildMapIndex(map: MapResponse): MapIndex {
       const path = pairPath(from, to);
       if (!path) continue;
       baselines.push({
-        route: { id: `baseline:${tid}`, kind: 'baseline', path, ownerIds: [e.id] },
+        route: withLabel({ id: `baseline:${tid}`, kind: 'baseline', path, ownerIds: [e.id] }, commuteLabel(e.name, tid)),
         employeeId: e.id,
         planId: null,
         shipmentId: null,
@@ -147,6 +192,11 @@ function buildMapIndex(map: MapResponse): MapIndex {
   baselines.sort((a, b) => byId(a.route.id, b.route.id));
 
   return { businesses, homes, employees, employeeList, places, baselines, pairPath, runs };
+}
+
+/** The route with its hover label; no `label` key at all when there is none. */
+function withLabel(route: MapRoute, label: string | undefined): MapRoute {
+  return label ? { ...route, label } : route;
 }
 
 /** Neighborhood only; never an address or coordinates (SPEC MVP II rule 6). */
@@ -196,14 +246,13 @@ export function buildIndex(map: MapResponse, sim: SimulatorResponse): NetworkInd
     plan.legs.forEach((leg, i) => {
       // Carrier, package, then the businesses: selecting any of them highlights this line.
       const ownerIds = [...new Set([leg.employeeId, plan.shipmentId, ...businessIds])];
+      const label = deliveryLabel(shipments.get(plan.shipmentId)?.label, base.employees.get(leg.employeeId)?.name, i, plan.legs.length);
       base.runs(leg.placeIds).forEach((path, part) => {
         legs.push({
-          route: {
-            id: part === 0 ? `leg:${plan.id}:${i}` : `leg:${plan.id}:${i}:${part + 1}`,
-            kind: 'leg',
-            path,
-            ownerIds,
-          },
+          route: withLabel(
+            { id: part === 0 ? `leg:${plan.id}:${i}` : `leg:${plan.id}:${i}:${part + 1}`, kind: 'leg', path, ownerIds },
+            label,
+          ),
           employeeId: leg.employeeId,
           planId: plan.id,
           shipmentId: plan.shipmentId,

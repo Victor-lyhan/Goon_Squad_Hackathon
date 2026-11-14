@@ -19,6 +19,12 @@ export type MapRoute = {
   ownerIds: string[];
   /** Journey mode: which leg a `leg` route is. `leg2` gets the second color; none = accent (leg 1). */
   tone?: RouteTone;
+  /**
+   * The tooltip's first line: what this line is, in names (e.g. "Coffee samples · leg 1 of 2 · carried by
+   * Cy Lam", or an employee's name for a commute). The role ("Delivery route", "Normal commute") is the
+   * second line, so it is not repeated here. None = the generic text ("Delivery route" / "Commute").
+   */
+  label?: string;
 };
 
 export type RouteTone = 'leg1' | 'leg2';

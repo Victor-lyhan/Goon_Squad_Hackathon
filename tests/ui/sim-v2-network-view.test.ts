@@ -57,6 +57,19 @@ describe('buildNetworkView: places, routes, movers', () => {
     expect(owners['leg:plan-shp-2:1']).toEqual(['emp-2', 'shp-2', 'biz-bakery', 'biz-etsy', 'biz-studio']);
   });
 
+  it('gives each route its hover label: package and carrier for a leg, the employee for a commute', () => {
+    expect(Object.fromEntries(view.routes.map((r) => [r.id, r.label]))).toEqual({
+      'baseline:emp-1-eve': 'Maya Ortiz · evening',
+      'baseline:emp-1-morn': 'Maya Ortiz · morning',
+      'baseline:emp-2-eve': 'Li Chen · evening',
+      'baseline:emp-2-morn': 'Li Chen · morning',
+      'baseline:emp-3-eve': 'Sam Rivera · evening',
+      'leg:plan-shp-1:0': 'Astoria product proofs · carried by Maya Ortiz',
+      'leg:plan-shp-2:0': 'Ceramic samples · leg 1 of 2 · carried by Sam Rivera',
+      'leg:plan-shp-2:1': 'Ceramic samples · leg 2 of 2 · carried by Li Chen',
+    });
+  });
+
   it('passes vehicles and packages through from the snapshot', () => {
     expect(view.movers).toEqual([
       { id: 'emp-1', kind: 'vehicle', lat: 40.755, lng: -73.96, label: 'Maya Ortiz' },
