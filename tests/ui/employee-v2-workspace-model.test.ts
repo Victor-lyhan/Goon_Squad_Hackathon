@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   UNKNOWN_PLACE, commuteSummary, deliveryRows, earnings, formatDistance,
 } from '../../client/src/components/employee/v2/employeeWorkspaceModel';
+import { extraTimeText } from '../../client/src/components/employee/v2/jobDetailV2Model';
 import { businesses, completedView, dashboard, directView, noMorning, relayView } from './employee-v2-workspace-sample';
 
 describe('commuteSummary', () => {
@@ -82,6 +83,26 @@ describe('deliveryRows', () => {
     expect(row.legKind).toBe('Relay leg 1 of 2');
     expect(row.dropoff).toBe('Day 1, 6:10 PM · Relay point: Corner Books');
     expect(row.extraMin).toBe('+5 min');
+  });
+
+  it('extra time reads as in the job view: "3 min shorter", "+0 min", "+8 min", never "+-3 min" (#633)', () => {
+    const withExtra = (extraMin: number) => {
+      const plan = { ...directView.plan, legs: [{ ...directView.plan.legs[0], extraMin }] };
+      return deliveryRows([{ ...directView, plan }], businesses, 'Astoria')[0].extraMin;
+    };
+    expect(withExtra(-3)).toBe('3 min shorter');
+    expect(withExtra(0)).toBe('+0 min');
+    expect(withExtra(8)).toBe('+8 min');
+    for (const n of [-3, 0, 8]) {
+      expect(withExtra(n)).toBe(extraTimeText(n)); // the job view's words, the leg's value
+      expect(withExtra(n)).not.toContain('+-');
+    }
+  });
+
+  it('a job whose leg is missing from the plan gets no invented minutes', () => {
+    const [row] = deliveryRows([{ ...directView, plan: { ...directView.plan, legs: [] } }], businesses, 'Astoria');
+    expect(row.extraMin).toBe(extraTimeText(undefined));
+    expect(row.extraMin).not.toMatch(/\d/);
   });
 
   it('a completed job', () => {

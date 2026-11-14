@@ -3,7 +3,7 @@ import type { EmployeeDashboard } from '../../../../../shared/v2/api';
 import type { NetworkBusiness } from '../../../../../shared/v2/types';
 import { CommuteSummary } from './CommuteSummary';
 import { DeliveryList } from './DeliveryList';
-import { LOCKED_TEXT, commuteSummary, deliveryRows, earnings } from './employeeWorkspaceModel';
+import { LOCKED_TEXT, commuteSummary, deliveryRows, earnings, newJobAnnouncements } from './employeeWorkspaceModel';
 import './EmployeeWorkspace.css';
 
 export type EmployeeWorkspaceProps = {
@@ -23,6 +23,7 @@ export function EmployeeWorkspace({ dashboard, businesses, newJobIds, editor, on
   const completed = deliveryRows(dashboard.completed, businesses, summary.homeNeighborhood);
   const money = earnings(dashboard);
   const locked = dashboard.phase === 'locked';
+  const announcements = newJobAnnouncements(dashboard, newJobIds);
 
   return (
     <div className="ew">
@@ -62,6 +63,13 @@ export function EmployeeWorkspace({ dashboard, businesses, newJobIds, editor, on
         rows={completed}
         emptyText="No completed deliveries yet."
       />
+
+      {/* The one hidden live region for new jobs (#633). Always rendered, so it is in place before a
+          message arrives. Each message is its own element and the region is not atomic: a second new
+          job is read alone, and a message that leaves (tag cleared, run changed) is not read again. */}
+      <div className="ew-sr ew-announce" role="status" aria-live="polite" aria-atomic="false">
+        {announcements.map((a) => <p key={a.id}>{a.message}</p>)}
+      </div>
     </div>
   );
 }

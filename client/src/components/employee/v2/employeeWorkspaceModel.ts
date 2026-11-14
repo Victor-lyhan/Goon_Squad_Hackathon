@@ -3,7 +3,7 @@
 import type { EmployeeDashboard, EmployeeJobView } from '../../../../../shared/v2/api';
 import type { JobStatus, NetworkBusiness, Stop, Trip } from '../../../../../shared/v2/types';
 import { formatCents, formatClock, formatDuration } from '../../../ui/format';
-import { momentText } from './jobDetailV2Model';
+import { extraTimeText, momentText } from './jobDetailV2Model';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 
@@ -47,7 +47,7 @@ export type DeliveryRow = {
   pickupPlace: string;
   dropoffTime: string;
   dropoffPlace: string;
-  /** "+7 min". */
+  /** The leg's extra minutes in the words of the job view: "+7 min", "+0 min", "3 min shorter" (#633). */
   extraMin: string;
   /** "$8.00". */
   reward: string;
@@ -140,7 +140,7 @@ export function deliveryRows(
       pickup: `${pickupTime} · ${pickupPlace}`,
       dropoff: `${dropoffTime} · ${dropoffPlace}`,
       pickupTime, pickupPlace, dropoffTime, dropoffPlace,
-      extraMin: `+${plan.legs[job.legIndex]?.extraMin ?? 0} min`,
+      extraMin: extraTimeText(plan.legs[job.legIndex]?.extraMin),
       reward: formatCents(job.rewardCents),
       legKind: isRelay ? `Relay leg ${job.legIndex + 1} of ${legs}` : 'Direct',
       commute: morning ? `Morning commute from ${nbh}` : `Evening commute to ${nbh}`,
@@ -148,6 +148,27 @@ export function deliveryRows(
       simulatorHref: `/simulator?package=${encodeURIComponent(job.shipmentId)}`,
     };
   });
+}
+
+/** One sentence of the live region: the notification's ID (a stable key) and its message as sent. */
+export type JobAnnouncement = { id: string; message: string };
+
+/**
+ * What the workspace's live region says (#633): the API's `job_assigned` sentence of every job that
+ * carries the "New" tag, word for word and in the order of `dashboard.notifications`. Nothing is
+ * composed here. `newJobIds` is empty on the first load and after a run change, and loses a job once
+ * its tag is cleared (DECISIONS pass 9), so the region is empty in those cases too.
+ */
+export function newJobAnnouncements(
+  dashboard: EmployeeDashboard, newJobIds: ReadonlySet<string> | readonly string[] | undefined,
+): JobAnnouncement[] {
+  if (!newJobIds) return [];
+  const isNew = new Set<string>(newJobIds);
+  if (isNew.size === 0) return [];
+  return (dashboard.notifications ?? [])
+    .filter((n) => n.kind === 'job_assigned' && n.jobId !== undefined && isNew.has(n.jobId)
+      && typeof n.message === 'string' && n.message !== '')
+    .map((n) => ({ id: n.id, message: n.message }));
 }
 
 export function earnings(dashboard: EmployeeDashboard): EarningsModel {
