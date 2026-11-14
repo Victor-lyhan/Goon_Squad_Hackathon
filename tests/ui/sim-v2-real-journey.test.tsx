@@ -10,7 +10,7 @@ import {
 import { journeyDurationMs } from '../../client/src/components/sim/v2/motion/journeyPlayback';
 import { UNKNOWN_CARRIER, UNKNOWN_PLACE, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
 import { DEFAULT_LAYERS } from '../../client/src/components/sim/v2/workspaceModel';
-import { formatMin } from '../../client/src/ui/format';
+import { formatCents, formatMin } from '../../client/src/ui/format';
 import { T, elements, escaped, forbiddenIn, realSim, renderBody, text } from './sim-v2-real-helper';
 
 vi.setConfig({ testTimeout: T, hookTimeout: T });
@@ -141,6 +141,52 @@ describe.each(real.moments)('every package selected at $name', (moment) => {
       expect(legend.length).toBe(1);
       for (const c of j.carriers) expect(text(legend[0])).toContain(text(escaped(c.name)));
       expect(text(html)).toContain(PLAY_LABEL);
+    }
+  });
+
+  it('a matched package: the panel shows the delivery time and, per leg, the carrier, home, extra minutes and reward (#552)', () => {
+    for (const { s, plan, view, html } of matched) {
+      if (view.view !== 'ready' || view.right.kind !== 'journey') throw new Error(`${s.id}: no journey`);
+      const j = view.right.journey;
+      expect(Number.isFinite(plan!.deliveryMin)).toBe(true);
+      expect(j.deliveryMin).toBe(plan!.deliveryMin);
+      const header = elements(html, 'header', 'class="jt__header"');
+      expect(header.length).toBe(1);
+      expect(text(header[0])).toContain(`Planned delivery ${formatMin(plan!.deliveryMin)}`);
+      const delivered = sim.snapshot.deliveredAtMin[s.id];
+      if (delivered === undefined) {
+        expect(j.deliveredAtMin).toBeNull();
+        expect(header[0]).not.toContain('jt__time--delivered');
+      } else {
+        expect(j.deliveredAtMin).toBe(delivered);
+        expect(text(header[0])).toContain(`Delivered ${formatMin(delivered)}`);
+      }
+      const legLines = elements(html, 'li', 'class="jt-leg ');
+      expect(legLines.length).toBe(plan!.legs.length);
+      plan!.legs.forEach((leg, i) => {
+        expect(Number.isFinite(leg.rewardCents)).toBe(true);
+        expect(Number.isFinite(leg.extraMin)).toBe(true);
+        const t = text(legLines[i]);
+        expect(t).toContain(`Leg ${i + 1}`);
+        expect(t).toContain(text(escaped(employees.get(leg.employeeId)!.name)));
+        expect(t).toContain(text(escaped(`from ${j.carriers[i].homeNeighborhood}`)));
+        expect(t).toContain(`+${Math.max(0, Math.round(leg.extraMin))} min extra`);
+        expect(t).toContain(`${formatCents(leg.rewardCents)} reward`);
+        expect(t).not.toMatch(/\bNaN\b|\bundefined\b|\bnull\b|unavailable/);
+      });
+      // Each carrier's vehicle (when the snapshot places it) has its leg's tone.
+      for (const m of view.map.movers.filter((x) => x.kind === 'vehicle')) {
+        const first = j.carriers.find((c) => c.employeeId === m.id)!;
+        expect(m.tone).toBe(first.tone);
+      }
+    }
+  });
+
+  it('an unmatched package: no delivery time, no leg line, no reward', () => {
+    for (const { html } of unmatched) {
+      expect(html).not.toContain('jt__time');
+      expect(html).not.toContain('class="jt-leg ');
+      expect(text(html)).not.toMatch(/Planned delivery| reward\b/);
     }
   });
 

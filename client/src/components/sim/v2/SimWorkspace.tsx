@@ -80,7 +80,7 @@ export function SimWorkspace({ map, left, right, onClearSelection, journey, init
         <Panel side="left" title="Controls" open={panels.leftOpen} bodyId={LEFT_BODY_ID}
           onToggle={() => dispatch({ type: 'toggleLeft' })}>
           {journey && (
-            <div className="sw-journey" aria-label="Package journey">
+            <div className="sw-journey">
               <div className="sw-eyebrow">Package journey</div>
               <div className="sw-journey-title">{journey.title}</div>
               <button type="button" className="sw-btn" onClick={journey.onExit}>

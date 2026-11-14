@@ -1,6 +1,7 @@
-// Legend of package journey mode: which line color is which carrier, plus the faint normal commute.
-// Colors come from the map's layer palette, so the legend always matches what the map draws.
-import { BASELINE, toneLabelColor } from '../../../map/layers';
+// Legend of package journey mode: which line color and which vehicle dot is which carrier, plus the
+// faint normal commute. Colors come from the map's layer palette, so the legend always matches what
+// the map draws (each carrier's route and vehicle are in its leg's colour).
+import { BASELINE, toneLabelColor, vehicleLabelColor } from '../../../map/layers';
 import type { RouteTone } from '../../../map/types';
 import type { JourneyCarrier } from './journeyModel';
 import './journey.css';
@@ -37,6 +38,8 @@ export function JourneyLegend({ carriers }: JourneyLegendProps) {
                 <span key={t} className={`jl__swatch jl__swatch--${t}`} style={{ background: toneLabelColor(t) }} />
               ))}
             </span>
+            {/* The carrier's vehicle: journeyModel gives it the tone of the carrier's first leg. */}
+            <span className={`jl__dot jl__dot--${e.tones[0]}`} aria-hidden="true" style={{ background: vehicleLabelColor(e.tones[0]) }} />
             <span className="jl__text">
               <span className="jl__leg">{e.legs.length > 1 ? `Legs ${e.legs.join(' and ')}` : `Leg ${e.legs[0]}`}</span>
               <span className="jl__name">{e.name}</span>

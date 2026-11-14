@@ -259,12 +259,10 @@ describe('names on elements without a role (found outside the files of #511)', (
     expect(unnamedGeneric(s.root)).toEqual([]);
   });
 
-  // Fails today: client/src/components/sim/v2/SimWorkspace.tsx renders the journey header in the left
-  // panel as <div class="sw-journey" aria-label="Package journey"> with no role, so the name is never
-  // read, and it repeats the timeline's own "Package journey" section name. Owner fix: drop the
-  // aria-label (or make it a <section> with its own name). Left as it.fails (DECISIONS pass 9, pass 56):
-  // SimWorkspace.tsx is outside the files #511 may change.
-  it.fails.each(STATES.filter((s) => s.selection?.kind === 'package'))('$name: none (SimWorkspace.tsx journey header)', (s) => {
+  // Failed until #552: SimWorkspace.tsx rendered the journey header in the left panel as
+  // <div class="sw-journey" aria-label="Package journey"> with no role, so the name was never read and
+  // repeated the timeline's own "Package journey" section name. #552 dropped the aria-label.
+  it.each(STATES.filter((s) => s.selection?.kind === 'package'))('$name: none (SimWorkspace.tsx journey header)', (s) => {
     expect(unnamedGeneric(s.root)).toEqual([]);
   });
 });

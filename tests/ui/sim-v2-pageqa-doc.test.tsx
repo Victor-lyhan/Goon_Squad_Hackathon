@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import * as layers from '../../client/src/components/map/layers';
 import { PLAY_LABEL } from '../../client/src/components/sim/v2/compose/journeyPlay';
 import { BACK_TO_NETWORK } from '../../client/src/components/sim/v2/compose/simPageView';
-import { formatMin } from '../../client/src/ui/format';
+import { formatCents, formatMin } from '../../client/src/ui/format';
 import type { DeliveryPlan } from '../../shared/v2/types';
 import {
   FOUR_STATES, SELECTED_STATES, accessibleName, all, byClass, elements, hasClass, one, parse, readText,
@@ -232,6 +232,35 @@ describe('doc §1: package journey mode', () => {
     const mapLegend = readText(one(s.mapRegion, (n) => n.attrs['aria-label'] === 'Map legend', 'map legend'));
     expect(mapLegend).toContain('Leg 1 route');
     if (plan.kind === 'relay') expect(mapLegend).toContain('Leg 2 route');
+  });
+
+  it.each(JOURNEYS)('$name: the right panel shows the reward and the delivery time, equal to the formatted plan values (#552)', (s) => {
+    const plan = planOf(s);
+    const jt = byClass(s.right, 'jt')[0];
+    // Delivery time: under the header, from the plan; "Delivered <time>" once the snapshot has it.
+    const header = one(jt, (n) => n.tag === 'header', 'journey header');
+    expect(readText(byClass(header, 'jt__time--planned')[0])).toBe(`Planned delivery ${formatMin(plan.deliveryMin)}`);
+    const delivered = s.sim.snapshot.deliveredAtMin[plan.shipmentId];
+    const deliveredLine = byClass(header, 'jt__time--delivered');
+    if (delivered === undefined) expect(deliveredLine).toEqual([]);
+    else expect(readText(deliveredLine[0])).toBe(`Delivered ${formatMin(delivered)}`);
+    // One line per leg: carrier, home neighbourhood, extra minutes, reward (the leg's rewardCents as money).
+    const home = (employeeId: string) => {
+      const homeId = s.map.employees.find((e) => e.id === employeeId)!.homeId;
+      return s.map.homes.find((h) => h.id === homeId)!.neighborhood;
+    };
+    const lines = byClass(jt, 'jt-leg');
+    expect(lines.map((li) => elements(li).map(readText))).toEqual(plan.legs.map((leg, i) => [
+      `Leg ${i + 1}`, nameOf(s, leg.employeeId), `from ${home(leg.employeeId)}`, `+${leg.extraMin} min extra`,
+      `${formatCents(leg.rewardCents)} reward`,
+    ]));
+    // In the right panel, not on the map or in the left panel.
+    for (const area of [s.left, s.mapRegion]) expect(readText(area)).not.toMatch(/ reward\b|Planned delivery/);
+  });
+
+  it('the sample checks both "Delivered <time>" and its absence', () => {
+    expect(byName('direct journey').sim.snapshot.deliveredAtMin['shp-1']).toBe(1074);
+    expect(byName('relay journey').sim.snapshot.deliveredAtMin['shp-2']).toBeUndefined();
   });
 
   it.each(JOURNEYS)('$name: "Back to network" and "Play journey" are buttons with those names', (s) => {

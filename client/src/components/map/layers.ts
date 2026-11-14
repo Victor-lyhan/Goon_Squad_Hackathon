@@ -80,7 +80,23 @@ export function toneColor(tone: RouteTone | undefined): RGBA {
 
 /** CSS color for a tone, so the journey legend shows exactly the map's colors. */
 export function toneLabelColor(tone: RouteTone | undefined): string {
-  const [r, g, b] = toneColor(tone);
+  return hexOf(toneColor(tone));
+}
+
+/**
+ * Vehicle fill for a tone: `leg2` = LEG2, so a journey's second carrier has its leg's colour;
+ * `leg1` or no tone = VEHICLE_FILL (the network view is unchanged).
+ */
+export function vehicleColor(tone: RouteTone | undefined): RGBA {
+  return tone === 'leg2' ? LEG2 : VEHICLE_FILL;
+}
+
+/** CSS color of a vehicle with this tone (the journey legend's vehicle dot). */
+export function vehicleLabelColor(tone: RouteTone | undefined): string {
+  return hexOf(vehicleColor(tone));
+}
+
+function hexOf([r, g, b]: RGBA): string {
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 }
 
@@ -137,7 +153,7 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
     id: string,
     items: T[],
     shown: boolean,
-    fill: RGBA,
+    fillOf: RGBA | ((item: T) => RGBA),
     radius: number,
   ) => (sel: boolean): LayerSpec | null => {
     if (!shown) return null;
@@ -147,6 +163,7 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
         const dimmed = hasSelection && !sel;
         const hovered = p.id === hoveredId;
         const sublabel = (p as MapPlace).sublabel;
+        const fill = typeof fillOf === 'function' ? fillOf(p) : fillOf;
         return {
           id: p.id,
           position: [p.lng, p.lat],
@@ -181,7 +198,7 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
       key: 'homes',
       build: scatterSpec('places-home', places.filter((p) => p.kind === 'home'), visible.homes, HOME_FILL, 4),
     },
-    { key: 'vehicles', build: scatterSpec('movers-vehicle', movers.filter((m) => m.kind === 'vehicle'), true, VEHICLE_FILL, 6) },
+    { key: 'vehicles', build: scatterSpec('movers-vehicle', movers.filter((m) => m.kind === 'vehicle'), true, (m: MapMover) => vehicleColor(m.tone), 6) },
     {
       key: 'packages',
       build: scatterSpec('movers-package', movers.filter((m) => m.kind === 'package'), visible.packages, PACKAGE_FILL, 5),
