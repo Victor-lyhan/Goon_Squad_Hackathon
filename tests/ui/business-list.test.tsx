@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ShipmentList } from '../../client/src/components/business/ShipmentList';
@@ -43,14 +44,14 @@ describe('ShipmentList', () => {
 describe('TrackingDetail', () => {
   it('shows facts, hub, legs and stepper for a relay', () => {
     const html = renderToStaticMarkup(
-      <TrackingDetail view={mk(relayPlan, 'at_hub')} businesses={businesses} hubs={hubs} employees={employees} />,
+      <MemoryRouter><TrackingDetail view={mk(relayPlan, 'at_hub')} businesses={businesses} hubs={hubs} employees={employees} /></MemoryRouter>,
     );
     for (const t of ['Signed contracts', 'Deadline', 'Calculated arrival', 'Relay hub', 'Hub H', 'Ann', 'Ben', 'Out for delivery', 'trk-step--current'])
       expect(html).toContain(t);
   });
   it('omits hub and hub steps for a direct plan', () => {
     const html = renderToStaticMarkup(
-      <TrackingDetail view={mk(directPlan, 'picked_up')} businesses={businesses} hubs={hubs} employees={employees} />,
+      <MemoryRouter><TrackingDetail view={mk(directPlan, 'picked_up')} businesses={businesses} hubs={hubs} employees={employees} /></MemoryRouter>,
     );
     expect(html).not.toContain('Relay hub');
     expect(html).not.toContain('Out for delivery');

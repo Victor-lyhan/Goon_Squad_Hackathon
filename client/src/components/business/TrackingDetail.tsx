@@ -1,8 +1,9 @@
 import type { MapResponse, ShipmentView } from '../../../../shared/api';
 import type { Business, Employee, Hub } from '../../../../shared/types';
+import { Link } from 'react-router-dom';
 import { StatusPill, formatKg, formatMin } from '../../ui';
 import { RouteMiniMap } from './RouteMiniMap';
-import { legRows, progressSteps } from './trackingModel';
+import { legRows, progressSteps, simulatorHref } from './trackingModel';
 import './tracking.css';
 
 export type TrackingDetailProps = { view: ShipmentView; businesses: Business[]; hubs: Hub[]; employees: Employee[]; map?: MapResponse | null };
@@ -51,11 +52,12 @@ export function TrackingDetail({ view, businesses, hubs, employees, map }: Track
           <ol className="trk-legs">
             {rows.map((r) => (
               <li key={r.key}>
-                <strong>{r.employeeName}</strong>
+                <strong><Link to={r.employeeHref}>{r.employeeName}</Link></strong>
                 <span>{r.pickupPlace} ({r.pickupTime}) → {r.dropoffPlace} ({r.dropoffTime})</span>
               </li>
             ))}
           </ol>
+          <p><Link to={simulatorHref(s.id)}>Watch in simulator</Link></p>
         </>
       )}
     </div>

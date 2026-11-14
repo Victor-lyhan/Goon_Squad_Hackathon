@@ -1,5 +1,6 @@
 import type { ShipmentView } from '../../../../shared/api';
 import type { Business, Employee, Hub, ShipmentProgress } from '../../../../shared/types';
+import { jobIdFor } from '../../../../shared/types';
 import { formatMin } from '../../ui/format';
 
 export type StepState = 'done' | 'current' | 'upcoming';
@@ -31,6 +32,7 @@ export type Lookups = { businesses: Business[]; hubs: Hub[]; employees: Employee
 export type LegRow = {
   key: string;
   employeeName: string;
+  employeeHref: string;
   pickupPlace: string;
   pickupTime: string;
   dropoffPlace: string;
@@ -39,6 +41,16 @@ export type LegRow = {
 
 export function placeName(nodeId: string, { businesses, hubs }: Pick<Lookups, 'businesses' | 'hubs'>): string {
   return businesses.find((b) => b.nodeId === nodeId)?.name ?? hubs.find((h) => h.nodeId === nodeId)?.name ?? 'Stop';
+}
+
+/** Deep link to a carrier's job (DECISIONS pass 4). */
+export function carrierHref(employeeId: string, jobId: string): string {
+  return `/employee/${encodeURIComponent(employeeId)}?job=${encodeURIComponent(jobId)}`;
+}
+
+/** Deep link to the simulator with a package selected (DECISIONS pass 8). */
+export function simulatorHref(shipmentId: string): string {
+  return `/simulator?package=${encodeURIComponent(shipmentId)}`;
 }
 
 /** One display row per carrier leg: who carries it and where/when. */
@@ -50,6 +62,7 @@ export function legRows(view: ShipmentView, lookups: Lookups): LegRow[] {
     return {
       key: `${leg.tripId}-${i}`,
       employeeName: lookups.employees.find((e) => e.id === leg.employeeId)?.name ?? 'Carrier',
+      employeeHref: carrierHref(leg.employeeId, jobIdFor(view.plan!.id, i)),
       pickupPlace: first ? placeName(first.nodeId, lookups) : 'Stop',
       pickupTime: first ? formatMin(first.serviceStartMin) : '',
       dropoffPlace: last ? placeName(last.nodeId, lookups) : 'Stop',

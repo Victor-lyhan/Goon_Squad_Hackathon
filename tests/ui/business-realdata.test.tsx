@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -83,7 +84,7 @@ describe('MatchResultCard with real POST /api/shipments responses', () => {
   const render = (response: ShipmentResponse) => {
     const { businesses, hubs, employees } = store.get().scenario;
     return renderToStaticMarkup(
-      <MatchResultCard response={response} businesses={businesses} hubs={hubs} employees={employees} onViewTracking={() => {}} onEdit={() => {}} onRetry={() => {}} />,
+      <MemoryRouter><MatchResultCard response={response} businesses={businesses} hubs={hubs} employees={employees} onViewTracking={() => {}} onEdit={() => {}} onRetry={() => {}} /></MemoryRouter>,
     );
   };
 
