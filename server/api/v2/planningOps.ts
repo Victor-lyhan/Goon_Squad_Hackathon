@@ -303,6 +303,8 @@ function referenceProblem(run: Run): Problem | null {
   const shipments = ids(scenario.shipments);
   const planIds = ids(plans);
   const jobIds = ids(run.jobs);
+  // A place is a business or a home of this file: the only IDs the travel cache and the matcher know.
+  const places = new Set([...businesses, ...homes]);
 
   // [path, owner (with article), target (with article), the referenced ID, the set it must be in]
   type Ref = [string, string, string, string | undefined, Set<string>];
@@ -315,12 +317,22 @@ function referenceProblem(run: Run): Problem | null {
       [`scenario.shipments.${i}.originBusinessId`, 'A delivery', 'a business', s.originBusinessId, businesses],
       [`scenario.shipments.${i}.destinationBusinessId`, 'A delivery', 'a business', s.destinationBusinessId, businesses],
     ]),
-    ...run.trips.map((t, i): Ref => [`trips.${i}.employeeId`, 'A commute trip', 'an employee', t.employeeId, employees]),
+    ...run.trips.flatMap((t, i): Ref[] => [
+      [`trips.${i}.employeeId`, 'A commute trip', 'an employee', t.employeeId, employees],
+      [`trips.${i}.originPlaceId`, 'A commute trip', 'a place', t.originPlaceId, places],
+      [`trips.${i}.destinationPlaceId`, 'A commute trip', 'a place', t.destinationPlaceId, places],
+    ]),
     ...plans.flatMap((p, i): Ref[] => [
       [`assignments.plans.${i}.shipmentId`, 'A delivery plan', 'a delivery', p.shipmentId, shipments],
       [`assignments.plans.${i}.relayBusinessId`, 'A delivery plan', 'a business', p.relayBusinessId, businesses],
-      ...p.legs.map((leg, j): Ref => [
-        `assignments.plans.${i}.legs.${j}.employeeId`, 'A delivery plan', 'an employee', leg.employeeId, employees,
+      ...p.legs.flatMap((leg, j): Ref[] => [
+        [`assignments.plans.${i}.legs.${j}.employeeId`, 'A delivery plan', 'an employee', leg.employeeId, employees],
+        ...leg.placeIds.map((placeId, k): Ref => [
+          `assignments.plans.${i}.legs.${j}.placeIds.${k}`, 'A delivery plan', 'a place', placeId, places,
+        ]),
+        ...leg.stops.map((stop, k): Ref => [
+          `assignments.plans.${i}.legs.${j}.stops.${k}.placeId`, 'A delivery plan', 'a place', stop.placeId, places,
+        ]),
       ]),
     ]),
     ...run.assignments.unmatched.map((u, i): Ref => [
@@ -330,8 +342,13 @@ function referenceProblem(run: Run): Problem | null {
       [`jobs.${i}.planId`, 'A job', 'a delivery plan', job.planId, planIds],
       [`jobs.${i}.shipmentId`, 'A job', 'a delivery', job.shipmentId, shipments],
       [`jobs.${i}.employeeId`, 'A job', 'an employee', job.employeeId, employees],
+      [`jobs.${i}.pickup.placeId`, 'A job', 'a place', job.pickup.placeId, places],
+      [`jobs.${i}.dropoff.placeId`, 'A job', 'a place', job.dropoff.placeId, places],
     ]),
-    ...run.events.map((event, i): Ref => [`events.${i}.jobId`, 'A timeline event', 'a job', event.jobId, jobIds]),
+    ...run.events.flatMap((event, i): Ref[] => [
+      [`events.${i}.jobId`, 'A timeline event', 'a job', event.jobId, jobIds],
+      [`events.${i}.relayBusinessId`, 'A timeline event', 'a business', event.relayBusinessId, businesses],
+    ]),
   ];
   for (const [path, owner, target, ref, known] of refs) {
     if (ref !== undefined && !known.has(ref)) {
@@ -356,10 +373,59 @@ function uncachedHomes(run: Run, travel: TravelPairs): number {
   return missing.size;
 }
 
+const NO_TRAVEL_TIME = 'No travel time';
+
+/**
+ * The first pair of places that a trip or a plan leg drives and the cache has no travel time for, or null
+ * (SPEC MVP II rule 2: a missing pair is a refusal, never a guess). A new planning cycle and Recompute keep
+ * the trips and match them again, and the matcher may route a trip through any business of the file (the
+ * other side of a delivery, or a relay point), so for each trip it needs origin -> destination,
+ * origin -> every business and every business -> destination. A leg needs each hop of its `placeIds`.
+ * With these pairs cached, a stored run can always be planned again.
+ */
+function travelProblem(run: Run, travel: TravelPairs): Problem | null {
+  const businessIds = run.scenario.businesses.map((business) => business.id);
+  for (const [i, trip] of run.trips.entries()) {
+    const from = trip.originPlaceId;
+    const to = trip.destinationPlaceId;
+    // [from, to, the end of the trip a missing pair is blamed on]
+    type Pair = [string, string, 'originPlaceId' | 'destinationPlaceId'];
+    const pairs: Pair[] = [
+      [from, to, 'destinationPlaceId'],
+      ...businessIds.flatMap((id): Pair[] => [
+        [from, id, 'originPlaceId'],
+        [id, to, 'destinationPlaceId'],
+      ]),
+    ];
+    const missing = pairs.find(([a, b]) => a !== b && !travel.has(a, b));
+    if (missing) {
+      return {
+        sentence: 'A commute trip in this file drives between places this server has no travel time for, so it was not loaded.',
+        path: `trips.${i}.${missing[2]}`, label: NO_TRAVEL_TIME,
+      };
+    }
+  }
+  for (const [i, plan] of run.assignments.plans.entries()) {
+    for (const [j, leg] of plan.legs.entries()) {
+      for (let k = 1; k < leg.placeIds.length; k++) {
+        if (leg.placeIds[k - 1] !== leg.placeIds[k] && !travel.has(leg.placeIds[k - 1], leg.placeIds[k])) {
+          return {
+            sentence: 'A delivery plan in this file drives between places this server has no travel time for, so it was not loaded.',
+            path: `assignments.plans.${i}.legs.${j}.placeIds.${k}`, label: NO_TRAVEL_TIME,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Decides whether an uploaded file may replace the run. Accepted only when it is a complete MVP II run
- * (`scenario.schemaVersion === 2`), every reference resolves and every employee's commute is in the
- * travel cache; otherwise it is refused with a one-sentence reason and never repaired or estimated
+ * (`scenario.schemaVersion === 2`), every reference resolves (every place ID is a business or a home of
+ * the file), every employee's commute is in the travel cache (else 503) and every pair a trip or a plan
+ * leg drives is too (else 400, see `travelProblem`), so a new planning cycle and Recompute work on it;
+ * otherwise it is refused with a one-sentence reason and never repaired or estimated
  * (DECISIONS pass 10, 47). The accepted run is a copy of the file with `clock.playing = false`;
  * it keeps the file's `runId`, and the route sets `nextRunId(current.runId)` when it stores it.
  */
@@ -393,6 +459,9 @@ export function parseImportedRun(body: unknown, travel: TravelPairs): ImportPlan
         + 'so it was not loaded.',
     );
   }
+
+  const travelGap = travelProblem(run, travel);
+  if (travelGap) return invalid(travelGap.sentence, { [travelGap.path]: travelGap.label });
 
   run.clock.playing = false;
   return { kind: 'run', run };
