@@ -1,9 +1,9 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 06:50 (Sat), planner pass 21_
+_Last update: 2026-11-14 07:01 (Sat), planner pass 22_
 
 ## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Since pass 20, #314 is merged (PR #315). Five of the six CI timing sweeps are merged; only p1-a's (#303) is left. No issues were queued this pass.
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Nothing new merged since pass 21. Five of the six CI timing sweeps are merged; only p1-a's (#303) is left. #303 is back to `ready` (see below). No new issues were queued this pass.
 
 ## Main health: GREEN
 - The last three main runs passed, including the merge of #315 (#314).
@@ -13,13 +13,14 @@ Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Du
 - None.
 
 ## In review
-- **#303** p1-a, matcher/routing timing sweep. It's been labeled `in-review` since 11:31 UTC, but there was no open PR at 06:50 (2 passes). If there's still no PR next pass, check whether the p1-a Codex worker is running.
+- None.
 
 ## Queued (label `ready`)
-- None. All workers are idle by design (no filler, DECISIONS pass 13).
+- **#303** p1-a, matcher/routing timing sweep. Its PR was never opened. p1-a pushed commit 8d9afdc to `origin/issue-303` at 11:31 UTC (6 `tests/domain/matching-*` files), but `gh pr create` failed. `scripts/worker.sh:80-84` hides the error and logs it as "PR already existed", then labels the issue `in-review`. Relabeled `ready` at 07:01 so p1-a reruns it (DECISIONS pass 22).
+- No other issues queued. All other workers are idle by design (no filler, DECISIONS pass 13).
 
 ## Next up
-- Merge #303. Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and answers on a global `testTimeout` and on the Codex sandbox's EPERM on listen.
+- p1-a reruns #303 and opens the PR, then the reviewer merges it. If #303 is `in-review` with no PR again, `gh pr create` is failing every time, and a human needs to run it by hand (QUESTIONS pass 22). Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and answers on a global `testTimeout` and on the Codex sandbox's EPERM on listen.
 
 ## Done (newest first)
 - PR #315 (#314) victor-1: `notifications-cycles` cut from 8.4 s to about 1.0 s (all assertions kept). New `commute-latency` test: the demo commute PUT median is about 26 ms, against a 150 ms budget. The PUT cost is the matcher retrying unmatched packages (25–40 ms per PUT).
