@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fixture from '../../fixtures/relayFixture.json';
-import { createRng } from '../../server/domain/generator';
+import { createRng } from '../../server/domain/v2/rng';
 import { buildTrips } from '../../server/domain/v2/trips';
 import { assignShipments, generateCandidates, type MatchContext } from '../../server/domain/v2/matching';
 import { explainShipment, type ExplainRow, type ExplainRule } from '../../server/domain/v2/storyExplain';

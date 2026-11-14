@@ -11,7 +11,7 @@ import type {
   TravelMatrixFile,
 } from '../../../shared/v2/types.js';
 import type { GenerateScenarioRequest } from '../../../shared/v2/schemas.js';
-import { createRng } from '../generator.js';
+import { createRng } from './rng.js';
 import { DEFAULT_SETTINGS } from '../pricing.js';
 
 /** Stable seed for cacheable synthetic homes; it deliberately does not use a scenario seed. */
