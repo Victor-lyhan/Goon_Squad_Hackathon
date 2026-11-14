@@ -1,9 +1,11 @@
 // The Employee page's GET /api/v2/map, once per run (#463, DECISIONS pass 48). A pure reducer for
 // what the route-preview slot shows, and a small loader that decides when to request: the first
 // time a run ID is known, when the run ID changes, after a commute save (a new home changes the
-// route lines) and on Retry. A poll with the same run never requests. Every request has its own
-// AbortController; a newer request, an employee switch and unmount abort the old one, silently
-// (DECISIONS pass 14).
+// route lines) and on Retry. A poll with the same run never requests, and neither does a run change
+// when a refresh already brought (or is bringing) that run's map: since #597 the poller shows a new
+// run's jobs before it knows the run ID, so the page's job-set refresh (#596) comes first and the run
+// change must not ask a second time (#690). Every request has its own AbortController; a newer
+// request, an employee switch and unmount abort the old one, silently (DECISIONS pass 14).
 import type { MapResponse } from '../../../../../../shared/v2/api';
 import { isAbortError, isTravelUnavailable, type RequestOptions } from '../../../../api/v2';
 
@@ -61,7 +63,10 @@ export function runMapSlot(s: RunMapState): RunMapSlot {
 export type GetMap = (opts?: RequestOptions) => Promise<MapResponse>;
 
 export type RunMapLoader = {
-  /** Called with the page's current run ID on every render/poll; requests only when it changed. */
+  /**
+   * Called with the page's current run ID on every render/poll; requests only when it changed and
+   * the map on screen (or the refresh that is open) is not already that run's.
+   */
   sync: (runId: string | null) => void;
   /** After a commute save succeeded: same run, new route lines. */
   refresh: () => void;
@@ -73,7 +78,13 @@ export type RunMapLoader = {
 
 export function createRunMapLoader(getMap: GetMap, dispatch: (a: RunMapAction) => void): RunMapLoader {
   let runId: string | null = null;
+  /** The run the map on screen says it is (its own `runId`); null when dropped, failed or not loaded. */
+  let mapRunId: string | null = null;
   let ctl: AbortController | null = null;
+  /** The request that is open now: a run-change `load` or a `refresh` (also Retry) that keeps the map. */
+  let open: 'load' | 'refresh' | null = null;
+  /** The run changed while a refresh was open: its answer counts only if it is the new run's map. */
+  let verify = false;
   let stopped = false;
 
   function load(keepMap: boolean) {
@@ -81,11 +92,24 @@ export function createRunMapLoader(getMap: GetMap, dispatch: (a: RunMapAction) =
     ctl?.abort();
     const mine = new AbortController();
     ctl = mine;
+    open = keepMap ? 'refresh' : 'load';
+    if (!keepMap) { mapRunId = null; verify = false; }
     dispatch({ type: 'start', keepMap });
     getMap({ signal: mine.signal }).then(
-      (map) => { if (ctl === mine && !mine.signal.aborted) dispatch({ type: 'loaded', map }); },
+      (map) => {
+        if (ctl !== mine || mine.signal.aborted) return;
+        open = null;
+        const otherRun = verify && map.runId !== runId;
+        verify = false;
+        if (otherRun) { load(false); return; }
+        mapRunId = map.runId;
+        dispatch({ type: 'loaded', map });
+      },
       (e: unknown) => {
         if (ctl !== mine || mine.signal.aborted || isAbortError(e)) return; // silent
+        open = null;
+        mapRunId = null;
+        if (verify) { load(false); return; } // the old run's map is not kept for the new run
         dispatch({ type: 'failed', error: e });
       },
     );
@@ -95,6 +119,10 @@ export function createRunMapLoader(getMap: GetMap, dispatch: (a: RunMapAction) =
     sync(next) {
       if (next === null || next === runId) return;
       runId = next;
+      // The page learns of a new run after its jobs (#597): the refresh for the new jobs is then the
+      // new run's one request (#690). An open refresh is left to answer; a map already in is kept.
+      if (open === 'refresh') { verify = true; return; }
+      if (open === null && mapRunId === next) return;
       load(false);
     },
     refresh: () => load(true),
@@ -103,6 +131,7 @@ export function createRunMapLoader(getMap: GetMap, dispatch: (a: RunMapAction) =
       stopped = true;
       ctl?.abort();
       ctl = null;
+      open = null;
     },
   };
 }

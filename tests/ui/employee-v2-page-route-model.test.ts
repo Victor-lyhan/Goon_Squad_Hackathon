@@ -80,6 +80,97 @@ describe('run map loader', () => {
     expect(h.state.map).toBe(fresh);
   });
 
+  // #690: since #597 the poller shows a new run's jobs before it knows the run ID, so the page's
+  // job-set refresh (#596) is sent first and the run change follows up to 5 s later.
+  it('a run change after a refresh that already brought that run\'s map requests nothing', async () => {
+    const h = harness();
+    h.loader.sync('run-1');
+    h.calls[0].resolve(mapFor('run-1'));
+    await flush();
+    h.loader.refresh(); // the new run's jobs are in the dashboard; the page still has the old run ID
+    h.calls[1].resolve(mapFor('run-2'));
+    await flush();
+    const actions = h.actions.length;
+    h.loader.sync('run-2');
+    expect(h.calls).toHaveLength(2);
+    expect(h.actions).toHaveLength(actions); // nothing on screen moves: no loading text
+    expect(runMapSlot(h.state)).toEqual({ kind: 'map', map: mapFor('run-2') });
+    // The next run is a request again, and so is a run the map on screen is not of.
+    h.loader.sync('run-3');
+    expect(h.calls).toHaveLength(3);
+    h.calls[2].resolve(mapFor('run-3'));
+    await flush();
+    h.loader.sync('run-2');
+    expect(h.calls).toHaveLength(4);
+  });
+
+  it('a run change while a refresh is open waits for its answer instead of asking twice', async () => {
+    const h = harness();
+    h.loader.sync('run-1');
+    h.calls[0].resolve(mapFor('run-1'));
+    await flush();
+    h.loader.refresh();
+    h.loader.sync('run-2');
+    expect(h.calls).toHaveLength(2);
+    expect(h.calls[1].signal.aborted).toBe(false);
+    h.calls[1].resolve(mapFor('run-2'));
+    await flush();
+    expect(h.calls).toHaveLength(2);
+    expect(runMapSlot(h.state)).toEqual({ kind: 'map', map: mapFor('run-2') });
+    for (let i = 0; i < 3; i++) h.loader.sync('run-2');
+    expect(h.calls).toHaveLength(2);
+  });
+
+  it('an open refresh that answers with the old run\'s map is followed by one request for the new run', async () => {
+    const h = harness();
+    h.loader.sync('run-1');
+    h.calls[0].resolve(mapFor('run-1'));
+    await flush();
+    h.loader.refresh();
+    h.loader.sync('run-2');
+    h.calls[1].resolve(mapFor('run-1')); // sent before the server changed runs
+    await flush();
+    expect(h.calls).toHaveLength(3);
+    expect(runMapSlot(h.state).kind).toBe('loading'); // the old run's map is dropped, as on any run change
+    h.calls[2].resolve(mapFor('run-2'));
+    await flush();
+    expect(h.state.map?.runId).toBe('run-2');
+    expect(h.calls).toHaveLength(3);
+  });
+
+  it('an open refresh that fails after a run change is asked again for the new run, with no failure shown', async () => {
+    const h = harness();
+    h.loader.sync('run-1');
+    h.calls[0].resolve(mapFor('run-1'));
+    await flush();
+    h.loader.refresh();
+    h.loader.sync('run-2');
+    h.calls[1].reject(new ApiRequestError(0, 'Network down'));
+    await flush();
+    expect(h.calls).toHaveLength(3);
+    expect(h.actions.filter((a) => a.type === 'failed')).toHaveLength(0);
+    expect(runMapSlot(h.state).kind).toBe('loading');
+    // That request is the new run's own: a failure of it is shown.
+    h.calls[2].reject(new ApiRequestError(500, 'Server error'));
+    await flush();
+    expect(runMapSlot(h.state)).toEqual({ kind: 'failed', text: MAP_FAILED_TEXT, map: null });
+  });
+
+  it('a run change after a failed refresh requests, because the map on screen may be the old run\'s', async () => {
+    const h = harness();
+    h.loader.sync('run-1');
+    h.calls[0].resolve(mapFor('run-1'));
+    await flush();
+    h.loader.refresh();
+    h.calls[1].resolve(mapFor('run-2'));
+    await flush();
+    h.loader.refresh();
+    h.calls[2].reject(new ApiRequestError(0, 'Network down'));
+    await flush();
+    h.loader.sync('run-2');
+    expect(h.calls).toHaveLength(4);
+  });
+
   it('a refresh before any run is known does nothing', () => {
     const h = harness();
     h.loader.refresh();
