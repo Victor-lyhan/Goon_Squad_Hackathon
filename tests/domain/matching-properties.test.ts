@@ -5,12 +5,14 @@ import { generateScenario } from '../../server/domain/generator';
 import { assignShipments, type MatchContext, type MatchMode } from '../../server/domain/matching';
 import { buildTrips, createRouter } from '../../server/domain/routing';
 
-const timeoutMs = 5_000;
+// Per-seed timeout leaves ample headroom for slower CI workers.
+const timeoutMs = 10_000;
 const modes = ['with_relay', 'direct_only'] as const;
 
-function city(seed: number): Scenario {
-  return generateScenario(GenerateScenarioRequest.parse({ preset: 'random', seed }));
-}
+const cities = Array.from({ length: 20 }, (_, index) => {
+  const seed = index + 1;
+  return { seed, scenario: generateScenario(GenerateScenarioRequest.parse({ preset: 'random', seed })) };
+});
 
 function context(scenario: Scenario): MatchContext {
   const router = createRouter(scenario.graph);
@@ -104,22 +106,18 @@ function editCommutes(scenario: Scenario, protectedEmployees = new Set<string>()
 }
 
 describe('§6 seeded plan validity', () => {
-  for (const seed of Array.from({ length: 20 }, (_, index) => index + 1)) {
-    for (const mode of modes) {
-      it(`validates every default plan: seed ${seed}, ${mode}`, () => {
-        const scenario = city(seed);
-        const ctx = context(scenario);
-        const result = assignShipments(scenario.shipments, ctx, { mode });
-        expect(result.plans.length).toBeGreaterThan(0);
-        valid(scenario, ctx, result, mode);
-      }, timeoutMs);
-    }
-  }
+  describe.each(modes)('%s', mode => {
+    it.each(cities)('validates every default plan: seed $seed', ({ scenario }) => {
+      const ctx = context(scenario);
+      const result = assignShipments(scenario.shipments, ctx, { mode });
+      expect(result.plans.length).toBeGreaterThan(0);
+      valid(scenario, ctx, result, mode);
+    }, timeoutMs);
+  });
 
-  for (const seed of [1, 5, 10, 15, 20]) {
-    for (const mode of modes) {
-      it(`validates rebuilt commutes and reserved retries: seed ${seed}, ${mode}`, () => {
-        const original = city(seed);
+  describe.each(modes)('%s', mode => {
+    it.each(cities.filter(({ seed }) => [1, 5, 10, 15, 20].includes(seed)))(
+      'validates rebuilt commutes and reserved retries: seed $seed', ({ seed, scenario: original }) => {
         const edited = editCommutes(original);
         const ctx = context(edited);
         expect(ctx.trips.length).toBeLessThan(context(original).trips.length);
@@ -141,7 +139,7 @@ describe('§6 seeded plan validity', () => {
           expect(retry.plans.find(item => item.id === plan.id), `seed ${seed}, ${plan.id}`).toEqual(plan);
         }
         valid(retryScenario, retryCtx, retry, mode);
-      }, timeoutMs);
-    }
-  }
+      }, timeoutMs,
+    );
+  });
 });

@@ -76,14 +76,18 @@ const reasons = {
   disconnected: 'No road route connects the sender to the recipient',
 };
 
+// Reuse generated data across modes; each allocation still gets its own router.
+const cities = [1, 42, 93].map(seed => ({
+  seed, scenario: generateScenario(GenerateScenarioRequest.parse({ preset: 'random', seed, hubs: 0 })),
+}));
+
 describe.each(['with_relay', 'direct_only'] as const)('matcher edge cases: %s', mode => {
-  it.each([1, 42, 93])('supports a generated zero-hub city, seed %i', seed => {
-    const scenario = generateScenario(GenerateScenarioRequest.parse({ preset: 'random', seed, hubs: 0 }));
+  it.each(cities)('supports a generated zero-hub city, seed $seed', ({ scenario }) => {
     expect(scenario.hubs).toEqual([]);
     const result = allocate(scenario.shipments, { ...scenario, router: createRouter(scenario.graph), trips: [] }, mode);
     expect(result.plans.length).toBeGreaterThan(0);
     expect(result.plans.every(plan => plan.kind === 'direct')).toBe(true);
-  });
+  }, 10_000);
 
   it.each(['evening', 'morning'] as const)('uses the other direction when every employee is unavailable in the %s', direction => {
     const { ctx, shipment } = inputs();

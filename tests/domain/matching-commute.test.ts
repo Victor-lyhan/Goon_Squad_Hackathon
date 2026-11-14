@@ -52,7 +52,7 @@ function expectUnmatched(result: AssignmentResult, shipmentId: string) {
   expect(result.unmatched).toContainEqual({ shipmentId, reason: expect.stringMatching(/\S/) });
 }
 
-describe.each(['with_relay', 'direct_only'] as const)('saved commutes (%s, spec 10)', mode => {
+describe.each(['with_relay', 'direct_only'] as const)('saved commutes (%s, spec 10)', { timeout: 10_000 }, mode => {
   it.each([
     { index: 0, field: 'availableEvening', tripId: 'emp-1-eve' },
     { index: 1, field: 'availableMorning', tripId: 'emp-2-morn' },

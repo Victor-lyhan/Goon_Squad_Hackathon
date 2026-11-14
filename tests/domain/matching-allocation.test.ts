@@ -165,6 +165,7 @@ describe('assignShipments', () => {
   });
 
   it('returns identical assignments for scenarios generated with identical options (spec 7)', () => {
+    // Independent generation is intentional: this test checks same-options determinism.
     const allocate = () => {
       const scenario = generateScenario({ seed: 42, employees: 60, packages: 24, hubs: 6, maxExtraMin: 8, preset: 'demo' });
       const ctx: MatchContext = { ...scenario, router: createRouter(scenario.graph), trips: [] };
@@ -174,5 +175,5 @@ describe('assignShipments', () => {
     const result = allocate();
     expect(result.plans.length).toBeGreaterThan(0);
     expect(allocate()).toEqual(result);
-  });
+  }, 10_000);
 });

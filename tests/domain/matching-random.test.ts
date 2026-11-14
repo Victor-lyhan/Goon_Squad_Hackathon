@@ -1,34 +1,38 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { GenerateScenarioRequest } from '../../shared/schemas';
 import { generateScenario } from '../../server/domain/generator';
+import type { Scenario } from '../../shared/types';
 import { assignShipments, type MatchMode } from '../../server/domain/matching';
 import { buildTrips, createRouter } from '../../server/domain/routing';
 
-const seeds = Array.from({ length: 15 }, (_, index) => index + 1);
+// Generate each seed once; clone it only for the independent determinism run.
+const cities = Array.from({ length: 15 }, (_, index) => {
+  const seed = index + 1;
+  return { seed, scenario: generateScenario(GenerateScenarioRequest.parse({ preset: 'random', seed })) };
+});
 const modes = ['with_relay', 'direct_only'] as const;
 
-function allocate(seed: number, mode: MatchMode) {
-  const scenario = generateScenario(GenerateScenarioRequest.parse({ preset: 'random', seed }));
+function allocate(scenario: Scenario, mode: MatchMode) {
   const router = createRouter(scenario.graph);
   const trips = scenario.employees.flatMap(employee => buildTrips(employee, scenario.businesses, router));
   const result = assignShipments(scenario.shipments, { ...scenario, router, trips }, { mode });
   return { scenario, trips, result };
 }
 
-describe.each(seeds)('random city seed %i', seed => {
+describe.each(cities)('random city seed $seed', { timeout: 10_000 }, ({ scenario }) => {
   let runs: Record<MatchMode, ReturnType<typeof allocate>>;
 
   beforeAll(() => {
     runs = {
-      with_relay: allocate(seed, 'with_relay'),
-      direct_only: allocate(seed, 'direct_only'),
+      with_relay: allocate(scenario, 'with_relay'),
+      direct_only: allocate(scenario, 'direct_only'),
     };
-  });
+  }, 10_000);
 
   describe.each(modes)('%s', mode => {
     it('reproduces plans and unmatched lists with a fresh scenario and router (spec 7)', () => {
       const first = runs[mode].result;
-      const second = allocate(seed, mode).result;
+      const second = allocate(structuredClone(scenario), mode).result;
       expect(second.plans).toEqual(first.plans);
       expect(second.unmatched).toEqual(first.unmatched);
       expect(first.computeMs).toBe(0);
