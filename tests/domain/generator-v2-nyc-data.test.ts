@@ -105,6 +105,7 @@ describe('curated NYC fixture data', () => {
     expect(featuredEmployees.length).toBeLessThanOrEqual(10);
     const businessIds = new Set(businesses.map((business) => business.id));
     const neighborhoodByName = new Map(neighborhoods.map((neighborhood) => [neighborhood.name, neighborhood]));
+    const homePoints = new Set<string>();
 
     for (const [index, employee] of featuredEmployees.entries()) {
       expect(employee.id).toBe(`emp-${index + 1}`);
@@ -116,6 +117,7 @@ describe('curated NYC fixture data', () => {
       expect(employee.home.lat).toBeLessThanOrEqual(bbox.north);
       expect(employee.home.lng).toBeGreaterThanOrEqual(bbox.west);
       expect(employee.home.lng).toBeLessThanOrEqual(bbox.east);
+      homePoints.add(`${employee.home.lat},${employee.home.lng}`);
       expect(employee.eveningDepartureMin).toBeGreaterThanOrEqual(990);
       expect(employee.eveningDepartureMin).toBeLessThanOrEqual(1110);
       expect(employee.morningDepartureMin).toBeGreaterThanOrEqual(1860);
@@ -125,19 +127,18 @@ describe('curated NYC fixture data', () => {
       expect(employee.availableEvening).toBe(true);
       expect(employee.availableMorning).toBe(true);
     }
+
+    expect(homePoints.size).toBe(featuredEmployees.length);
   });
 
-  it('uses reviewed residential story homes and separate B&H carriers for the relay stories', () => {
+  it('keeps Daniel Kim at the reviewed Harlem residential point', () => {
     const employeeById = new Map(featuredEmployees.map((employee) => [employee.id, employee]));
-    expect(employeeById.get('emp-5')?.home).toMatchObject({
-      neighborhood: 'Washington Heights', lat: 40.84520, lng: -73.93650,
+    expect(employeeById.get('emp-10')?.home).toMatchObject({
+      id: 'home-story-harlem-2', neighborhood: 'Harlem', lat: 40.81300, lng: -73.94330,
     });
-    expect(employeeById.get('emp-8')?.home).toMatchObject({
-      neighborhood: 'Park Slope', lat: 40.67380, lng: -73.97900,
-    });
-    expect(employeeById.get('emp-9')?.home).toMatchObject({
-      neighborhood: 'Park Slope', lat: 40.67020, lng: -73.98120,
-    });
+  });
+
+  it('keeps separate B&H carriers for the relay stories', () => {
     expect(featuredEmployees.filter((employee) => employee.businessId === 'biz-bh-photo').map((employee) => employee.id))
       .toEqual(['emp-4', 'emp-10']);
   });
@@ -168,6 +169,27 @@ describe('curated NYC fixture data', () => {
     for (const shipment of storyShipments.filter((shipment) => shipment.expect === 'relay')) {
       expect(shipment.note).toEqual(expect.any(String));
       expect(shipment.note).not.toHaveLength(0);
+    }
+  });
+
+  it('uses a named business neighborhood only for a shipment endpoint', () => {
+    const businessById = new Map(businesses.map((business) => [business.id, business]));
+
+    for (const shipment of shipments) {
+      const label = shipment.label.toLocaleLowerCase();
+      const namedNeighborhoods = new Set(
+        businesses
+          .map((business) => business.neighborhood)
+          .filter((neighborhood) => label.includes(neighborhood.toLocaleLowerCase())),
+      );
+      const endpointNeighborhoods = [
+        businessById.get(shipment.originBusinessId)?.neighborhood,
+        businessById.get(shipment.destinationBusinessId)?.neighborhood,
+      ];
+
+      for (const neighborhood of namedNeighborhoods) {
+        expect(endpointNeighborhoods).toContain(neighborhood);
+      }
     }
   });
 });
