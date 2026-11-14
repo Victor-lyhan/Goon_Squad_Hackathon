@@ -28,13 +28,15 @@ function boot(sample: BootSample): Extract<V2Boot, { status: 'ready' }> {
 }
 
 const files = () => fs.readdirSync(dir).sort();
+/** Written by every ready boot next to the state file: the fingerprint of the default inputs (DECISIONS pass 55, #503). */
+const SIDECAR = 'state-v2.source.json';
 
 /** The boot after a bad file: the default run, one warning, the bad bytes under `.bad-1`, no state file yet. */
 function expectDefaultAndCopy(sample: BootSample, badBytes: string, problem: RegExp) {
   const defaultJson = runJson(buildDefaultRun(bootSample())); // built without touching the state path
   const run = boot(sample).store.get();
   expect(runJson(run)).toBe(defaultJson);
-  expect(files()).toEqual(['state-v2.json.bad-1']);
+  expect(files()).toEqual(['state-v2.json.bad-1', SIDECAR]);
   expect(fs.readFileSync(`${statePath}.bad-1`, 'utf8')).toBe(badBytes);
   expect(warn).toHaveBeenCalledTimes(1);
   expect(String(warn.mock.calls[0][0])).toContain(`${statePath}.bad-1`);
@@ -57,7 +59,7 @@ describe('bootV2Run restart', () => {
     expect(run.version).toBe(1);
     expect(run.clock).toEqual({ phase: 'locked', playing: false, timeMin: 1100, speed: 600 });
     expect(run.scenario.shipments[0].label).toBe('Changed before the restart');
-    expect(files()).toEqual(['state-v2.json']);
+    expect(files()).toEqual(['state-v2.json', SIDECAR]);
     expect(warn).not.toHaveBeenCalled();
 
     // and the restored store keeps saving to the same file
@@ -77,7 +79,7 @@ describe('bootV2Run restart', () => {
     const later = bootSample();
     later.places[home.id] = { lat: home.lat, lng: home.lng };
     expect(boot(later).store.get().scenario.employees[0].homeId).toBe(home.id);
-    expect(files()).toEqual(['state-v2.json']);
+    expect(files()).toEqual(['state-v2.json', SIDECAR]);
   });
 
   it('a corrupt file gives the default run and leaves a renamed copy', () => {
@@ -111,7 +113,7 @@ describe('bootV2Run restart', () => {
     const sample = bootSample();
     boot(sample);
     boot(sample);
-    expect(files()).toEqual(['state-v2.json.bad-1']);
+    expect(files()).toEqual(['state-v2.json.bad-1', SIDECAR]);
 
     await boot(sample).store.mutate((run) => {
       run.clock.timeMin = 999;
@@ -119,7 +121,7 @@ describe('bootV2Run restart', () => {
     expect(boot(sample).store.get().clock.timeMin).toBe(999); // the new state file is used
     fs.writeFileSync(statePath, 'second bad file');
     boot(sample);
-    expect(files()).toEqual(['state-v2.json.bad-1', 'state-v2.json.bad-2']);
+    expect(files()).toEqual(['state-v2.json.bad-1', 'state-v2.json.bad-2', SIDECAR]);
     expect(fs.readFileSync(`${statePath}.bad-1`, 'utf8')).toBe('first bad file');
     expect(fs.readFileSync(`${statePath}.bad-2`, 'utf8')).toBe('second bad file');
   });

@@ -111,6 +111,16 @@ export async function shutdown(store: Store, ticker: { stop(): void }, v2?: { sh
   }
 }
 
+/**
+ * What the server prints about MVP II at start: one line with the status, and after it the notice when a
+ * saved NYC run was set aside as stale (DECISIONS pass 55). Paths and reasons only, never a key.
+ */
+export function v2StartLines(v2: { status: 'ready' | 'not_loaded'; reason?: string; notice?: string }): string[] {
+  if (v2.status !== 'ready') return [`Relay MVP II API (/api/v2) is not loaded and answers 503: ${v2.reason}`];
+  const ready = 'Relay MVP II API ready at /api/v2 (NYC travel cache loaded)';
+  return v2.notice ? [ready, v2.notice] : [ready];
+}
+
 if (isEntry) {
   const PORT = Number(process.env.PORT ?? 3001);
   const store = createStore({
@@ -123,12 +133,8 @@ if (isEntry) {
   // The key is read from the environment (.env at the repo root) and is never logged.
   loadDotEnv();
   const v2 = createV2Runtime({ fixturesDir: NYC_FIXTURES_DIR, statePath: DEFAULT_V2_STATE_PATH, key: serverKey() });
-  if (v2.status === 'ready') {
-    v2.startTicker();
-    console.log('Relay MVP II API ready at /api/v2 (NYC travel cache loaded)');
-  } else {
-    console.log(`Relay MVP II API (/api/v2) is not loaded and answers 503: ${v2.reason}`);
-  }
+  if (v2.status === 'ready') v2.startTicker();
+  for (const line of v2StartLines(v2)) console.log(line);
 
   const server = createApp(store, { v2: v2.deps }).listen(PORT, (err?: Error) => {
     if (err) return; // Express 5 also passes listen errors here; the 'error' handler below reports them

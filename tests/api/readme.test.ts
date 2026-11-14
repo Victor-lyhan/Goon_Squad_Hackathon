@@ -150,6 +150,14 @@ describe('README, MVP II section', () => {
     expect(seen).toContain(TRAVEL_DATA_MISSING_TEXT); // the sentence the NYC pages show
     expect(seen).toContain('data/state-v2.json');
     expect(seen).toMatch(/[Dd]elete `data\/state-v2\.json`/);
+    // "State and reset" (#503): a changed story or default limit starts a fresh run at the next restart,
+    // the old run is kept, and deleting the file still resets by hand.
+    const stateLine = seen.split('\n').find((line) => line.startsWith('- **State and reset.**')) ?? '';
+    expect(stateLine).toMatch(/changed story or default limit starts a fresh NYC run at the next restart/);
+    expect(stateLine).toContain('`data/state-v2.json.stale-<n>`');
+    expect(stateLine).toContain('demoStory.json');
+    expect(stateLine).toMatch(/never deleted/);
+    expect(stateLine).toMatch(/[Dd]elete `data\/state-v2\.json` and restart the server/);
     // The example employee is one of the story's.
     const story = JSON.parse(fs.readFileSync(path.join(root, 'fixtures/nyc/demoStory.json'), 'utf8')) as {
       featuredEmployees: { id: string }[];
