@@ -318,3 +318,8 @@ One line per decision: date, decision, why. Humans seeded the first block from t
 - 2026-11-14 (planner, pass 71) CI on main is red for the billing reason of pass 61 (runs of the 18:39 planner commit, #712 and #711). No fix issue.
 - 2026-11-14 (planner, pass 71) **The Employee flow browser check (#720) is `.tsx`/`.ts` only in `employee/v2/`**, like the Business one (#719, pass 70), because #714 still owns the page CSS. The "Collect the package (done)" fault stays out of scope (needs a `shared/` field, pass 61).
 - 2026-11-14 (planner, pass 71) **Production mode gets its own check (#721):** `npm run build && npm start`, every page and deep link loaded and reloaded, fonts and assets 200, unknown `/api` and `/api/v2` paths stay JSON 404s. Server-side fixes only; a needed config change is listed for the humans, not made.
+
+- 2026-11-14 (planner, pass 72) CI on main is red for the billing reason of pass 61 (runs of #714 and the 18:39 and 18:46 planner commits). No fix issue.
+- 2026-11-14 (planner, pass 72) **`/business` and `/employee` with no id redirect (replace) to the account the header links to** (remembered, else first), instead of "Page not found" (#724). The homepage keeps "Real NYC locations · simulated deliveries" in the header only; the footer copy goes.
+- 2026-11-14 (planner, pass 72) **The simulator gets a keyboard and screen-reader pass (#725):** Play/Pause by keyboard, focus never moved by the step auto-scroll, one polite announcement per step change and one for the Overnight card. Behaviour and copy otherwise unchanged.
+- 2026-11-14 (planner, pass 72) The Business markup faults of PR #722 (price in the notification sentence, New delivery hints in mono spans) wait for #719, which holds the `business/v2` `.tsx` files.
