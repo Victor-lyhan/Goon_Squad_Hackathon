@@ -3,7 +3,9 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, type RequestOptions } from '../../client/src/api/v2';
 import type { EmployeeDashboard } from '../../shared/v2/api';
-import { createEmployeePoller, type EmployeeWorkspaceApi } from '../../client/src/components/employee/v2/live/employeePoller';
+import {
+  RUN_CHECK_INTERVAL_MS, createEmployeePoller, type EmployeeWorkspaceApi,
+} from '../../client/src/components/employee/v2/live/employeePoller';
 import {
   employeeWorkspaceReducer, initialWorkspaceState, type EmployeeWorkspaceState, type WorkspaceAction,
 } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
@@ -28,6 +30,12 @@ type Fake = {
   setDash: (id: string, d: EmployeeDashboard | Error) => void;
   delayMs: number;
   signals: AbortSignal[];
+  /** true: every dashboard request answers with a higher version (the simulator is playing). */
+  rising: boolean;
+  /** What the map answers when a request ends: a run ID, or the error it fails with. */
+  mapRun: string | Error;
+  mapMs: number;
+  mapPending: number;
 };
 
 function fakeApi(): Fake {
@@ -35,13 +43,16 @@ function fakeApi(): Fake {
   let active = 0;
   const f: Fake = {
     calls: [], maxConcurrent: 0, delayMs: 10, signals: [],
+    rising: false, mapRun: 'run-1', mapMs: 1, mapPending: 0,
     setDash: (id, d) => { dashes.set(id, d); },
     api: {
       getEmployeeDashboard: (id, opts) => {
         f.calls.push(`dash:${id}`);
         if (opts?.signal) f.signals.push(opts.signal);
         active += 1; f.maxConcurrent = Math.max(f.maxConcurrent, active);
+        const nth = f.calls.filter((c) => c === `dash:${id}`).length;
         return abortable(opts, f.delayMs, () => {
+          if (f.rising) return dash(nth, []);
           const d = dashes.get(id);
           if (!d) throw new ApiRequestError(404, 'Unknown employee');
           if (d instanceof Error) throw d;
@@ -60,7 +71,14 @@ function fakeApi(): Fake {
         f.calls.push('employees');
         return abortable(opts, 1, () => ({ employees: [{ id: 'emp-07' }] as never }));
       },
-      getMap: (opts) => { f.calls.push('map'); return abortable(opts, 1, () => ({ runId: 'run-1' })); },
+      getMap: (opts) => {
+        f.calls.push('map');
+        f.mapPending += 1;
+        return abortable(opts, f.mapMs, () => {
+          if (f.mapRun instanceof Error) throw f.mapRun;
+          return { runId: f.mapRun };
+        }).finally(() => { f.mapPending -= 1; });
+      },
     },
   };
   return f;
@@ -77,6 +95,8 @@ function sinkState() {
 }
 
 const count = (f: Fake, call: string) => f.calls.filter((c) => c === call).length;
+type DashboardAction = Extract<WorkspaceAction, { type: 'dashboard' }>;
+const dashboards = (actions: WorkspaceAction[]) => actions.filter((a): a is DashboardAction => a.type === 'dashboard');
 
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
@@ -108,6 +128,9 @@ describe('employee v2 poller', () => {
     f.setDash('emp-01', dash(2, ['job-1', 'job-2']));
     await vi.advanceTimersByTimeAsync(1000);
     expect(s.get().newJobIds).toEqual(['job-2']);
+    // #597: the delivery shows without a run check; the check follows within 5 s of the first one.
+    expect(count(f, 'map')).toBe(1);
+    await vi.advanceTimersByTimeAsync(RUN_CHECK_INTERVAL_MS);
     expect(count(f, 'map')).toBe(2);
     p.stop();
   });
@@ -238,6 +261,140 @@ describe('employee v2 poller', () => {
     expect(count(f, 'dash:emp-01')).toBe(before + 1);
     expect(s.get().newJobIds).toEqual(['job-new']);
     p.stop();
+  });
+});
+
+describe('employee v2 poller: run check (#597)', () => {
+  it('a version that rises with every poll for 10 s gives at most 3 map requests and 10 dashboards', async () => {
+    const f = fakeApi();
+    f.rising = true;
+    const s = sinkState();
+    const p = createEmployeePoller('emp-01', f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    const sent = dashboards(s.actions);
+    expect(count(f, 'map')).toBeLessThanOrEqual(3);
+    expect(count(f, 'map')).toBeGreaterThanOrEqual(2); // the first poll and one check during the 10 s
+    expect(sent.length).toBeGreaterThanOrEqual(10);
+    expect(sent.length).toBe(count(f, 'dash:emp-01')); // every dashboard that arrived was shown
+    expect(sent.map((a) => a.dashboard.version)).toEqual(sent.map((_, i) => i + 1));
+    expect(sent.every((a) => a.runId === 'run-1')).toBe(true);
+    expect(s.get().dashboard?.version).toBe(sent.length);
+    expect(count(f, 'businesses')).toBe(1);
+    p.stop();
+  });
+
+  it('dispatches a dashboard while a map request is still pending', async () => {
+    const f = fakeApi();
+    f.setDash('emp-01', dash(1, []));
+    const s = sinkState();
+    const p = createEmployeePoller('emp-01', f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(RUN_CHECK_INTERVAL_MS + 100);
+    expect(count(f, 'map')).toBe(1);
+    f.mapMs = 4000; // the whole set of route lines takes a while
+    f.setDash('emp-01', dash(2, ['job-1']));
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(count(f, 'map')).toBe(2);
+    expect(f.mapPending).toBe(1);
+    expect(s.get().dashboard?.version).toBe(2);
+    f.setDash('emp-01', dash(3, ['job-1', 'job-2']));
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(f.mapPending).toBe(1);
+    expect(s.get().dashboard?.version).toBe(3);
+    expect(s.get().newJobIds).toEqual(['job-1', 'job-2']);
+    expect(count(f, 'map')).toBe(2);
+    p.stop();
+  });
+
+  it('one version change followed by silence still gives one check; another run reaches the next dispatch', async () => {
+    const f = fakeApi();
+    f.setDash('emp-01', dash(7, ['job-1']));
+    const s = sinkState();
+    const p = createEmployeePoller('emp-01', f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(50);
+    // Random city: a new run, whose dashboard has another version.
+    f.mapRun = 'run-2';
+    f.setDash('emp-01', dash(1, ['job-9']));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(s.get().dashboard?.version).toBe(1); // shown at once, with the last known run
+    expect(dashboards(s.actions).at(-1)?.runId).toBe('run-1');
+    expect(count(f, 'map')).toBe(1);
+    expect(count(f, 'businesses')).toBe(1);
+    await vi.advanceTimersByTimeAsync(RUN_CHECK_INTERVAL_MS); // the check, then the next poll
+    expect(count(f, 'map')).toBe(2);
+    expect(dashboards(s.actions).at(-1)?.runId).toBe('run-2');
+    expect(s.get().baseline?.runId).toBe('run-2');
+    expect(s.get().runChanged).toBe(true);
+    expect(count(f, 'businesses')).toBe(2);
+    await vi.advanceTimersByTimeAsync(20_000); // silence: no further check, no further reload
+    expect(count(f, 'map')).toBe(2);
+    expect(count(f, 'businesses')).toBe(2);
+    p.stop();
+  });
+
+  it('a failed check keeps the run ID and is repeated 5 s later', async () => {
+    const f = fakeApi();
+    f.mapRun = new ApiRequestError(0, 'Failed to fetch', undefined, 'network');
+    f.setDash('emp-01', dash(1, ['job-1']));
+    const s = sinkState();
+    const p = createEmployeePoller('emp-01', f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(s.get().view).toBe('ready'); // a failed map request leaves the page working
+    expect(dashboards(s.actions).at(-1)?.runId).toBeNull();
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(count(f, 'map')).toBe(1);
+    f.mapRun = 'run-1';
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(count(f, 'map')).toBe(2);
+    expect(dashboards(s.actions).at(-1)?.runId).toBe('run-1');
+    // Later: the version moves once and that check fails; the one after it finds the new run.
+    f.mapRun = new ApiRequestError(0, 'Failed to fetch', undefined, 'network');
+    f.setDash('emp-01', dash(2, ['job-1']));
+    await vi.advanceTimersByTimeAsync(RUN_CHECK_INTERVAL_MS + 100);
+    expect(count(f, 'map')).toBe(3);
+    expect(dashboards(s.actions).at(-1)?.runId).toBe('run-1');
+    f.mapRun = 'run-2';
+    await vi.advanceTimersByTimeAsync(RUN_CHECK_INTERVAL_MS + 1100);
+    expect(count(f, 'map')).toBe(4);
+    expect(s.get().baseline?.runId).toBe('run-2');
+    expect(count(f, 'businesses')).toBe(2);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(count(f, 'map')).toBe(4);
+    p.stop();
+  });
+
+  it('stop() leaves nothing running: no timer, no request, no dispatch', async () => {
+    const f = fakeApi();
+    f.rising = true;
+    const s = sinkState();
+    const p = createEmployeePoller('emp-01', f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(RUN_CHECK_INTERVAL_MS);
+    f.mapMs = 4000;
+    await vi.advanceTimersByTimeAsync(1500); // a slow check is pending and its 5 s wait is running
+    expect(f.mapPending).toBe(1);
+    const calls = f.calls.length;
+    const actions = s.actions.length;
+    p.stop();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(f.mapPending).toBe(0);
+    expect(f.calls.length).toBe(calls);
+    expect(s.actions.length).toBe(actions);
+    expect(vi.getTimerCount()).toBe(0);
+
+    // Stopped between polls, with only the two waits running.
+    const g = fakeApi();
+    g.rising = true;
+    const q = createEmployeePoller('emp-01', g.api, sinkState().sink);
+    q.start();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(vi.getTimerCount()).toBe(2);
+    q.stop();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 
