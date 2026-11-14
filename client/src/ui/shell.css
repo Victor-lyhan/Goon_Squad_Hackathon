@@ -1,4 +1,82 @@
-.skip-link { position: absolute; left: .5rem; top: -4rem; z-index: 100; background: #fff; color: var(--navy, #123); padding: .5rem .9rem; border-radius: 6px; border: 2px solid var(--accent, #2563eb); }
-.skip-link:focus { top: .5rem; }
+/* App shell: compact enterprise header. Tokens come from client/src/styles; fallbacks keep it right on their own. */
+.skip-link {
+  position: absolute; left: var(--space-2, 8px); top: -4rem; z-index: 100;
+  background: var(--panel, #FFFFFF); color: var(--text, #151B26);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border-radius: var(--radius, 2px); border: 1px solid var(--accent, #28618A);
+}
+.skip-link:focus { top: var(--space-2, 8px); }
+
+.shell-header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-4, 16px);
+  width: 100%; min-height: 48px; padding: var(--space-2, 8px) var(--space-4, 16px);
+  background: var(--panel, #FFFFFF); color: var(--text, #151B26);
+  border-bottom: 1px solid var(--border, #D7DDE5);
+  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif);
+  font-size: var(--text-sm, 13px); line-height: 1.4;
+}
+.shell-header > * { min-width: 0; }
+
+.shell-wordmark {
+  font-weight: 600; font-size: 16px; letter-spacing: .02em; text-decoration: none;
+  color: var(--text, #151B26); padding: var(--space-1, 4px) 0;
+}
+
+.shell-nav { display: flex; align-items: stretch; gap: var(--space-1, 4px); }
+.shell-nav-link {
+  display: inline-block; padding: var(--space-1, 4px) var(--space-2, 8px);
+  border-radius: var(--radius, 2px); border-bottom: 2px solid transparent;
+  color: var(--muted, #5B6472); text-decoration: none; font-weight: 500;
+}
+.shell-nav a.shell-nav-link:hover { color: var(--text, #151B26); background: var(--bg, #F7F8FA); }
+.shell-nav a.shell-nav-link.active,
+.shell-nav a.shell-nav-link[aria-current='page'] {
+  color: var(--accent-dark, #1F4E70); border-bottom-color: var(--accent, #28618A); font-weight: 600;
+}
+.shell-header .nav-pending { opacity: .5; cursor: not-allowed; padding: var(--space-1, 4px) var(--space-2, 8px); }
+
+.shell-tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-3, 12px);
+  margin-left: auto;
+}
+.shell-header .demo-account-slot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); max-width: 100%; }
+.shell-header .demo-account { display: inline-flex; align-items: center; gap: var(--space-2, 8px); font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.shell-header .demo-account select {
+  padding: var(--space-1, 4px) var(--space-2, 8px); font: inherit; color: var(--text, #151B26);
+  background: var(--panel, #FFFFFF); border: 1px solid var(--border, #D7DDE5); border-radius: var(--radius, 2px);
+  max-width: 16rem; min-width: 0;
+}
+.shell-header .demo-account-status { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.shell-help { color: var(--accent-dark, #1F4E70); text-decoration: none; font-size: var(--text-sm, 13px); padding: var(--space-1, 4px) 0; }
+.shell-help:hover, .shell-help.active { text-decoration: underline; }
+.shell-env {
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); white-space: nowrap;
+  padding-left: var(--space-3, 12px); border-left: 1px solid var(--border, #D7DDE5);
+}
+
+/* Focus: every header control gets a visible square outline. */
+.shell-wordmark:focus-visible,
+.shell-nav-link:focus-visible,
+.shell-help:focus-visible,
+.shell-header .demo-account select:focus-visible,
+.shell-header .demo-account-status a:focus-visible {
+  outline: 2px solid var(--accent, #28618A); outline-offset: 2px; border-radius: var(--radius, 2px);
+}
+
+/* 390 px: the nav wraps onto its own row, the tools go full width, the selector stays reachable. */
+@media (max-width: 600px) {
+  .shell-header { padding: var(--space-2, 8px) var(--space-3, 12px); }
+  .shell-nav { order: 3; flex: 1 1 100%; flex-wrap: wrap; }
+  .shell-tools { margin-left: auto; }
+  .shell-env { white-space: normal; }
+}
+@media (max-width: 480px) {
+  .shell-tools { flex: 1 1 100%; margin-left: 0; order: 4; }
+  .shell-header .demo-account-slot, .shell-header .demo-account { width: 100%; }
+  .shell-header .demo-account select { flex: 1 1 auto; width: 100%; max-width: 100%; }
+  .shell-env { padding-left: 0; border-left: 0; }
+}
+
 .not-found h1 { margin-top: 0; }
-.not-found-links { display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: 0; list-style: none; }
+.not-found-links { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px) var(--space-4, 16px); padding: 0; list-style: none; }
