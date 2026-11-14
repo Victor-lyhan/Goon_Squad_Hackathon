@@ -8,6 +8,8 @@ import { getBusinesses } from './api/businesses';
 import { getEmployees } from './api/employees';
 import { getMap } from './api/map';
 import { putCommute } from './api/commute';
+import { getSimulator, postSimulatorControl } from './api/simulator';
+import { startClockTicker } from './api/ticker';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.resolve(here, '../client/dist');
@@ -23,6 +25,8 @@ export function createApp(store: Store) {
   app.get('/api/employees', getEmployees(store));
   app.get('/api/map', getMap(store));
   app.put('/api/employees/:id/commute', putCommute(store));
+  app.get('/api/simulator', getSimulator(store));
+  app.post('/api/simulator/control', postSimulatorControl(store));
 
   // Unknown API paths never fall through to the SPA.
   app.use('/api', (_req, res) => {
@@ -48,6 +52,7 @@ if (isEntry) {
     filePath: path.resolve(here, '../data/state.json'),
     initial: () => createInitialRun(loadDefaultScenario()),
   });
+  startClockTicker(store);
   createApp(store).listen(PORT, () => {
     console.log(`Relay API listening on http://localhost:${PORT}`);
   });
