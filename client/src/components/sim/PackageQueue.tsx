@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { Business, DeliveryPlan, Shipment, Snapshot } from '../../../../shared/types';
 import {
-  STATUS_LABEL, STATUS_ORDER, countByStatus, filterRows, toQueueRows, type QueueFilter,
+  STATUS_LABEL, STATUS_ORDER, countByStatus, filterRows, moveSelection, toQueueRows, type QueueFilter,
 } from './packageQueueModel';
+import { EmptyState } from '../../ui';
 import './PackageQueue.css';
 
 export type PackageQueueProps = {
@@ -21,7 +22,17 @@ export function PackageQueue({ shipments, plans, snapshot, businesses, selectedI
     [shipments, plans, snapshot.shipmentStatus, businesses],
   );
   const counts = useMemo(() => countByStatus(rows), [rows]);
-  const visible = filterRows(rows, filter);
+  const [query, setQuery] = useState('');
+  const listRef = useRef<HTMLUListElement>(null);
+  const visible = filterRows(rows, filter, query);
+  const onKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    const next = moveSelection(visible.map((r) => r.id), selectedId, e.key);
+    if (next === null) return;
+    e.preventDefault();
+    onSelect(next);
+    listRef.current?.querySelector<HTMLElement>(`[data-id="${next}"]`)?.focus();
+  };
   const filters: QueueFilter[] = ['all', ...STATUS_ORDER];
 
   return (
@@ -33,15 +44,27 @@ export function PackageQueue({ shipments, plans, snapshot, businesses, selectedI
           </button>
         ))}
       </div>
+      <input
+        type="search"
+        className="pq-search"
+        aria-label="Find package by shipment ID, name or business"
+        placeholder="Find by ID, name or business"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
       {visible.length === 0 ? (
-        <div className="pq-empty">{rows.length === 0 ? 'No packages yet.' : 'No packages with this status.'}</div>
+        <EmptyState
+          title={rows.length === 0 ? 'No packages yet' : 'No matching packages'}
+          description={rows.length === 0 ? undefined : 'Try another status filter or search text.'}
+        />
       ) : (
-        <ul className="pq-list">
+        <ul className="pq-list" aria-label="Packages (Up/Down, Home/End to move)" onKeyDown={onKeyDown} ref={listRef}>
           {visible.map((r) => (
             <li key={r.id}>
               <button
                 type="button"
                 className="pq-row"
+                data-id={r.id}
                 aria-current={r.id === selectedId ? 'true' : undefined}
                 onClick={() => onSelect(r.id)}
               >

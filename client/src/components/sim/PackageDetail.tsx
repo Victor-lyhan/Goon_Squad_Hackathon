@@ -29,24 +29,48 @@ export function PackageDetail({ sim, businesses, hubs, employees, selectedId }: 
       </header>
       <p className="pd-route">{d.route}</p>
       {d.planKind && <p className="pd-kind">{d.planKind}</p>}
-      {d.unmatchedReason && <p className="pd-unmatched">Unmatched: {d.unmatchedReason}</p>}
-      <ol className="pd-legs">
-        {d.legs.map((l, i) => (
-          <li key={l.jobId} className="pd-leg">
-            <div className="pd-leg-top">
-              <Link to={l.href}>Leg {i + 1}: {l.employeeName}</Link>
-              <span>{l.extraLabel} · {l.rewardLabel}</span>
-            </div>
-            <div>Pickup: {l.pickupPlace}, {l.pickupTime}</div>
-            <div>Drop-off: {l.dropoffPlace}, {l.dropoffTime}</div>
-          </li>
-        ))}
-      </ol>
-      {d.timeLabel && <p className="pd-row"><strong>{d.timeLabel}:</strong> {d.timeValue}</p>}
-      {d.priceLabel && <p className="pd-row"><strong>Customer price:</strong> {d.priceLabel}</p>}
+      {d.unmatchedReason && (
+        <p className="pd-unmatched"><strong>Unmatched</strong>: {d.unmatchedReason}</p>
+      )}
+      {d.legs.length > 0 && (
+        <>
+          <h4 className="pd-h">Timeline</h4>
+          <ol className="pd-legs">
+            {d.legs.map((l, i) => (
+              <li key={l.jobId} className="pd-leg">
+                <div>Leg {i + 1} pickup: {l.pickupPlace}, {l.pickupTime}</div>
+                <div>Leg {i + 1} drop-off: {l.dropoffPlace}, {l.dropoffTime}</div>
+              </li>
+            ))}
+          </ol>
+          {d.timeLabel && <p className="pd-row"><strong>{d.timeLabel}:</strong> {d.timeValue}</p>}
+        </>
+      )}
+      <h4 className="pd-h">Businesses</h4>
       <p className="pd-links">
         <Link to={d.senderHref}>Sender tracking</Link> · <Link to={d.recipientHref}>Recipient tracking</Link>
       </p>
+      {d.legs.length > 0 && (
+        <>
+          <h4 className="pd-h">Carriers</h4>
+          <ul className="pd-legs">
+            {d.legs.map((l, i) => (
+              <li key={l.jobId} className="pd-leg">
+                <div className="pd-leg-top">
+                  <Link to={l.href}>Leg {i + 1}: {l.employeeName}</Link>
+                  <span>{l.extraLabel} · {l.rewardLabel}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {d.priceLabel && (
+        <>
+          <h4 className="pd-h">Price</h4>
+          <p className="pd-row"><strong>Customer price:</strong> {d.priceLabel}</p>
+        </>
+      )}
     </section>
   );
 }
