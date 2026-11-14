@@ -60,7 +60,13 @@ export const sampleRunAt = (timeMin: number): RunV2 => ({ ...sampleRun, clock: {
 
 export type ReadApi = Awaited<ReturnType<typeof startReadApi>>;
 
-export async function startReadApi(opts: { travel: TravelProvider; run?: RunV2; snapshotAt?: ReadDeps['snapshotAt'] }) {
+export async function startReadApi(opts: {
+  travel: TravelProvider;
+  run?: RunV2;
+  snapshotAt?: ReadDeps['snapshotAt'];
+  /** Passed on as the optional dependency of GET /map (issue #536). Left out: the map fetches no route line. */
+  ensureLegPolylines?: ReadDeps['ensureLegPolylines'];
+}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v2-read-'));
   const dist = path.join(dir, 'dist');
   fs.mkdirSync(dist);
@@ -68,7 +74,10 @@ export async function startReadApi(opts: { travel: TravelProvider; run?: RunV2; 
 
   const memory = memoryStore(opts.run ?? sampleRun);
   const recorder = recordingSnapshotAt();
-  const deps: ReadDeps = { store: memory.store, travel: opts.travel, snapshotAt: opts.snapshotAt ?? recorder.snapshotAt };
+  const deps: ReadDeps = {
+    store: memory.store, travel: opts.travel, snapshotAt: opts.snapshotAt ?? recorder.snapshotAt,
+    ...(opts.ensureLegPolylines ? { ensureLegPolylines: opts.ensureLegPolylines } : {}),
+  };
 
   // createApp needs an MVP 1 store for the MVP 1 routes; the v2 routes never touch it.
   const mvp1Run = createInitialRun(loadDefaultScenario());

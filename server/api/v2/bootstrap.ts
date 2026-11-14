@@ -111,7 +111,11 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const buildEvents = buildTimeline;
 
   const extraRoutes = (router: express.Router): void => {
-    registerReadRoutes(router, { store, travel, snapshotAt: snapshot });
+    registerReadRoutes(router, {
+      store, travel, snapshotAt: snapshot,
+      // Only with a key: the map then fetches the route lines it lacks after it answers (DECISIONS pass 57).
+      ensureLegPolylines: key === '' ? undefined : (legs) => service.ensureLegPolylines(legs),
+    });
     registerControlRoutes(router, { store, snapshotAt: snapshot });
     registerCommuteRoutes(router, { store, travel, buildEvents, places: service });
     registerShipmentRoutes(router, {

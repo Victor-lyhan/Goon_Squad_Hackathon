@@ -1,4 +1,4 @@
-// The two new route files only put merged pieces in order. They must not reach for test-only travel data,
+// The read route files only put merged pieces in order. They must not reach for test-only travel data,
 // the file system, MVP 1 handlers, or v2 modules that belong to other open issues.
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const FILES = ['server/api/v2/readRoutes.ts', 'server/api/v2/compareOps.ts'];
+const FILES = ['server/api/v2/readRoutes.ts', 'server/api/v2/compareOps.ts', 'server/api/v2/mapLines.ts'];
 
 // `from '…'`, `import '…'`, `import('…')`, `require('…')`.
 const SPECIFIER = /(?:from|import|require)\s*\(?\s*['"`]([^'"`\n]+)['"`]/g;
@@ -65,12 +65,14 @@ describe('imports of the v2 read routes', () => {
     expect(specs.filter((spec) => forbidden(file, spec))).toEqual([]);
   });
 
-  it('the only runtime imports are the views, the compare step, the request schema, the matcher and the metrics', () => {
+  it('the only runtime imports are the views, the compare step, the map-line step, the request schema, the matcher and the metrics', () => {
     // Whole `import … from '…'` statements (they may span lines) that are not `import type`.
     const RUNTIME_IMPORT = /^import\s+(?!type\b)[^;]*?from\s+['"]([^'"\n]+)['"]/gm;
     const runtime = (file: string) =>
       [...fs.readFileSync(path.join(repoRoot, file), 'utf8').matchAll(RUNTIME_IMPORT)].map((m) => m[1]).sort();
-    expect(runtime('server/api/v2/readRoutes.ts')).toEqual(['./compareOps', './views']);
+    expect(runtime('server/api/v2/readRoutes.ts')).toEqual(['./compareOps', './mapLines', './views']);
+    // The map's route-line step (issue #536) gets the travel service's function as an argument; it imports no server/geo.
+    expect(runtime('server/api/v2/mapLines.ts')).toEqual(['../../../shared/v2/types']);
     expect(runtime('server/api/v2/compareOps.ts')).toEqual([
       '../../../shared/v2/schemas', '../../domain/v2/matching', '../../domain/v2/metrics',
     ]);

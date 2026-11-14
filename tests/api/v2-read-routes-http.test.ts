@@ -247,6 +247,30 @@ describe('reads never change state', () => {
   });
 });
 
+describe('GET /map with `ensureLegPolylines` (issue #536)', () => {
+  it('answers the same body, then asks for the one plan-leg pair without a line, not for the commute of an employee with no plan', async () => {
+    const calls: string[][][] = [];
+    const withLines = await startReadApi({
+      travel,
+      ensureLegPolylines: async (legs) => {
+        calls.push(legs.map((leg) => leg.placeIds));
+      },
+    });
+    try {
+      const res = await withLines.get('/map');
+      expect(res.status).toBe(200);
+      expect(res.text).toBe((await api.get('/map')).text); // `api` has no `ensureLegPolylines`
+      // Not cached in the sample: Ana's leg pair Studio -> home, and the morning commute of Lee, who has no job.
+      expect(calls).toEqual([[['biz-studio', 'home-story-ana']]]);
+      expect(withLines.snapshotCalls).toHaveLength(0);
+      expect(withLines.mutations()).toBe(0);
+      expect(withLines.store.get()).toBe(sampleRun);
+    } finally {
+      await withLines.close();
+    }
+  });
+});
+
 describe('a travel error inside a handler becomes the documented 503', () => {
   let broken: ReadApi;
   beforeAll(async () => {
