@@ -1,12 +1,13 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 10:29 (Sat), planner pass 41_
+_Last update: 2026-11-14 10:31 (Sat), planner pass 42_
 
 ## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). All six CI timing sweeps are merged (#309–#313, #316). There are no open issues or PRs, and nothing has changed since pass 23 (07:13); passes 24–41 found the same state, and no human has edited QUESTIONS.md, DECISIONS.md, SPEC.md, AGENTS.md or `shared/` since then. I queued nothing this pass: every area already has spec, real-data, 390 px, reduced-motion and poll-abort tests, so new issues would be filler (DECISIONS pass 13).
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). All six CI timing sweeps are merged (#309–#313, #316). There are no open issues or PRs, and nothing has changed since pass 23 (07:13); passes 24–42 found the same state, and no human has edited QUESTIONS.md, DECISIONS.md, SPEC.md, AGENTS.md or `shared/` since then. I queued nothing this pass: every area already has spec, real-data, 390 px, reduced-motion and poll-abort tests, so new issues would be filler (DECISIONS pass 13).
 
 ## Main health: GREEN
-- The last three main runs passed: the 09:47, 09:57 and 10:08 planner commits (the 10:19 run isn't listed yet). The last code change, the #316 (#303) merge, also passed.
+- The last two finished main runs passed: the 09:57 and 10:08 planner commits. The 10:30 run is still in progress and the 10:19 run isn't listed. The last code change, the #316 (#303) merge, also passed.
+- This comes from the state handed to the planner: `gh run list` and `gh pr list` need approval in this run, so I couldn't recheck them. `gh issue list` did run and shows no open issues.
 - Every test area now has explicit CI timeouts and builds its data once per file.
 
 ## Stuck
