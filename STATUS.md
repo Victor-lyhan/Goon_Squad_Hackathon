@@ -1,54 +1,43 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 03:45 (Sat), planner pass 7_
+_Last update: 2026-11-14 03:58 (Sat), planner pass 8_
 
-## Current milestone: M4 code complete → verification; M5 mostly in review
-Must-haves 1–10 are all merged (PRs #90, #92, #93 this round). M5: recompute/reset/compare handlers (#94), scrubber (#91), waypoints (#96) merged; generate/import/export (#97) and the Setup drawer (#99) are in review. This pass queues real-data verification of the demo path (API + all three UIs) instead of new features.
+## Current milestone: M5 wrap-up → verification + demo polish (ahead of schedule)
+Must-haves 1–10 and nearly all of M5 are merged. The last pass's whole queue (#101–#110) merged as PRs #111–#120. The one M5 gap left is registering the `/api/scenario/*` routes (#121, PR #129 already open). This pass queues demo-path verification over playback, random/zero-hub city hardening, cross-portal deep links, keyboard playback and the README.
 
 ## Main health
-- CI on main: green (b827f01, PR #96). No `stuck` items.
+- CI on main: green through #119 (PR for #104). The run for PR #120 (#105) was still in progress at 03:53. No `stuck` items.
 
-## In review (PRs green, waiting for the reviewer)
-- PR #97 (#79) victor-1: scenario generate/export/import handlers (unregistered)
-- PR #99 (#82) victor-2: Setup drawer + ComparePanel
-- PR #98 (#87) p1-a: matching perf (< 2 s) + specific unmatched reasons
-- PR #100 (#88) p1-b: generator/metrics bounds tests
+## In review
+- PR #129 (#121) victor-1: register scenario routes
 
-## Queued (label `ready`), 10 issues
-- #101 victor-1: register compare/recompute/reset routes, 5 MB JSON limit
-- #102 victor-1: end-to-end API test of demo steps 1–6 + field-error validation tests
-- #103 victor-2: simulator real-data render audit (avoids #99's files)
-- #104 p1-a: matcher random-city determinism + invariants (test-only; matching.ts in #98)
-- #105 p1-b: timeline/snapshotAt random-city invariants + perf
-- #106 p2-a: send-form mini-map + tracking route map
-- #107 p2-a: business portal real-data render audit
-- #108 p2-a: API connection banner in the shell
-- #109 p2-b: employee jobs/earnings real-data render audit
-- #110 p2-b: commute layout (map beside editor, sticky save, saved-route confirmation, locked)
+## Queued (label `ready`), 16 issues
+- victor-1: #121 scenario routes + app tests · #122 README.md + sync test · #123 planning-cycle flow test (demo step 7, 409s, restart)
+- p2-a: #124 landing "Run the demo" strip with live facts · #125 carrier + simulator links on Delivery arranged / tracking · #126 business playback test (sender = recipient delivered time)
+- victor-2: #127 `/simulator?package=` deep link + runId refetch · #128 playback keyboard shortcuts · #130 random/zero-hub map render
+- p2-b: #131 employee playback test (spec 12, history, earnings) · #132 job detail links + live progress · #133 commute editor edge states
+- p1-a: #134 matcher edge cases · #136 spec test 10 (waypoints/availability/detour, test-only)
+- p1-b: #137 sim/metrics edge runs · #138 random-city generator quality
 
-## Next up (queue once dependencies merge)
-- victor-1: register `/api/scenario/*` routes once #97 merges (then the Setup drawer is fully live).
-- p1-a: fix any bug #104 marks `it.fails`, after #98 merges.
-- README with setup + 2-minute demo steps (needs an owner, see QUESTIONS.md).
-- Setup drawer CRUD for businesses/employees (16) needs a contract in `shared/`; not queued (QUESTIONS.md).
-- M6 (11 p.m. Sat): bug fixes only, from the humans' list.
+## Next up
+- victor-2: add a "Recompute matches" button to the Setup drawer (`recomputeMatches` exists in `client/src/api/` but nothing calls it). Needed for demo step 7. Queue after #127 merges (same file).
+- Fix whatever the new tests mark `it.fails` (#126, #131, #136) once their owners' files are free.
+- Setup drawer CRUD for businesses/employees (16) is still blocked on a `shared/` contract (QUESTIONS.md); treated as cut.
+- M6 (11 p.m. Sat): bug fixes only, from the humans' list. A human two-tab browser walkthrough is still needed.
 
 ## Done (newest first)
-- PR #96 (#86) p2-b: route waypoints · PR #93 (#85) p2-b: full EmployeePortal
-- PR #95 (#84) p2-a: focus-visible, reduced motion, 390 px · PR #92 (#83) p2-a: full BusinessPortal
-- PR #94 (#78) victor-1: planning handlers · PR #90 (#77) victor-1: shipment write path + unmatched retry (spec 9)
-- PR #91 (#81), #89 (#80) victor-2: scrubber + reduced-motion markers; leg highlight
-- PR #76 (#66), #73 (#65) p2-a: ShipmentList + TrackingDetail; ShipmentForm + result cards
-- PR #75 (#68) p1-a: `direct_only` + `compareAssignments`
-- PR #74 (#64), #71 (#63) victor-2: shared formatters; Simulator page with 1 s polling
-- PR #72 (#62) victor-1: Demo city loads fully matched
-- PR #69, #53, #51, #37, #35, #24, #22, #11, #10 victor-1: read routes, views, simulator API, ticker, commute, clock, client API, store
-- PR #70, #60, #59 p2-b: JobDetail, CommuteEditor, JobCard
-- PR #58, #57, #40, #39, #26, #25, #13 p1-b: demo options, markers, generator, snapshotAt, timeline, pricing + metrics
-- PR #56, #38, #12 p1-a: allocation, candidates, routing
-- PR #55, #52, #36, #34, #23, #21, #9 victor-2: sim components, CityMap · PR #54, #42, #41 p2-a: shell, UI kit, landing · M0 by humans
+- PR #120 (#105) p1-b: timeline/snapshotAt random invariants · PR #119 (#104) p1-a: matcher random determinism
+- PR #118 (#108), #117 (#107), #113 (#106) p2-a: connection banner; business real-data audit; send-form + tracking maps
+- PR #116 (#110), #112 (#109) p2-b: commute layout + locked state; employee real-data audit
+- PR #115 (#102), #111 (#101) victor-1: demo steps 1–6 API test + field errors; compare/recompute/reset routes
+- PR #114 (#103) victor-2: simulator real-data audit
+- PR #100 (#88) p1-b: generator/metrics bounds · PR #98 (#87) p1-a: matching perf + reasons
+- PR #99 (#82) victor-2: Setup drawer + ComparePanel · PR #97 (#79) victor-1: scenario handlers
+- PR #96 (#86), #93 (#85) p2-b: waypoints; EmployeePortal · PR #95 (#84), #92 (#83) p2-a: a11y/390 px; BusinessPortal
+- PR #94 (#78), #90 (#77) victor-1: planning handlers; shipment write path · PR #91, #89 victor-2: scrubber; leg highlight
+- PR #76, #73 p2-a · #75 p1-a · #74, #71 victor-2 · #72 victor-1: Demo city · earlier: see git log (M0–M3)
 
 ## Known bugs / gaps
-- Demo steps 1–6 not yet verified end to end against real data (#102, #103, #107, #109). Nobody has run a two-tab browser walkthrough; humans should do one in the morning.
-- Setup drawer's Generate/Export/Import/Compare/Reset buttons need #97 + #101 + the scenario-route follow-up before they work in the running app.
-- No README demo steps yet.
+- Generate/Export/Import in the Setup drawer 404 until #121 merges.
+- No README yet (#122).
+- Nobody has done a real two-tab browser walkthrough; all verification so far is server-side render tests.
