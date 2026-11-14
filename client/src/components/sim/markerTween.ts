@@ -42,3 +42,8 @@ export function shouldSnap(
   if (dt < 0) return true;
   return dt > clock.speed * SNAP_JUMP_PLAY_SECONDS;
 }
+
+export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+/** Pure flag: tween between polls only when the user has not asked for reduced motion. */
+export const shouldTween = (reducedMotion: boolean): boolean => !reducedMotion;

@@ -48,3 +48,15 @@ describe('toPlaybackModel', () => {
     expect(Object.values(m.disabled).every(Boolean)).toBe(true);
   });
 });
+
+describe('clampScrub', () => {
+  it('clamps and rounds at both bounds', async () => {
+    const { clampScrub } = await import('../../client/src/components/sim/playbackModel');
+    expect(clampScrub(100, settings)).toBe(930);
+    expect(clampScrub(930, settings)).toBe(930);
+    expect(clampScrub(2160, settings)).toBe(2160);
+    expect(clampScrub(9999, settings)).toBe(2160);
+    expect(clampScrub(1000.6, settings)).toBe(1001);
+    expect(clampScrub(NaN, settings)).toBe(930);
+  });
+});
