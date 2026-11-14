@@ -22,6 +22,14 @@ Shared and human-owned: `shared/` (types + Zod schemas = the contracts), `SPEC.m
 UI workers (victor-2, p2-b) use components from `client/src/ui/` (owned by p2-a). If a component is missing, build it locally in your own folder; don't edit `client/src/ui/`.
 Frontend workers call the backend only through `client/src/api/` (owned by victor-1). If a call is missing, write BLOCKED.md.
 
+### MVP II additions (overrides the table above where they conflict)
+- agent:victor-1 also owns `server/geo/`, `scripts/fetch-routes.ts`, the `fetch:routes` script entry in `package.json`, and `fixtures/nyc/matrix.json` + `fixtures/nyc/polylines.json` (generated cache format; humans run the script). victor-1 may edit `shared/` **only** in the single MVP II contracts issue.
+- agent:p1-b also owns `fixtures/nyc/businesses.json`, `fixtures/nyc/neighborhoods.json`, `fixtures/nyc/demoStory.json` and the NYC scenario generator.
+- agent:victor-2 also owns `client/src/components/map/` (Google map + deck.gl layers).
+- agent:p2-a also owns the design tokens in `client/src/styles/` and `client/src/pages/Help.tsx`.
+- New dependencies allowed for MVP II: `@googlemaps/js-api-loader`, `@deck.gl/core`, `@deck.gl/layers`, `@deck.gl/google-maps`, `@mapbox/polyline` (or equivalent polyline decoder), `@fontsource/ibm-plex-sans`, `@fontsource/ibm-plex-mono`. The issue that first needs one adds it to package.json.
+- Keys: never read, print or commit `.env`. Tests must not need network or keys.
+
 ## Commands
 - Install: `npm install`
 - Test everything: `bash scripts/test.sh` (must pass before any PR)

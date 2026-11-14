@@ -1,5 +1,8 @@
 # SPEC: Relay
 
+> **MVP II (added 11:40 a.m. Sat) is at the bottom of this file and overrides anything above that conflicts with it**, including "Out of scope: external APIs" and the synthetic 12×12 grid. M0–M6 below are done or superseded.
+
+
 Written by the humans. Agents read this; only humans change it.
 Full product spec: `docs/relay-spec.md` (the source of truth for UI copy, pricing, algorithm details). This file sets priority and milestones.
 
@@ -89,3 +92,74 @@ UI work before the API exists must still be real code: components take props typ
 - `bash scripts/test.sh` passes on main.
 - Demo path above works on a fresh clone with `npm install && npm run dev`.
 - Every visible control is wired to real backend state; no hardcoded numbers.
+
+---
+
+# MVP II: real NYC, Google Maps, enterprise redesign (added 11:40 a.m. Sat)
+
+## What changes and why
+MVP 1 works on a synthetic grid. MVP II moves Relay to **real NYC locations with real Google travel times**, makes **relay points ordinary network businesses** (no separate hub entity), and **redesigns the whole UI** (`docs/mvp2-ui-redesign.md` is the source of truth for all UI work).
+
+**This intentionally changes the backend, the data model and the `shared/` contracts.** "Preserve existing behavior" does not apply where this section says otherwise. Safety net: git tag `mvp1` is the last MVP 1 build.
+
+## Rules for MVP II
+1. **External APIs allowed, and only these:** Google Routes API (server), Geocoding API (server), Maps JavaScript API (browser). No other external services, no runtime LLM.
+2. **Keys:** `.env` holds `GOOGLE_MAPS_SERVER_KEY` and `VITE_GOOGLE_MAPS_BROWSER_KEY`. Never commit, print, log or paste keys (not in code, issues, PRs, QUESTIONS.md or test output). Agents do not have the keys: all tests run on cached data or a fake travel provider. If a key is missing at runtime, the API returns a clear 503 error and the UI shows it. **Never invent travel times or distances.**
+3. **Cache first:** Google data is fetched once by a script a human runs, saved under `fixtures/nyc/`, and committed. The app and tests read the cache. Only a newly entered commute calls Google live, and its result is added to the cache.
+4. **Reproducible:** routing preference TRAFFIC_UNAWARE, travel mode DRIVE. Same inputs, same numbers.
+5. **Homes are only commute endpoints.** Pickups, drop-offs and overnight storage happen only at network businesses, never at homes.
+6. **Synthetic homes, real neighborhoods:** employee homes are deterministic (seeded) synthetic points inside real NYC residential neighborhoods, labeled by neighborhood only (e.g. "Astoria"). Never a real person's address.
+7. Keep what still applies from MVP 1: one shared server clock, pure `snapshotAt`, deterministic IDs, the package → match → jobs pipeline, two-tab sync, all spec tests that still make sense. The §9 relay fixture stays as a unit test of the matcher using a fake travel provider.
+8. The MVP 1 demo flow must keep working at every merge (on NYC data once it lands). A merge that breaks it is P0.
+
+## Data model
+- **NetworkBusiness:** id, name, address, neighborhood, borough, lat, lng. Every network business is also a relay point (can hold packages overnight). The separate `Hub` entity is removed; `DeliveryPlan.hubId` becomes `relayBusinessId`.
+- **Home:** id, neighborhood, lat, lng (synthetic).
+- **Employee:** works at one network business, has one home, evening/morning departure, availability flags, max extra minutes. Waypoints are removed.
+- **TravelProvider interface** (in `shared/`): `durationMin(a, b)`, `distanceM(a, b)`, `polyline(a, b)` between places (business or home). Implementations: `CachedProvider` (reads `fixtures/nyc/`), `GoogleProvider` (live, server key, writes to cache), `FakeProvider` (tests). Durations are Google seconds rounded **up** to whole minutes, used the same way everywhere.
+
+## NYC data set
+- `fixtures/nyc/businesses.json`: **18 real, well-known NYC businesses** with name and street address only (coordinates come from the Geocoding API in the fetch script, never typed from memory). Spread: 8 Manhattan (Midtown, Chelsea, FiDi, Upper West Side), 6 Brooklyn (DUMBO, Williamsburg, Park Slope, Downtown Brooklyn), 4 Queens (Long Island City, Astoria). Mix of offices, shops and cafés so packages make sense.
+- `fixtures/nyc/neighborhoods.json`: 8–10 residential neighborhoods with a bounding polygon or box each (e.g. Astoria, Park Slope, Bushwick, Harlem, Upper East Side, Jackson Heights, Bay Ridge, Washington Heights).
+- **Curated demo story (the default scenario):** hand-pick the businesses, employees and packages so a judge understands Relay immediately and it looks as good as possible. Example shape: a Brooklyn design studio sends proofs to a Midtown agency via an employee who already commutes between them (direct); a Long Island City bakery sends a gift box to a Chelsea office, relayed overnight through a DUMBO café that sits on both commuters' routes (relay). Each package has a believable name and description; each featured employee has a name, an employer and a home neighborhood that explains their route. Hand-place the featured employees' home points on real residential blocks in their neighborhood (`fixtures/nyc/demoStory.json`, coordinates reviewed by a human). Cherry-picking is encouraged: choose pairs where commutes genuinely overlap so detours are small and routes look clean on the map.
+- Default workload: 18 businesses, 60 employees (the featured story employees plus seeded background commuters spread over the neighborhoods), 24 packages. At least 2 clear direct and 2 clear relay matches in the story. The seeded "Random city" preset stays for experimentation.
+
+## Fetch script (`npm run fetch:routes`, run by a human)
+- Reads `.env`. Geocodes the businesses. Generates the seeded homes.
+- Uses the Routes API **computeRouteMatrix** for durations and distances of every needed pair: home→business, business→business, business→home. Writes `fixtures/nyc/matrix.json`.
+- Uses **computeRoutes** for encoded polylines of each employee's baseline commutes and of every pair used by the demo scenario's matched plans. Writes `fixtures/nyc/polylines.json`. The server fetches any other polyline on demand (with the key) and caches it.
+- Batches requests within API limits, retries politely, prints a summary (pairs fetched, failures), never prints the key. Re-running is safe (skips cached pairs).
+
+## Matching (same three candidate types, new geometry)
+- Evening direct: employee of A drives A → B → home. Morning direct: employee of B drives home → A → B. Relay: employee of A drives A → R → home (Day 1); employee of B drives home → R → B (Day 2), where **R is any network business other than A and B**.
+- Extra minutes = travel time through the stops in order + 2 min handling per pickup/drop-off + waiting − baseline commute time. Same feasibility rules as MVP 1 (detour limit, ready time, deadline, relay ordering, one package per trip, different employees for relay legs). Same greedy allocation and tie-breaks. For relays, try every R and keep the best by the existing sort.
+- Must stay under 2 s on the default workload using the cache.
+
+## Simulator and animation
+- UI per `docs/mvp2-ui-redesign.md` §1 (full-width map, left controls, right inspector, no top cards, focus mode, clear interactions).
+- Map: Google Maps JavaScript API with a custom simplified light style (hide POI labels, transit, most road labels; muted water/parks; light gray roads) + deck.gl overlay (`@deck.gl/google-maps`). Google route lines are only drawn on the Google basemap.
+- Movement: interpolate along each leg's decoded polyline in proportion to elapsed travel time between stops; vehicles stop during handling; a package follows its carrier only between pickup and drop-off and stays at the relay business overnight.
+
+## Milestones (planner: current milestone is M7)
+
+### M7: Foundation (target 2:00 p.m. Sat)
+- victor-1 FIRST (everyone depends on it): update `shared/` for the MVP II data model and TravelProvider (this issue is explicitly allowed to edit `shared/`). Keep it small and merge fast.
+- victor-1: `server/geo/` providers (Cached, Google, Fake) + `scripts/fetch-routes.ts` + `npm run fetch:routes` + server geocode endpoint for the employee address search.
+- p1-b: `fixtures/nyc/businesses.json` + `neighborhoods.json` + `demoStory.json` (curated story) + seeded NYC scenario generator for background commuters, on the new model.
+- p1-a: matcher on TravelProvider with relay = network business; port spec tests (FakeProvider); remove grid routing and waypoints.
+- p2-a: design tokens (IBM Plex, colors, radii, spacing), app shell/header, new homepage per the redesign doc.
+- p2-b: Employee workspace redesign; commute editor with address search (geocode endpoint) instead of node picking.
+- victor-2: new full-width simulator layout (left/right panels) with the Google map + deck.gl overlay rendering network businesses from fixtures.
+- **HUMAN CHECKPOINT:** once the providers, script and business list merge, Victor runs `npm run fetch:routes` with the real key, checks the output, and commits `fixtures/nyc/`.
+
+### M8: Integration (target 6:00 p.m. Sat)
+- Demo scenario on cached NYC data, fully matched on load, 2+ direct and 2+ relay.
+- Simulator: routes, moving vehicles/packages along polylines, selection, focus mode, right inspector, left controls wired to the existing API.
+- Business workspace redesign (shipments table, New delivery, search/filters, details + match results).
+- Saving a new employee address calls Google live (server key), caches, and re-matches unmatched packages.
+- End-to-end test of the full demo flow on cached NYC data.
+
+### M9: Polish (target 10:00 p.m. Sat)
+- Visual QA against `docs/mvp2-ui-redesign.md`, 390 px for Business/Employee, keyboard and focus states, reduced motion.
+- README: Google key setup (APIs to enable, two keys, restrictions, `.env`), `npm run fetch:routes`, demo steps.
+- 11:00 p.m. feature freeze and 5:00 a.m. code freeze unchanged (see M6).
