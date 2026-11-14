@@ -1,14 +1,14 @@
-/* MVP II Employee workspace (docs/mvp2-ui-redesign.md §2).
-   Square corners (2px), 1px borders, no shadows, no gradients, no pills.
-   Tokens are read as var(--name, fallback) until the design tokens land everywhere. */
+/* Employee workspace, MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius,
+   no shadows, no gradients, no pills. Tokens are read as var(--name, fallback); every fallback is
+   the value in client/src/styles/tokens.css. Times, distances and rewards carry .ew-mono. */
 
 .ew {
   max-width: 760px;
   margin: 0 auto;
   padding: var(--space-4, 16px);
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: var(--text-sm, 14px);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -21,7 +21,7 @@
 
 .ew-muted { color: var(--muted, #5B6472); }
 .ew-strong { font-weight: 600; }
-.ew-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-xs, 12px); }
+.ew-mono { font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-xs, 12px); font-variant-numeric: tabular-nums; }
 .ew-sr {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap;
@@ -30,17 +30,17 @@
 .ew-locked {
   margin: 0 0 var(--space-3, 12px);
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-left: 2px solid var(--accent, #28618A);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-left: 2px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 
 .ew-section {
   margin-bottom: var(--space-4, 16px);
   background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
 }
 .ew-section-head {
   display: flex;
@@ -48,7 +48,7 @@
   justify-content: space-between;
   gap: var(--space-2, 8px);
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .ew-count { color: var(--muted, #5B6472); }
 .ew-empty { margin: 0; padding: var(--space-3, 12px); color: var(--muted, #5B6472); }
@@ -62,7 +62,7 @@
   grid-template-columns: 72px minmax(0, 1fr);
   gap: 2px var(--space-2, 8px);
   padding: var(--space-2, 8px) 0;
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .ew-trip:last-child { border-bottom: 0; }
 .ew-trip-label { font-weight: 600; }
@@ -71,24 +71,24 @@
 .ew-detour {
   margin: 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
 }
 
 /* ---------- Delivery rows ---------- */
 .ew-rows { list-style: none; margin: 0; padding: 0; }
 .ew-row {
   padding: var(--space-3, 12px);
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .ew-row:last-child { border-bottom: 0; }
 .ew-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px); }
 .ew-status { margin-left: auto; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.ew-status.is-in_progress { color: var(--accent, #28618A); font-weight: 600; }
+.ew-status.is-in_progress { color: var(--accent, #1D5075); font-weight: 600; }
 .ew-new {
   padding: 0 var(--space-1, 4px);
-  border: 1px solid var(--accent, #28618A);
-  border-radius: var(--radius, 2px);
-  color: var(--accent, #28618A);
+  border: 1px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
+  color: var(--accent, #1D5075);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
 }
@@ -106,25 +106,25 @@
 .ew-row-links { display: flex; flex-wrap: wrap; gap: var(--space-3, 12px); margin-top: var(--space-2, 8px); }
 
 /* ---------- Actions ---------- */
-.ew a { color: var(--accent, #28618A); }
+.ew a { color: var(--accent, #1D5075); }
 .ew-btn {
   min-height: 32px;
   padding: var(--space-1, 4px) var(--space-3, 12px);
-  border: 1px solid var(--accent, #28618A);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--accent, #28618A);
+  color: var(--accent, #1D5075);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
-.ew-btn:hover { background: var(--bg, #F7F8FA); }
-.ew-btn:disabled { color: var(--muted, #5B6472); border-color: var(--border, #D7DDE5); cursor: not-allowed; }
+.ew-btn:hover { background: var(--bg, #F7F7F4); }
+.ew-btn:disabled { color: var(--muted, #5B6472); border-color: var(--border, #E3E3DE); cursor: not-allowed; }
 .ew a:focus-visible,
 .ew button:focus-visible {
-  outline: 2px solid var(--accent, #28618A);
+  outline: 2px solid var(--accent, #1D5075);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius, 4px);
   box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
 }
 

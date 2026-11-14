@@ -1,12 +1,13 @@
-/* MVP II Employee page (#438): page states, notices and the commute editor block.
-   Square corners (2px), 1px borders, no shadows. Fluid widths only: works at 390 px. */
+/* Employee page (#438): page states, notices and the commute editor block. MVP III look
+   (docs/mvp3.md P4, #685): hairline borders, the token radius, no shadows; every fallback is the value
+   in client/src/styles/tokens.css. Fluid widths only: works at 390 px. */
 
 .ep {
   max-width: 760px;
   margin: 0 auto;
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
-  font-size: var(--text-sm, 14px);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -15,23 +16,23 @@
 .ep-state {
   margin: var(--space-4, 16px);
   padding: var(--space-4, 16px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 .ep-state h1 { font-size: 18px; font-weight: 600; margin: 0 0 var(--space-2, 8px); }
 .ep-state p { margin: 0 0 var(--space-2, 8px); }
 .ep-links { display: flex; flex-wrap: wrap; gap: var(--space-3, 12px); }
-.ep-links a { color: var(--accent, #28618A); }
+.ep-links a { color: var(--accent, #1D5075); }
 
 .ep-notices { padding: 0 var(--space-4, 16px); }
 .ep-notices:empty { display: none; }
 .ep-notice {
   margin: var(--space-2, 8px) 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-left: 2px solid var(--accent, #28618A);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-left: 2px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 .ep-problem { border-left-color: var(--danger, #A4322A); }
@@ -40,8 +41,8 @@
 .ep-editor {
   margin-bottom: var(--space-4, 16px);
   padding: var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 .ep-editor-head {
@@ -59,24 +60,24 @@
   min-height: 36px;
   padding: 0 var(--space-3, 12px);
   border: 1px solid var(--muted, #5B6472);
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
   cursor: pointer;
 }
 .ep-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.ep-btn:focus-visible, .ep-links a:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
-.ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #28618A); text-decoration: underline; }
+.ep-btn:focus-visible, .ep-links a:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); text-decoration: underline; }
 
 /* The employee's name above a job screen (#634): the same heading as the workspace's. */
 .ep-name { margin: 0; padding: var(--space-4, 16px) var(--space-4, 16px) 0; font-size: 20px; font-weight: 600; line-height: 1.2; }
 .ep-job { padding: var(--space-4, 16px); }
 /* The list heading that takes focus after a job without a row is closed (#634). */
 .ep h2[tabindex="-1"]:focus { outline: none; }
-.ep h2[tabindex="-1"]:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
-.ep-route { margin-top: var(--space-4, 16px); min-width: 0; }
-.ep-route-note { margin: var(--space-3, 12px) 0 0; font-size: var(--text-sm, 14px); color: var(--muted, #5B6472); }
+.ep h2[tabindex="-1"]:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.ep-route { margin: var(--space-4, 16px) 0; min-width: 0; }
+.ep-route-note { margin: var(--space-3, 12px) 0 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
 .ep-route-note.ep-problem { color: var(--danger, #A4322A); }
 
 @media (max-width: 390px) {

@@ -1,76 +1,78 @@
-/* MVP II job detail (issue #387). Tokens with fallbacks until #324's names are everywhere.
-   1px borders, 2px radius, no shadows, no pills. Fits 390 px with no horizontal scroll. */
+/* Job detail (#387), MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius, no
+   shadows, no pills. Tokens with fallbacks; every fallback is the value in client/src/styles/tokens.css.
+   The trip line, the stop times and the numbers are set in mono. Fits 390 px with no horizontal scroll. */
 .job-v2 {
   box-sizing: border-box; width: 100%; max-width: 640px; min-width: 0;
   display: flex; flex-direction: column; gap: var(--space-4, 16px);
   padding: var(--space-4, 16px);
-  background: var(--panel, #FFFFFF); color: var(--text, #151B26);
-  border: 1px solid var(--border, #D7DDE5); border-radius: var(--radius, 2px);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  background: var(--panel, #FFFFFF); color: var(--text, #171C24);
+  border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px);
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
   overflow-wrap: anywhere;
 }
 .job-v2 *, .job-v2 *::before, .job-v2 *::after { box-sizing: border-box; }
 .job-v2__head { display: flex; flex-direction: column; gap: var(--space-1, 4px); }
 .job-v2__kind { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); text-transform: uppercase; letter-spacing: 0.04em; }
-.job-v2__title { margin: 0; font-size: var(--text-lg, 20px); line-height: 1.25; }
+.job-v2__title { margin: 0; font-size: var(--text-lg, 18px); line-height: 1.25; }
 .job-v2__title:focus { outline: none; }
-.job-v2__title:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
-.job-v2__trip { margin: 0; font-size: var(--text-sm, 14px); color: var(--muted, #5B6472); }
+.job-v2__title:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+/* "Evening commute, leaves Day 1, 5:15 PM": the line is there for its time, so it is mono as a whole. */
+.job-v2__trip { margin: 0; font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; color: var(--muted, #5B6472); }
 .job-v2__status {
   margin: var(--space-2, 8px) 0 0; padding: var(--space-2, 8px) var(--space-3, 12px);
   display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); align-items: baseline;
-  border: 1px solid var(--accent, #28618A); background: var(--accent-soft, #E8F0F6);
-  border-radius: var(--radius, 2px); font-size: var(--text-sm, 14px);
+  border: 1px solid var(--accent, #1D5075); background: var(--accent-soft, #E8EEF1);
+  border-radius: var(--radius, 4px); font-size: var(--text-sm, 13px);
 }
 .job-v2__status[data-status='completed'] { border-color: var(--ok, #2F6B4F); background: var(--panel, #FFFFFF); }
 .job-v2__status-label { font-weight: 600; }
 .job-v2__status-note { color: var(--muted, #5B6472); }
 
 .job-v2__section { display: flex; flex-direction: column; gap: var(--space-2, 8px); }
-.job-v2__h3 { margin: 0; font-size: var(--text-md, 16px); }
+.job-v2__h3 { margin: 0; font-size: var(--text-md, 14px); }
 
-.job-v2__route { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--border, #D7DDE5); }
+.job-v2__route { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--border, #E3E3DE); }
 /* The time column holds "Day 2, 10:05 AM" in mono on one line (#583). */
 .job-v2__stop {
   display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: var(--space-3, 12px);
   padding: var(--space-2, 8px) 0 var(--space-2, 8px) var(--space-3, 12px);
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .job-v2__stop:last-child { border-bottom: 0; }
 .job-v2__stop[data-done='true'] .job-v2__action { color: var(--ok, #2F6B4F); }
-.job-v2__time { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-sm, 14px); white-space: nowrap; }
+.job-v2__time { font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .job-v2__stop-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.job-v2__action { font-weight: 600; font-size: var(--text-sm, 14px); }
-.job-v2__place { font-size: var(--text-sm, 14px); }
+.job-v2__action { font-weight: 600; font-size: var(--text-sm, 13px); }
+.job-v2__place { font-size: var(--text-sm, 13px); }
 .job-v2__address, .job-v2__instructions { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.job-v2__instructions { color: var(--text, #151B26); }
+.job-v2__instructions { color: var(--text, #171C24); }
 
 .job-v2__relay {
   margin: 0; padding: var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5); border-radius: var(--radius, 2px);
-  background: var(--accent-soft, #E8F0F6); font-size: var(--text-sm, 14px);
+  border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px);
+  background: var(--accent-soft, #E8EEF1); font-size: var(--text-sm, 13px);
 }
 
-.job-v2__numbers { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border, #D7DDE5); border-radius: var(--radius, 2px); }
-.job-v2__number { display: flex; justify-content: space-between; gap: var(--space-2, 8px); padding: var(--space-2, 8px) var(--space-3, 12px); border-bottom: 1px solid var(--border, #D7DDE5); }
-.job-v2__number dt { color: var(--muted, #5B6472); font-size: var(--text-sm, 14px); }
-.job-v2__number dd { margin: 0; font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-sm, 14px); text-align: right; }
-/* The reward leads "What it adds" (#551). */
+.job-v2__numbers { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px); }
+.job-v2__number { display: flex; justify-content: space-between; gap: var(--space-2, 8px); padding: var(--space-2, 8px) var(--space-3, 12px); border-bottom: 1px solid var(--border, #E3E3DE); }
+.job-v2__number dt { color: var(--muted, #5B6472); font-size: var(--text-sm, 13px); }
+.job-v2__number dd { margin: 0; font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; text-align: right; }
+/* The reward leads "What it adds" (#551). IBM Plex Mono is loaded at 400 and 500 only (styles/fonts.css). */
 .job-v2__number[data-number="reward"] dt { color: inherit; font-weight: 600; }
-.job-v2__number[data-number="reward"] dd { font-weight: 600; }
+.job-v2__number[data-number="reward"] dd { font-weight: 500; }
 
 .job-v2__text { margin: 0; }
 .job-v2__actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
 .job-v2__link, .job-v2__button {
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
   padding: var(--space-2, 8px) var(--space-4, 16px);
-  border: 1px solid var(--accent, #28618A); border-radius: var(--radius, 2px);
-  font: inherit; font-size: var(--text-sm, 14px); font-weight: 600; text-decoration: none; cursor: pointer;
+  border: 1px solid var(--accent, #1D5075); border-radius: var(--radius, 4px);
+  font: inherit; font-size: var(--text-sm, 13px); font-weight: 600; text-decoration: none; cursor: pointer;
 }
-.job-v2__link { background: var(--accent, #28618A); color: var(--panel, #FFFFFF); }
-.job-v2__button { background: var(--panel, #FFFFFF); color: var(--accent-dark, #1F4E70); }
+.job-v2__link { background: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
+.job-v2__button { background: var(--panel, #FFFFFF); color: var(--accent-dark, #173E5B); }
 .job-v2__link:focus-visible, .job-v2__button:focus-visible {
-  outline: 2px solid var(--accent-dark, #1F4E70); outline-offset: 2px;
+  outline: 2px solid var(--accent-dark, #173E5B); outline-offset: 2px;
   box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
 }
 

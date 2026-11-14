@@ -1,15 +1,15 @@
-// #478: visual QA rules for every stylesheet of the MVP II Employee workspace
-// (docs/mvp2-ui-redesign.md §2: square corners, no shadows or gradients, tokens only, works at 390 px).
+// #478: visual QA rules for every stylesheet of the Employee workspace; since #685 against docs/mvp3.md P4
+// (radius at most 6 px, no shadows or gradients, tokens only, works at 390 px). The MVP III rules themselves
+// (fallback = token value, hairline ring, mono for times, distances and rewards) are in employee-v2-mvp3-css.test.ts.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseCss, readTokens, v2CssFiles, type CssRule } from './employee-v2-qa-helpers';
-import { isMvp2Fallback } from './kit-v2-legacy-tokens';
 
 const files = v2CssFiles();
 const tokens = readTokens();
 const parsed: Array<[string, CssRule[]]> = files.map((f) => [f, parseCss(readFileSync(f, 'utf8'))]);
 
-const MAX_RADIUS_PX = 4;
+const MAX_RADIUS_PX = 6; // docs/mvp3.md P4
 const MAX_FIXED_WIDTH_PX = 358; // 390 px screen minus 2 × 16 px padding
 const COLOR_PROPS = /^(color|background(-color)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|box-shadow|accent-color|caret-color|fill|stroke|text-decoration(-color)?|column-rule(-color)?)$/;
 const NAMED_COLOR = /\b(white|black|red|green|blue|gray|grey|silver|orange|yellow|purple|navy|teal|maroon|olive|lime|aqua|fuchsia|pink|brown|gold|tan|beige|ivory|coral|salmon|crimson|indigo|violet)\b/i;
@@ -30,7 +30,7 @@ describe('employee v2 CSS QA (#478)', () => {
     ]));
   });
 
-  it('border-radius is at most 4 px', () => {
+  it('border-radius is at most 6 px', () => {
     const bad: string[] = [];
     for (const [file, rules] of parsed) for (const r of rules) for (const d of r.decls) {
       if (!d.prop.includes('radius')) continue;
@@ -69,14 +69,14 @@ describe('employee v2 CSS QA (#478)', () => {
     expect(bad).toEqual([]);
   });
 
-  // A fallback may still be the MVP II value until this module's restyle pass (kit-v2-legacy-tokens.ts, #651).
+  // Since this module's restyle pass (#685) no fallback may be an MVP II value any more.
   it('every var() is a design token, and a colour fallback equals that token', () => {
     const bad: string[] = [];
     for (const [file, rules] of parsed) for (const r of rules) for (const d of r.decls) {
       for (const [, name, fb] of d.value.matchAll(VAR_RE)) {
         const token = tokens.get(name);
         if (token === undefined) { bad.push(`${where(file, r, d)} (${name} is not in tokens.css)`); continue; }
-        if (fb && (COLOR_LITERAL.test(fb) || NAMED_COLOR.test(fb)) && norm(fb) !== norm(token) && !isMvp2Fallback(name, fb)) {
+        if (fb && (COLOR_LITERAL.test(fb) || NAMED_COLOR.test(fb)) && norm(fb) !== norm(token)) {
           bad.push(`${where(file, r, d)} (${name} is ${token}, fallback ${fb})`);
         }
       }

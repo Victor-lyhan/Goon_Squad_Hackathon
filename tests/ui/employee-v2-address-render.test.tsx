@@ -162,8 +162,8 @@ describe('AddressSearch.css', () => {
   });
 
   it('reads tokens with fallbacks and has a 390 px rule with 40 px+ touch targets', () => {
-    expect(css).toContain('var(--accent, #28618A)');
-    expect(css).toContain('var(--radius, 2px)');
+    expect(css).toContain('var(--accent, #1D5075)');
+    expect(css).toContain('var(--radius, 4px)');
     expect(css).toMatch(/@media \(max-width: 390px\)/);
     expect(css).toMatch(/min-height: 4\dpx/);
   });
