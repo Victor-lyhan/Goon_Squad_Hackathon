@@ -1,4 +1,5 @@
 import type { Metrics } from '../../../../shared/types';
+import { formatCents as sharedFormatCents, formatDuration } from '../../ui/format';
 
 export type MetricCard = {
   key: string;
@@ -14,10 +15,7 @@ const finite = (n: number | null | undefined): n is number => typeof n === 'numb
 
 /** Integer cents -> "$6.50". Null / non-finite -> "—". */
 export function formatCents(cents: number | null | undefined): string {
-  if (!finite(cents)) return DASH;
-  const abs = Math.abs(Math.round(cents));
-  const s = `$${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
-  return cents < 0 && abs > 0 ? `-${s}` : s;
+  return finite(cents) ? sharedFormatCents(cents) : DASH;
 }
 
 /** Meters -> "1.4 km". Null / non-finite -> "—". */
@@ -26,10 +24,9 @@ export function formatKm(meters: number | null | undefined): string {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-/** Minutes -> "3.5 min" (whole numbers stay whole). Null -> "—". */
+/** Minutes -> "4 min" / "1 h 5 min". Null / non-finite -> "—". */
 export function formatMin(min: number | null | undefined): string {
-  if (!finite(min)) return DASH;
-  return `${Math.round(min * 10) / 10} min`;
+  return finite(min) ? formatDuration(min) : DASH;
 }
 
 const count = (n: number | null | undefined): string => (finite(n) ? String(n) : '0');

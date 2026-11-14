@@ -1,5 +1,5 @@
 import type { Employee, Hub, Shipment, SimEvent } from '../../../../shared/types';
-import { formatMin } from './simFormat';
+import { formatMin } from '../../ui/format';
 
 export type TimelineRow = {
   id: string;

@@ -1,5 +1,5 @@
 import type { Clock, Settings } from '../../../../shared/types';
-import { formatMin } from './simFormat';
+import { formatMin } from '../../ui/format';
 
 export type Speed = Clock['speed'];
 export const SPEEDS: readonly Speed[] = [30, 120, 600];
