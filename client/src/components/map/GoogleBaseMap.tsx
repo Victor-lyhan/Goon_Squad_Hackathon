@@ -17,11 +17,21 @@ import {
   fitKey,
   initialStatus,
   mapOptions,
+  panDecision,
   readBrowserKey,
   resolveFit,
   type MapStatus,
 } from './mapModel';
-import type { LatLngBounds, LayerVisibility, MapItem, MapMover, MapPlace, MapRoute } from './types';
+import type {
+  LatLngBounds,
+  LayerVisibility,
+  MapItem,
+  MapMover,
+  MapPanTarget,
+  MapPlace,
+  MapRoute,
+  MapStop,
+} from './types';
 import './map.css';
 
 export type GoogleBaseMapProps = {
@@ -33,12 +43,17 @@ export type GoogleBaseMapProps = {
   onHover?: (item: MapItem | null) => void;
   onSelect?: (id: string | null) => void;
   fitTo?: 'places' | LatLngBounds;
+  /** Numbered journey stops, drawn on top of everything (ignore `visible`, never dimmed). */
+  stops?: MapStop[];
+  /** Pan (no zoom change) to this point whenever `key` changes. */
+  panTo?: MapPanTarget;
 };
 
 type DeckLayersModule = typeof import('@deck.gl/layers');
 type Hover = { x: number; y: number; item: MapItem };
 
 const NO_SELECTION: readonly string[] = [];
+const NO_STOPS: MapStop[] = [];
 const FIT_PADDING_PX = 48;
 
 // setOptions must run once per page: a second call makes the loader log its options (with the key).
@@ -101,6 +116,8 @@ export function GoogleBaseMap({
   onHover,
   onSelect,
   fitTo,
+  stops = NO_STOPS,
+  panTo,
 }: GoogleBaseMapProps) {
   const apiKey = readBrowserKey(import.meta.env);
   const [status, setStatus] = useState<MapStatus>(() => initialStatus(apiKey));
@@ -112,11 +129,12 @@ export function GoogleBaseMap({
   const overlayRef = useRef<GoogleMapsOverlay | null>(null);
   const layersModRef = useRef<DeckLayersModule | null>(null);
   const lastHoverIdRef = useRef<string | null>(null);
+  const lastPanKeyRef = useRef<string | null>(null);
 
   // Latest callbacks/props for handlers attached once at creation.
-  const latest = useRef({ onHover, onSelect, fitTo, places });
+  const latest = useRef({ onHover, onSelect, fitTo, places, panTo });
   useEffect(() => {
-    latest.current = { onHover, onSelect, fitTo, places };
+    latest.current = { onHover, onSelect, fitTo, places, panTo };
   });
 
   // Load the Maps JS API and create the map + overlay once (again only after a failed load + Retry).
@@ -173,8 +191,8 @@ export function GoogleBaseMap({
 
   const hoveredId = hover?.item.id ?? null;
   const specs = useMemo(
-    () => buildLayerSpecs({ places, routes, movers, visible, selectedIds, hoveredId }),
-    [places, routes, movers, visible, selectedIds, hoveredId],
+    () => buildLayerSpecs({ places, routes, movers, visible, selectedIds, hoveredId, stops }),
+    [places, routes, movers, visible, selectedIds, hoveredId, stops],
   );
 
   // Push layers to the existing overlay whenever the specs change. Never re-creates the map.
@@ -193,6 +211,16 @@ export function GoogleBaseMap({
     const bounds = resolveFit(latest.current.fitTo, latest.current.places);
     if (bounds) map.fitBounds(bounds, FIT_PADDING_PX);
   }, [fk, status]);
+
+  // Pan once per new panTo.key (declared after the fit, so a pan requested at load wins).
+  const panKey = panTo?.key;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (status !== 'ready' || !map) return;
+    const { key, target } = panDecision(lastPanKeyRef.current, latest.current.panTo);
+    lastPanKeyRef.current = key;
+    if (target) map.panTo(target);
+  }, [panKey, status]);
 
   if (status === 'missing-key') {
     return (

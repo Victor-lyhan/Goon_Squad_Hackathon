@@ -149,3 +149,38 @@ export function rematchedText(ids: string[], names: Record<string, string> = {})
   const list = ids.map((id) => names[id] || 'a waiting package').join(', ');
   return `${ids.length} waiting ${ids.length === 1 ? 'package was' : 'packages were'} matched to your route. Packages: ${list}.`;
 }
+
+/** What the editor last synced from the server: the employee id and that employee's saved commute as a form. */
+export type CommuteSync = { employeeId: string; base: CommuteForm };
+
+export function commuteSync(e: Employee): CommuteSync {
+  return { employeeId: e.id, base: toForm(e) };
+}
+
+function sameForm(a: CommuteForm, b: CommuteForm): boolean {
+  const keys = Object.keys(a) as (keyof CommuteForm)[];
+  return keys.every((k) => {
+    const x = a[k];
+    const y = b[k];
+    if (Array.isArray(x) && Array.isArray(y)) return x.length === y.length && x.every((v, i) => v === y[i]);
+    return x === y;
+  });
+}
+
+/**
+ * Decides what the commute form becomes when a new `employee` prop arrives (every 1 s poll delivers a fresh object).
+ * - same employee id and equal saved values: `form` and `sync` come back unchanged (same references), so unsaved edits survive;
+ * - different employee id: the form resets to that employee;
+ * - same employee but changed server values (after a save, or a save from another tab): the form takes the server values.
+ */
+export function syncCommuteForm(
+  form: CommuteForm, sync: CommuteSync, employee: Employee,
+): { form: CommuteForm; sync: CommuteSync } {
+  if (employee.id === sync.employeeId) {
+    const base = toForm(employee);
+    if (sameForm(base, sync.base)) return { form, sync };
+    return { form: base, sync: { employeeId: employee.id, base } };
+  }
+  const next = commuteSync(employee);
+  return { form: toForm(employee), sync: next };
+}

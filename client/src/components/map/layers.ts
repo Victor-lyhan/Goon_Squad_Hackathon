@@ -1,7 +1,7 @@
 // Pure layer builder: plain descriptors only, no deck.gl import, so it tests in Node without
 // WebGL. GoogleBaseMap.tsx turns each descriptor into a PathLayer / ScatterplotLayer / TextLayer.
 import polyline from '@mapbox/polyline';
-import type { LayerVisibility, MapItem, MapMover, MapPlace, MapRoute } from './types';
+import type { LayerVisibility, MapItem, MapMover, MapPlace, MapRoute, MapStop, RouteTone } from './types';
 
 export type RGBA = [number, number, number, number];
 
@@ -29,11 +29,22 @@ export type BuildLayerInput = {
   visible: LayerVisibility;
   selectedIds?: readonly string[];
   hoveredId?: string | null;
+  /** Journey stops: drawn above everything, never dimmed, ignore the layer toggles. */
+  stops?: MapStop[];
 };
 
 // Palette: accent for routes, everything else quiet (docs/mvp2-ui-redesign.md §1).
 export const ACCENT: RGBA = [40, 97, 138, 235]; // #28618A
-export const BASELINE: RGBA = [138, 148, 160, 150];
+/** Journey leg colors: leg 1 is the accent, leg 2 a raspberry far from it in hue (both ≥ 3:1 on white). */
+export const LEG1: RGBA = ACCENT; // #28618A
+export const LEG2: RGBA = [192, 58, 100, 235]; // #C03A64
+/** Normal commute: thinner, fainter and drawn below the legs, so it reads as background. */
+export const BASELINE: RGBA = [138, 148, 160, 120];
+export const BASELINE_WIDTH = 2;
+export const LEG_WIDTH = 4;
+export const STOP_FILL: RGBA = [21, 27, 38, 255]; // #151B26
+export const STOP_TEXT: RGBA = [255, 255, 255, 255];
+export const STOP_RADIUS = 10;
 export const BUSINESS_FILL: RGBA = [21, 27, 38, 235]; // #151B26
 export const HOME_FILL: RGBA = [146, 155, 168, 210];
 export const VEHICLE_FILL: RGBA = [40, 97, 138, 255];
@@ -50,6 +61,7 @@ const ROLE: Record<MapItem['kind'], string> = {
   leg: 'Delivery route',
   vehicle: 'Carrier',
   package: 'Package',
+  stop: 'Stop',
 };
 
 export function roleOf(kind: MapItem['kind']): string {
@@ -59,6 +71,17 @@ export function roleOf(kind: MapItem['kind']): string {
 /** Decode a Google encoded polyline into deck.gl order ([lng, lat]). */
 export function decodePath(encoded: string): [number, number][] {
   return polyline.decode(encoded).map(([lat, lng]) => [lng, lat] as [number, number]);
+}
+
+/** Map color for a route tone (no tone = leg 1 = accent). */
+export function toneColor(tone: RouteTone | undefined): RGBA {
+  return tone === 'leg2' ? LEG2 : LEG1;
+}
+
+/** CSS color for a tone, so the journey legend shows exactly the map's colors. */
+export function toneLabelColor(tone: RouteTone | undefined): string {
+  const [r, g, b] = toneColor(tone);
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 }
 
 function dim(c: RGBA): RGBA {
@@ -75,6 +98,7 @@ type Group = {
  * With a non-empty selection, items that are not selected (and, for routes, not owned by a selected
  * ID) are dimmed, and the selected items are drawn again as `<id>-selected` layers on top, followed
  * by a text layer labelling the selected places and movers. Hidden layers and empty layers are omitted.
+ * Journey stops (`stops`, `stops-number`) always come last, are never dimmed and ignore `visible`.
  */
 export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const { places, routes, movers, visible } = input;
@@ -88,14 +112,16 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const inPass = (sel: boolean, id: string, ownerIds?: string[]) =>
     hasSelection ? isSelected(id, ownerIds) === sel : !sel;
 
-  const pathSpec = (kind: MapRoute['kind'], color: RGBA, width: number) => (sel: boolean): LayerSpec | null => {
+  const pathSpec = (kind: MapRoute['kind'], colorOf: (r: MapRoute) => RGBA, width: number) => (
+    sel: boolean,
+  ): LayerSpec | null => {
     if (!visible.routes) return null;
     const data: PathDatum[] = routes
       .filter((r) => r.kind === kind && r.path.length >= 2 && inPass(sel, r.id, r.ownerIds))
       .map((r) => ({
         id: r.id,
         path: r.path,
-        color: hasSelection && !sel ? dim(color) : color,
+        color: hasSelection && !sel ? dim(colorOf(r)) : colorOf(r),
         width: r.id === hoveredId ? width + 2 : width,
         item: { id: r.id, kind: r.kind, label: kind === 'leg' ? 'Delivery route' : 'Commute', role: roleOf(r.kind) },
       }));
@@ -145,8 +171,8 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   };
 
   const groups: Group[] = [
-    { key: 'routes-baseline', build: pathSpec('baseline', BASELINE, 2) },
-    { key: 'routes-leg', build: pathSpec('leg', ACCENT, 4) },
+    { key: 'routes-baseline', build: pathSpec('baseline', () => BASELINE, BASELINE_WIDTH) },
+    { key: 'routes-leg', build: pathSpec('leg', (r) => toneColor(r.tone), LEG_WIDTH) },
     {
       key: 'businesses',
       build: scatterSpec('places-business', places.filter((p) => p.kind === 'business'), visible.businesses, BUSINESS_FILL, 6),
@@ -164,7 +190,8 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
 
   const nonEmpty = (s: LayerSpec | null): s is LayerSpec => s !== null && s.data.length > 0;
   const base = groups.map((g) => g.build(false)).filter(nonEmpty);
-  if (!hasSelection) return base;
+  const stops = stopSpecs(input.stops ?? [], hoveredId);
+  if (!hasSelection) return [...base, ...stops];
 
   const top = groups
     .map((g) => g.build(true))
@@ -196,5 +223,47 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
       ]
     : [];
 
-  return [...base, ...top, ...labelSpec];
+  return [...base, ...top, ...labelSpec, ...stops];
+}
+
+/** Numbered stop circles plus their numbers, in stop order. Empty when there are no stops. */
+function stopSpecs(stops: MapStop[], hoveredId: string | null): LayerSpec[] {
+  const ok = stops
+    .filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng))
+    .slice()
+    .sort((a, b) => a.n - b.n);
+  if (ok.length === 0) return [];
+  const circles: ScatterDatum[] = ok.map((s) => ({
+    id: s.id,
+    position: [s.lng, s.lat],
+    fillColor: STOP_FILL,
+    lineColor: OUTLINE,
+    radius: s.id === hoveredId ? STOP_RADIUS + 2 : STOP_RADIUS,
+    lineWidth: 2,
+    item: { id: s.id, kind: 'stop', label: s.label, role: `Stop ${s.n}` },
+  }));
+  const numbers: TextDatum[] = ok.map((s) => ({ id: s.id, position: [s.lng, s.lat], text: String(s.n), color: STOP_TEXT }));
+  return [
+    {
+      type: 'scatter',
+      id: 'stops',
+      data: circles,
+      props: { radiusUnits: 'pixels', lineWidthUnits: 'pixels', stroked: true, filled: true, pickable: true },
+    },
+    {
+      type: 'text',
+      id: 'stops-number',
+      data: numbers,
+      props: {
+        sizeUnits: 'pixels',
+        getSize: 12,
+        getTextAnchor: 'middle',
+        getAlignmentBaseline: 'center',
+        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        fontWeight: 600,
+        // The circle underneath is pickable; the number must not steal its hover/click.
+        pickable: false,
+      },
+    },
+  ];
 }

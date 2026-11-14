@@ -17,7 +17,17 @@ export type MapRoute = {
   path: [number, number][];
   /** Employee / package / plan IDs this route belongs to (used for selection highlighting). */
   ownerIds: string[];
+  /** Journey mode: which leg a `leg` route is. `leg2` gets the second color; none = accent (leg 1). */
+  tone?: RouteTone;
 };
+
+export type RouteTone = 'leg1' | 'leg2';
+
+/** A numbered journey stop (1 Pickup → 2 Drop at relay → 3 Pickup at relay → 4 Delivered). */
+export type MapStop = { id: string; n: number; lat: number; lng: number; label: string };
+
+/** Pan request: the map pans (no zoom change) each time `key` changes. */
+export type MapPanTarget = { lat: number; lng: number; key: string };
 
 export type MapMover = {
   id: string;
@@ -39,7 +49,7 @@ export type LatLngBounds = { north: number; south: number; east: number; west: n
 /** What hover/click report back: enough for a tooltip and for selecting by ID. */
 export type MapItem = {
   id: string;
-  kind: MapPlace['kind'] | MapRoute['kind'] | MapMover['kind'];
+  kind: MapPlace['kind'] | MapRoute['kind'] | MapMover['kind'] | 'stop';
   label: string;
   role: string;
 };

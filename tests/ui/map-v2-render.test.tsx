@@ -25,6 +25,26 @@ describe('GoogleBaseMap static render', () => {
     expect(html).not.toContain('map-v2__canvas');
   });
 
+  it('shows the key-missing panel with journey stops and panTo set, without throwing', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '');
+    const html = renderToStaticMarkup(
+      <GoogleBaseMap
+        places={places}
+        routes={[{ id: 'leg-2', kind: 'leg', tone: 'leg2', path: [[-73.99, 40.7], [-73.98, 40.74]], ownerIds: ['shp-1'] }]}
+        movers={[]}
+        visible={visible}
+        stops={[
+          { id: 'stop-1', n: 1, lat: 40.7, lng: -73.99, label: 'Pickup at DUMBO Café' },
+          { id: 'stop-2', n: 2, lat: 40.74, lng: -73.98, label: 'Delivered' },
+        ]}
+        panTo={{ lat: 40.74, lng: -73.98, key: 'step-2' }}
+      />,
+    );
+    expect(text(html)).toContain('Google Maps key missing.');
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain('map-v2__canvas');
+  });
+
   it('shows a spinner with a key and never renders the key', () => {
     const fakeKey = 'TEST-ONLY-NOT-A-REAL-KEY-123';
     vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', fakeKey);

@@ -1,0 +1,12 @@
+{
+  "neighborhoods": [
+    { "id": "nbh-astoria", "name": "Astoria", "borough": "Queens", "bbox": { "south": 40.753, "west": -73.933, "north": 40.772, "east": -73.904 } },
+    { "id": "nbh-park-slope", "name": "Park Slope", "borough": "Brooklyn", "bbox": { "south": 40.666, "west": -73.9845, "north": 40.675, "east": -73.9765 } },
+    { "id": "nbh-bushwick", "name": "Bushwick", "borough": "Brooklyn", "bbox": { "south": 40.687, "west": -73.934, "north": 40.707, "east": -73.906 } },
+    { "id": "nbh-harlem", "name": "Harlem", "borough": "Manhattan", "bbox": { "south": 40.807, "west": -73.946, "north": 40.817, "east": -73.938 } },
+    { "id": "nbh-upper-east-side", "name": "Upper East Side", "borough": "Manhattan", "bbox": { "south": 40.769, "west": -73.9605, "north": 40.779, "east": -73.9535 } },
+    { "id": "nbh-jackson-heights", "name": "Jackson Heights", "borough": "Queens", "bbox": { "south": 40.742, "west": -73.9, "north": 40.76, "east": -73.87 } },
+    { "id": "nbh-bay-ridge", "name": "Bay Ridge", "borough": "Brooklyn", "bbox": { "south": 40.622, "west": -74.034, "north": 40.634, "east": -74.022 } },
+    { "id": "nbh-washington-heights", "name": "Washington Heights", "borough": "Manhattan", "bbox": { "south": 40.845, "west": -73.94, "north": 40.852, "east": -73.9335 } }
+  ]
+}
