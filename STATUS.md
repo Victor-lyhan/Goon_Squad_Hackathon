@@ -1,53 +1,51 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 02:58 (Sat), planner pass 4_
+_Last update: 2026-11-14 03:15 (Sat), planner pass 5_
 
-## Current milestone: M1 finishing, M2/M3 backend underway (M1 target 6:00 a.m. Sat)
-M1 engine work is merged except greedy allocation (#43). The app shell is in (PR #41). Left in M1: UI kit (#6, PR #42 in review) and the p2-b components (#20, #8). M2/M3 pieces whose dependencies are merged are queued.
+## Current milestone: M2/M3 (M1 done except p2-b components #8, #20)
+All M1 engine work is merged: greedy allocation (PR #56), markers (PR #57) and the demo scenario options (PR #58). The UI kit (PR #42) and the simulator API + ticker (PR #51) are also in. This pass queues the portal read routes, the Demo city loaded fully matched, the Simulator page, and business/employee building blocks.
 
 ## Main health
-- CI on main: green (14b69c0, PR #40). No stuck items. Open PR: #42 (#6 UI kit), in review.
+- CI on main: green (381eee1, PR #58). No `stuck` items. Open PR: #59 (#8 JobCard), needs review.
 
 ## Queued (label `ready`)
-- #43 p1-a: `assignShipments` greedy allocation (spec tests 4, 7, 10)
-- #44 p1-b: markers + package positions in `snapshotAt`
-- #45 p1-b: `DEMO_SCENARIO_OPTIONS` + test for 2 direct / 2 relay demo matches
-- #46 victor-1: `GET /api/simulator`, `POST /api/simulator/control`, start ticker
-- #47 victor-1: pure portal view builders `server/api/views.ts`
-- #48 victor-2: marker tween model, MapMarkers layer, CityMap overlay slot
-- #49 victor-2: sim/PackageDetail panel + model
-- #50 p2-a: header Demo account selector + real default IDs
+- #61 victor-1: GET dashboard/shipment/job routes (`server/api/portals.ts`)
+- #62 victor-1: demo fixture + `materializeAssignment` pipeline, demo loads pre-matched
+- #63 victor-2: Simulator page assembly, 1 s polling
+- #64 victor-2: swap sim formatters for `client/src/ui/format.ts`
+- #65 p2-a: ShipmentForm + Delivery arranged / no-match cards
+- #66 p2-a: business ShipmentList + TrackingDetail
+- #67 p2-b: employee JobDetail
+- #68 p1-a: `direct_only` mode + `compareAssignments`
+
+## In progress
 - #20 p2-b: CommuteEditor + commuteModel
-- #8 p2-b: JobCard + jobCardModel
-- #6 p2-a: UI kit + `client/src/ui/format.ts` (in review, PR #42)
+- #8 p2-b: JobCard (PR #59 in review)
 
 ## Next up (queue once dependencies merge)
-- p1-a: direct-only vs relay compare helper (after #43). Only one p1-a issue at a time because all p1-a work edits matching.ts.
-- victor-1: register dashboard/shipment/job GET routes (after #47, #46); `POST /api/shipments` with jobs, notifications, timeline, idempotency (spec test 9; after #43); retry unmatched in `PUT /commute` (after #43); `fixtures/demoScenario.json` + matched demo run on load (after #45, #43).
-- victor-2: Simulator.tsx page assembly with 1 s polling (after #46, #48); CityMap render test.
-- p2-a: ShipmentForm + Delivery arranged / no-match cards (after #6); BusinessPortal lists + tracking drawer (after #47 routes).
-- p2-b: EmployeePortal page wiring (after #8, #20, dashboard route).
-- Swap local format helpers (employee/, sim/simFormat.ts) for `client/src/ui/format.ts` once #6 merges.
+- victor-1: `POST /api/shipments` (idempotent, reuses `pipeline.ts`; spec test 9; after #62, #61), `PATCH /api/shipments/:id` + `POST /:id/match`, retry unmatched in `PUT /commute` (after #62), `POST /api/matches/compare` (after #68).
+- p2-a: BusinessPortal page (nav, summary cards, lists, drawer, form wiring, 1 s polling; after #61, #65, #66 + POST route).
+- p2-b: EmployeePortal page (commute editor wired to PUT, job feed, earnings, job detail deep link; after #8, #20, #61, #67).
+- victor-2: selected-package route highlight on the map; Simulator polish after #63.
+- p1-b: no M2–M4 domain work left; idle this pass (8-issue cap). Candidates: matching performance check on the default scenario (spec §6 target < 2 s), M5 generator controls support.
 
 ## Done
-- PR #41 (#5) p2-a: app shell, router, landing page, `.tsx` tests enabled
-- PR #40 (#29) p1-b: `generateScenario(opts)` on the 12x12 grid
-- PR #39 (#28) p1-b: pure `snapshotAt` (statuses, job status, earnings, metrics; spec tests 6, 12)
-- PR #38 (#27) p1-a: candidate plans: direct + relay (spec tests 1, 2, 3, 5)
-- PR #37 (#31) victor-1: clock ticker `server/api/ticker.ts`
-- PR #36 (#33) victor-2: sim/MetricsCards + model
-- PR #35 (#30) victor-1: trips on load + `PUT /api/employees/:id/commute`
-- PR #34 (#32) victor-2: Timeline.tsx + model
-- PR #26 (#15) p1-b: seeded PRNG + 12x12 grid
-- PR #25 (#14) p1-b: `buildTimeline` (stable tie order)
-- PR #24 (#17) victor-1: pure `advanceClock` / `applyControl`
-- PR #23 (#19) victor-2: sim/PackageQueue · PR #21 (#18) victor-2: sim/PlaybackBar
-- PR #22 (#16) victor-1: `createApp(store)` + GET businesses/employees/map
-- PR #13 (#2) p1-b: pricing + metrics · PR #12 (#1) p1-a: routing
-- PR #11 (#4) client API helpers · PR #10 (#3) store · PR #9 (#7) CityMap
-- M0 scaffold by humans (feb9d6a)
+- PR #58 (#45) p1-b: `DEMO_SCENARIO_OPTIONS` (2 direct / 2 relay demo matches)
+- PR #57 (#44) p1-b: markers + package positions in `snapshotAt`
+- PR #56 (#43) p1-a: `assignShipments` greedy allocation (spec tests 4, 7, 10)
+- PR #55 (#49) victor-2: sim/PackageDetail · PR #52 (#48) victor-2: marker tween + MapMarkers
+- PR #54 (#50) p2-a: Demo account selector + real default IDs
+- PR #53 (#47) victor-1: pure portal view builders `server/api/views.ts`
+- PR #51 (#46) victor-1: `GET /api/simulator`, `POST /api/simulator/control`, ticker started
+- PR #42 (#6) p2-a: UI kit + `client/src/ui/format.ts` · PR #41 (#5) p2-a: app shell, router, landing
+- PR #40 (#29) p1-b: `generateScenario` · PR #39 (#28) p1-b: `snapshotAt` (spec 6, 12)
+- PR #38 (#27) p1-a: candidates (spec 1, 2, 3, 5) · PR #37 (#31) victor-1: clock ticker
+- PR #36 (#33), #34 (#32), #23 (#19), #21 (#18) victor-2: MetricsCards, Timeline, PackageQueue, PlaybackBar
+- PR #35 (#30) victor-1: trips on load + `PUT /commute` · PR #24 (#17) clock · PR #22 (#16) read routes
+- PR #26, #25, #13 p1-b: PRNG/grid, `buildTimeline`, pricing + metrics · PR #12 p1-a: routing
+- PR #11, #10, #9: client API helpers, store, CityMap · M0 scaffold by humans
 
 ## Known bugs
-- `fixtures/demoScenario.json` is `{}`, so the server falls back to the relay fixture until the demo city lands (M2).
-- No shipments can be matched end to end yet: `assignShipments` (#43) and `POST /api/shipments` are pending.
-- Landing/header links use placeholder IDs `biz-a` / `emp-1` until #50.
+- `fixtures/demoScenario.json` is still `{}`, so the server falls back to the relay fixture with no shipments (fix: #62).
+- No end-to-end matching through the API yet: `POST /api/shipments` is not built (next after #62).
+- BusinessPortal, EmployeePortal and Simulator pages are still placeholders.

@@ -10,5 +10,7 @@ Agents add questions here; humans answer inline and move settled items to DECISI
 - 2026-11-14 (planner, pass 3) The full `generateScenario` (spec §5, nice-to-have 12) was queued for p1-b now (#29) because the M2 demo city is built from it. The random-city UI controls stay in M5.
 - 2026-11-14 (planner, pass 4) The simulator map shows vehicles only for employees carrying a planned leg, and only during that trip (not all 60 commuters). Overrule if you want every commuter visible.
 - 2026-11-14 (planner, pass 4) A business's "spend" total counts every matched outgoing package at its price, not only delivered ones. Overrule if spend should accrue on delivery.
-- 2026-11-14 (planner, pass 4) A leftover `.planner-tmp/` folder (issue body drafts) may be in the repo; I couldn't delete it without approval. Safe to delete.
+- 2026-11-14 (planner, pass 4) A leftover `.planner-tmp/` folder (issue body drafts) may be in the repo; I couldn't delete it without approval. Safe to delete. (Pass 5: the folder is no longer present.)
+- 2026-11-14 (planner, pass 5) The Demo city starts with all 24 of its packages pre-matched, so the simulator has something to play immediately. The live demo request then uses the remaining free trips (a test checks some exist). Overrule if you'd rather start with zero shipments and create them live.
+- 2026-11-14 (planner, pass 5) p1-b got no issue this pass: the 8-issue cap was spent on API/UI work, and p1-b's M1–M4 domain work is all merged. Tell me if you want p1-b on M5 items early.
 - 2026-11-14 (planner, pass 2) `play` locks the phase on the first press (spec §7: "Freeze the run at playback start"). `reset_playback` rewinds but stays locked; only "Start new planning cycle" unlocks. Overrule if reset should unlock.
