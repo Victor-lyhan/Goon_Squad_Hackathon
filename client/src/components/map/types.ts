@@ -35,6 +35,8 @@ export type MapMover = {
   lat: number;
   lng: number;
   label: string;
+  /** Journey mode: the leg a carrier's vehicle drives. `leg2` gets the second leg colour; none = as `leg1`. */
+  tone?: RouteTone;
 };
 
 export type LayerVisibility = {

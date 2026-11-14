@@ -1,7 +1,10 @@
 // Right panel of package journey mode: the numbered steps (same numbers as the map's stop markers),
-// each a button that seeks the simulation to that moment and pans the map to that place.
-import { formatMin } from '../../../../ui/format';
-import type { JourneyResult, JourneyStep, StepState } from './journeyModel';
+// each a button that seeks the simulation to that moment and pans the map to that place. Under the
+// header: the planned delivery time (and the delivered time once the snapshot has it) and one line
+// per leg with its carrier, home neighbourhood, extra minutes and reward. All read from the plan and
+// the snapshot by journeyModel.ts; nothing is computed here.
+import { formatCents, formatMin } from '../../../../ui/format';
+import type { Journey, JourneyCarrier, JourneyResult, JourneyStep, StepState } from './journeyModel';
 import './journey.css';
 
 export type JourneyTimelineProps = {
@@ -17,6 +20,37 @@ function extraText(min: number): string {
 
 function timeText(min: number): string {
   return Number.isFinite(min) ? formatMin(min) : 'Time unavailable';
+}
+
+function rewardText(cents: number): string {
+  return Number.isFinite(cents) ? `${formatCents(cents)} reward` : 'Reward unavailable';
+}
+
+function Times({ journey }: { journey: Journey }) {
+  return (
+    <>
+      <p className="jt__time jt__time--planned">
+        <span className="jt__status-label">Planned delivery</span> <strong>{timeText(journey.deliveryMin)}</strong>
+      </p>
+      {journey.deliveredAtMin !== null && (
+        <p className="jt__time jt__time--delivered">
+          <span className="jt__status-label">Delivered</span> <strong>{timeText(journey.deliveredAtMin)}</strong>
+        </p>
+      )}
+    </>
+  );
+}
+
+function LegLine({ carrier }: { carrier: JourneyCarrier }) {
+  return (
+    <li className={`jt-leg jt-leg--${carrier.tone}`}>
+      <span className="jt-leg__n">Leg {carrier.legIndex + 1}</span>
+      <span className="jt-leg__name">{carrier.name}</span>
+      <span className="jt-leg__home">from {carrier.homeNeighborhood}</span>
+      <span className="jt-leg__extra">{extraText(carrier.extraMin)}</span>
+      <span className="jt-leg__reward">{rewardText(carrier.rewardCents)}</span>
+    </li>
+  );
 }
 
 function Step({ step, onSeek }: { step: JourneyStep; onSeek: JourneyTimelineProps['onSeek'] }) {
@@ -72,7 +106,13 @@ export function JourneyTimeline({ journey, onSeek }: JourneyTimelineProps) {
         <p className="jt__status" aria-live="polite">
           <span className="jt__status-label">Status</span> <strong>{journey.statusLabel}</strong>
         </p>
+        <Times journey={journey} />
       </header>
+      <ul className="jt__legs" aria-label="Carriers">
+        {journey.carriers.map((c) => (
+          <LegLine key={c.legIndex} carrier={c} />
+        ))}
+      </ul>
       <ol className="jt__steps">
         {journey.steps.map((s) => (
           <Step key={s.n} step={s} onSeek={onSeek} />

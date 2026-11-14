@@ -76,7 +76,8 @@ describe('JourneyTimeline', () => {
     const tree = JourneyTimeline({ journey: j, onSeek: (t, p) => calls.push([t, p]) });
     type El = { type: unknown; props: Record<string, unknown> };
     const kids = (tree as unknown as El).props.children as unknown[];
-    const items = (kids[1] as El).props.children as El[];
+    // The steps list is the <ol> (the header and the per-leg <ul> come before it).
+    const items = (kids.find((k) => (k as El | null)?.type === 'ol') as El).props.children as El[];
     for (const item of items) {
       const rendered = (item.type as (p: unknown) => El)(item.props);
       ((rendered.props.children as El).props.onClick as () => void)();

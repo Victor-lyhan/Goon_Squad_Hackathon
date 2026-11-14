@@ -41,7 +41,12 @@ export type PageState = {
 
 const network = { sim: makeSim(), map: makeMap() };
 const relay = { sim: simAt(T.overnight, { 'shp-2': 'at_hub' }), map: journeyMap };
-const direct = { sim: simAt(T.afterDelivery, { 'shp-1': 'delivered', 'shp-2': 'delivered' }), map: journeyMap };
+const afterDelivery = simAt(T.afterDelivery, { 'shp-1': 'delivered', 'shp-2': 'delivered' });
+// Both delivered: the snapshot has their delivered times (#552 shows "Delivered <time>" from it).
+const direct = {
+  sim: { ...afterDelivery, snapshot: { ...afterDelivery.snapshot, deliveredAtMin: { 'shp-1': 1074, 'shp-2': 1979 } } },
+  map: journeyMap,
+};
 
 /** The four states the issue names (network, focus, relay journey, direct journey); focus in both kinds. */
 export const FOUR_STATES: PageState[] = [

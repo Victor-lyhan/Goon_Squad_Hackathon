@@ -80,8 +80,8 @@ describe('buildJourney: places, carriers and movers', () => {
   });
   it('relay has two carriers with two tones; direct has one with leg1', () => {
     expect(relayAt(T.overnight).carriers).toEqual([
-      { employeeId: 'emp-3', name: 'Cy Lam', legIndex: 0, tone: 'leg1', homeNeighborhood: 'Crown Heights' },
-      { employeeId: 'emp-2', name: 'Ben Okafor', legIndex: 1, tone: 'leg2', homeNeighborhood: 'Park Slope' },
+      { employeeId: 'emp-3', name: 'Cy Lam', legIndex: 0, tone: 'leg1', homeNeighborhood: 'Crown Heights', extraMin: 5, rewardCents: 300 },
+      { employeeId: 'emp-2', name: 'Ben Okafor', legIndex: 1, tone: 'leg2', homeNeighborhood: 'Park Slope', extraMin: 4, rewardCents: 300 },
     ]);
     const direct = directAt(T.beforePickup);
     expect(direct.carriers.map((c) => c.tone)).toEqual(['leg1']);

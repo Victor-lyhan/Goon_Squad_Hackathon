@@ -2,8 +2,9 @@
 // shipment ID, derive exactly what the map and the right panel show for that package, plus the
 // "Play journey" plan that skips the empty gaps. Pure: no React, no DOM, tested in Node.
 //
-// Nothing here computes a status, an ETA or money. Steps, times and extra minutes are read from the
-// plan; step states from `snapshot.occurredEvents`; the status from `snapshot.shipmentStatus`.
+// Nothing here computes a status, an ETA or money. Steps, times, extra minutes, rewards and the
+// planned delivery time are read from the plan; step states from `snapshot.occurredEvents`; the
+// status from `snapshot.shipmentStatus`; the delivered time from `snapshot.deliveredAtMin`.
 import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
 import type { DeliveryPlan, Leg, ShipmentProgress, SimEventKind, StopKind } from '../../../../../../shared/v2/types';
 import { decodePath } from '../../../map/layers';
@@ -43,6 +44,10 @@ export type JourneyCarrier = {
   legIndex: number;
   tone: RouteTone;
   homeNeighborhood: string;
+  /** `Leg.extraMin` of this carrier's leg. */
+  extraMin: number;
+  /** `Leg.rewardCents` of this carrier's leg. */
+  rewardCents: number;
 };
 
 export type Journey = {
@@ -52,6 +57,10 @@ export type Journey = {
   planKind: DeliveryPlan['kind'];
   status: ShipmentProgress | null;
   statusLabel: string;
+  /** `DeliveryPlan.deliveryMin`: the planned delivery time. */
+  deliveryMin: number;
+  /** `snapshot.deliveredAtMin[shipmentId]`, or null until the snapshot has it. */
+  deliveredAtMin: number | null;
   steps: JourneyStep[];
   carriers: JourneyCarrier[];
   places: MapPlace[];
@@ -160,6 +169,8 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
       legIndex,
       tone: toneOf(legIndex),
       homeNeighborhood: (homeId && homes.get(homeId)?.neighborhood) || UNKNOWN_NEIGHBORHOOD,
+      extraMin: leg.extraMin,
+      rewardCents: leg.rewardCents,
     };
   });
 
@@ -197,10 +208,14 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   if (pkg && Number.isFinite(pkg.lat) && Number.isFinite(pkg.lng)) {
     movers.push({ id: shipmentId, kind: 'package', lat: pkg.lat, lng: pkg.lng, label: title });
   }
-  const carrierIds = new Set(carriers.map((c) => c.employeeId));
+  // Each carrier's vehicle has its leg's tone (first carrier leg1, second leg2). If one person carries
+  // both legs, the vehicle keeps the first leg's tone, the same dot JourneyLegend shows for them.
+  const toneOfCarrier = new Map<string, RouteTone>();
+  for (const c of carriers) if (!toneOfCarrier.has(c.employeeId)) toneOfCarrier.set(c.employeeId, c.tone);
   for (const m of sim.snapshot.markers) {
-    if (!carrierIds.has(m.employeeId) || !Number.isFinite(m.lat) || !Number.isFinite(m.lng)) continue;
-    movers.push({ id: m.employeeId, kind: 'vehicle', lat: m.lat, lng: m.lng, label: carrierName(m.employeeId) });
+    const tone = toneOfCarrier.get(m.employeeId);
+    if (!tone || !Number.isFinite(m.lat) || !Number.isFinite(m.lng)) continue;
+    movers.push({ id: m.employeeId, kind: 'vehicle', lat: m.lat, lng: m.lng, label: carrierName(m.employeeId), tone });
   }
 
   const points: [number, number][] = [
@@ -210,6 +225,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   ];
 
   const status = sim.snapshot.shipmentStatus[shipmentId] ?? null;
+  const delivered = sim.snapshot.deliveredAtMin?.[shipmentId];
   return {
     kind: 'journey',
     shipmentId,
@@ -217,6 +233,8 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
     planKind: plan.kind,
     status,
     statusLabel: statusLabelOf(status),
+    deliveryMin: plan.deliveryMin,
+    deliveredAtMin: typeof delivered === 'number' && Number.isFinite(delivered) ? delivered : null,
     steps,
     carriers,
     places,
