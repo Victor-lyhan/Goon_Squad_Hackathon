@@ -1,5 +1,6 @@
 // PUT /api/v2/employees/:id/commute, the saves that answer 200 (DECISIONS pass 46).
-// The failures are in v2-commute-route-errors.test.ts.
+// The failures are in v2-commute-route-errors.test.ts; the re-plan of a delivery whose trip the save
+// changed (pass 62) is in v2-commute-replan.test.ts.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { homeIdForCoords, pairsToEnsure } from '../../server/api/v2/commutePlan';
 import { matchPending } from '../../server/api/v2/pipeline';
@@ -69,11 +70,27 @@ describe('PUT /api/v2/employees/:id/commute: a home that is already cached', () 
     expect(run.scenario.employees.find((e) => e.id === 'emp-2')).toEqual(body.employee);
     expect(tripsOf(run, 'emp-2')).toEqual(body.trips);
     for (const id of ['emp-1', 'emp-3']) expect(tripsOf(run, id)).toEqual(tripsOf(before, id));
-    // Plans are not re-planned by a save, and the retried shp-3 is still unmatched.
-    expect(run.assignments.plans).toEqual(before.assignments.plans);
+    // shp-1's second leg rode emp-2's morning commute, which now starts at home-003: that relay plan is
+    // dropped as a whole and the delivery is matched again (DECISIONS pass 62; the details are in
+    // v2-commute-replan.test.ts). The Print Shop is on the new way to work, so it is now a direct delivery.
+    expect(planOf(run, 'shp-1')).toMatchObject({ id: 'plan-shp-1', kind: 'direct' });
+    expect(planOf(run, 'shp-1')!.legs.map((l) => [l.tripId, l.placeIds])).toEqual([
+      ['emp-2-morn', ['home-003', PRINT, AGENCY]],
+    ]);
+    // The plan on a trip that did not change stays as it is, and the retried shp-3 is still unmatched.
+    expect(planOf(run, 'shp-2')).toEqual(planOf(before, 'shp-2'));
+    expect(run.assignments.plans).toHaveLength(before.assignments.plans.length);
     expect(run.assignments.unmatched).toEqual(before.assignments.unmatched);
-    expect(run.jobs).toEqual(before.jobs);
-    expect(run.notifications).toEqual(before.notifications);
+    const kept = <V extends { shipmentId: string }>(values: V[]) => values.filter((v) => v.shipmentId === 'shp-2');
+    expect(kept(run.jobs)).toEqual(kept(before.jobs));
+    expect(kept(run.notifications)).toEqual(kept(before.notifications));
+    // emp-1's relay leg went with the old plan: one job per leg of the plans that are there now.
+    expect(run.jobs.map((j) => [j.id, j.employeeId, j.tripId]).sort()).toEqual([
+      ['plan-shp-1-L0', 'emp-2', 'emp-2-morn'], ['plan-shp-2-L0', 'emp-3', 'emp-3-eve'],
+    ]);
+    expect(run.notifications.filter((n) => n.audienceId === 'emp-1')).toEqual([]);
+    // home-002: nobody lives there now and no plan drives to it.
+    expect(run.scenario.homes.map((h) => h.id)).toEqual(['home-001', 'home-003']);
   });
 
   it('still asks the travel service for the pairs: cached pairs cost no request there', async () => {
@@ -153,8 +170,12 @@ describe('PUT /api/v2/employees/:id/commute: a new home', () => {
 
     const run = app.store.get();
     expect(run.scenario.homes.find((h) => h.id === NEW_HOME_ID)).toEqual(body.home);
-    // home-003 stays listed: the plan made before this save still drives to it.
-    expect(run.scenario.homes.map((h) => h.id)).toContain('home-003');
+    // home-003 is gone: the plan that drove to it rode emp-3's old evening commute and was dropped with it
+    // (the Print Shop is no longer on the way, so shp-2 has no carrier).
+    expect(run.scenario.homes.map((h) => h.id)).toEqual(['home-001', 'home-002', NEW_HOME_ID]);
+    expect(planOf(run, 'shp-2')).toBeUndefined();
+    expect(run.assignments.unmatched.map((u) => u.shipmentId).sort()).toEqual(['shp-2', 'shp-3']);
+    expect(body.rematchedShipmentIds).toEqual([]);
     expect(tripsOf(run, 'emp-3')).toEqual(body.trips);
   });
 
@@ -250,13 +271,20 @@ describe('PUT /api/v2/employees/:id/commute: the retry of unmatched requests', (
     for (const note of notes) expect(note.createdSeq).toBeGreaterThan(newestBefore);
     expect(run.events.some((e) => e.shipmentId === 'shp-3')).toBe(true);
 
-    // Existing plans, their jobs and their notifications are exactly as they were,
-    // also shp-1, whose first leg is emp-1's old evening commute to home-001.
-    for (const old of before.assignments.plans) expect(planOf(run, old.shipmentId)).toEqual(old);
-    for (const job of before.jobs) expect(run.jobs).toContainEqual(job);
-    for (const note of before.notifications) expect(run.notifications).toContainEqual(note);
+    // The plan on a trip that did not change, its job and its notifications are exactly as they were.
+    const kept = <V extends { shipmentId: string }>(values: V[]) => values.filter((v) => v.shipmentId === 'shp-2');
+    expect(planOf(run, 'shp-2')).toEqual(planOf(before, 'shp-2'));
+    expect(kept(run.jobs)).toEqual(kept(before.jobs));
+    expect(kept(run.notifications)).toEqual(kept(before.notifications));
+    // shp-1's first leg rode emp-1's old evening commute to home-001. It is planned again on the new one
+    // and is not "rematched": it had a plan before the save.
+    expect(planOf(run, 'shp-1')!.legs.map((l) => [l.tripId, l.placeIds])).toEqual([
+      ['emp-1-eve', [PRINT, CAFE, NEW_HOME_ID]], ['emp-2-morn', ['home-002', CAFE, AGENCY]],
+    ]);
     expect(run.assignments.plans).toHaveLength(before.assignments.plans.length + 1);
-    expect(run.scenario.homes.map((h) => h.id)).toEqual(expect.arrayContaining(['home-001', NEW_HOME_ID]));
+    expect(run.jobs).toHaveLength(before.jobs.length + 1);
+    // No leg drives to home-001 any more, so it is no longer listed.
+    expect(run.scenario.homes.map((h) => h.id)).toEqual(['home-002', 'home-003', NEW_HOME_ID]);
   });
 
   it('an existing home can make a request feasible too', async () => {
@@ -322,17 +350,23 @@ describe('PUT /api/v2/employees/:id/commute: the retry of unmatched requests', (
     ]);
   });
 
-  it('with nothing unmatched the plans, jobs, notifications and events stay as they were', async () => {
+  it('with nothing unmatched and no plan on a changed trip, the plans, jobs, notifications and events stay as they were', async () => {
     const scenario = sampleScenario();
     scenario.shipments = scenario.shipments.filter((s) => s.id !== 'shp-3');
     const app = await start({ scenario });
     const before = structuredClone(app.store.get());
     expect(before.assignments.unmatched).toEqual([]);
 
-    const res = await app.put('emp-2', commuteBody({ businessId: AGENCY, home: NEW_HOME_BODY, availableMorning: true }));
+    // emp-2's evening commute carries nothing: it leaves later and gets a lower limit. The morning commute,
+    // which carries shp-1's second leg, is not changed.
+    const res = await app.put('emp-2', commuteBody({
+      businessId: AGENCY, home: { homeId: 'home-002' }, eveningDepartureMin: 1050, availableMorning: true, maxExtraMin: 3,
+    }));
 
     expect(res.status).toBe(200);
-    expect(CommuteResponseSchema.parse(res.body).rematchedShipmentIds).toEqual([]);
+    const body = CommuteResponseSchema.parse(res.body);
+    expect(body.rematchedShipmentIds).toEqual([]);
+    expect(body.trips.map((t) => [t.id, t.departureMin])).toEqual([['emp-2-eve', 1050], ['emp-2-morn', 1935]]);
     const run = app.store.get();
     expect(run.version).toBe(before.version + 1);
     expect(run.assignments).toEqual(before.assignments);
