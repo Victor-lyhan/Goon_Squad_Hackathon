@@ -8,6 +8,7 @@ import { NotificationList } from '../components/business/NotificationList';
 import { SendPackagePanel } from '../components/business/SendPackagePanel';
 import { ShipmentList } from '../components/business/ShipmentList';
 import { StaleShipmentNotice, TrackingDetail } from '../components/business/TrackingDetail';
+import { RECONNECTING_TEXT, runDidChange } from '../components/business/businessDashboardState';
 import { BusinessNotFound } from '../components/business/BusinessNotFound';
 import { lookupShipment } from '../components/business/trackingModel';
 import { formFromShipment, type FormState } from '../components/business/shipmentFormModel';
@@ -23,14 +24,16 @@ export default function BusinessPortal() {
   const [resetKey, setResetKey] = useState(0);
   const [prefill, setPrefill] = useState<Partial<FormState> | undefined>(undefined);
 
-  // Toast for a new delivery_matched notification seen on a poll.
-  const seen = useRef<{ id: string; ids: Set<string> } | null>(null);
+  // Toast for a new delivery_matched notification seen on a poll. A new run resets the baseline
+  // (the first sighting of a run flags nothing).
+  const seen = useRef<{ id: string; runId: string | null; ids: Set<string> } | null>(null);
   useEffect(() => {
     if (!dashboard) return;
-    const prev = seen.current && seen.current.id === id ? seen.current.ids : null;
-    for (const n of newMatchedNotifications(prev, dashboard.notifications).reverse()) push(n.message, 'success');
-    seen.current = { id, ids: new Set(dashboard.notifications.map((n) => n.id)) };
-  }, [dashboard, id, push]);
+    const s = seen.current;
+    const sameRun = s && s.id === id && !runDidChange(s.runId, state.runId);
+    for (const n of newMatchedNotifications(sameRun ? s.ids : null, dashboard.notifications).reverse()) push(n.message, 'success');
+    seen.current = { id, runId: state.runId, ids: new Set(dashboard.notifications.map((n) => n.id)) };
+  }, [dashboard, id, state.runId, push]);
 
   const selectedId = params.get('shipment');
   const lookup = useMemo(() => lookupShipment(selectedId, dashboard), [dashboard, selectedId]);
@@ -42,6 +45,16 @@ export default function BusinessPortal() {
     prevId.current = id;
     setParams((p) => { const n = new URLSearchParams(p); n.delete('shipment'); return n; }, { replace: true });
   }, [id, setParams]);
+  // A new run: close the drawer when its shipment is not in the new city.
+  const shownRun = useRef<string | null>(null);
+  useEffect(() => {
+    if (!dashboard) return;
+    const changed = runDidChange(shownRun.current, state.runId);
+    shownRun.current = state.runId;
+    if (changed && selectedId && lookup.kind === 'missing') {
+      setParams((p) => { const n = new URLSearchParams(p); n.delete('shipment'); return n; }, { replace: true });
+    }
+  }, [dashboard, state.runId, selectedId, lookup.kind, setParams]);
   const select = (sid: string | null) => {
     const next = new URLSearchParams(params);
     if (sid) next.set('shipment', sid); else next.delete('shipment');
@@ -70,7 +83,7 @@ export default function BusinessPortal() {
       </nav>
       <div className="bp-main">
         <h1>{dashboard.business.name}</h1>
-        {state.error && <div className="bp-error" role="alert">Connection problem: {state.error}</div>}
+        {state.reconnecting && <p role="status"><span className="ui-pill ui-pill--warn">{RECONNECTING_TEXT}</span></p>}
         {nav === 'overview' && (
           <>
             <SummaryCards totals={dashboard.totals} />
