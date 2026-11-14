@@ -32,11 +32,12 @@ export function JobDetail({ job, map, businesses, hubs, progress }: JobDetailPro
         highlightRoute={leg?.routeNodeIds}
       />
       {m.relay && <p className="job-detail__relay">{m.relay}</p>}
+      {m.hubNote && <p className="job-detail__relay">{m.hubNote}</p>}
       <Card title="Stops">
         <ol className="job-detail__stops">
           {m.stops.map((s) => (
-            <li key={s.key} className="job-detail__stop">
-              <strong>{s.action}: {s.place}</strong>
+            <li key={s.key} className="job-detail__stop" data-done={s.done ? 'true' : 'false'}>
+              <strong>{s.done ? '✓ ' : ''}{s.action}: {s.place}{s.done ? ' (done)' : ''}</strong>
               <span>Arrive {s.arrival}</span>
               <span>Service {s.service}</span>
               {s.instructions && <span>Instructions: {s.instructions}</span>}
@@ -48,6 +49,7 @@ export function JobDetail({ job, map, businesses, hubs, progress }: JobDetailPro
         <p className="job-detail__line">{m.packageName} · {m.category} · {m.weight}</p>
       </Card>
       <Card title="Your delivery">
+        <p className="job-detail__line">Trip: {m.trip}</p>
         <p className="job-detail__line">Expected finish: {m.finish}</p>
         <p className="job-detail__line">Added time: {m.added}</p>
         <p className="job-detail__line job-detail__reward">Reward: {m.reward}</p>
