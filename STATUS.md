@@ -1,30 +1,29 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 06:26 (Sat), planner pass 19_
+_Last update: 2026-11-14 06:38 (Sat), planner pass 20_
 
 ## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Since pass 18: #302 (#301) merged and main is green again. This pass queued one CI timing sweep per worker (#303–#308).
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Since pass 19, five of the six CI timing sweeps are merged (#309–#313). This pass queued one follow-up from them (#314).
 
 ## Main health: GREEN
-- The latest main run (#302 merge) passed. #301 split `metrics-timeline.test.ts` into one test per city with CI-sized timeouts.
-- Remaining risk: `vitest.config.ts` still uses the 5 s default timeout, and about 25 test files build generated cities, start real servers or check wall-clock budgets. Most of them set no explicit timeout. #303–#308 sweep them, one worker per test area.
+- The latest finished main runs (#305, #307 merges) passed. The run for #313 (#304) was still in progress at 06:38.
+- Every test area except `tests/domain/matching*|routing*` (#303) now has explicit CI timeouts and builds its data once per file.
 
 ## Stuck
 - None.
 
 ## In review
-- None.
+- **#303** p1-a, matcher/routing timing sweep. It's labeled `in-review`, but there was no open PR at 06:38. Check next pass.
 
-## Queued (label `ready`), all test-only, disjoint test paths
-- p1-a **#303** `tests/domain/matching*|routing*` · p1-b **#304** `tests/domain/sim*|metrics*|generator*`
-- victor-1 **#305** `tests/api/` · victor-2 **#306** `tests/ui/sim*|map*`
-- p2-a **#307** `tests/ui/business*|landing*|kit*` · p2-b **#308** `tests/ui/employee*|commute*`
-- One issue per worker, not 4. No filler (DECISIONS pass 13).
+## Queued (label `ready`)
+- victor-1 **#314** `tests/api/notifications-cycles*` plus a new `commute-latency` test: find out why the test takes 10–15 s, get it under 3 s, and add a commute PUT budget (demo step 7).
+- Every other worker has no issue by design (no filler, DECISIONS pass 13).
 
 ## Next up
-- Merge #303–#308, so CI stays green until the freeze. Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and an answer on a global `testTimeout`.
+- Merge #303 and #314. If #314 finds that the cost is in `matching.ts`, queue the fix for p1-a. Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and answers on a global `testTimeout` and on the Codex sandbox's EPERM on listen.
 
 ## Done (newest first)
+- PR #313 (#304) p1-b, #312 (#305) victor-1, #311 (#307) p2-a, #310 (#308) p2-b, #309 (#306) victor-2: CI timing sweeps (explicit 3x timeouts, data built once per file, perf limits unchanged)
 - PR #302 (#301) p1-b: metrics-timeline test per city, CI-sized timeouts (main green again)
 - PR #299 (#298) p2-a: connection banner uses the `client/src/api` health probe, no overlapping probes
 - PR #297 (#259), #294 (#257), #293 (#136), #292 (#134) p1-a: matcher property tests on 20 seeds; routing insertion §6; spec test 10; matcher edge cases
@@ -36,6 +35,8 @@ Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Du
 - PR #240 and earlier: see git log
 
 ## Known bugs / gaps
-- CI timing flakes are possible in any test that sets no explicit timeout (#303–#308).
+- `notifications-cycles` takes 9.5–14.8 s locally. The commute PUT latency in demo step 7 isn't measured yet (#314).
+- The `GET /api/simulator` payload is about 103 KB on the largest random city, against a 150 KB budget (#312). It passes, but there's limited headroom.
+- The p1-b Codex sandbox can't run the API tests (EPERM on `listen(0)`), so its PRs rely on CI.
 - Nobody has done a real two-tab browser walkthrough. All checks so far are server-side renders and API tests.
 - Setup drawer CRUD (nice-to-have 16) is blocked on `shared/` contracts.
