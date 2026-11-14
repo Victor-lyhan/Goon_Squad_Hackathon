@@ -6,7 +6,7 @@ import { ApiRequestError, createShipment, matchShipment, patchShipment } from '.
 import { ShipmentForm } from '../ShipmentForm';
 import { MatchResultCard } from './MatchResultCard';
 import { patchFromRequest } from './businessPortalModel';
-import { actionErrorMessage, classifySubmitFailure, createSubmitGuard, formFromShipment, type FormState } from './shipmentFormModel';
+import { actionErrorMessage, classifySubmitFailure, createSubmitGuard, formFromShipment, nextPackageForm, type FormState } from './shipmentFormModel';
 import { Button } from '../../ui';
 import './BusinessPortal.css';
 
@@ -33,12 +33,14 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<{ kind: 'retry' | 'locked' | 'other'; message: string } | undefined>();
   const guard = useRef(createSubmitGuard()).current;
+  // Set by "Send another package": a blank form for the same sender (drops any Duplicate prefill) with focus on its first field.
+  const [blank, setBlank] = useState<FormState | undefined>();
   const [lastReset, setLastReset] = useState(p.resetKey);
   if (lastReset !== p.resetKey) {
     setLastReset(p.resetKey);
-    setResult(null); setEditing(null); setFieldErrors({}); setFormError(undefined);
+    setResult(null); setEditing(null); setFieldErrors({}); setFormError(undefined); setBlank(undefined);
   }
-  const formInitial = useMemo(() => editing?.initial ?? p.initial, [editing, p.initial]);
+  const formInitial = useMemo(() => editing?.initial ?? blank ?? p.initial, [editing, blank, p.initial]);
 
   async function run(action: () => Promise<ShipmentResponse>) {
     // The guard blocks double submission; the state flags drive the pending UI.
@@ -83,7 +85,7 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
           onEdit={() => setEditing({ id: result.shipment.id, initial: formFromShipment(result.shipment) })}
           onRetry={() => void run(() => matchShipment(result.shipment.id))}
         />
-        <Button variant="secondary" onClick={() => { setResult(null); setFieldErrors({}); }}>Send another package</Button>
+        <Button variant="secondary" onClick={() => { setResult(null); setFieldErrors({}); setFormError(undefined); setBlank(nextPackageForm(p.origin.id)); }}>Send another package</Button>
       </div>
     );
   }
@@ -98,6 +100,7 @@ export function SendPackagePanel(p: SendPackagePanelProps) {
         fieldErrors={fieldErrors}
         formError={editing ? undefined : formError}
         initial={formInitial}
+        focusFirst={!!blank && !editing}
         onSubmit={(r) => void onSubmit(r)}
       />
       {editing && <Button variant="ghost" onClick={() => setEditing(null)} disabled={submitting}>Cancel edit</Button>}

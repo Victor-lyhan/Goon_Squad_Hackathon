@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { ShipmentResponse } from '../../../../shared/api';
 import type { Business, Employee, Hub } from '../../../../shared/types';
 import { Link } from 'react-router-dom';
@@ -20,11 +21,17 @@ export type MatchResultCardProps = {
 
 export function MatchResultCard({ response, businesses, hubs, employees, onViewTracking, onEdit, onRetry, busy = false }: MatchResultCardProps) {
   const { shipment, plan } = response;
+  // Move focus to the result heading when the card appears (and when it flips between matched / no-match).
+  const headingRef = useRef<HTMLSpanElement>(null);
+  const matchedNow = response.matched && !!plan;
+  useEffect(() => { headingRef.current?.focus(); }, [matchedNow, shipment.id]);
+  const heading = (text: string) => <span ref={headingRef} tabIndex={-1} className="match-card__heading">{text}</span>;
   const recipient = businesses.find((b) => b.id === shipment.destinationBusinessId)?.name ?? 'Recipient';
 
   if (!response.matched || !plan) {
     return (
-      <Card className="match-card match-card--unmatched" title={<span>No matching commute yet</span>}>
+      <div aria-live="polite" aria-atomic="false">
+      <Card className="match-card match-card--unmatched" title={heading('No matching commute yet')}>
         <p>{response.unmatchedReason ?? 'No employee commute fits this package yet.'}</p>
         <p>{shipment.label} to {recipient}. Your request stays in your list.</p>
         <div className="match-card__actions">
@@ -32,6 +39,7 @@ export function MatchResultCard({ response, businesses, hubs, employees, onViewT
           <Button onClick={onRetry} disabled={busy} loading={busy}>Try again</Button>
         </div>
       </Card>
+      </div>
     );
   }
 
@@ -41,7 +49,8 @@ export function MatchResultCard({ response, businesses, hubs, employees, onViewT
   const collectionMin = plan.legs[0]?.stops[0]?.serviceStartMin;
 
   return (
-    <Card className="match-card match-card--matched" title={<span>Delivery arranged</span>}>
+    <div aria-live="polite" aria-atomic="false">
+    <Card className="match-card match-card--matched" title={heading('Delivery arranged')}>
       <dl className="match-card__list">
         <dt>Shipment ID</dt><dd>{shipment.id}</dd>
         <dt>Package</dt><dd>{shipment.label} ({shipment.category === 'envelope' ? 'Envelope' : 'Small box'}, {formatKg(shipment.weightGrams)})</dd>
@@ -65,5 +74,6 @@ export function MatchResultCard({ response, businesses, hubs, employees, onViewT
         <Link to={simulatorHref(shipment.id)}>Watch in simulator</Link>
       </div>
     </Card>
+    </div>
   );
 }
