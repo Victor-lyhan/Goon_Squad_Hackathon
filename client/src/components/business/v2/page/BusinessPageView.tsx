@@ -2,7 +2,7 @@
 // every screen without the data hook. Local UI state: the table's search, filters and sort, whether the
 // New delivery form is open, and the retry-match status. All data comes from the hook state, and the
 // page changes only `?shipment=` (through onOpenShipment / onCloseShipment).
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ShipmentResponse } from '../../../../../../shared/v2/api';
 import type { CreateShipmentRequest } from '../../../../../../shared/v2/schemas';
 import { BusinessHeader } from '../activity/BusinessHeader';
@@ -37,11 +37,14 @@ export type BusinessPageViewProps = {
   /** Starting UI state, for static renders. */
   initialNewOpen?: boolean;
   initialTable?: TableState;
+  /** The open delivery's route map (#549), shown above its details; the page passes it in. */
+  deliveryRoute?: ReactNode;
 };
 
 export function BusinessPageView({
   state, shipmentId, createShipment, matchShipment, refetchNow, dismissRunChanged,
   onOpenShipment, onCloseShipment, businessHref, initialNewOpen = false, initialTable = INITIAL_TABLE,
+  deliveryRoute = null,
 }: BusinessPageViewProps) {
   const [newOpen, setNewOpen] = useState(initialNewOpen);
   const [table, setTable] = useState<TableState>(initialTable);
@@ -135,6 +138,7 @@ export function BusinessPageView({
         {matchError && matchError.shipmentId === id && (
           <p className="bp-notice bp-problem" role="alert">{matchError.text}</p>
         )}
+        {deliveryRoute}
         <DeliveryDetails
           key={id}
           view={screen.view}
