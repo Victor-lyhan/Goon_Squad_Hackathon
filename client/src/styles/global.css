@@ -30,6 +30,8 @@ h2 { font-size: var(--text-lg); }
   color: var(--accent-dark); background: var(--accent-soft); border: 1px solid var(--border);
 }
 .app-main { max-width: 960px; margin: 0 auto; padding: var(--space-4); }
+/* /nyc/simulator (MVP II preview) uses the whole window; every other page keeps the 960 px column. */
+.app-main.app-main--full { max-width: none; }
 
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-6); }
 .hero { margin-bottom: var(--space-4); }
