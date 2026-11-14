@@ -3,7 +3,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TravelDataMissingError } from '../../shared/v2/types';
 import { estimateFetch } from '../../server/geo/fetchRoutes';
-import { firstRun, input, leakedLines, loggedLineCount, run, totalCalls } from './fetch-routes-helpers';
+import { FETCH_ROUTES_TEST_TIMEOUT_MS, firstRun, input, leakedLines, loggedLineCount, run, totalCalls } from './fetch-routes-helpers';
+
+vi.setConfig({ testTimeout: FETCH_ROUTES_TEST_TIMEOUT_MS });
 
 const matcher = vi.hoisted(() => ({ fail: null as null | (() => never) }));
 

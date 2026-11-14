@@ -1,12 +1,16 @@
 // Runtime travel service (server/geo/travelService.ts): loading the cache at start and the synchronous lookups.
 // Temp directories and a fake fetch only: no network, no real key, no .env.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TravelDataMissingError } from '../../shared/v2/types';
 import { MATRIX_FILE, POLYLINES_FILE, TravelCacheError, emptyTravelFiles, writeTravelFiles } from '../../server/geo/cache';
 import { TravelNotLoadedError, createTravelService } from '../../server/geo/travelService';
-import { KEY, NEW_HOME, NEW_HOME_POINT, fakeGoogle, lineFor, metersFor, noSleep, secondsFor, seedFiles, tempDirs, watchSuite } from './travelServiceHarness';
+import {
+  KEY, NEW_HOME, NEW_HOME_POINT, TRAVEL_SERVICE_TEST_TIMEOUT_MS, fakeGoogle, lineFor, metersFor, noSleep, secondsFor, seedFiles, tempDirs, watchSuite,
+} from './travelServiceHarness';
+
+vi.setConfig({ testTimeout: TRAVEL_SERVICE_TEST_TIMEOUT_MS });
 
 const dirs = tempDirs();
 const suite = watchSuite();

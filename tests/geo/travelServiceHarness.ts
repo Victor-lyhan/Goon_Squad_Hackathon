@@ -13,6 +13,12 @@ import type { TravelFiles } from '../../server/geo/cache';
 import { ROUTES_URL, ROUTE_MATRIX_URL } from '../../server/geo/googleClient';
 import type { FetchInitLike, FetchLike } from '../../server/geo/googleClient';
 
+/**
+ * Explicit per-test limit for tests/geo/travel-service-*.test.ts, set at the top of each file with `vi.setConfig`
+ * (DECISIONS pass 17 and 19). The slowest of these tests takes about 20 ms locally (temp directories, a fake fetch).
+ */
+export const TRAVEL_SERVICE_TEST_TIMEOUT_MS = 10_000;
+
 // Not a real key. It has characters that change when URL-encoded, so both forms are checked for leaks.
 export const KEY = 'FAKE_key-123+/=';
 export const KEY_FORMS = [KEY, 'FAKE_key-123%2B%2F%3D', encodeURIComponent(KEY)];
