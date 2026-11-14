@@ -22,7 +22,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
 }
 .bd-title { margin: var(--space-2, 8px) 0 var(--space-1, 4px); font-size: var(--text-lg, 18px); font-weight: 600; }
 .bd-title:focus { outline: none; }
@@ -30,18 +30,18 @@
 .bd-id { margin: 0 0 var(--space-3, 12px); }
 
 .bd-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-xs, 12px); }
-.bd-muted { color: var(--muted, #5B6675); }
+.bd-muted { color: var(--muted, #5B6472); }
 .bd-small { font-size: var(--text-xs, 12px); }
 .bd-num { text-align: right; white-space: nowrap; }
 
 .bd-parties, .bd-facts { display: grid; gap: var(--space-2, 8px); margin: 0; }
 .bd-parties > div, .bd-facts > div { display: grid; grid-template-columns: 120px 1fr; gap: var(--space-2, 8px); min-width: 0; }
-.bd-parties dt, .bd-facts dt { color: var(--muted, #5B6675); }
+.bd-parties dt, .bd-facts dt { color: var(--muted, #5B6472); }
 .bd-parties dd, .bd-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 .bd-result { padding: var(--space-4, 16px); border-bottom: 1px solid var(--border, #D7DDE5); border-left: 2px solid var(--border, #D7DDE5); }
-.bd-result--ok { border-left-color: var(--ok, #2E7D4F); }
-.bd-result--none { border-left-color: var(--warn, #A15C07); }
+.bd-result--ok { border-left-color: var(--ok, #2F6B4F); }
+.bd-result--none { border-left-color: var(--warn, #8A5A00); }
 .bd-result__title { margin: 0 0 var(--space-3, 12px); font-size: var(--text-md, 16px); font-weight: 600; }
 .bd-result__reason { margin: 0 0 var(--space-3, 12px); }
 .bd-note { margin: var(--space-2, 8px) 0 0; }
@@ -54,11 +54,11 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
 }
 
 .bd-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2, 8px); }
-.bd-step { display: flex; align-items: center; gap: var(--space-2, 8px); color: var(--muted, #5B6675); }
+.bd-step { display: flex; align-items: center; gap: var(--space-2, 8px); color: var(--muted, #5B6472); }
 .bd-step__mark {
   flex: none;
   width: 10px;
@@ -77,7 +77,7 @@
   text-align: left;
   font-size: var(--text-xs, 12px);
   font-weight: 600;
-  color: var(--muted, #5B6675);
+  color: var(--muted, #5B6472);
   padding: 0 var(--space-2, 8px) var(--space-2, 8px) 0;
   border-bottom: 1px solid var(--border, #D7DDE5);
 }
@@ -91,7 +91,7 @@
 .bd-footer { padding: var(--space-4, 16px); }
 
 .bd-link { color: var(--accent, #28618A); text-decoration: underline; text-underline-offset: 2px; }
-.bd-link:hover { color: var(--accent-dark, #1D4866); }
+.bd-link:hover { color: var(--accent-dark, #1F4E70); }
 .bd-link:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
 
 .bd-btn {
@@ -109,8 +109,8 @@
 .bd-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .bd-btn:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--accent, #28618A); border-color: var(--accent, #28618A); }
 .bd-btn--primary { background: var(--accent, #28618A); border-color: var(--accent, #28618A); color: var(--panel, #FFFFFF); }
-.bd-btn--primary:hover:not(:disabled) { background: var(--accent-dark, #1D4866); }
-.bd-btn--ghost { border-color: transparent; background: transparent; color: var(--muted, #5B6675); }
+.bd-btn--primary:hover:not(:disabled) { background: var(--accent-dark, #1F4E70); }
+.bd-btn--ghost { border-color: transparent; background: transparent; color: var(--muted, #5B6472); }
 
 .bd-visually-hidden {
   position: absolute;
@@ -131,6 +131,18 @@
   .bd-legs tr:last-child { border-bottom: 0; }
   .bd-legs td { border-bottom: 0; padding: var(--space-1, 4px) 0; }
   .bd-legs td.bd-num { text-align: left; }
-  .bd-legs td.bd-num::before { content: 'Extra '; color: var(--muted, #5B6675); font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif); }
+  .bd-legs td.bd-num::before { content: 'Extra '; color: var(--muted, #5B6472); font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif); }
   .bd-btn { flex: 1 1 auto; }
+}
+
+/* Reduced motion (#497): nothing in this file animates or transitions, now or later. */
+@media (prefers-reduced-motion: reduce) {
+  [class*='bd-'],
+  [class*='bd-'] *,
+  [class*='bd-']::before,
+  [class*='bd-']::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

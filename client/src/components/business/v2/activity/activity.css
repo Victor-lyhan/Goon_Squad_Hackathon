@@ -130,3 +130,15 @@
   .ba-note__static { grid-template-columns: minmax(0, 1fr); }
   .ba-note__open { grid-column: 1; }
 }
+
+/* Reduced motion (#497): nothing in this file animates or transitions, now or later. */
+@media (prefers-reduced-motion: reduce) {
+  [class*='ba-'],
+  [class*='ba-'] *,
+  [class*='ba-']::before,
+  [class*='ba-']::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
