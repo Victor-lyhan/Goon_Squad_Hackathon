@@ -26,7 +26,7 @@ h2 { font-size: var(--text-lg); }
 .portal-switch a:hover { background: var(--bg); border-color: var(--border); }
 .portal-switch a.active { background: var(--accent); border-color: var(--accent); color: var(--panel); }
 .badge {
-  margin-left: auto; padding: 2px var(--space-2); border-radius: var(--radius); font-size: var(--text-xs);
+  margin-left: auto; padding: 0 var(--space-2); border-radius: var(--radius); font-size: var(--text-xs);
   color: var(--accent-dark); background: var(--accent-soft); border: 1px solid var(--border);
 }
 .app-main { max-width: 960px; margin: 0 auto; padding: var(--space-4); }
@@ -62,7 +62,8 @@ h2 { font-size: var(--text-lg); }
 .demo-account select:hover { border-color: var(--muted); }
 .demo-account-status { font-size: var(--text-sm); color: var(--muted); }
 .demo-account-error { color: var(--danger); }
-.nav-pending, .btn-disabled { opacity: .5; cursor: not-allowed; padding: var(--space-1) var(--space-3); }
+/* Unavailable link or button: a dashed border, not just the faded colour. */
+.nav-pending, .btn-disabled { opacity: .5; cursor: not-allowed; padding: var(--space-1) var(--space-3); border: 1px dashed var(--border); border-radius: var(--radius); }
 
 /* Focus: header links, selects and buttons get the accent outline (also set globally above). */
 .portal-switch a:focus-visible, .wordmark:focus-visible, .demo-account select:focus-visible, .btn:focus-visible {
