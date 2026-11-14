@@ -6,12 +6,14 @@ import {
   type Directory,
 } from './demoIdentity';
 import { getBusinesses, getEmployees, getSimulator } from './api';
+import { getEmployees as getV2Employees, isTravelUnavailable } from './api/v2';
 import {
   activeDestination, DESTINATIONS, ENV_INDICATOR_TEXT, RUN_POLL_MS, reconcileSelection, runChanged, staleNote,
+  envIndicatorFor, isFullWidthPath, isPreviewPath, previewDestination, previewHrefs,
 } from './ui/shellModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
 import NotFoundPage from './ui/NotFoundPage';
-import { switchIdentityPath } from './ui/shell';
+import { startV2Directory, switchIdentityPath, switchPreviewEmployeePath, type V2Directory } from './ui/shell';
 import './styles/global.css';
 import './ui/shell.css';
 import Landing, { SIMULATOR_PATH } from './pages/Landing';
@@ -19,6 +21,8 @@ import BusinessPortal from './pages/BusinessPortal';
 import EmployeePortal from './pages/EmployeePortal';
 import Simulator from './pages/Simulator';
 import Help from './pages/Help';
+import SimulatorV2 from './pages/v2/SimulatorV2';
+import EmployeeV2 from './pages/v2/EmployeeV2';
 
 /** Header environment indicator (kept for existing imports; the source is ENV_INDICATOR_TEXT). */
 export const BADGE_TEXT = ENV_INDICATOR_TEXT;
@@ -56,6 +60,59 @@ function useLiveDirectory(initial?: DirectoryData): Directory {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return dir;
+}
+
+/**
+ * The v2 employee list for the header, loaded only while on a /nyc/… path (DECISIONS pass 52).
+ * The request is aborted when the header leaves the preview or unmounts. `initial` skips loading (tests).
+ */
+function useV2Directory(preview: boolean, initial?: V2Directory): V2Directory {
+  const [dir, setDir] = useState<V2Directory>(initial ?? { status: 'loading' });
+  useEffect(() => {
+    if (initial || !preview) return;
+    setDir({ status: 'loading' });
+    return startV2Directory(getV2Employees, isTravelUnavailable, setDir);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview]);
+  return dir;
+}
+
+/** Demo account on /nyc/employee/:id: v2 employees, navigates inside the preview, never stores the identity. */
+function PreviewAccountSelector({ dir }: { dir: V2Directory }) {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const m = matchPath('/nyc/employee/:id', pathname);
+  if (!m) return null;
+  // 503 (no travel data yet): no selector; the page below explains it.
+  if (dir.status === 'unavailable') return null;
+  if (dir.status === 'loading') return <span className="demo-account-status">Loading accounts…</span>;
+  if (dir.status === 'error') {
+    return <span className="demo-account-status demo-account-error" role="alert">Accounts unavailable</span>;
+  }
+  const choose = (id: string) => {
+    const next = switchPreviewEmployeePath(pathname, id);
+    if (next) navigate(next);
+  };
+  const options = dir.employees.map((e) => ({ id: e.id, text: e.name }));
+  const sel = reconcileSelection(m.params.id, options.map((o) => o.id));
+  const fallback = options.find((o) => o.id === sel.id);
+  const fallbackPath = fallback ? switchPreviewEmployeePath(pathname, fallback.id) : null;
+  return (
+    <>
+      <label className="demo-account">
+        <span>Demo account</span>
+        <select value={sel.id} onChange={(e) => choose(e.target.value)}>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
+        </select>
+      </label>
+      {sel.stale && (
+        <span className="demo-account-status" role="status">
+          {staleNote('employee', fallback?.text ?? null)}{' '}
+          {fallbackPath && <Link to={fallbackPath}>Switch</Link>}
+        </span>
+      )}
+    </>
+  );
 }
 
 function DemoAccountSelector({ dir }: { dir: Directory }) {
@@ -104,11 +161,13 @@ function DemoAccountSelector({ dir }: { dir: Directory }) {
   );
 }
 
-/** `initial` skips the API load (used by tests). */
-export function Header({ initial }: { initial?: DirectoryData } = {}) {
+/** `initial` / `initialV2` skip the API loads (used by tests). */
+export function Header({ initial, initialV2 }: { initial?: DirectoryData; initialV2?: V2Directory } = {}) {
   const dir = useLiveDirectory(initial);
   // Re-read after route changes so a fresh choice is reflected in the portal links.
   const { pathname } = useLocation();
+  const preview = isPreviewPath(pathname);
+  const v2dir = useV2Directory(preview, initialV2);
   const [stored, setStored] = useState(readIdentity);
   const [seen, setSeen] = useState(pathname);
   if (seen !== pathname) {
@@ -118,8 +177,10 @@ export function Header({ initial }: { initial?: DirectoryData } = {}) {
   const paths = portalPaths(
     dir.status === 'ready' ? resolveIdentity(stored, dir.businesses, dir.employees) : null,
   );
-  const active = activeDestination(pathname);
-  const hrefs = { business: paths.business, employee: paths.employee, simulator: SIMULATOR_PATH };
+  const active = preview ? previewDestination(pathname) : activeDestination(pathname);
+  const hrefs: Record<string, string | null> = preview
+    ? previewHrefs(v2dir.status === 'ready' ? v2dir.employees[0]?.id : undefined)
+    : { business: paths.business, employee: paths.employee, simulator: SIMULATOR_PATH };
   return (
     <header className="shell-header">
       <Link to="/" className="shell-wordmark">Relay</Link>
@@ -138,29 +199,33 @@ export function Header({ initial }: { initial?: DirectoryData } = {}) {
       </nav>
       <div className="shell-tools">
         <div className="demo-account-slot" data-slot="demo-account-selector">
-          <DemoAccountSelector dir={dir} />
+          {preview ? <PreviewAccountSelector dir={v2dir} /> : <DemoAccountSelector dir={dir} />}
         </div>
         <Link to="/help" className={pathname === '/help' ? 'shell-help active' : 'shell-help'} aria-current={pathname === '/help' ? 'page' : undefined}>Help</Link>
-        <span className="shell-env">{ENV_INDICATOR_TEXT}</span>
+        <span className="shell-env">{envIndicatorFor(pathname)}</span>
       </div>
     </header>
   );
 }
 
 /** Header + routes, without a router, so tests can wrap it in MemoryRouter. */
-export function AppShell({ initial }: { initial?: DirectoryData } = {}) {
+export function AppShell({ initial, initialV2 }: { initial?: DirectoryData; initialV2?: V2Directory } = {}) {
+  const { pathname } = useLocation();
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <ConnectionMonitor />
-      <Header initial={initial} />
-      <main className="app-main" id="main-content" tabIndex={-1}>
+      <Header initial={initial} initialV2={initialV2} />
+      <main className={isFullWidthPath(pathname) ? 'app-main app-main--full' : 'app-main'} id="main-content" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<Landing initial={initial} />} />
           <Route path="/business/:id" element={<BusinessPortal />} />
           <Route path="/employee/:id" element={<EmployeePortal />} />
           <Route path="/simulator" element={<Simulator />} />
           <Route path="/help" element={<Help initial={initial} />} />
+          {/* MVP II preview (DECISIONS pass 46); /nyc/business/:id follows once BusinessV2 is on main. */}
+          <Route path="/nyc/simulator" element={<SimulatorV2 />} />
+          <Route path="/nyc/employee/:id" element={<EmployeeV2 />} />
           <Route path="*" element={<NotFoundPage initial={initial} />} />
         </Routes>
       </main>
