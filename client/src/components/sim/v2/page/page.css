@@ -1,0 +1,38 @@
+/* MVP II simulator page: desktop-only notice (docs/mvp2-ui-redesign.md §1, DECISIONS pass 47).
+   Hidden at 900 px and above; below that it replaces the workspace. Media query only, no JS. */
+
+.sim-desktop-notice {
+  display: none;
+}
+
+@media (max-width: 899.98px) {
+  .sim-desktop-notice {
+    display: block;
+    max-width: 480px;
+    margin: var(--space-8, 32px) auto;
+    padding: var(--space-4, 16px);
+    background: var(--panel, #FFFFFF);
+    border: 1px solid var(--border, #D7DDE5);
+    border-radius: var(--radius, 2px);
+    color: var(--text, #151B26);
+    font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+    font-size: var(--text-md, 14px);
+    line-height: 1.5;
+  }
+  .sim-desktop-notice-text {
+    margin: 0 0 var(--space-3, 12px);
+  }
+  .sim-desktop-notice-links {
+    margin: 0;
+  }
+  .sim-desktop-notice a {
+    color: var(--accent, #28618A);
+  }
+  .sim-desktop-notice a:focus-visible {
+    outline: 2px solid var(--accent, #28618A);
+    outline-offset: 2px;
+  }
+  .sim-desktop-content {
+    display: none;
+  }
+}

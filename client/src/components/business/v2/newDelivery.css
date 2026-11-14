@@ -1,0 +1,124 @@
+/* MVP II Business workspace: New delivery form.
+   Tokens as var(--name, fallback) (DECISIONS pass 44). Square corners, 1px borders, no shadows, no gradients, no pills. */
+
+.nd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
+  max-width: 640px;
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  font-size: var(--text-sm, 14px);
+}
+
+.nd-head { display: flex; flex-direction: column; gap: var(--space-1, 4px); }
+.nd-title { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; }
+.nd-from { margin: 0; color: var(--muted, #5B6675); }
+
+.nd-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+  margin: 0;
+  padding: var(--space-3, 12px) 0 0;
+  border: 0;
+  border-top: 1px solid var(--border, #D7DDE5);
+  min-width: 0;
+}
+.nd-legend {
+  padding: 0 var(--space-2, 8px) 0 0;
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  color: var(--muted, #5B6675);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nd-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3, 12px); }
+
+.nd-field { display: flex; flex-direction: column; gap: var(--space-1, 4px); min-width: 0; }
+.nd-label { font-weight: 600; font-size: var(--text-sm, 14px); }
+.nd-hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6675); }
+.nd-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #B42318); }
+
+.nd-input {
+  height: 36px;
+  padding: 0 var(--space-2, 8px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font: inherit;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.nd-input--num, .nd-input--time { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); }
+.nd-field--invalid .nd-input { border-color: var(--danger, #B42318); }
+.nd-input:focus-visible {
+  outline: none;
+  border-color: var(--accent, #28618A);
+  box-shadow: 0 0 0 1px var(--accent, #28618A);
+}
+.nd-input:disabled { background: var(--bg, #F4F6F8); color: var(--muted, #5B6675); }
+
+.nd-result:empty, .nd-alert:empty { display: none; }
+.nd-result__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-left-width: 3px;
+  border-radius: var(--radius, 2px);
+}
+.nd-result__line--ok { border-left-color: var(--ok, #1E7F4F); }
+.nd-result__line--warn { border-left-color: var(--warn, #A15C00); }
+.nd-result__line--danger { border-left-color: var(--danger, #B42318); }
+.nd-result__text { margin: 0; }
+
+.nd-actions { display: flex; gap: var(--space-2, 8px); }
+.nd-btn {
+  height: 36px;
+  padding: 0 var(--space-4, 16px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nd-btn:hover { border-color: var(--text, #151B26); }
+.nd-btn--primary {
+  background: var(--accent, #28618A);
+  border-color: var(--accent, #28618A);
+  color: #FFFFFF;
+}
+.nd-btn--primary:hover { background: var(--accent-dark, #1D4A6B); border-color: var(--accent-dark, #1D4A6B); }
+.nd-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.nd-btn--link {
+  height: auto;
+  min-height: 32px;
+  padding: 0 var(--space-2, 8px);
+  border-color: var(--accent, #28618A);
+  color: var(--accent, #28618A);
+}
+.nd-btn:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
+
+/* 390 px: one column, controls at least 40 px high, full-width actions. */
+@media (max-width: 480px) {
+  .nd { padding: var(--space-3, 12px); border-left: 0; border-right: 0; max-width: none; }
+  .nd-row { grid-template-columns: 1fr; }
+  .nd-input, .nd-btn { height: 44px; min-height: 44px; }
+  .nd-btn--link { min-height: 40px; }
+  .nd-actions { flex-direction: column; }
+  .nd-actions .nd-btn { width: 100%; }
+}

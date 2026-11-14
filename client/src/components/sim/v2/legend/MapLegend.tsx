@@ -1,0 +1,71 @@
+// Collapsible map legend for the MVP II simulator's map corner: what each marker and line means.
+// Props only. The open state is either passed in (`open` + `onOpenChange`) or held locally; it is
+// never persisted in browser storage. Rows come from legendModel, so swatches match the map's layer colors.
+import { useId, useState, type CSSProperties } from 'react';
+import type { Focus, LayerVisibility } from '../workspaceModel';
+import { ALL_HIDDEN_MESSAGE, legendRows, showsHiddenMessage, type LegendMode, type LegendRow } from './legendModel';
+import './legend.css';
+
+export type MapLegendProps = {
+  mode: LegendMode;
+  layers: LayerVisibility;
+  hasSelection?: boolean;
+  focus?: Focus;
+  /** Controlled open state. Leave undefined to let the legend hold it (open by default). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+function swatchStyle(row: LegendRow): CSSProperties {
+  if (row.shape === 'line') return { background: row.color, height: `${row.width ?? 2}px` };
+  if (row.shape === 'ring') return { borderColor: row.color };
+  if (row.shape === 'numbered') return { background: row.color, color: row.textColor };
+  return { background: row.color };
+}
+
+function Swatch({ row }: { row: LegendRow }) {
+  return (
+    <span className="ml__swatch-box" aria-hidden="true">
+      <span className={`ml__swatch ml__swatch--${row.shape}`} style={swatchStyle(row)}>
+        {row.shape === 'numbered' ? '1' : null}
+      </span>
+    </span>
+  );
+}
+
+export function MapLegend({ mode, layers, hasSelection = false, focus, open, onOpenChange }: MapLegendProps) {
+  const [localOpen, setLocalOpen] = useState(true);
+  const isOpen = open ?? localOpen;
+  const bodyId = useId();
+  const toggle = () => {
+    const next = !isOpen;
+    if (open === undefined) setLocalOpen(next);
+    onOpenChange?.(next);
+  };
+
+  const hidden = showsHiddenMessage({ mode, layers });
+  const rows = hidden ? [] : legendRows({ mode, layers, hasSelection, focus });
+
+  return (
+    <section className="ml" aria-label="Map legend">
+      <button type="button" className="ml__toggle" aria-expanded={isOpen} aria-controls={bodyId} onClick={toggle}>
+        <span>Legend</span>
+        <span className="ml__chevron" aria-hidden="true">{isOpen ? '−' : '+'}</span>
+      </button>
+      <div id={bodyId} className="ml__body" hidden={!isOpen}>
+        {hidden ? (
+          <p className="ml__empty">{ALL_HIDDEN_MESSAGE}</p>
+        ) : (
+          <ul className="ml__list">
+            {rows.map((row) => (
+              <li key={row.key} className={`ml__row ml__row--${row.key}`}>
+                <Swatch row={row} />
+                <span className="ml__label">{row.label}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
