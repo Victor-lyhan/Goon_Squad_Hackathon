@@ -1,12 +1,23 @@
 # Relay
 
-Relay turns existing employee commutes into a coordinated B2B delivery network: businesses describe a package, the backend matches it to an employee's commute (direct or one-hub relay), and a simulator plays the whole delivery cycle. Everything runs locally on a synthetic city, with no external APIs.
+Relay turns existing employee commutes into a coordinated B2B delivery network. A business describes a package, the backend matches it to an employee who already drives past the pickup and the drop-off, either directly or through a **relay point** (another business of the network that holds the package overnight), and a simulator plays the whole delivery cycle on a map of New York City.
+
+**Real NYC locations, simulated deliveries.** The businesses are real, well-known NYC businesses. The driving times, distances and route lines between them come from Google; they were fetched once and are committed in `fixtures/nyc/`. The employees, their homes (made-up points, shown by neighborhood only) and the deliveries are simulated by the backend. The default run has 18 businesses, 60 employees and 24 packages.
+
+## What works with and without a key
+You need no key to run the app or the demo. Two optional Google keys add the map and live Google calls ([Google setup](#google-setup-keys-and-travel-data)).
+
+| You have | What works |
+| --- | --- |
+| **No key** (a fresh clone) | Everything in the 2-minute demo, from the committed cache: the homepage, the Business, Employee and Simulator workspaces, Help, matching a new delivery, playback, earnings, and a commute save that keeps the home. The server calls nothing outside your machine. Where a map would be, the page says "Google Maps key missing." and the rest of the page works. |
+| **Browser key** (`VITE_GOOGLE_MAPS_BROWSER_KEY`) | Adds the Google map: the network on the Simulator with route lines, moving vehicles and packages, the commute on the Employee page and a delivery's route on the Business page. |
+| **Server key** (`GOOGLE_MAPS_SERVER_KEY`) | Adds the live Google calls: the address search and a commute save with a new address (its travel times are fetched and added to the cache), the route lines of a new delivery (without the key its legs have no route line and the vehicle moves straight from stop to stop), and the fetch command `npm run fetch:routes`. |
 
 ## Requirements
 - Node.js 22 or newer (`engines` in `package.json`)
 - npm
 
-No API keys or environment variables are needed. `PORT` is optional (default `3001`).
+No API key or environment variable is needed. `PORT` is optional (default `3001`). The two Google keys are optional and live in `.env` ([Google setup](#google-setup-keys-and-travel-data)).
 
 ## Setup and run
 ```bash
@@ -15,76 +26,96 @@ npm run dev
 ```
 `npm run dev` starts the API on **http://localhost:3001** and Vite on **http://localhost:5173**; Vite proxies `/api` to the API. Open http://localhost:5173.
 
+The main paths:
+
+| Path | Page |
+| --- | --- |
+| `/` | Homepage: what Relay is, the numbers of the current run, and the three workspaces. |
+| `/business/<id>` | Business workspace, for example `/business/biz-brooklyn-roasting`: the deliveries table, **New delivery**, delivery details. |
+| `/employee/<id>` | Employee workspace, for example `/employee/emp-7`: the saved commute, assigned deliveries, earnings. |
+| `/simulator` | Simulator: the whole network, the package list, playback, and the journey of one package. |
+| `/help` | Guided demo: the six demo steps, each with a link to its workspace. |
+
 ## Production build
 ```bash
 npm run build   # builds the client into client/dist (the server is not compiled)
 npm start       # runs the server with tsx and serves client/dist
 ```
-Open **http://localhost:3001** (override with `PORT`). One process serves the API under `/api` and the built client; there is no Vite proxy. Refreshing a deep link such as `/business/<id>?shipment=<id>`, `/employee/<id>?job=<id>` or `/simulator?package=<id>` returns the app shell, while unknown `/api/*` paths return JSON `404 { "error": ... }`. Run state is saved to `data/state.json` (see below). If `client/dist` is missing, only the API is served.
+Open **http://localhost:3001** (override with `PORT`). One process serves the API under `/api` and the built client; there is no Vite proxy. Refreshing a deep link such as `/business/<id>?shipment=<id>`, `/employee/<id>?job=<id>` or `/simulator?package=<id>` returns the app shell, while unknown `/api/*` paths return JSON `404 { "error": ... }`. If `client/dist` is missing, only the API is served.
 
 ## Tests
 ```bash
 npm test               # vitest only
 bash scripts/test.sh   # typecheck + tests + build (must pass before any PR)
 ```
+The tests need no key and no network: they run on the committed cache or on a fake travel provider.
 
 ## State file and reset
-All run state is saved to `data/state.json` (gitignored, created on first start). **Delete it to reset to the Demo city**, then restart the server.
+The run is saved in `data/state-v2.json` (gitignored, written by the server). A restart restores it, paused. **To reset, stop the server, delete `data/state-v2.json` and start it again**: the server then builds the default run from `fixtures/nyc/`.
 
-Inside the app, the Setup drawer on the Simulator page has **Start new planning cycle**, which recomputes matches and resets playback. After you press Play, sending new packages is refused (the planning phase is locked) until you start a new planning cycle.
+A changed story or default limit starts a fresh run at the next restart: if `businesses.json`, `neighborhoods.json` or `demoStory.json` in `fixtures/nyc/`, or the default detour limit, changed since the run was saved, the server builds the default run from the current files, prints one line saying so, and keeps the old run as `data/state-v2.json.stale-<n>` (never deleted; remove it by hand when you no longer need it). It knows by a fingerprint of those inputs in `data/state-v2.source.json`; the travel cache is not part of it, so a saved commute does not reset the run.
+
+Inside the app, the left panel of the Simulator has **Start new planning cycle**, which recomputes the matches and resets playback. **Play** locks the run: after it, new deliveries and commute changes are refused until you start a new planning cycle.
 
 ## Demo accounts
-The landing page lets you choose a demo identity (a business and/or an employee). The identity is the only thing stored in the browser; all delivery data lives on the server.
+On the Business and Employee pages the header's **Demo account** selector lists the businesses and employees of the run. The chosen account is the only thing stored in the browser; all delivery data lives on the server.
 
 ## 2-minute demo
-Known-good request for the **Demo city** (locked by `tests/api/demo-script.test.ts`, which reads the block below). It always matches as a relay: the package is dropped at the hub on Day 1 evening and stays there overnight.
+Known-good request for the default run, on a fresh clone with no key. `tests/api/v2-readme-demo.test.ts` reads the block below and runs it over HTTP: it matches as a relay, and the package stays at the relay point overnight.
 
 ```demo-request
-employee: Taylor Irwin
-employee_url: /employee/emp-19
-sender: Atlas Printworks
-recipient: Field Notes Supply
-package: Quarterly price lists
-category: envelope
+employee: Elena Rossi
+employee_url: /employee/emp-7
+sender: Brooklyn Roasting Company
+sender_url: /business/biz-brooklyn-roasting
+recipient: Blue Bottle Coffee
+recipient_url: /business/biz-blue-bottle-wall
+package: Espresso blend samples
+type: Envelope
 weight_kg: 0.5
-ready: Day 1, 3:30 PM
-deadline: Day 2, 12:00 PM
-hub: West Gate Hub
+contents: Three sample bags of the new espresso blend
+ready: Day 1, 4:00 PM
+deliver_by: Day 2, 10:00 AM
+relay_point: Etsy
+evening_carrier: Elena Rossi
+morning_carrier: Reese Green
 price: $10.00
 ```
 
-The **Delivery arranged** card should show: relay via **West Gate Hub**, price **$10.00**, carriers Taylor Irwin → Noel Patel, held at West Gate Hub overnight.
+The times are the defaults of the **New delivery** form, so leave them as they are. Use a fresh run: the request is planned on commutes that are still free, so after an earlier try, reset first ([State file and reset](#state-file-and-reset)). If **Play** was pressed earlier, the form is closed until **Start new planning cycle**.
 
-If **Play** was pressed earlier, open **Setup** and click **Start new planning cycle** first; otherwise the request is refused (409) because the plan is locked.
+1. **Employee** (`/employee/emp-7`, or choose **Elena Rossi** as the **Demo account**): show the **Saved commute** between the Upper East Side and Brooklyn Roasting Company, the two departure times and the **Detour limit**.
+2. **Business** (`/business/biz-brooklyn-roasting`, Brooklyn Roasting Company): choose **New delivery**, pick **Blue Bottle Coffee** as the recipient, enter the package from the block above and choose **Send request**. This is the "Find a delivery match" step: the backend looks for a matching commute.
+3. The form answers **Delivery arranged** with the shipment ID. **View delivery** opens the details: plan **Relay via Etsy (relay point)**, the ETA, price **$10.00**, and the carriers Elena Rossi (evening commute, Day 1) and Reese Green (morning commute, Day 2).
+4. Back in **Employee** as Elena Rossi, without refreshing: the new job is under **Assigned deliveries**, with its pickup, drop-off, extra time and reward.
+5. **Simulator**: on the new delivery choose **Watch in simulator** (or **View journey** in the Business delivery details; both open `/simulator?package=<shipment ID>`), then **Play journey**. The package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (the player skips the wait), and is delivered to Blue Bottle Coffee in the morning. To run the whole network instead, use **Play**, then **Jump to morning** and **Finish**.
+6. The same run is in every workspace: the delivery reads **Delivered** for the sender (`/business/biz-brooklyn-roasting`) and for the recipient (`/business/biz-blue-bottle-wall`), and **Earnings** on the pages of Elena Rossi and Reese Green show the reward as **Earned**.
 
-1. **Employee portal** (landing page, *Employee portal*, choose **Taylor Irwin**, `/employee/emp-19`): show the saved commute, departure times and the *Max added minutes* limit.
-2. **Business portal**: switch to **Atlas Printworks**, choose **Field Notes Supply** as the *Destination business*, enter the package and times from the block above.
-3. Click **Find a delivery match**. Show the **Delivery arranged** card with package information, ETA and price.
-4. Back in the **Employee portal** as Taylor Irwin: the assigned job is already there, with stops and reward.
-5. Open the **Simulator** and press **Play** to run the evening leg; the package stays at the hub overnight.
-6. Click **Jump to morning** (then **Finish** if needed): sender/recipient tracking and employee earnings update from the same run.
-7. If time remains, open **Setup** (the Setup drawer), click **Start new planning cycle**, change the detour limit (*Max added minutes*) in the employee portal and show the tradeoff.
-
-Message: Relay turns existing commutes into a coordinated delivery network. This prototype calculates the matches and simulates the complete delivery cycle.
+Message: Relay turns existing commutes into a coordinated delivery network. This prototype calculates the matches on real NYC travel times and simulates the complete delivery cycle.
 
 ## Assumptions and out of scope
-- Synthetic city; time is integer minutes since Day 1 00:00, distance in meters, money in integer cents.
-- Matching and simulation are deterministic for a given seed and inputs.
+- The businesses are real NYC locations; their coordinates come from the Geocoding API. The employees and deliveries are simulated.
+- Employee homes are made-up points inside real residential neighborhoods, shown by neighborhood only. Never a real person's address.
+- Travel times and distances are Google's, for driving without traffic (travel mode DRIVE, routing preference TRAFFIC_UNAWARE), read from the committed cache, so the same inputs give the same numbers. Seconds are rounded up to whole minutes. No time or distance is ever estimated: when one is missing and there is no server key, the API answers 503 and the page says so.
+- Pickups, drop-offs and overnight storage happen only at network businesses, never at homes. Every network business can be a relay point.
+- Time is integer minutes since Day 1 00:00, distance in meters, money in integer cents. Matching and simulation are deterministic for the same inputs.
 - The frontend only renders API responses; it never computes matches, statuses, earnings or metrics.
-- Out of scope: cancellations, disruptions, recovery, offers/declines, auth, real payments, GPS, QR scanning, traffic randomness, emissions, LLM/runtime AI, external APIs, WebSockets, databases.
+- External services: the Google Routes API and Geocoding API (server) and the Maps JavaScript API (browser), and no others.
+- Out of scope: cancellations, disruptions, recovery, offers/declines, auth, real payments, GPS, QR scanning, live traffic, emissions, LLM/runtime AI, WebSockets, databases.
 
 ## Repository layout
-- `client/` React + Vite frontend (`src/pages`, `src/components`, `src/api`)
-- `server/` Express API (`api/`), persistence (`store.ts`), pure domain logic (`domain/`)
-- `shared/` types and Zod schemas shared by client and server
-- `fixtures/` demo scenario and relay fixture
-- `tests/` Vitest suites (`api/`, `domain/`)
-- `docs/` full product spec (`relay-spec.md`); `SPEC.md`, `DECISIONS.md` and `AGENTS.md` hold project rules
+- `client/` React + Vite frontend: `src/pages`, `src/components` (`business/`, `employee/`, `sim/`, `map/` for the Google map and its deck.gl layers), `src/ui`, `src/api`
+- `server/` Express API (`api/v2/`), pure domain logic (`domain/v2/`), the Google and cache layer (`geo/`)
+- `shared/` types and Zod schemas shared by client and server (`shared/v2/`)
+- `fixtures/nyc/` the NYC data: `businesses.json`, `neighborhoods.json` and `demoStory.json` (written by hand), `matrix.json` and `polylines.json` (the travel cache from Google)
+- `scripts/fetch-routes.ts` the fetch command behind `npm run fetch:routes`
+- `tests/` Vitest suites (`api/`, `domain/`, `geo/`, `ui/`)
+- `docs/` the product spec (`relay-spec.md`) and the UI design (`mvp2-ui-redesign.md`); `SPEC.md`, `DECISIONS.md` and `AGENTS.md` hold the project rules
 
-## MVP II: real NYC data
-Everything above describes MVP 1, the synthetic city. It needs no key and stays correct until the cutover.
+## Google setup: keys and travel data
+You need this section for three things: the map (browser key), a commute with a new address (server key), and fetching the travel data again after the businesses or the story changed (server key). The travel data of the default run is already committed, so a fresh clone needs none of it.
 
-MVP II runs the same product on real NYC businesses, with driving times, distances and route lines from Google. A person fetches them **once** with `npm run fetch:routes`; the result is saved in `fixtures/nyc/` and committed. After that the app and the tests read the saved files. The five steps below go from "no key" to "NYC data in the app".
+A person fetches the travel data with `npm run fetch:routes`; the result is saved in `fixtures/nyc/` and committed. After that the app and the tests read the saved files. The five steps below go from "no key" to "map and fresh travel data in the app".
 
 > [!WARNING]
 > - **Never commit, paste or print a key.** Not in code, an issue, a PR, a chat, a screenshot or a terminal you share. Do not `cat .env`.
@@ -103,7 +134,7 @@ You need a Google account and a Google Cloud project with a billing account link
 | --- | --- | --- |
 | Routes API | server | travel times and distances (`computeRouteMatrix`), route lines (`computeRoutes`) |
 | Geocoding API | server | coordinates of the business addresses |
-| Maps JavaScript API | browser | the map on the NYC pages |
+| Maps JavaScript API | browser | the map on the Simulator, Employee and Business pages |
 
 Enable these three and no others; Relay calls nothing else. The menu names are the console's at the time of writing and Google moves them now and then. The three API names are what you search for.
 
@@ -177,9 +208,13 @@ git commit -m "NYC travel cache from Google"
 The two files hold coordinates, seconds, meters and encoded route lines, and no key. Then **restart the server** (stop `npm run dev` with Ctrl-C and start it again): the cache is read when the server starts.
 
 ### What you see
-- **Preview pages.** Until the cutover the NYC pages live under `/nyc`, next to the MVP 1 pages:
-  - http://localhost:5173/nyc/simulator
-  - `http://localhost:5173/nyc/employee/<id>`, for example `/nyc/employee/emp-1`. The header's **Demo account** selector lists the NYC employees.
-  - The Business page follows; on the preview the header shows its link as not available yet.
-- **Before the cache is committed**, every `/api/v2` request answers `503` with the code `travel_data_missing`, and the NYC pages show "NYC travel data is not loaded on this server yet." The MVP 1 pages and `/api` are not affected. If the message is still there after a commit and a restart, check that `fixtures/nyc/matrix.json` is in your checkout and that the checkout includes the `/api/v2` start-up (issue #464).
-- **State and reset.** The NYC run is saved in `data/state-v2.json` (gitignored, separate from `data/state.json`), and a restart restores it, paused. A changed story or default limit starts a fresh NYC run at the next restart: if `businesses.json`, `neighborhoods.json` or `demoStory.json` in `fixtures/nyc/`, or the default detour limit, changed since the run was saved, the server builds the default run from the current files, prints one line saying so, and keeps the old run as `data/state-v2.json.stale-<n>` (never deleted; remove it by hand when you no longer need it). It knows by a fingerprint of those inputs in `data/state-v2.source.json`; the travel cache is not part of it, so a saved commute does not reset the run. To reset by hand, delete `data/state-v2.json` and restart the server.
+- **The map**, once the browser key is in `.env` and `npm run dev` was restarted:
+  - `/simulator`: the network businesses, the route lines of the commutes and plans, and the vehicles and packages moving along them. Selecting a package shows its journey only.
+  - `/employee/<id>`, for example `/employee/emp-7`: the employee's commute and the stops of their deliveries.
+  - `/business/<id>`, for example `/business/biz-brooklyn-roasting`: a delivery's route next to its details, with the sender, the relay point and the recipient.
+  - `/` and `/help` have no map and look the same with and without a key.
+- **Without the browser key** each map area says "Google Maps key missing." and the lists, forms and panels around it work as before. If the key is there but wrong, the map area says "Google rejected the browser key."; check its restrictions (step 2) and reload the page.
+- **With the server key**, **Edit commute** on the Employee page finds a new address and saves it. Without it the search says "Address search needs the Google key on the server. Your saved home is unchanged.", and a save that keeps the home still works.
+- **If the cache is missing** from your checkout (`fixtures/nyc/matrix.json`), every `/api/v2` request answers `503` with the code `travel_data_missing`, and the pages show "NYC travel data is not loaded on this server yet." The server prints the reason when it starts.
+- **Old links.** The preview paths `/nyc/...` redirect to the main paths above.
+- **State.** The run is in `data/state-v2.json`; see [State file and reset](#state-file-and-reset).
