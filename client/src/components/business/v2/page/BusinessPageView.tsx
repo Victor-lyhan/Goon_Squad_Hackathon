@@ -2,7 +2,7 @@
 // every screen without the data hook. Local UI state: the table's search, filters and sort, whether the
 // New delivery form is open, and the retry-match status. All data comes from the hook state, and the
 // page changes only `?shipment=` (through onOpenShipment / onCloseShipment).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ShipmentResponse } from '../../../../../../shared/v2/api';
 import type { CreateShipmentRequest } from '../../../../../../shared/v2/schemas';
 import { BusinessHeader } from '../activity/BusinessHeader';
@@ -49,6 +49,16 @@ export function BusinessPageView({
   const [toolbarKey, setToolbarKey] = useState(0);
   const [matching, setMatching] = useState<string | null>(null);
   const [matchError, setMatchError] = useState<{ shipmentId: string; text: string } | null>(null);
+  /** The button that opened New delivery; it gets focus back when the form closes (Cancel or Esc). */
+  const newOpener = useRef<HTMLElement | null>(null);
+  const restoreFocus = useRef(false);
+
+  useEffect(() => {
+    if (newOpen || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    if (newOpener.current?.isConnected) newOpener.current.focus();
+    newOpener.current = null;
+  }, [newOpen]);
 
   const screen = pageScreen(state, shipmentId);
   const { dashboard, businesses, employees } = state;
@@ -92,6 +102,16 @@ export function BusinessPageView({
   const d = dashboard!;
   const m = model!;
   const setFilters = (f: Partial<TableState['filters']>) => setTable((t) => ({ ...t, filters: { ...t.filters, ...f } }));
+  // Both New delivery buttons pass their click event through. Its currentTarget is the button even where a
+  // click does not focus it (Safari); a keyboard user has it focused anyway.
+  const openNew = (e?: unknown) => {
+    const target = (e as { currentTarget?: unknown } | undefined)?.currentTarget;
+    const active = document.activeElement;
+    newOpener.current = target instanceof HTMLElement ? target
+      : active instanceof HTMLElement && active !== document.body ? active : null;
+    setNewOpen(true);
+  };
+  const closeNew = () => { restoreFocus.current = true; setNewOpen(false); };
   const clearFilters = () => { setTable((t) => ({ ...t, filters: NO_FILTERS })); setToolbarKey((k) => k + 1); };
 
   const retryMatch = async (id: string) => {
@@ -170,7 +190,7 @@ export function BusinessPageView({
             onStatusChange={(status) => setFilters({ status })}
             counts={m.counts}
             total={m.all.length}
-            onNewDelivery={() => setNewOpen(true)}
+            onNewDelivery={openNew}
           />
           {newOpen && (
             <div className="bp-new">
@@ -180,7 +200,7 @@ export function BusinessPageView({
                 phase={d.phase}
                 onSubmit={createShipment}
                 onOpenDelivery={onOpenShipment}
-                onCancel={() => setNewOpen(false)}
+                onCancel={closeNew}
               />
             </div>
           )}
@@ -191,7 +211,7 @@ export function BusinessPageView({
             onSort={(key) => setTable((t) => ({ ...t, sort: nextSort(t.sort, key) }))}
             selectedId={shipmentId}
             onSelect={onOpenShipment}
-            onNewDelivery={() => setNewOpen(true)}
+            onNewDelivery={openNew}
             onClearFilters={clearFilters}
           />
         </section>
