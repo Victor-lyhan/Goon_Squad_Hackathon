@@ -58,7 +58,7 @@ export function EmployeePortalView(p: EmployeePortalViewProps) {
   return (
     <div className="emp-portal">
       <h1 className="emp-portal__title">{welcomeTitle(dash.employee.name)}</h1>
-      <EarningsSummary earnedCents={dash.earnedCents} projectedCents={dash.projectedCents} />
+      <EarningsSummary earnedCents={dash.earnedCents} assigned={dash.assigned} completed={dash.completed} />
       <div className="emp-portal__cols">
         <section className="emp-portal__feed" aria-label="Jobs">
           <h2>Assigned jobs</h2>
