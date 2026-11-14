@@ -86,6 +86,33 @@
 .nd-result__id { color: var(--muted, #5B6472); white-space: nowrap; }
 .nd-mono { font-family: var(--font-mono, ui-monospace, monospace); }
 
+/* The "Delivery arranged" card: title and ID, the facts in a row, one block per carrier, two actions. */
+.nd-arranged { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: var(--space-3, 12px); }
+.nd-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: var(--space-2, 8px) var(--space-4, 16px);
+  margin: 0;
+}
+.nd-fact { min-width: 0; }
+.nd-fact dt { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.nd-fact dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.nd-carriers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  padding: var(--space-2, 8px) 0 0;
+  border-top: 1px solid var(--border, #D7DDE5);
+  list-style: none;
+}
+.nd-carrier__who { margin: 0; }
+.nd-carrier__name { font-weight: 600; }
+.nd-carrier__trip { color: var(--muted, #5B6472); }
+.nd-stops { margin: 0; padding: 0; list-style: none; font-size: var(--text-xs, 12px); }
+.nd-result__actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing: border-box; text-decoration: none; }
+
 .nd-actions { display: flex; gap: var(--space-2, 8px); }
 .nd-btn {
   height: 36px;
@@ -123,6 +150,8 @@
   .nd-btn--link { min-height: 40px; }
   .nd-actions { flex-direction: column; }
   .nd-actions .nd-btn { width: 100%; }
+  .nd-result__actions { flex-direction: column; }
+  .nd-result__actions .nd-btn { width: 100%; justify-content: center; }
 }
 
 /* Reduced motion (#497): nothing in this file animates or transitions, now or later. */
