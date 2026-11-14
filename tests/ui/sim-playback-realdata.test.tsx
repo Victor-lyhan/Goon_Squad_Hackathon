@@ -92,7 +92,7 @@ describe('Simulator playback with real Demo-city snapshots', () => {
     expect(m.delivered).toBe(0);
     expect(card(html, 'delivered')).toContain(`0 / ${m.requested}`);
     expect(card(html, 'matched')).toContain(`${m.matched} / ${m.requested}`);
-    expect(html).toContain('aria-label="Projected"');
+    expect(html).toContain('Projected matched / requested');
     expect(sim.snapshot.shipmentStatus[relayPlan.shipmentId]).toBe('scheduled');
     expect(section(html, 'Package detail')).toContain('Scheduled');
   });

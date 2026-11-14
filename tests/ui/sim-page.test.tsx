@@ -41,7 +41,7 @@ describe('SimulatorView', () => {
     expect(html).toContain('Play simulation');
     expect(html).toContain('Package queue');
     expect(html).toContain('Projected');
-    expect(html).toContain('So far');
+    expect(html).toContain('Employee earnings so far');
   });
   it('shows empty state with no shipments', () => {
     const html = renderToStaticMarkup(
