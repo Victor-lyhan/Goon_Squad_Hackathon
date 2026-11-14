@@ -18,7 +18,8 @@ export type ComputeMetricsInput = {
 function legWasCompleted(plan: DeliveryPlan, legIndex: number, events: SimEvent[]): boolean {
   const completionKind = plan.kind === 'relay' && legIndex === 0 ? 'hub_drop' : 'delivered';
   const jobId = `${plan.id}-L${legIndex}`;
-  return events.some((event) => event.jobId === jobId && event.kind === completionKind);
+  return events.some((event) =>
+    event.planId === plan.id && event.jobId === jobId && event.kind === completionKind);
 }
 
 /**
@@ -29,10 +30,12 @@ export function computeMetrics(input: ComputeMetricsInput): Metrics {
   const { shipments, plans, unmatched, occurredEvents, settings } = input;
   const legs = plans.flatMap((plan) => plan.legs);
   const extraMinutes = legs.map((leg) => leg.extraMin);
-  const deliveredShipmentIds = new Set(
+  // Key actuals by plan, rather than only shipment ID. This keeps an event
+  // from an unrelated/stale plan from making a current plan look delivered.
+  const deliveredPlanIds = new Set(
     occurredEvents
       .filter((event) => event.kind === 'delivered')
-      .map((event) => event.shipmentId),
+      .map((event) => event.planId),
   );
 
   const earnedRewardsCents = plans.reduce(
@@ -53,7 +56,7 @@ export function computeMetrics(input: ComputeMetricsInput): Metrics {
   return {
     requested: shipments.length,
     matched: plans.length,
-    delivered: plans.filter((plan) => deliveredShipmentIds.has(plan.shipmentId)).length,
+    delivered: plans.filter((plan) => deliveredPlanIds.has(plan.id)).length,
     direct: plans.filter((plan) => plan.kind === 'direct').length,
     relay: plans.filter((plan) => plan.kind === 'relay').length,
     unmatched: unmatched.length,
@@ -68,7 +71,7 @@ export function computeMetrics(input: ComputeMetricsInput): Metrics {
     projectedPlatformContributionCents,
     earnedPlatformContributionCents: plans.reduce(
       (total, plan) => total + (
-        deliveredShipmentIds.has(plan.shipmentId) ? plan.platformContributionCents : 0
+        deliveredPlanIds.has(plan.id) ? plan.platformContributionCents : 0
       ),
       0,
     ),
