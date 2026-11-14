@@ -1,0 +1,22 @@
+/* Landing: guided "Run the demo" strip */
+.demo-guide { margin-top: 1rem; }
+.demo-guide h2 { margin: 0 0 .25rem; font-size: 1.25rem; }
+.demo-guide-intro { margin: 0 0 1rem; color: var(--muted); }
+.guide-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; grid-template-columns: 1fr; }
+.guide-step {
+  display: grid; grid-template-columns: auto 1fr; column-gap: .75rem; row-gap: .5rem; align-items: start;
+  padding: .75rem; border: 1px solid var(--border); border-radius: 10px;
+}
+.guide-step .step-num { margin: 0; }
+.guide-step p { margin: 0; }
+.guide-step .btn { grid-column: 2; justify-self: start; padding: .45rem .9rem; }
+.guide-facts {
+  display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: 1rem 0 0; padding: .75rem 0 0;
+  border-top: 1px solid var(--border); list-style: none; color: var(--muted);
+}
+.guide-facts strong { color: var(--navy); }
+.guide-facts-note { margin: 1rem 0 0; padding-top: .75rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+.guide-step .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (min-width: 700px) {
+  .guide-steps { grid-template-columns: repeat(2, 1fr); }
+}
