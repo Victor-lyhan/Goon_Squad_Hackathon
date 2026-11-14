@@ -1,2 +1,4 @@
-// Placeholder (M0). Owner: agent:p2-b.
-export {};
+// Placeholder: the page owner replaces this.
+export default function EmployeePortal() {
+  return <h1>Employee portal</h1>;
+}
