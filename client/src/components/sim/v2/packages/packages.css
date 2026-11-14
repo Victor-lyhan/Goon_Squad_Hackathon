@@ -67,5 +67,6 @@
   cursor: pointer;
 }
 
-/* A row's kind + status can be long ("Relay via … · At relay point"): let it wrap on the right. */
-.pk-panel .sw-pkg-status { flex: 0 1 auto; text-align: right; }
+/* A row's kind + status can be long ("Relay via … · At relay point"): let it wrap. It then has a line
+   of its own under the name (SimWorkspace.css), so it reads from the left (#718). */
+.pk-panel .sw-pkg-status { flex: 0 1 auto; }

@@ -37,13 +37,17 @@
 }
 .jt__status-label {
   color: var(--muted, #5B6472);
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 .jt__time {
   margin: var(--space-1, 4px) 0 0;
+}
+/* The planned and delivered times themselves ("Day 2, 8:52 AM"), next to their Inter label (#718). */
+.jt__time strong {
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
 }
 
 /* One line per carrier: "A · <name>" with its letter badge, home neighbourhood, extra minutes, reward.
@@ -82,8 +86,11 @@
 .jt-leg__home,
 .jt-leg__extra {
   color: var(--muted, #5B6472);
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
+}
+.jt-leg__extra {
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
 }
 .jt-leg__name {
   font-weight: 600;
@@ -181,7 +188,6 @@
 }
 .jt-step__label {
   color: var(--muted, #5B6472);
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -192,7 +198,6 @@
 }
 .jt-step__state {
   color: var(--muted, #5B6472);
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -212,6 +217,11 @@
   color: var(--muted, #5B6472);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
+  font-variant-numeric: tabular-nums;
+}
+/* Time, carrier, extra minutes: the carrier's name in the middle is a name, so Inter (#718). */
+.jt-step__meta > span:nth-child(2) {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
 }
 .jt-step--upcoming .jt-step__short,
 .jt-step--upcoming .jt-step__place {
@@ -310,7 +320,6 @@
 }
 .jl__sub {
   color: var(--muted);
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
 }
 .jl__name {
