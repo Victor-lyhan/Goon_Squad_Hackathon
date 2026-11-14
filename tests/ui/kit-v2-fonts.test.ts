@@ -12,7 +12,8 @@ const IMPORT_RE = /@import\s+['"]([^'"]+)['"]\s*;/g;
 const imports = [...fontsCss.matchAll(IMPORT_RE)].map((m) => m[1]);
 
 type Family = 'sans' | 'mono';
-const PKG: Record<Family, string> = { sans: '@fontsource/ibm-plex-sans', mono: '@fontsource/ibm-plex-mono' };
+/** Inter for UI, IBM Plex Mono for times, IDs, distances and prices (docs/mvp3.md P4, #651). */
+const PKG: Record<Family, string> = { sans: '@fontsource/inter', mono: '@fontsource/ibm-plex-mono' };
 
 function importedWeights(family: Family): Set<number> {
   const re = new RegExp(`^${PKG[family]}/latin-(\\d{3})\\.css$`);
@@ -40,13 +41,13 @@ function weightUses(file: string): { family: Family; weight: number; block: stri
   return uses;
 }
 
-describe('MVP II self-hosted IBM Plex fonts (#408)', () => {
-  it('imports only latin subsets of the two Plex packages', () => {
+describe('self-hosted Inter and IBM Plex Mono (#408, #651)', () => {
+  it('imports only latin subsets of Inter and IBM Plex Mono', () => {
     expect(imports.length).toBeGreaterThan(0);
-    for (const p of imports) expect(p).toMatch(/^@fontsource\/ibm-plex-(sans|mono)\/latin-\d{3}\.css$/);
+    for (const p of imports) expect(p).toMatch(/^@fontsource\/(inter|ibm-plex-mono)\/latin-\d{3}\.css$/);
   });
 
-  it('imports Sans 400/500/600 and Mono 400/500', () => {
+  it('imports Inter 400/500/600 and Mono 400/500', () => {
     expect([...importedWeights('sans')].sort()).toEqual([400, 500, 600]);
     expect([...importedWeights('mono')].sort()).toEqual([400, 500]);
   });
@@ -81,6 +82,33 @@ describe('MVP II self-hosted IBM Plex fonts (#408)', () => {
     }
     expect(count).toBeGreaterThan(0);
     expect(bad).toEqual([]);
+  });
+
+  it('every imported weight is one the UI uses (400 is the default weight of body text and .mono)', () => {
+    const used: Record<Family, Set<number>> = { sans: new Set([400]), mono: new Set([400]) };
+    for (const file of STYLESHEETS) for (const u of weightUses(file)) used[u.family].add(u.weight);
+    for (const family of ['sans', 'mono'] as const) {
+      expect([...importedWeights(family)].sort(), family).toEqual([...used[family]].sort());
+    }
+  });
+
+  it('the font names in the imported files are the first names of --font-sans and --font-mono', () => {
+    const tokens = read('client/src/styles/tokens.css');
+    const first = (name: string) => new RegExp(`${name}\\s*:\\s*"([^"]+)"`).exec(tokens)![1];
+    const faceName = (pkg: string) => /font-family:\s*'([^']+)'/.exec(readFileSync(join('node_modules', pkg, 'latin-400.css'), 'utf8'))![1];
+    expect(first('--font-sans')).toBe('Inter');
+    expect(faceName(PKG.sans)).toBe('Inter');
+    expect(first('--font-mono')).toBe(faceName(PKG.mono));
+  });
+
+  it('package.json lists @fontsource/inter and no longer IBM Plex Sans, and nothing imports it', () => {
+    const deps = JSON.parse(readFileSync('package.json', 'utf8')).dependencies as Record<string, string>;
+    expect(Object.keys(deps)).toEqual(expect.arrayContaining(['@fontsource/inter', '@fontsource/ibm-plex-mono']));
+    expect(deps['@fontsource/ibm-plex-sans']).toBeUndefined();
+    expect(readFileSync('package-lock.json', 'utf8')).not.toContain('@fontsource/ibm-plex-sans');
+    const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(join(dir, e.name)) : /\.(css|tsx?|html)$/.test(e.name) ? [join(dir, e.name)] : []);
+    for (const file of walk('client')) expect(readFileSync(file, 'utf8'), file).not.toContain('@fontsource/ibm-plex-sans');
   });
 
   it('no stylesheet or index.html references an external font host', () => {

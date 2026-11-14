@@ -91,21 +91,24 @@ describe('compact header', () => {
 });
 
 describe('shell CSS', () => {
-  it('is flat: 1px bottom border, no shadow, gradient or radius over 4px', () => {
+  it('is flat: 1px bottom border, no shadow, gradient or radius over 6px', () => {
     expect(css).toMatch(/\.shell-header \{[^}]*border-bottom: 1px solid/);
     expect(css).not.toContain('box-shadow');
     expect(css).not.toMatch(/gradient/);
     for (const m of css.matchAll(/border-radius:\s*([^;]+);/g)) {
       for (const px of m[1].matchAll(/(\d+(?:\.\d+)?)(px|rem|%)/g)) {
         const v = px[2] === 'rem' ? Number(px[1]) * 16 : Number(px[1]);
-        expect(px[2] === '%' ? 0 : v).toBeLessThanOrEqual(4);
+        expect(px[2] === '%' ? 0 : v).toBeLessThanOrEqual(6);
       }
     }
   });
   it('uses tokens with fallbacks and a mono xs indicator', () => {
     expect(css).toMatch(/\.shell-env \{[^}]*var\(--font-mono, [^}]*var\(--text-xs, 12px\)/);
-    expect(css).toContain('var(--border, #D7DDE5)');
-    expect(css).toContain('var(--accent, #28618A)');
+    expect(css).toContain('var(--border, #E3E3DE)');
+    expect(css).toContain('var(--accent, #1D5075)');
+    expect(css).toContain("var(--font-sans, 'Inter', 'Geist', system-ui");
+    // No MVP II value is left as a fallback (#651).
+    expect(css).not.toMatch(/#151B26|#F7F8FA|#D7DDE5|#28618A|#1F4E70|IBM Plex Sans|var\(--radius, 2px\)/i);
   });
   it('every nav item, the Help link and the selector have a focus-visible style', () => {
     const focus = /([^{}]*)\{[^}]*outline: 2px solid/.exec(css.slice(css.indexOf('.shell-wordmark:focus-visible')))![1];
