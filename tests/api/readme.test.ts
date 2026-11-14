@@ -23,7 +23,8 @@ function sectionOf(heading: string): string {
   return readme.slice(start, next === -1 ? undefined : next);
 }
 const BROWSER_KEY_NAME = 'VITE_GOOGLE_MAPS_BROWSER_KEY';
-const MAIN_PATHS = ['/', '/business/<id>', '/employee/<id>', '/simulator', '/help'];
+// `/help` is no longer a route (#623). The README still has its row until a README issue removes it.
+const MAIN_PATHS = ['/', '/business/<id>', '/employee/<id>', '/simulator'];
 
 describe('README', () => {
   it('only references npm scripts that exist', () => {
