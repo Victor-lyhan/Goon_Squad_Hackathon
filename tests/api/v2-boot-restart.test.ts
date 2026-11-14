@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createStore } from '../../server/store';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
+import mvp1Scenario from '../../fixtures/demoScenario.json';
 import { bootV2Run, buildDefaultRun, savedRunProblem, type V2Boot } from '../../server/api/v2/bootRun';
 import type { RunV2 } from '../../server/api/v2/router';
 import { bootSample, FIXTURES_DIR, runJson, type BootSample } from './v2-boot-sample';
@@ -87,13 +86,20 @@ describe('bootV2Run restart', () => {
     expectDefaultAndCopy(bootSample(), '{"schemaVersion":1,"run":{"runId":"run-1","vers', /not valid JSON/);
   });
 
-  it('an MVP 1 state file gives the default run and leaves a renamed copy', async () => {
-    const v1 = createStore({ filePath: statePath, initial: () => createInitialRun(loadDefaultScenario()) });
-    await v1.mutate((run) => {
-      run.clock.timeMin = 1000;
+  it('an MVP 1 state file gives the default run and leaves a renamed copy', () => {
+    // What the MVP 1 server left behind, as plain JSON: the same file format around the synthetic-city
+    // scenario (fixtures/demoScenario.json: schemaVersion 1, the grid and the hubs).
+    const bytes = JSON.stringify({
+      schemaVersion: 1,
+      run: {
+        runId: 'run-1', version: 1, scenario: mvp1Scenario, trips: [],
+        assignments: { plans: [], unmatched: [], computeMs: 0 }, jobs: [], notifications: [], events: [],
+        clock: { phase: 'planning', playing: false, timeMin: 1000, speed: 120 },
+      },
     });
-    const bytes = fs.readFileSync(statePath, 'utf8');
-    expect(JSON.parse(bytes).run.scenario.hubs.length).toBeGreaterThan(0); // really the MVP 1 shape
+    fs.writeFileSync(statePath, bytes);
+    expect(mvp1Scenario.schemaVersion).toBe(1);
+    expect(mvp1Scenario.hubs.length).toBeGreaterThan(0); // really the MVP 1 shape
     expectDefaultAndCopy(bootSample(), bytes, /not an MVP II run/);
   });
 

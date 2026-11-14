@@ -4,7 +4,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { shutdown } from '../../server/index';
 import { createV2Runtime } from '../../server/api/v2/bootstrap';
 import { TRAVEL_NOT_LOADED_MESSAGE } from '../../server/api/v2/errors';
 import { V2_DEPS_NOT_LOADED } from '../../server/api/v2/router';
@@ -89,11 +88,11 @@ describe('bootstrap with an empty cache folder', () => {
     const filesBefore = fs.readdirSync(api.repo.fixturesDir).sort();
     api.runtime.startTicker({ intervalMs: 1 });
     await new Promise((resolve) => setTimeout(resolve, 20));
-    await api.runtime.shutdown();
-    await shutdown(api.mvp1Store, { stop: () => undefined }, api.runtime); // what Ctrl-C runs in server/index.ts
+    await api.runtime.shutdown(); // what Ctrl-C runs in server/index.ts
+    await api.runtime.shutdown(); // and a second Ctrl-C
 
     expect(fs.existsSync(api.repo.statePath)).toBe(false);
-    expect(fs.readdirSync(path.dirname(api.repo.statePath))).toStrictEqual(['state.json']); // only the MVP 1 file
+    expect(fs.existsSync(path.dirname(api.repo.statePath))).toBe(false); // no data folder either
     expect(fs.readdirSync(api.repo.fixturesDir).sort()).toStrictEqual(filesBefore);
   }, T);
 });

@@ -6,8 +6,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type express from 'express';
 import { createApp } from '../../server/index';
-import { createStore, type Store } from '../../server/store';
-import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
+import type { Store } from '../../server/store';
 import { createV2Router, type RunV2, type V2Deps } from '../../server/api/v2/router';
 import { sendTravelError, travelErrorBody, travelUnavailable } from '../../server/api/v2/errors';
 import { GoogleApiError, GoogleKeyMissingError } from '../../server/geo/googleClient';
@@ -69,9 +68,7 @@ let dist: string;
 const servers: Server[] = [];
 
 async function start(v2?: V2Deps): Promise<string> {
-  const run = createInitialRun(loadDefaultScenario());
-  const store = createStore({ filePath: path.join(fs.mkdtempSync(path.join(dir, 's-')), 'state.json'), initial: () => run });
-  const server = createApp(store, v2 ? { clientDist: dist, v2 } : { clientDist: dist }).listen(0);
+  const server = createApp(v2 ? { clientDist: dist, v2 } : { clientDist: dist }).listen(0);
   servers.push(server);
   await new Promise((r) => server.once('listening', r));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

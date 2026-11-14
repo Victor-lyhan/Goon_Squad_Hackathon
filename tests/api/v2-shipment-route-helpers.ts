@@ -22,7 +22,6 @@ import { expect } from 'vitest';
 import { z } from 'zod';
 import { createApp } from '../../server/index';
 import { createStore, type Store } from '../../server/store';
-import { createInitialRun as createMvp1Run, loadDefaultScenario } from '../../server/api/initialRun';
 import { createInitialRun } from '../../server/api/v2/initialRun';
 import { registerShipmentRoutes, type ShipmentRouteDeps } from '../../server/api/v2/shipmentRoutes';
 import { buildTrips } from '../../server/domain/v2/trips';
@@ -70,10 +69,6 @@ export type ShipmentApp = {
   retry(shipmentId: string): Promise<Reply>;
   close(): Promise<void>;
 };
-
-// createApp needs the MVP 1 store. No test here touches it, so its run is built once per test file.
-let mvp1RunOnce: ReturnType<typeof createMvp1Run> | undefined;
-const mvp1Run = () => (mvp1RunOnce ??= createMvp1Run(loadDefaultScenario()));
 
 /**
  * Starts the app on a free port with the delivery-request routes registered through `createV2Router`'s
@@ -126,8 +121,7 @@ export async function startShipmentApp(opts: { scenario?: Scenario; lines?: bool
     return Promise.resolve({ fetched: legs.length, failed: 0 });
   };
 
-  const mvp1Store = createStore({ filePath: path.join(dir, 'state.json'), initial: mvp1Run });
-  const app = createApp(mvp1Store, {
+  const app = createApp({
     clientDist: path.join(dir, 'no-client'),
     v2: {
       travel, store,
@@ -166,7 +160,6 @@ export async function startShipmentApp(opts: { scenario?: Scenario; lines?: bool
     async close() {
       await new Promise((resolve) => server.close(resolve));
       await store.flush();
-      await mvp1Store.flush();
       fs.rmSync(dir, { recursive: true, force: true });
     },
   };

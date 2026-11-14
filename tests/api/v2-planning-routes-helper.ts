@@ -54,15 +54,6 @@ export function matchedScenario(): Scenario {
 export const initialRun = (scenario: Scenario, table: TravelTable = sampleTable()): Run =>
   createInitialRun(scenario, pipelineOn(tableTravel(table)));
 
-// /api/v2 never reads the MVP 1 store.
-const noMvp1Store: Store = {
-  get: () => {
-    throw new Error('the MVP 1 store is not used by /api/v2');
-  },
-  mutate: () => Promise.reject(new Error('the MVP 1 store is not used by /api/v2')),
-  flush: async () => {},
-};
-
 export type PlanningApiOptions = {
   run: Run;
   /** The table behind `travel` and `travelPairs`. A test may delete pairs from it while the server runs. */
@@ -93,7 +84,7 @@ export async function startPlanningApi(opts: PlanningApiOptions) {
     travelPairs: opts.travelPairs ?? pairsOf(table),
   };
 
-  const app = createApp(noMvp1Store, {
+  const app = createApp({
     clientDist: path.join(dir, 'no-dist'),
     v2: {
       travel,

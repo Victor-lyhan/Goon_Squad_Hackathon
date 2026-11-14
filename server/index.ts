@@ -4,7 +4,6 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Store } from './store';
 import { createV2Router, V2_DEPS_NOT_LOADED, type V2Deps } from './api/v2/router';
 import { createV2Runtime } from './api/v2/bootstrap';
 import { DEFAULT_V2_STATE_PATH, NYC_FIXTURES_DIR } from './api/v2/bootRun';
@@ -80,12 +79,9 @@ export function errorLogLine(what: string, req: { method: string; originalUrl: s
 
 /**
  * The app: `/api/health`, `/api/v2`, the JSON 404 for every other `/api` path, the built client and the
- * error handler. The MVP 1 routes are gone (#628).
- *
- * The first argument was the MVP 1 store. It is still accepted and is not used, because the v2 tests and
- * helpers call `createApp(store, { v2 })`. A later sweep removes it together with those calls.
+ * error handler. The MVP 1 routes are gone (#628), and so is the MVP 1 store argument (#677).
  */
-export function createApp(_unused?: unknown, opts: { clientDist?: string; v2?: V2Deps } = {}) {
+export function createApp(opts: { clientDist?: string; v2?: V2Deps } = {}) {
   const dist = opts.clientDist ?? clientDist;
   const app = express();
 
@@ -163,27 +159,6 @@ export function portInUseMessage(port: number): string {
   return `Port ${port} is already in use. Stop the other Relay server or set PORT=${port + 1}.`;
 }
 
-// Stops a ticker, pauses a store's clock and waits until its final state write has landed; `v2` is the
-// MVP II runtime (server/api/v2/bootstrap.ts), which does the same for the v2 run and its own state file.
-// Both are always tried, so a failed save of one never skips the other.
-// The server itself no longer calls this: it has no MVP 1 store, so `stop()` below calls the runtime's
-// `shutdown()` directly. It stays because tests/api/v2-bootstrap-runtime.test.ts, v2-bootstrap-not-loaded.test.ts
-// and shutdown.test.ts call it with a store of their own. A later sweep removes it with createApp's first argument.
-export async function shutdown(store: Store, ticker: { stop(): void }, v2?: { shutdown(): Promise<void> }): Promise<void> {
-  ticker.stop();
-  const v2Saved = v2 ? v2.shutdown() : Promise.resolve();
-  v2Saved.catch(() => undefined); // awaited below; this only keeps an early failure from being "unhandled"
-  try {
-    await store.flush(); // let an in-flight tick finish first
-    await store.mutate((run) => {
-      run.clock.playing = false;
-    });
-    await store.flush();
-  } finally {
-    await v2Saved;
-  }
-}
-
 /**
  * What the server prints about MVP II at start: one line with the status, and after it the notice when a
  * saved NYC run was set aside as stale (DECISIONS pass 55). Paths and reasons only, never a key.
@@ -237,7 +212,7 @@ export function startServer(opts: StartServerOptions): RelayServer {
   log(clientStartLine(opts.clientDist));
   log(keyStartLine(key));
 
-  const server: Server = createApp(undefined, { clientDist: opts.clientDist, v2: v2.deps }).listen(port, (err?: Error) => {
+  const server: Server = createApp({ clientDist: opts.clientDist, v2: v2.deps }).listen(port, (err?: Error) => {
     if (err) return; // Express 5 also passes listen errors here; the 'error' handler below reports them
     // The bound port, not the configured one: PORT=0 (or an empty PORT) lets the system choose.
     log(`Relay API listening on http://localhost:${(server.address() as AddressInfo).port}`);

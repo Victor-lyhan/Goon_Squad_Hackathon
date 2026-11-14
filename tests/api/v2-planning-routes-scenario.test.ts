@@ -1,7 +1,7 @@
 // GET /api/v2/scenario/export and POST /api/v2/scenario/import through the real app, on the small
 // hand-built city with a table TravelProvider (DECISIONS pass 6, 10, 47, 51).
 import { afterEach, describe, expect, it } from 'vitest';
-import { createInitialRun as createMvp1Run, loadDefaultScenario } from '../../server/api/initialRun';
+import mvp1Scenario from '../../fixtures/demoScenario.json';
 import { MVP1_FILE, NOT_A_RELAY_FILE, UNKNOWN_FILE_VERSION } from '../../server/api/v2/planningOps';
 import type { Run } from '../../shared/v2/types';
 import {
@@ -134,7 +134,12 @@ describe('POST /api/v2/scenario/import: refused files', () => {
     edit(run);
     return run;
   };
-  const mvp1Run = () => wire(createMvp1Run(loadDefaultScenario()));
+  /** An MVP 1 export as plain JSON: the synthetic-city scenario (fixtures/demoScenario.json) inside a run. */
+  const mvp1Run = () => wire({
+    runId: 'run-1', version: 0, scenario: mvp1Scenario, trips: [],
+    assignments: { plans: [], unmatched: [], computeMs: 0 }, jobs: [], notifications: [], events: [],
+    clock: { phase: 'planning', playing: false, timeMin: mvp1Scenario.settings.simStartMin, speed: 120 },
+  });
 
   const NOT_COMPLETE = 'This file is not a complete Relay scenario export, so it was not loaded.';
   const cases: [string, () => unknown, Record<string, unknown>][] = [
