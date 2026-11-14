@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import type { Trip } from '../../../shared/types';
 import type { JobResponse } from '../../../shared/api';
@@ -7,9 +7,8 @@ import { ApiRequestError, getJob, putCommute } from '../api';
 import { Toast, useToasts } from '../ui';
 import { EmployeePortalView } from '../components/employee/EmployeePortalView';
 import { useEmployeeDashboard } from '../components/employee/useEmployeeDashboard';
-import {
-  NEW_JOB_TOAST, newJobNotifications, saveErrorMessage,
-} from '../components/employee/employeePortalModel';
+import { saveErrorMessage } from '../components/employee/employeePortalModel';
+import { toastText } from '../components/employee/newJobsModel';
 
 export default function EmployeePortal() {
   const { id = '' } = useParams();
@@ -24,15 +23,11 @@ export default function EmployeePortal() {
   const [job, setJob] = useState<JobResponse | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
 
-  // New-delivery-job toast: first poll for an employee only seeds the seen set.
-  const seen = useRef<Set<string> | null>(null);
-  useEffect(() => { seen.current = null; setNotice(null); setSaved(null); setFieldErrors(undefined); }, [id]);
+  // One toast per newly arrived job (first poll for an employee only seeds the baseline).
+  useEffect(() => { setNotice(null); setSaved(null); setFieldErrors(undefined); }, [id]);
   useEffect(() => {
-    if (!data.dash) return;
-    const fresh = newJobNotifications(seen.current, data.dash.notifications);
-    seen.current = new Set([...(seen.current ?? []), ...data.dash.notifications.map((n) => n.id)]);
-    if (fresh.length > 0) push(NEW_JOB_TOAST, 'info');
-  }, [data.dash, push]);
+    for (const a of data.arrived) push(toastText(a.packageName), 'info');
+  }, [data.arrived, push]);
 
   // Job detail from ?job=. Refetched while open so status stays current.
   useEffect(() => {

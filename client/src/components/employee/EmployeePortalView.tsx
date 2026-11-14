@@ -1,4 +1,4 @@
-import type { EmployeeDashboard, JobResponse, MapResponse } from '../../../../shared/api';
+import type { EmployeeDashboard, EmployeeJobView, JobResponse, MapResponse } from '../../../../shared/api';
 import type { PutCommuteRequest } from '../../../../shared/schemas';
 import type { Business, Hub, Trip } from '../../../../shared/types';
 import { Button, Drawer, EmptyState, Spinner } from '../../ui';
@@ -6,6 +6,7 @@ import { CommuteEditor } from '../CommuteEditor';
 import { JobCard } from '../JobCard';
 import { EarningsSummary } from './EarningsSummary';
 import { JobDetail } from './JobDetail';
+import { jobNotifications } from './newJobsModel';
 import { portalView, welcomeTitle } from './employeePortalModel';
 import './EmployeePortal.css';
 
@@ -21,6 +22,8 @@ export type EmployeePortalViewProps = {
   saveNotice?: { kind: 'success' | 'error'; text: string } | null;
   job?: JobResponse | null;
   jobError?: string | null;
+  newJobIds?: ReadonlySet<string>;
+  onSeenJob?: (jobId: string) => void;
   onSave: (req: PutCommuteRequest) => void;
   onViewJob: (jobId: string) => void;
   onCloseJob: () => void;
@@ -42,6 +45,15 @@ export function EmployeePortalView(p: EmployeePortalViewProps) {
     );
   }
   const { dash } = p;
+  const isNew = (id: string) => p.newJobIds?.has(id) ?? false;
+  const onView = (id: string) => { p.onSeenJob?.(id); p.onViewJob(id); };
+  const card = (v: EmployeeJobView) => (
+    <div key={v.job.id} className={isNew(v.job.id) ? 'emp-portal__new' : undefined}>
+      {isNew(v.job.id) && <span className="emp-portal__new-badge">New</span>}
+      <JobCard view={v} businesses={p.businesses} hubs={p.hubs} onView={onView} />
+    </div>
+  );
+  const notes = jobNotifications(dash.notifications);
   const jobOpen = Boolean(p.job || p.jobError);
   return (
     <div className="emp-portal">
@@ -54,15 +66,11 @@ export function EmployeePortalView(p: EmployeePortalViewProps) {
             <EmptyState title="No jobs yet. Save your commute to get matched." />
           )}
           {view === 'ready' && dash.assigned.length === 0 && <p>No active jobs right now.</p>}
-          {dash.assigned.map((v) => (
-            <JobCard key={v.job.id} view={v} businesses={p.businesses} hubs={p.hubs} onView={p.onViewJob} />
-          ))}
+          {dash.assigned.map(card)}
           {dash.completed.length > 0 && (
             <>
               <h2>History</h2>
-              {dash.completed.map((v) => (
-                <JobCard key={v.job.id} view={v} businesses={p.businesses} hubs={p.hubs} onView={p.onViewJob} />
-              ))}
+              {dash.completed.map(card)}
             </>
           )}
         </section>
@@ -87,6 +95,14 @@ export function EmployeePortalView(p: EmployeePortalViewProps) {
           )}
         </section>
       </div>
+      {notes.length > 0 && (
+        <section className="emp-portal__notes-wrap" aria-label="Notifications">
+        <h2>Notifications</h2>
+        <ul className="emp-portal__notes">
+          {notes.map((n) => <li key={n.id}>{n.message}</li>)}
+        </ul>
+      </section>
+      )}
       <Drawer open={jobOpen} onClose={p.onCloseJob} title="Job detail">
         {p.job && p.map && <JobDetail job={p.job} map={p.map} businesses={p.businesses} hubs={p.hubs} />}
         {p.jobError && <p role="alert">{p.jobError}</p>}
