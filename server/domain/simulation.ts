@@ -3,6 +3,8 @@ import type {
   DeliveryPlan,
   Hub,
   Job,
+  Leg,
+  MarkerPosition,
   Run,
   SimEvent,
   SimEventKind,
@@ -26,6 +28,105 @@ const EVENT_KIND_ORDER: Record<SimEventKind, number> = {
 };
 
 type EventWithStopIndex = SimEvent & { stopIndex: number };
+
+type Point = { x: number; y: number };
+
+/** The fixture is directed and generated graphs may contain parallel roads. */
+function edgeDurations(run: Run): Map<string, number> {
+  const durations = new Map<string, number>();
+  for (const edge of run.scenario.graph.edges) {
+    const key = `${edge.from}\u0000${edge.to}`;
+    const previous = durations.get(key);
+    if (previous === undefined || edge.durationMin < previous) durations.set(key, edge.durationMin);
+  }
+  return durations;
+}
+
+function markerForLeg(
+  leg: Leg,
+  departureMin: number,
+  timeMin: number,
+  nodes: Map<string, Point>,
+  durations: Map<string, number>,
+): MarkerPosition | undefined {
+  if (timeMin < departureMin || timeMin > leg.finishMin) return undefined;
+
+  let currentMin = departureMin;
+  let stopIndex = 0;
+  for (let routeIndex = 0; routeIndex < leg.routeNodeIds.length; routeIndex += 1) {
+    const nodeId = leg.routeNodeIds[routeIndex];
+    const node = nodes.get(nodeId);
+    if (node === undefined) return undefined;
+
+    // Stops are ordered along the expanded route. A stop makes the marker wait
+    // before service, then remain stationary throughout handling.
+    while (leg.stops[stopIndex]?.nodeId === nodeId) {
+      const stop = leg.stops[stopIndex];
+      if (timeMin < stop.serviceStartMin) {
+        return { employeeId: leg.employeeId, ...node, servicing: false };
+      }
+      if (timeMin < stop.serviceEndMin) {
+        return { employeeId: leg.employeeId, ...node, servicing: true };
+      }
+      currentMin = stop.serviceEndMin;
+      stopIndex += 1;
+    }
+
+    if (routeIndex === leg.routeNodeIds.length - 1) {
+      return { employeeId: leg.employeeId, ...node, servicing: false };
+    }
+
+    const nextNodeId = leg.routeNodeIds[routeIndex + 1];
+    const durationMin = durations.get(`${nodeId}\u0000${nextNodeId}`);
+    const nextNode = nodes.get(nextNodeId);
+    if (durationMin === undefined || nextNode === undefined) return undefined;
+
+    if (timeMin < currentMin + durationMin) {
+      const fraction = (timeMin - currentMin) / durationMin;
+      return {
+        employeeId: leg.employeeId,
+        x: node.x + (nextNode.x - node.x) * fraction,
+        y: node.y + (nextNode.y - node.y) * fraction,
+        servicing: false,
+      };
+    }
+    currentMin += durationMin;
+  }
+  return undefined;
+}
+
+function packagePosition(
+  plan: DeliveryPlan | undefined,
+  origin: Point | undefined,
+  destination: Point | undefined,
+  markers: Map<string, MarkerPosition>,
+  nodes: Map<string, Point>,
+  timeMin: number,
+): Point | undefined {
+  if (plan === undefined) return origin;
+  const firstLeg = plan.legs[0];
+  const lastLeg = plan.legs[plan.legs.length - 1];
+  const firstPickup = firstLeg?.stops[0];
+  const finalDropoff = lastLeg?.stops[lastLeg.stops.length - 1];
+  if (!firstPickup || !finalDropoff || timeMin < firstPickup.serviceEndMin) return origin;
+  if (timeMin >= finalDropoff.serviceEndMin) return destination;
+
+  for (const leg of plan.legs) {
+    const pickup = leg.stops[0];
+    const dropoff = leg.stops[leg.stops.length - 1];
+    if (pickup && dropoff && timeMin >= pickup.serviceEndMin && timeMin < dropoff.serviceEndMin) {
+      const marker = markers.get(leg.employeeId);
+      return marker === undefined ? nodes.get(pickup.nodeId) : { x: marker.x, y: marker.y };
+    }
+  }
+
+  // The only remaining custody state for a valid relay plan is overnight hub
+  // storage after its first drop and before its second pickup completes.
+  const hubNodeId = plan.hubId === undefined
+    ? undefined
+    : plan.legs[0]?.stops[plan.legs[0].stops.length - 1]?.nodeId;
+  return hubNodeId === undefined ? origin : nodes.get(hubNodeId) ?? origin;
+}
 
 /**
  * Turns the stops in selected delivery plans into the authoritative simulation
@@ -162,6 +263,37 @@ export function snapshotAt(run: Run, timeMin: number): Snapshot {
     jobStatus[job.id] = 'in_progress';
   }
 
+  const nodes = new Map(run.scenario.graph.nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
+  const durations = edgeDurations(run);
+  const tripsById = new Map(run.trips.map((trip) => [trip.id, trip]));
+  const markersByEmployeeId = new Map<string, MarkerPosition>();
+
+  for (const plan of run.assignments.plans) {
+    for (const leg of plan.legs) {
+      const trip = tripsById.get(leg.tripId);
+      if (trip === undefined || markersByEmployeeId.has(leg.employeeId)) continue;
+      const marker = markerForLeg(leg, trip.departureMin, timeMin, nodes, durations);
+      if (marker === undefined) continue;
+      const pickup = leg.stops[0];
+      const dropoff = leg.stops[leg.stops.length - 1];
+      if (pickup && dropoff && timeMin >= pickup.serviceEndMin && timeMin < dropoff.serviceEndMin) {
+        marker.carryingShipmentId = plan.shipmentId;
+      }
+      markersByEmployeeId.set(leg.employeeId, marker);
+    }
+  }
+
+  const businessesById = new Map(run.scenario.businesses.map((business) => [business.id, business]));
+  const packagePositions: Snapshot['packagePositions'] = {};
+  for (const shipment of run.scenario.shipments) {
+    const origin = nodes.get(businessesById.get(shipment.originBusinessId)?.nodeId ?? '');
+    const destination = nodes.get(businessesById.get(shipment.destinationBusinessId)?.nodeId ?? '');
+    const position = packagePosition(
+      plansByShipmentId.get(shipment.id), origin, destination, markersByEmployeeId, nodes, timeMin,
+    );
+    if (position !== undefined) packagePositions[shipment.id] = position;
+  }
+
   return {
     runId: run.runId,
     version: run.version,
@@ -170,8 +302,9 @@ export function snapshotAt(run: Run, timeMin: number): Snapshot {
     deliveredAtMin,
     jobStatus,
     earningsCents,
-    markers: [],
-    packagePositions: {},
+    markers: [...markersByEmployeeId.values()].sort((left, right) =>
+      left.employeeId.localeCompare(right.employeeId)),
+    packagePositions,
     occurredEvents,
     metrics: computeMetrics({
       shipments: run.scenario.shipments,
