@@ -188,6 +188,28 @@ describe('JourneyTimeline: delivery time and one line per leg', () => {
     const t = text(renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />));
     expect(t).toContain('Planned delivery Time unavailable');
     expect(t).toContain('Reward unavailable');
+    expect(t).toContain('Extra time unavailable');
     expect(t).not.toMatch(/NaN/);
+  });
+
+  it('a leg shorter than the commute shows its real extra minutes, not a floor of zero (#635)', () => {
+    const sim = simAt(T.overnight, { 'shp-2': 'at_hub' });
+    const shorter: SimulatorResponse = {
+      ...sim,
+      plans: sim.plans.map((p) => (p.shipmentId === 'shp-2'
+        ? { ...p, legs: p.legs.map((l, i) => ({ ...l, extraMin: i === 0 ? -3 : 0 })) }
+        : p)),
+    };
+    const j = buildJourney({ shipmentId: 'shp-2', sim: shorter, map }) as Journey;
+    expect(j.carriers.map((c) => c.extraMin)).toEqual([-3, 0]);
+    const html = renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />);
+    const lines = legLines(html);
+    expect(lines[0]).toContain(`${j.carriers[0].name} from ${j.carriers[0].homeNeighborhood} -3 min extra`);
+    expect(lines[1]).toContain(`${j.carriers[1].name} from ${j.carriers[1].homeNeighborhood} +0 min extra`);
+    // The steps of leg 1 say the same value as its carrier line.
+    const steps = (html.match(/<span class="jt-step__meta">.*?<\/span><\/span>/g) ?? []).map(text);
+    expect(steps.map((s) => s.split(' ').slice(-3).join(' '))).toEqual(
+      j.steps.map((s) => (s.legIndex === 0 ? '-3 min extra' : '+0 min extra')),
+    );
   });
 });

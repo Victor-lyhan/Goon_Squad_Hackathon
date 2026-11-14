@@ -50,11 +50,29 @@ describe('businessInspector', () => {
   it('gives an unmatched row its reason and no ETA', () => {
     const row = businessInspector(BIZ.recipient, sim, map)!.sent[0];
     expect(row.shipmentId).toBe('shp-3');
-    expect(row.planKind).toBe('Not matched');
-    expect(row.statusLabel).toBe('Not matched');
+    expect(row.planKind).toBe('No match');
+    expect(row.statusLabel).toBe('Unmatched');
     expect(row.reason).toBe(UNMATCHED_REASON);
     expect(row.timeLabel).toBeNull();
     expect(row.carriers).toEqual([]);
+  });
+
+  it('a shipment the snapshot has no status for reads "Status unavailable"', () => {
+    const noStatus = makeSim();
+    noStatus.snapshot = { ...noStatus.snapshot, shipmentStatus: {} };
+    const m = businessInspector(BIZ.sender, noStatus, map)!;
+    expect([...m.sent, ...m.received].map((r) => [r.shipmentId, r.planKind, r.statusLabel])).toEqual([
+      ['shp-1', 'Direct', 'Status unavailable'],
+      ['shp-2', 'Relay', 'Status unavailable'],
+      ['shp-3', 'No match', 'Status unavailable'],
+    ]);
+  });
+
+  it('a package with an empty label reads "Untitled package" in both inspectors', () => {
+    const untitled = makeSim();
+    untitled.shipments = untitled.shipments.map((s) => ({ ...s, label: '' }));
+    expect(businessInspector(BIZ.sender, untitled, map)!.sent.map((r) => r.label)).toEqual(['Untitled package', 'Untitled package']);
+    expect(employeeInspector(EMP.maya, untitled, map)!.legs.map((l) => l.packageLabel)).toEqual(['Untitled package', 'Untitled package']);
   });
 
   it('lists a relay package only under "Held overnight as relay point" for the relay business', () => {

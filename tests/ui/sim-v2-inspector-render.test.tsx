@@ -74,8 +74,8 @@ describe('inspector static renders', () => {
   it('business: the unmatched row shows its reason', () => {
     const html = renderBusiness(BIZ.recipient);
     expect(html).toContain('No commuter passes both businesses within their detour limit');
-    expect(textOf(html)).toContain('Spare keys Not matched Sender No match yet To Dumbo Print Studio');
-    expect(textOf(html)).not.toContain('Not matched · Not matched');
+    expect(textOf(html)).toContain('Spare keys No match · Unmatched Sender No match yet To Dumbo Print Studio');
+    expect(textOf(html)).not.toContain('Not matched');
   });
 
   it('employee: legs with stops, relay point tag, finish, extra, reward and earnings', () => {
