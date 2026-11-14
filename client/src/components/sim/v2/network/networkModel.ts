@@ -29,11 +29,12 @@ export type NetworkViewInput = {
   focus?: NetworkFocus;
 };
 
-const EMPTY_VIEW: NetworkView = { places: [], routes: [], movers: [], selectedIds: [] };
-
 type Keep = { routes: Set<string>; places: Set<string>; vehicles: Set<string>; packages: Set<string> };
 
-/** What survives focus mode. null = no focus (keep everything). Unknown ID = keep nothing. */
+/**
+ * What survives focus mode. null = no focus (keep everything). An ID the run does not have (a focus
+ * kept from another run, #579) is no focus too: the map never goes empty while the selector reads "All".
+ */
 function focusKeep(idx: NetworkIndex, focus: NetworkFocus): Keep | null {
   if (focus.kind === 'none') return null;
   const keep: Keep = { routes: new Set(), places: new Set(), vehicles: new Set(), packages: new Set() };
@@ -44,7 +45,7 @@ function focusKeep(idx: NetworkIndex, focus: NetworkFocus): Keep | null {
 
   if (focus.kind === 'employee') {
     const e = idx.employees.get(focus.id);
-    if (!e) return keep;
+    if (!e) return null;
     keep.vehicles.add(e.id);
     keep.places.add(e.homeId).add(e.businessId);
     for (const r of idx.routes) {
@@ -63,7 +64,7 @@ function focusKeep(idx: NetworkIndex, focus: NetworkFocus): Keep | null {
   }
 
   const b = idx.businesses.get(focus.id);
-  if (!b) return keep;
+  if (!b) return null;
   keep.places.add(b.id);
   const staff = idx.employeeList.filter((e) => e.businessId === b.id);
   for (const e of staff) {
@@ -121,7 +122,6 @@ export function buildNetworkView(input: NetworkViewInput): NetworkView {
   const focus = input.focus ?? { kind: 'none' };
   const idx = buildIndex(map, sim);
   const keep = focusKeep(idx, focus);
-  if (keep && keep.places.size === 0) return { ...EMPTY_VIEW };
 
   const { vehicles, packages } = movers(idx, sim);
   const view: NetworkView = {

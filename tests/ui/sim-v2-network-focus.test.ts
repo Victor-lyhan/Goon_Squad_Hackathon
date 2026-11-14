@@ -40,10 +40,13 @@ describe('focus mode', () => {
     expect(v.selectedIds).toEqual([]);
   });
 
-  it('an unknown focus ID gives an empty view without throwing', () => {
-    const empty = { places: [], routes: [], movers: [], selectedIds: [] };
-    expect(buildNetworkView({ map, sim, focus: { kind: 'employee', id: 'emp-x' } })).toEqual(empty);
-    expect(buildNetworkView({ map, sim, focus: { kind: 'business', id: 'biz-x' }, selection: { kind: 'business', id: 'biz-etsy' } })).toEqual(empty);
+  it('an unknown focus ID (a focus from another run, #579) is no focus: the whole network, never an empty map', () => {
+    const all = buildNetworkView({ map, sim });
+    expect(all.places.length).toBeGreaterThan(0);
+    expect(buildNetworkView({ map, sim, focus: { kind: 'employee', id: 'emp-x' } })).toEqual(all);
+    const selection = { kind: 'business', id: 'biz-etsy' } as const;
+    expect(buildNetworkView({ map, sim, focus: { kind: 'business', id: 'biz-x' }, selection }))
+      .toEqual(buildNetworkView({ map, sim, selection }));
   });
 
   it('focus and selection work together: selection is limited to what the focus keeps', () => {

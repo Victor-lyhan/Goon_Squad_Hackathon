@@ -47,6 +47,17 @@ export function locationForSelection(next: Selection, current: SimLocation): Sim
   return search === null ? null : { pathname: current.pathname, search, hash: current.hash };
 }
 
+// ---------- Run change (#579) ----------
+
+/**
+ * True when the polled `runId` is another run than the one the page last showed. The first run the
+ * page sees (`shown` null) is not a change, so a deep link keeps its selection; no poll yet
+ * (`polled` null) is not one either. A new `version` of the same run never reaches this.
+ */
+export function isNewRun(shown: string | null, polled: string | null): boolean {
+  return shown !== null && polled !== null && polled !== shown;
+}
+
 // ---------- Keys ----------
 
 /** What the page does for one key press. */
