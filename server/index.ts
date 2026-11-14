@@ -12,12 +12,14 @@ import { getSimulator, postSimulatorControl } from './api/simulator';
 import { getBusinessDashboard, getEmployeeDashboard, getJob, getShipment } from './api/portals';
 import { postShipment, patchShipment, postShipmentMatch } from './api/shipments';
 import { postCompare, postRecompute, postPlanningReset } from './api/planning';
+import { postGenerateScenario, getExportScenario, postImportScenario } from './api/scenario';
 import { startClockTicker } from './api/ticker';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.resolve(here, '../client/dist');
 
-export function createApp(store: Store) {
+export function createApp(store: Store, opts: { clientDist?: string } = {}) {
+  const dist = opts.clientDist ?? clientDist;
   const app = express();
   app.use(express.json({ limit: '5mb' }));
 
@@ -42,17 +44,21 @@ export function createApp(store: Store) {
   app.post('/api/matches/recompute', postRecompute(store));
   app.post('/api/planning/reset', postPlanningReset(store));
 
+  app.post('/api/scenario/generate', postGenerateScenario(store));
+  app.get('/api/scenario/export', getExportScenario(store));
+  app.post('/api/scenario/import', postImportScenario(store));
+
   // Unknown API paths never fall through to the SPA.
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });
 
   // `npm start`: serve the built client from the same origin (run `npm run build` first).
-  if (existsSync(clientDist)) {
-    app.use(express.static(clientDist));
+  if (existsSync(dist)) {
+    app.use(express.static(dist));
     app.use((req, res, next) => {
       if (req.method !== 'GET') return next();
-      res.sendFile(path.join(clientDist, 'index.html'));
+      res.sendFile(path.join(dist, 'index.html'));
     });
   }
   return app;
