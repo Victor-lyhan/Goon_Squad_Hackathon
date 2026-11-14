@@ -1,14 +1,16 @@
-/* Simulator right-panel inspector for a selected business or employee (docs/mvp2-ui-redesign.md §1).
-   Fits the 340px inspector column: fluid widths only. Square corners, 1px borders, no shadows, no gradients.
-   Tokens are read as var(--name, fallback). */
+/* Simulator right-panel inspector for a selected business or employee.
+   Fits the 340px inspector column: fluid widths only.
+   MVP III look (docs/mvp3.md P4, #701): token colours as var(--name, fallback), hairline borders,
+   radius 4px, no shadows, no gradients. Inter for text; IBM Plex Mono for IDs, counts, times,
+   minutes and rewards. */
 
 .insp {
   display: flex;
   flex-direction: column;
   min-width: 0;
   max-width: 340px;
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
   line-height: 1.45;
 }
@@ -19,6 +21,7 @@
 .insp-stop-time,
 .insp-leg-nums dd {
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Header ---------- */
@@ -27,14 +30,14 @@
   align-items: flex-start;
   gap: var(--space-2, 8px);
   padding: var(--space-3, 12px) 0;
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .insp-head-text { flex: 1 1 auto; min-width: 0; }
 .insp-ident {
   font-size: var(--text-xs, 12px);
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--accent, #28618A);
+  color: var(--accent, #1D5075);
 }
 .insp-title {
   margin: var(--space-1, 4px) 0 0;
@@ -54,10 +57,10 @@
 .insp-def dt { color: var(--muted, #5B6472); }
 .insp-def dd { margin: 0; overflow-wrap: anywhere; }
 
-.insp-actions { padding: 0 0 var(--space-3, 12px); border-bottom: 1px solid var(--border, #D7DDE5); }
+.insp-actions { padding: 0 0 var(--space-3, 12px); border-bottom: 1px solid var(--border, #E3E3DE); }
 
 /* ---------- Sections and rows ---------- */
-.insp-section { padding: var(--space-3, 12px) 0; border-bottom: 1px solid var(--border, #D7DDE5); }
+.insp-section { padding: var(--space-3, 12px) 0; border-bottom: 1px solid var(--border, #E3E3DE); }
 .insp-section:last-child { border-bottom: 0; }
 .insp-section-title {
   display: flex;
@@ -75,8 +78,8 @@
 .insp-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2, 8px); }
 .insp-row,
 .insp-leg {
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 
@@ -88,14 +91,14 @@
   margin: 0;
   padding: var(--space-2, 8px);
   border: 0;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.insp-row-main:hover { background: var(--accent-soft, #E8F0F6); }
+.insp-row-main:hover { background: var(--accent-soft, #E8EEF1); }
 .insp-row-title { font-weight: 600; overflow-wrap: anywhere; }
 .insp-row-meta { color: var(--muted, #5B6472); font-size: var(--text-xs, 12px); }
 
@@ -110,9 +113,9 @@
 }
 .insp-row-role {
   padding: 0 var(--space-1, 4px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
-  color: var(--text, #151B26);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  color: var(--text, #171C24);
 }
 .insp-fig { white-space: nowrap; }
 .insp-fig-label,
@@ -131,7 +134,7 @@
 .insp-reason {
   margin: 0;
   padding: var(--space-2, 8px);
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
   color: var(--warn, #8A5A00);
   font-size: var(--text-xs, 12px);
 }
@@ -144,17 +147,17 @@
   align-items: baseline;
   gap: var(--space-1, 4px);
   padding: var(--space-1, 4px) 0;
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
   font-size: var(--text-xs, 12px);
 }
-.insp-stop-time { color: var(--text, #151B26); }
+.insp-stop-time { color: var(--text, #171C24); }
 .insp-stop-sep,
 .insp-stop-kind { color: var(--muted, #5B6472); }
 .insp-tag {
   padding: 0 var(--space-1, 4px);
-  border: 1px solid var(--accent, #28618A);
-  border-radius: var(--radius, 2px);
-  color: var(--accent, #28618A);
+  border: 1px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
+  color: var(--accent, #1D5075);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .04em;
@@ -166,7 +169,7 @@
   gap: var(--space-2, 8px);
   margin: 0;
   padding: var(--space-2, 8px);
-  border-top: 1px solid var(--border, #D7DDE5);
+  border-top: 1px solid var(--border, #E3E3DE);
   font-size: var(--text-xs, 12px);
 }
 .insp-leg-nums dt { color: var(--muted, #5B6472); }
@@ -177,9 +180,9 @@
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
   background: transparent;
-  color: var(--accent, #28618A);
+  color: var(--accent, #1D5075);
   font: inherit;
   text-align: left;
   text-decoration: underline;
@@ -187,40 +190,40 @@
   cursor: pointer;
   overflow-wrap: anywhere;
 }
-.insp-link:hover { color: var(--accent-dark, #1F4E70); }
+.insp-link:hover { color: var(--accent-dark, #173E5B); }
 .insp-unknown { color: var(--muted, #5B6472); }
 
 .insp-btn {
   min-height: 30px;
   padding: var(--space-1, 4px) var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
   cursor: pointer;
 }
-.insp-btn:hover { border-color: var(--accent, #28618A); color: var(--accent, #28618A); }
+.insp-btn:hover { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
 
 .insp-close {
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   color: var(--muted, #5B6472);
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
 }
-.insp-close:hover { color: var(--text, #151B26); border-color: var(--text, #151B26); }
+.insp-close:hover { color: var(--text, #171C24); border-color: var(--text, #171C24); }
 
 .insp-row-main:focus-visible,
 .insp-link:focus-visible,
 .insp-btn:focus-visible,
 .insp-close:focus-visible {
-  outline: 2px solid var(--accent, #28618A);
+  outline: 2px solid var(--accent, #1D5075);
   outline-offset: 1px;
 }

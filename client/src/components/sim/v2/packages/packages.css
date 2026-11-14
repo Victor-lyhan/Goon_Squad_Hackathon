@@ -1,4 +1,5 @@
-/* Left-panel package list: search, status filter chips, count line, empty state (#418). */
+/* Left-panel package list: search, status filter chips, count line, empty state (#418).
+   MVP III look (#701): token colours, hairline borders, radius 4px; the chip counts are IBM Plex Mono. */
 .pk-panel { display: grid; gap: var(--space-2, 8px); }
 
 .pk-filters { display: grid; gap: var(--space-2, 8px); }
@@ -9,10 +10,10 @@
   font: inherit;
   font-size: var(--text-sm, 13px);
   padding: 6px var(--space-2, 8px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
 }
 
 .pk-status { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px); }
@@ -23,25 +24,29 @@
   font: inherit;
   font-size: var(--text-xs, 12px);
   padding: 3px var(--space-2, 8px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   cursor: pointer;
 }
-.pk-chip:hover { border-color: var(--accent, #28618A); }
+.pk-chip:hover { border-color: var(--accent, #1D5075); }
 .pk-chip.is-pressed {
-  border-color: var(--accent, #28618A);
-  background: var(--accent-soft, #E8F0F6);
-  color: var(--accent-dark, #1F4E70);
+  border-color: var(--accent, #1D5075);
+  background: var(--accent-soft, #E8EEF1);
+  color: var(--accent-dark, #173E5B);
 }
-.pk-count { font-family: var(--font-mono, monospace); color: var(--muted, #5B6472); }
+.pk-count {
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted, #5B6472);
+}
 .pk-chip.is-pressed .pk-count { color: inherit; }
 
 .pk-search input:focus-visible,
 .pk-chip:focus-visible,
 .pk-clear:focus-visible {
-  outline: 2px solid var(--accent, #28618A);
+  outline: 2px solid var(--accent, #1D5075);
   outline-offset: 1px;
 }
 
@@ -57,7 +62,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent, #28618A);
+  color: var(--accent, #1D5075);
   text-decoration: underline;
   cursor: pointer;
 }

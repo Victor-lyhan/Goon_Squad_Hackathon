@@ -1,6 +1,7 @@
-/* MVP II simulator workspace frame (docs/mvp2-ui-redesign.md §1).
-   Map-first, edge to edge below the app header. Square corners, 1px borders, no shadows, no gradients.
-   Tokens are read as var(--name, fallback) until the design tokens land everywhere. */
+/* Simulator workspace frame: map-first, edge to edge below the app header.
+   MVP III look (docs/mvp3.md P4, #701): every colour is a token of client/src/styles/tokens.css, read
+   as var(--name, fallback) with the token's own value as the fallback. Hairline borders, radius 4px,
+   no shadows, no gradients. Inter for text; IBM Plex Mono (.sw-mono) for the numbers. */
 
 .sim-v2 {
   position: fixed;
@@ -9,9 +10,9 @@
   right: 0;
   bottom: 0;
   z-index: 1;
-  background: var(--bg, #F7F8FA);
-  color: var(--text, #151B26);
-  font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
+  background: var(--bg, #F7F7F4);
+  color: var(--text, #171C24);
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
   line-height: 1.45;
 }
@@ -29,7 +30,7 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  background: var(--bg, #F7F8FA);
+  background: var(--bg, #F7F7F4);
 }
 .sw-map > * { width: 100%; height: 100%; }
 
@@ -43,14 +44,14 @@
   transition: width 160ms ease-out;
   overflow: hidden;
 }
-.sw-left { width: 320px; border-right: 1px solid var(--border, #D7DDE5); }
-.sw-right { width: 360px; border-left: 1px solid var(--border, #D7DDE5); }
+.sw-left { width: 320px; border-right: 1px solid var(--border, #E3E3DE); }
+.sw-right { width: 360px; border-left: 1px solid var(--border, #E3E3DE); }
 .sw-panel.is-collapsed { width: 32px; }
 
 .sw-panel-head {
   flex: 0 0 auto;
   display: flex;
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .sw-right .sw-panel-head { flex-direction: row-reverse; }
 
@@ -72,7 +73,7 @@
   margin: 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
   border: 0;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
   background: transparent;
   color: var(--muted, #5B6472);
   font: inherit;
@@ -84,13 +85,13 @@
   cursor: pointer;
 }
 .sw-right .sw-toggle { flex-direction: row-reverse; text-align: right; }
-.sw-toggle:hover { color: var(--text, #151B26); background: var(--bg, #F7F8FA); }
+.sw-toggle:hover { color: var(--text, #171C24); background: var(--bg, #F7F7F4); }
 .sw-toggle:focus-visible {
-  outline: 2px solid var(--accent, #28618A);
+  outline: 2px solid var(--accent, #1D5075);
   outline-offset: -2px;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
 }
-.sw-toggle-icon { font-size: 16px; line-height: 1; color: var(--accent, #28618A); }
+.sw-toggle-icon { font-size: 16px; line-height: 1; color: var(--accent, #1D5075); }
 
 .sw-panel.is-collapsed .sw-panel-head { flex: 1 1 auto; border-bottom: 0; }
 .sw-panel.is-collapsed .sw-toggle {
@@ -103,7 +104,7 @@
 .sw-left.is-collapsed .sw-toggle-text { transform: rotate(180deg); }
 
 /* ---------- Panel sections ---------- */
-.sw-section { padding: var(--space-3, 12px) 0; border-top: 1px solid var(--border, #D7DDE5); }
+.sw-section { padding: var(--space-3, 12px) 0; border-top: 1px solid var(--border, #E3E3DE); }
 .sw-section:first-child { border-top: 0; }
 .sw-section-title {
   margin: 0 0 var(--space-2, 8px);
@@ -121,37 +122,37 @@
   align-items: flex-start;
   gap: var(--space-2, 8px);
   padding: var(--space-3, 12px) 0;
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
+/* A label, not a number: it stays in the UI font. */
 .sw-eyebrow {
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
-  color: var(--accent, #28618A);
+  color: var(--accent, #1D5075);
   text-transform: uppercase;
   letter-spacing: .06em;
 }
-.sw-journey-title { font-size: 15px; font-weight: 600; color: var(--text, #151B26); }
+.sw-journey-title { font-size: 15px; font-weight: 600; color: var(--text, #171C24); }
 
 /* ---------- Buttons and fields ---------- */
 .sw-btn {
   padding: var(--space-1, 4px) var(--space-3, 12px);
   min-height: 30px;
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
   font-size: var(--text-sm, 13px);
   cursor: pointer;
 }
-.sw-btn:hover:not(:disabled) { border-color: var(--accent, #28618A); color: var(--accent, #28618A); }
-.sw-btn:disabled { color: var(--muted, #5B6472); background: var(--bg, #F7F8FA); cursor: not-allowed; }
+.sw-btn:hover:not(:disabled) { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
+.sw-btn:disabled { color: var(--muted, #5B6472); background: var(--bg, #F7F7F4); cursor: not-allowed; }
 .sw-btn:focus-visible,
 .sw-pkg:focus-visible,
 .sw-field select:focus-visible {
-  outline: 2px solid var(--accent, #28618A);
+  outline: 2px solid var(--accent, #1D5075);
   outline-offset: 1px;
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius, 4px);
 }
 
 .sw-focus { display: grid; gap: var(--space-2, 8px); justify-items: start; }
@@ -161,10 +162,10 @@
   width: 100%;
   min-height: 30px;
   padding: 0 var(--space-2, 8px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
 }
 
@@ -174,8 +175,8 @@
 }
 
 /* ---------- Package list ---------- */
-.sw-pkgs { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border, #D7DDE5); }
-.sw-pkgs li { border-bottom: 1px solid var(--border, #D7DDE5); }
+.sw-pkgs { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border, #E3E3DE); }
+.sw-pkgs li { border-bottom: 1px solid var(--border, #E3E3DE); }
 .sw-pkg {
   display: grid;
   gap: 2px;
@@ -185,13 +186,13 @@
   border-left: 2px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--text, #151B26);
+  color: var(--text, #171C24);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.sw-pkg:hover { background: var(--bg, #F7F8FA); }
-.sw-pkg.is-selected { border-left-color: var(--accent, #28618A); background: var(--bg, #F7F8FA); }
+.sw-pkg:hover { background: var(--bg, #F7F7F4); }
+.sw-pkg.is-selected { border-left-color: var(--accent, #1D5075); background: var(--bg, #F7F7F4); }
 .sw-pkg-top { display: flex; justify-content: space-between; gap: var(--space-2, 8px); }
 .sw-pkg-label { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sw-pkg-status { flex: 0 0 auto; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
@@ -207,10 +208,11 @@
   align-items: baseline;
   gap: var(--space-3, 12px);
   padding: var(--space-2, 8px) 0;
-  border-bottom: 1px solid var(--border, #D7DDE5);
+  border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .sw-summary-row dt { color: var(--muted, #5B6472); }
-.sw-summary-row dd { margin: 0; font-size: 15px; color: var(--text, #151B26); }
+.sw-summary-row dd { margin: 0; font-size: 15px; color: var(--text, #171C24); }
+/* Numbers and the package row's status column: IBM Plex Mono, digits of one width. */
 .sw-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-variant-numeric: tabular-nums; }
 
 /* ---------- Narrow screens: desktop-only message ---------- */

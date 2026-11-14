@@ -13,7 +13,7 @@ import { isMvp2Fallback } from './kit-v2-legacy-tokens';
 describe('sim v2 + map CSS: the redesign rules', () => {
   it('reads every file and finds rules in each', () => {
     for (const f of QA_CSS_FILES) expect(RULES.some((r) => r.file === f), f).toBe(true);
-    expect(ALLOWED_COLORS.has('40,97,138')).toBe(true); // accent
+    expect(ALLOWED_COLORS.has('29,80,117')).toBe(true); // accent (#1D5075)
     expect(ALLOWED_COLORS.has('15,138,95')).toBe(true); // LEG2 from layers.ts
   });
 
@@ -66,7 +66,8 @@ describe('sim v2 + map CSS: the redesign rules', () => {
     expect(bad).toEqual([]);
   });
 
-  // A fallback may still be the MVP II value until this module's restyle pass (kit-v2-legacy-tokens.ts, #651).
+  // #701 moved every fallback to the MVP III value (sim-v2-mvp3-css.test.ts pins that) except in
+  // legend.css and journey.css, which keep the MVP II value until #699 (kit-v2-legacy-tokens.ts).
   it('every var() names a real token, and a fallback equals the token value', () => {
     const bad: string[] = [];
     for (const r of RULES) {
@@ -158,7 +159,8 @@ describe('sim v2 + map CSS: keyboard focus', () => {
   it('the focus ring is the accent colour, 2px', () => {
     for (const r of RULES.filter((x) => x.selectors.some((s) => s.endsWith(':focus-visible')))) {
       const outline = r.decls.find(([p]) => p === 'outline')?.[1];
-      if (outline) expect(outline, where(r)).toMatch(/^2px solid var\(--accent(, #28618A)?\)$/);
+      // #1D5075 is the token; legend.css and journey.css still write the MVP II fallback (#699).
+      if (outline) expect(outline, where(r)).toMatch(/^2px solid var\(--accent(, #(1D5075|28618A))?\)$/);
     }
   });
 });
