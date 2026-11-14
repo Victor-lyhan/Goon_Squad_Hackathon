@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +8,9 @@ import { createApp } from '../../server/index';
 import { createStore } from '../../server/store';
 import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 import type { BusinessesResponse, EmployeesResponse, SimulatorResponse } from '../../shared/api';
+
+// CI-safe (DECISIONS pass 17/19): generated cities and real servers get 3x+ headroom over local time.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 // Budgets for the 1 s polls. Relax these (with a comment) only if the machine needs it.
 const SIM_MEDIAN_MS = 40;
@@ -33,6 +36,8 @@ const post = (url: string, body: unknown) =>
 async function timed(url: string, n = 20) {
   const times: number[] = [];
   let bytes = 0;
+  // Warm-up (JIT, keep-alive socket) so a cold slow runner does not skew the median.
+  for (let i = 0; i < 3; i++) await (await fetch(`${base}${url}`)).text();
   for (let i = 0; i < n; i++) {
     const t0 = performance.now();
     const r = await fetch(`${base}${url}`);

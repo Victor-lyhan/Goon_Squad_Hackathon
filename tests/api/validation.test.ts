@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +8,9 @@ import { createApp } from '../../server/index';
 import { createStore } from '../../server/store';
 import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 import type { ApiError } from '../../shared/schemas';
+
+// CI-safe (DECISIONS pass 17/19): generated cities and real servers get 3x+ headroom over local time.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 let server: Server;
 let base: string;

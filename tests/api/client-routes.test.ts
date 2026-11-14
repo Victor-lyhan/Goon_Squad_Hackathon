@@ -11,6 +11,9 @@ import { createStore } from '../../server/store';
 import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 import * as api from '../../client/src/api';
 
+// CI-safe (DECISIONS pass 17/19): generated cities and real servers get 3x+ headroom over local time.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
+
 let server: Server;
 let employee: ReturnType<typeof loadDefaultScenario>['employees'][number];
 let businessIds: string[];

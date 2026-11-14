@@ -10,6 +10,9 @@ import { startClockTicker } from '../../server/api/ticker';
 import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 import type { SimulatorResponse } from '../../shared/api';
 
+// CI-safe (DECISIONS pass 17/19): generated cities and real servers get 3x+ headroom over local time.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
+
 let server: Server;
 let base: string;
 let store: ReturnType<typeof createStore>;

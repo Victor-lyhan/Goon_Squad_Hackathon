@@ -6,6 +6,9 @@ import { createStore } from '../../server/store';
 import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 import type { Run } from '../../shared/types';
 
+// CI-safe (DECISIONS pass 17/19): generated cities and real servers get 3x+ headroom over local time.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
+
 const initial = () => createInitialRun(loadDefaultScenario());
 // computeMs is wall-clock timing, so ignore it when comparing two builds of the demo city
 const norm = (r: Run) => ({ ...r, assignments: { ...r.assignments, computeMs: 0 } });
