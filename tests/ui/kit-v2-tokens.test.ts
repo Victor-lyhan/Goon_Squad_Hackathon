@@ -7,27 +7,27 @@ const globalCss = strip(readFileSync('client/src/styles/global.css', 'utf8'));
 const uiCss = strip(readFileSync('client/src/ui/ui.css', 'utf8'));
 
 const TOKENS: Record<string, string> = {
-  '--bg': '#F7F8FA',
+  '--bg': '#F7F7F4',
   '--panel': '#FFFFFF',
-  '--text': '#151B26',
+  '--text': '#171C24',
   '--navy': 'var(--text)',
   '--muted': '#5B6472',
-  '--border': '#D7DDE5',
-  '--accent': '#28618A',
-  '--accent-dark': '#1F4E70',
-  '--accent-soft': '#E8F0F6',
+  '--border': '#E3E3DE',
+  '--accent': '#1D5075',
+  '--accent-dark': '#173E5B',
+  '--accent-soft': '#E8EEF1',
   '--ok': '#2F6B4F',
   '--warn': '#8A5A00',
   '--danger': '#A4322A',
-  '--radius': '2px',
-  '--radius-lg': '4px',
+  '--radius': '4px',
+  '--radius-lg': '6px',
   '--space-1': '4px',
   '--space-2': '8px',
   '--space-3': '12px',
   '--space-4': '16px',
   '--space-6': '24px',
   '--space-8': '32px',
-  '--font-sans': '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+  '--font-sans': '"Inter", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif',
   '--font-mono': '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
   '--text-xs': '12px',
   '--text-sm': '13px',
@@ -41,7 +41,8 @@ function declared(css: string): Map<string, string> {
   return new Map([...root.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 }
 
-describe('MVP II design tokens', () => {
+// Values are the MVP III look (docs/mvp3.md P4, #651); the names are the #324 contract.
+describe('MVP III design tokens', () => {
   const defs = declared(tokensCss);
   for (const [name, value] of Object.entries(TOKENS)) {
     it(`${name} = ${value}`, () => {
@@ -65,12 +66,12 @@ describe('UI kit uses only tokens', () => {
     expect(uiCss.match(/#[0-9a-fA-F]{3,8}\b/g)).toBeNull();
   });
 
-  it('ui.css has no border-radius above 4px (and no percentage/pill radii)', () => {
+  it('ui.css has no border-radius above 6px (and no percentage/pill radii)', () => {
     const radii = [...uiCss.matchAll(/border-radius\s*:\s*([^;}]+)/g)].map((m) => m[1].trim());
     expect(radii.length).toBeGreaterThan(0);
     for (const r of radii) {
       expect(r, r).not.toMatch(/%/);
-      for (const px of r.matchAll(/(\d*\.?\d+)px/g)) expect(Number(px[1]), r).toBeLessThanOrEqual(4);
+      for (const px of r.matchAll(/(\d*\.?\d+)px/g)) expect(Number(px[1]), r).toBeLessThanOrEqual(6);
       for (const v of r.matchAll(/var\((--[\w-]+)/g)) expect(['--radius', '--radius-lg']).toContain(v[1]);
     }
   });
