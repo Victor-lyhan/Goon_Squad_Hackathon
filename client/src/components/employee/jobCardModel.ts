@@ -22,6 +22,8 @@ export type JobCardModel = {
   isRelay: boolean;
   /** Ultimate destination business; only set on relay legs. */
   finalDestination: string | null;
+  /** Spec §3B relay copy for this leg; null for direct jobs. */
+  relayNote: string | null;
 };
 
 const STATUS_LABEL: Record<JobStatus, string> = {
@@ -35,6 +37,10 @@ export function toJobCardModel(view: EmployeeJobView, businesses: Business[], hu
   const place = (nodeId: string) =>
     businesses.find((b) => b.nodeId === nodeId)?.name ?? hubs.find((h) => h.nodeId === nodeId)?.name ?? 'Stop';
   const isRelay = plan.kind === 'relay';
+  const hubName = hubs.find((h) => h.id === plan.hubId)?.name ?? 'the hub';
+  const relayNote = !isRelay ? null
+    : job.legIndex === 0 ? `Drop at ${hubName}; another employee completes delivery`
+    : `Collect from ${hubName} and deliver to ${bizName(shipment.destinationBusinessId)}`;
   return {
     jobId: job.id,
     title: 'New delivery job',
@@ -54,5 +60,6 @@ export function toJobCardModel(view: EmployeeJobView, businesses: Business[], hu
     tag: isRelay ? `Relay leg ${job.legIndex + 1} of ${plan.legs.length}` : 'Direct',
     isRelay,
     finalDestination: isRelay ? bizName(shipment.destinationBusinessId) : null,
+    relayNote,
   };
 }

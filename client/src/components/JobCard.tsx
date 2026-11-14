@@ -31,6 +31,7 @@ export function JobCard({ view, businesses, hubs, onView }: JobCardProps) {
       <span className="job-card__tag">{m.tag}</span>
       <Row label="Package">{`${m.packageName} · ${m.category} · ${m.weight}`}</Row>
       <Row label="From → To">{`${m.senderName} → ${m.recipientName}`}</Row>
+      {m.relayNote && <p className="job-card__context">{m.relayNote}</p>}
       {m.finalDestination && <p className="job-card__context">Final destination: {m.finalDestination}</p>}
       <Row label="Pickup">{`${m.pickupPlace}, ${m.pickupTime}`}</Row>
       <Row label="Drop-off">{`${m.dropoffPlace}, ${m.dropoffTime}`}</Row>
