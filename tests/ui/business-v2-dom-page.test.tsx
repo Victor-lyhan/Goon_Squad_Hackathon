@@ -58,7 +58,7 @@ describe('Business page New delivery in a real DOM', () => {
     p.poll(ready({ ...DASHBOARD, business: { ...ACME } }));
     expect((byLabel(p.form()!, 'Package name') as HTMLInputElement).value).toBe('Lab samples');
 
-    click(button(p.form()!, 'Send request'));
+    click(button(p.form()!, 'Find a delivery match'));
     await flush();
     expect(p.createShipment).toHaveBeenCalledTimes(1);
     const req = p.createShipment.mock.calls[0][0];

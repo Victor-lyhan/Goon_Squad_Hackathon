@@ -52,7 +52,7 @@ function setup(p: Props = {}) {
     ...m, onSubmit, onOpenDelivery, onCancel,
     rerenderWith: (over: Props) => m.rerender(el(over)),
     field: (label: string) => byLabel(c, label),
-    send: () => button(c, /^(Send request|Sending…)$/),
+    send: () => button(c, /^(Find a delivery match|Sending…)$/),
     status: () => textOf(c.querySelector('[role="status"]')!),
     alert: () => textOf(c.querySelector('[role="alert"]')!),
   };
@@ -91,7 +91,7 @@ describe('New delivery form in a real DOM', () => {
     answer.resolve(matchedAnswer('shp-41'));
     await flush();
     expect(f.send().disabled).toBe(false);
-    expect(textOf(f.send())).toBe('Send request');
+    expect(textOf(f.send())).toBe('Find a delivery match');
   }, T);
 
   it('matched: shows Delivery arranged with the shipment ID; View delivery opens that ID', async () => {

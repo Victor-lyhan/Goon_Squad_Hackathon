@@ -183,7 +183,7 @@ describe('the Delivery arranged card in a real DOM', () => {
     expect(textOf(card)).not.toContain('Relay');
     expectNoRawValues(card, directPlan);
     // The button is for the next package again.
-    expect(textOf(f.primary())).toBe('Send request');
+    expect(textOf(f.primary())).toBe('Find a delivery match');
   }, T);
 
   it('the delivery window reads like the shipments table, not as a 24-hour clock', () => {
@@ -202,7 +202,7 @@ describe('retry after "No matching commute yet"', () => {
   it('two clicks after a no-match give one createShipment call and one matchShipment call', async () => {
     const f = setup();
     f.fill();
-    expect(textOf(f.primary())).toBe('Send request');
+    expect(textOf(f.primary())).toBe('Find a delivery match');
     click(f.primary());
     await flush();
 
@@ -249,7 +249,7 @@ describe('retry after "No matching commute yet"', () => {
     expect(f.status()).not.toContain(RESULT_COPY.unmatched);
     // Like every match: a fresh package for the same recipient, and the button sends a new request.
     expect((f.field('Package name') as HTMLInputElement).value).toBe('');
-    expect(textOf(f.primary())).toBe('Send request');
+    expect(textOf(f.primary())).toBe('Find a delivery match');
     click(button(card, 'View delivery'));
     expect(f.onOpenDelivery).toHaveBeenCalledWith('shp-42');
   }, T);
@@ -275,7 +275,7 @@ describe('retry after "No matching commute yet"', () => {
     expect(textOf(f.primary())).toBe('Try matching again');
   }, T);
 
-  it('once a field changes the button is "Send request" again and sends a new request', async () => {
+  it('once a field changes the button is "Find a delivery match" again and sends a new request', async () => {
     let n = 41;
     const f = setup({ createShipment: async () => unmatched(`shp-${n += 1}`) });
     f.fill();
@@ -284,14 +284,14 @@ describe('retry after "No matching commute yet"', () => {
     expect(textOf(f.primary())).toBe('Try matching again');
 
     typeInto(f.field('Package name'), 'Lab samples, second box');
-    expect(textOf(f.primary())).toBe('Send request');
+    expect(textOf(f.primary())).toBe('Find a delivery match');
     expect(buttons(f.container, 'Try matching again')).toHaveLength(0);
     // The old values again are the old request again.
     typeInto(f.field('Package name'), 'Lab samples');
     expect(textOf(f.primary())).toBe('Try matching again');
 
     typeInto(f.field('Deliver by: time'), '11:30');
-    expect(textOf(f.primary())).toBe('Send request');
+    expect(textOf(f.primary())).toBe('Find a delivery match');
     click(f.primary());
     await flush();
     expect(f.matchShipment).not.toHaveBeenCalled();
@@ -356,7 +356,7 @@ describe('retry after "No matching commute yet"', () => {
     click(f.primary());
     await flush();
     expect(f.alert()).toContain('Shipment not found');
-    expect(textOf(f.primary())).toBe('Send request');
+    expect(textOf(f.primary())).toBe('Find a delivery match');
     click(f.primary());
     await flush();
     expect(f.createShipment).toHaveBeenCalledTimes(2);
@@ -386,7 +386,7 @@ describe('the form inside the Business page', () => {
     select(byLabel(form(), 'Recipient'), 'Bakery Row · Williamsburg');
     typeInto(byLabel(form(), 'Package name'), 'Lab samples');
     typeInto(byLabel(form(), 'Contents'), 'Two sealed vials');
-    click(button(form(), 'Send request'));
+    click(button(form(), 'Find a delivery match'));
     await flush();
     click(button(form(), 'Try matching again'));
     await flush();

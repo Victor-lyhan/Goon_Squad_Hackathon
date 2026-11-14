@@ -49,7 +49,7 @@ describe('NewDeliveryForm (static renders)', () => {
     expect(html).toContain('Choose a business');
     expect(html).toContain('Simulation window: Day 1, 3:30 PM to Day 2, 12:00 PM.');
     expect(html).not.toContain('15:30');
-    expect(html).toMatch(/<button type="submit"[^>]*>Send request</);
+    expect(html).toMatch(/<button type="submit"[^>]*>Find a delivery match</);
     expect(html).not.toMatch(/<button type="submit"[^>]*disabled/);
     expect(html).toContain('role="status"');
     expect(html).toContain('role="alert"');
@@ -103,7 +103,7 @@ describe('NewDeliveryForm (static renders)', () => {
         retry={on} onChange={noop} onSubmit={noop} onOpenDelivery={noop} onCancel={noop} />,
     );
     expect(retry(status, true)).toMatch(/<button type="submit"[^>]*>Try matching again</);
-    expect(retry(status, false)).toMatch(/<button type="submit"[^>]*>Send request</);
+    expect(retry(status, false)).toMatch(/<button type="submit"[^>]*>Find a delivery match</);
     const pending = retry({ kind: 'submitting', retry: true }, true);
     expect(pending).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Matching…</);
     expect(regionText(pending, 'status')).toContain('Looking for a matching commute again');

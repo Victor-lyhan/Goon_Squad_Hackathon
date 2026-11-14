@@ -63,7 +63,7 @@ const SORTS = ['Package', 'Shipment ID', 'Business', 'Status', 'Plan', 'Ready', 
 const FORM = [
   'Recipient', 'Package name', 'Type', 'Weight (kg)', 'Contents',
   'Pickup instructions (optional)', 'Drop-off instructions (optional)',
-  'Ready for pickup (Day 1)', 'Deliver by: day', 'Deliver by: time', 'Send request', 'Cancel',
+  'Ready for pickup (Day 1)', 'Deliver by: day', 'Deliver by: time', 'Find a delivery match', 'Cancel',
 ];
 
 describe('keyboard walk (#497)', () => {
@@ -127,9 +127,9 @@ describe('keyboard walk (#497)', () => {
 
   it('result cards: View delivery and Watch in simulator in a matched result, View delivery in an unmatched one', () => {
     const matched = walkTabs(form({ kind: 'matched', shipmentId: DIRECT.shipment.id, response: { ...DIRECT, matched: true } }));
-    expect(matched.slice(-4)).toEqual(['View delivery', 'Watch in simulator', 'Send request', 'Cancel']);
+    expect(matched.slice(-4)).toEqual(['View delivery', 'Watch in simulator', 'Find a delivery match', 'Cancel']);
     const unmatched = walkTabs(form({ kind: 'unmatched', shipmentId: 'shp-2', reason: UNMATCHED_REASON }));
-    expect(unmatched.slice(-3)).toEqual(['View delivery', 'Send request', 'Cancel']);
+    expect(unmatched.slice(-3)).toEqual(['View delivery', 'Find a delivery match', 'Cancel']);
   });
 
   it('problem states: Retry, Dismiss and Back to deliveries are reachable and named', () => {
