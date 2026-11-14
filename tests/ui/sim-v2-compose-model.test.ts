@@ -1,11 +1,13 @@
 // #426: the simulator page's pure view model over the merged pieces (live data, network, journey).
 import { describe, expect, it } from 'vitest';
 import {
-  BACK_TO_NETWORK, DEFAULT_SCENARIO, MAP_PENDING_TEXT, MISSING_BUSINESS_TEXT, MISSING_PACKAGE_TEXT, SIM_WINDOW,
-  initialSelectionFromSearch, panTargetFor, selectionAfterMapClick, simPageView, type SimReadyView,
+  BACK_TO_NETWORK, COMPARE_FAILED_TEXT, COMPARE_IDLE, DEFAULT_SCENARIO, MAP_PENDING_TEXT, MISSING_BUSINESS_TEXT,
+  MISSING_EMPLOYEE_TEXT, MISSING_PACKAGE_TEXT, SIM_WINDOW, compareView, initialSelectionFromSearch, panTargetFor, selectionAfterMapClick, simPageView, type SimReadyView,
 } from '../../client/src/components/sim/v2/compose/simPageView';
 import { INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, type SimDataState } from '../../client/src/components/sim/v2/live/simDataModel';
 import { buildNetworkView } from '../../client/src/components/sim/v2/network/networkModel';
+import { businessInspector, employeeInspector } from '../../client/src/components/sim/v2/inspector/inspectorModel';
+import { relayGainCompare } from './sim-v2-compare-fixture';
 import type { Selection } from '../../client/src/components/sim/v2/network/selectionModel';
 import { DEFAULT_LAYERS, toggleLayer } from '../../client/src/components/sim/v2/workspaceModel';
 import { mapOf, simAt as dataSimAt } from './sim-v2-data-fixtures';
@@ -111,16 +113,29 @@ describe('simPageView: network mode', () => {
     expect(all.map.visible.homes).toBe(true);
   });
 
-  it('an employee selection shows name and role and highlights their items', () => {
-    const v = asReady(view(ready(), { kind: 'employee', id: 'emp-1' }));
-    expect(v.right).toEqual({ kind: 'entity', entity: 'employee', name: 'Maya Ortiz', role: 'Commuter · works at Chelsea Print Studio' });
+  it('an employee selection shows the employee inspector model and highlights their items', () => {
+    const data = ready();
+    const v = asReady(view(data, { kind: 'employee', id: 'emp-1' }));
+    expect(v.right).toEqual({ kind: 'employee', model: employeeInspector('emp-1', data.sim!, data.map!) });
+    expect(v.right.kind === 'employee' && v.right.model.name).toBe('Maya Ortiz');
     expect(v.map.selectedIds).toContain('emp-1');
   });
 
-  it('a business that is not in the run says so', () => {
+  it('a business selection shows the business inspector model', () => {
+    const data = ready();
+    const v = asReady(view(data, { kind: 'business', id: 'biz-etsy' }));
+    expect(v.right).toEqual({ kind: 'business', model: businessInspector('biz-etsy', data.sim!, data.map!) });
+    if (v.right.kind !== 'business') throw new Error('expected the business inspector');
+    expect(v.right.model.sent.map((r) => r.shipmentId)).toEqual(['shp-3']);
+    expect(v.right.model.held.map((r) => r.shipmentId)).toEqual(['shp-2']); // relay point overnight
+  });
+
+  it('a business or employee that is not in the run says so', () => {
     const v = asReady(view(ready(), { kind: 'business', id: 'biz-gone' }));
     expect(v.mode).toBe('network');
     expect(v.right).toEqual({ kind: 'missing', message: MISSING_BUSINESS_TEXT });
+    expect(asReady(view(ready(), { kind: 'employee', id: 'emp-gone' })).right)
+      .toEqual({ kind: 'missing', message: MISSING_EMPLOYEE_TEXT });
   });
 });
 
@@ -139,7 +154,8 @@ describe('simPageView: network → business → package journey → back', () =>
     expect(selection).toEqual({ kind: 'business', id: 'biz-roast' });
     const v1 = asReady(view(data, selection));
     expect(v1.mode).toBe('network');
-    expect(v1.right).toEqual({ kind: 'entity', entity: 'business', name: 'Brooklyn Roasting', role: 'Network business · DUMBO, Brooklyn' });
+    expect(v1.right.kind).toBe('business');
+    expect(v1.right.kind === 'business' && v1.right.model.name).toBe('Brooklyn Roasting');
     expect(v1.map.selectedIds).toContain('biz-roast');
     expect(v1.map.selectedIds).toContain('shp-2'); // it holds the package as relay point
 
@@ -223,5 +239,45 @@ describe('initialSelectionFromSearch', () => {
     expect(initialSelectionFromSearch('')).toBeNull();
     expect(initialSelectionFromSearch('?package=')).toBeNull();
     expect(initialSelectionFromSearch('?employee=emp-1')).toBeNull();
+  });
+});
+
+describe('simPageView: package panel, legend and comparison (#460)', () => {
+  it('the package panel gets the polled responses once the map is there; plain pending rows before', () => {
+    const data = ready();
+    const v = asReady(view(data));
+    expect(v.packageList).toEqual({ kind: 'panel', sim: data.sim, map: data.map });
+    const pending = asReady(view({ ...ready(), map: null }));
+    expect(pending.packageList.kind).toBe('pending');
+    expect(pending.packageList.kind === 'pending' && pending.packageList.items.every((p) => p.routeLabel === MAP_PENDING_TEXT)).toBe(true);
+  });
+
+  it('legend mode per selection: network, focus, network with a selection, journey', () => {
+    const data = ready();
+    expect(asReady(view(data)).legend).toEqual({ label: 'network', mode: 'network', hasSelection: false, focus: { kind: 'none' } });
+    const focus = { kind: 'employee', id: 'emp-1' } as const;
+    expect(asReady(view(data, null, { focus })).legend).toEqual({ label: 'focus', mode: 'network', hasSelection: false, focus });
+    expect(asReady(view(data, { kind: 'business', id: 'biz-etsy' })).legend)
+      .toMatchObject({ label: 'network', mode: 'network', hasSelection: true });
+    expect(asReady(view(data, { kind: 'employee', id: 'emp-1' })).legend.hasSelection).toBe(true);
+    const journeyData: SimDataState = { ...INITIAL_SIM_DATA, view: 'ready', sim: journeySimAt(T.overnight, { 'shp-2': 'at_hub' }), map: journeyMap };
+    expect(asReady(view(journeyData, { kind: 'package', id: 'shp-2' }, { focus })).legend)
+      .toEqual({ label: 'journey', mode: 'journey', hasSelection: false, focus: { kind: 'none' } });
+    // An unmatched package has no route to draw: the map stays the network with its businesses selected.
+    expect(asReady(view(data, { kind: 'package', id: 'shp-3' })).legend).toMatchObject({ mode: 'network', hasSelection: true });
+  });
+
+  it('compareView: idle, loading, result, error, busy, and a result from another run is dropped', () => {
+    const v = view(ready());
+    const busy = view(ready({ busy: true }));
+    const response = relayGainCompare();
+    expect(compareView(COMPARE_IDLE, v, 'run-1')).toEqual({ response: null, loading: false, error: null, disabled: false });
+    expect(compareView(COMPARE_IDLE, busy, 'run-1').disabled).toBe(true);
+    expect(compareView({ status: 'loading', runId: 'run-1' }, busy, 'run-1'))
+      .toEqual({ response: null, loading: true, error: null, disabled: false });
+    expect(compareView({ status: 'done', runId: 'run-1', response }, v, 'run-1').response).toBe(response);
+    expect(compareView({ status: 'error', runId: 'run-1' }, v, 'run-1').error).toBe(COMPARE_FAILED_TEXT);
+    expect(compareView({ status: 'done', runId: 'run-0', response }, v, 'run-1'))
+      .toEqual({ response: null, loading: false, error: null, disabled: false });
   });
 });

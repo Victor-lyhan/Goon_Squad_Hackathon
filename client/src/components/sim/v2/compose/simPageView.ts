@@ -1,10 +1,12 @@
-// First cut of the MVP II simulator page (#426): one pure function turns the data hook's state plus
-// the page's local UI state (selection, focus, layers) into everything the page shows.
+// The MVP II simulator page (#426, completed in #460): one pure function turns the data hook's state
+// plus the page's local UI state (selection, focus, layers) into everything the page shows.
 // No React, no DOM, tested in Node.
 //
-// It only reshapes the polled responses through the merged models (buildNetworkView, buildJourney).
+// It only reshapes the polled responses through the merged models (buildNetworkView, buildJourney,
+// the inspector models, the legend input). The inspector reads only SimulatorResponse and MapResponse
+// (DECISIONS pass 46).
 // Statuses, metrics, times and positions are read from the response, never computed (AGENTS.md).
-import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
+import type { CompareResponse, MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
 import { GenerateScenarioRequest } from '../../../../../../shared/v2/schemas';
 import type { Clock, Metrics } from '../../../../../../shared/v2/types';
 import type { LatLngBounds, MapMover, MapPanTarget, MapPlace, MapRoute, MapStop } from '../../../map/types';
@@ -15,6 +17,10 @@ import { CONNECTION_LOST_MESSAGE, type SimDataState } from '../live/simDataModel
 import { buildNetworkView } from '../network/networkModel';
 import { selectionFromMapId, type Selection } from '../network/selectionModel';
 import { UNKNOWN_PLACE, buildJourney, statusLabelOf, type Journey, type UnmatchedJourney } from '../journey/journeyModel';
+import {
+  businessInspector, employeeInspector, type BusinessInspectorModel, type EmployeeInspectorModel,
+} from '../inspector/inspectorModel';
+import type { LegendMode } from '../legend/legendModel';
 
 // ---------- Copy ----------
 export const LOADING_TEXT = 'Loading the simulator…';
@@ -24,6 +30,7 @@ export const MISSING_PACKAGE_TEXT = 'This package is not in the current scenario
 export const MISSING_BUSINESS_TEXT = 'This business is not in the current scenario';
 export const MISSING_EMPLOYEE_TEXT = 'This employee is not in the current scenario';
 export const BACK_TO_NETWORK = 'Back to network';
+export const COMPARE_FAILED_TEXT = 'The comparison could not run. Try again.';
 
 /**
  * SimulatorResponse carries no settings, so the scrubber uses the planning window every scenario
@@ -60,12 +67,32 @@ export type SimControlsView = {
 /** Right panel content. */
 export type SimRightView =
   | { kind: 'summary'; metrics: Metrics }
-  | { kind: 'entity'; entity: 'business' | 'employee'; name: string; role: string }
+  | { kind: 'business'; model: BusinessInspectorModel }
+  | { kind: 'employee'; model: EmployeeInspectorModel }
   | { kind: 'missing'; message: string }
   /** The map response for this run has not arrived yet; the selection is shown once it does. */
   | { kind: 'pending'; message: string }
   | { kind: 'journey'; journey: Journey }
   | { kind: 'unmatched'; journey: UnmatchedJourney };
+
+/**
+ * The left panel's package list. Until the map arrives the rows cannot name their businesses, so
+ * the plain list says "Loading places…"; then the package panel (filters, search, reason) takes over.
+ */
+export type SimPackagesView =
+  | { kind: 'pending'; items: PackageListItem[] }
+  | { kind: 'panel'; sim: SimulatorResponse; map: MapResponse };
+
+/**
+ * What the map legend describes. `label` is the page's mode: a journey, a focus or the whole network.
+ * `mode`, `hasSelection` and `focus` are MapLegend's own props.
+ */
+export type SimLegendView = {
+  label: 'network' | 'focus' | 'journey';
+  mode: LegendMode;
+  hasSelection: boolean;
+  focus: Focus;
+};
 
 export type SimReadyView = {
   view: 'ready';
@@ -76,7 +103,10 @@ export type SimReadyView = {
   /** Title shown with "Back to network" at the top of the left panel; null in network mode. */
   journeyTitle: string | null;
   map: SimMapProps;
+  /** Plain rows with the pending route label; shown only while `mapPending`. */
   packages: PackageListItem[];
+  packageList: SimPackagesView;
+  legend: SimLegendView;
   selectedPackageId: string | undefined;
   focusOptions: { employees: FocusOption[]; businesses: FocusOption[] };
   controls: SimControlsView;
@@ -125,17 +155,19 @@ function focusOptions(map: MapResponse): SimReadyView['focusOptions'] {
   };
 }
 
-function entityPanel(selection: Exclude<Selection, null>, map: MapResponse): SimRightView {
+function inspectorPanel(selection: Exclude<Selection, null>, sim: SimulatorResponse, map: MapResponse): SimRightView {
   if (selection.kind === 'business') {
-    const b = map.businesses.find((x) => x.id === selection.id);
-    if (!b) return { kind: 'missing', message: MISSING_BUSINESS_TEXT };
-    const where = [b.neighborhood, b.borough].filter(Boolean).join(', ');
-    return { kind: 'entity', entity: 'business', name: b.name || 'Network business', role: where ? `Network business · ${where}` : 'Network business' };
+    const model = businessInspector(selection.id, sim, map);
+    return model ? { kind: 'business', model } : { kind: 'missing', message: MISSING_BUSINESS_TEXT };
   }
-  const e = map.employees.find((x) => x.id === selection.id);
-  if (!e) return { kind: 'missing', message: MISSING_EMPLOYEE_TEXT };
-  const employer = map.businesses.find((b) => b.id === e.businessId)?.name;
-  return { kind: 'entity', entity: 'employee', name: e.name || 'Employee', role: employer ? `Commuter · works at ${employer}` : 'Commuter' };
+  const model = employeeInspector(selection.id, sim, map);
+  return model ? { kind: 'employee', model } : { kind: 'missing', message: MISSING_EMPLOYEE_TEXT };
+}
+
+function legendView(mode: 'network' | 'journey', selection: Selection, focus: Focus): SimLegendView {
+  if (mode === 'journey') return { label: 'journey', mode: 'journey', hasSelection: false, focus: NO_FOCUS };
+  const focused = focus.kind !== 'none';
+  return { label: focused ? 'focus' : 'network', mode: 'network', hasSelection: selection !== null, focus };
 }
 
 // ---------- The view ----------
@@ -151,11 +183,13 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
   const mapPending = data.map === null;
   const map = data.map ?? emptyMap(sim.runId);
 
+  const packages = packageRows(sim, map, mapPending);
   const base = {
     view: 'ready' as const,
     reconnecting,
     mapPending,
-    packages: packageRows(sim, map, mapPending),
+    packages,
+    packageList: mapPending ? { kind: 'pending' as const, items: packages } : { kind: 'panel' as const, sim, map },
     focusOptions: focusOptions(map),
     controls: {
       clock: sim.clock,
@@ -185,6 +219,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
         mode: 'journey',
         journeyTitle: known ? title : 'Unknown package',
         map: network(null),
+        legend: legendView('network', null, focus),
         selectedPackageId: known ? shipmentId : undefined,
         right: known ? { kind: 'pending', message: MAP_PENDING_TEXT } : { kind: 'missing', message: MISSING_PACKAGE_TEXT },
       };
@@ -196,6 +231,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
         mode: 'journey',
         journeyTitle: journey.title,
         map: network(selection),
+        legend: legendView('network', selection, focus),
         selectedPackageId: shipmentId,
         right: { kind: 'unmatched', journey },
       };
@@ -213,6 +249,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
         stops: journey.stops,
         fitTo: journey.bounds ?? 'places',
       },
+      legend: legendView('journey', selection, focus),
       selectedPackageId: shipmentId,
       right: { kind: 'journey', journey },
     };
@@ -224,10 +261,40 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
     mode: 'network',
     journeyTitle: null,
     map: network(selection),
+    legend: legendView('network', selection, focus),
     selectedPackageId: undefined,
     right: !selection
       ? { kind: 'summary', metrics: sim.snapshot.metrics }
-      : mapPending ? { kind: 'pending', message: MAP_PENDING_TEXT } : entityPanel(selection, map),
+      : mapPending ? { kind: 'pending', message: MAP_PENDING_TEXT } : inspectorPanel(selection, sim, map),
+  };
+}
+
+// ---------- Direct-only vs relay comparison (page state, pure) ----------
+
+/**
+ * The comparison's local state. It is a read-only what-if (nothing is applied to the run), tagged
+ * with the run it was asked for, so a result never outlives a new scenario.
+ */
+export type CompareState =
+  | { status: 'idle' }
+  | { status: 'loading'; runId: string }
+  | { status: 'done'; runId: string; response: CompareResponse }
+  | { status: 'error'; runId: string };
+
+export const COMPARE_IDLE: CompareState = { status: 'idle' };
+
+/** CompareSection's props from the page state. Disabled while another action keeps the hook busy. */
+export type SimCompareView = { response: CompareResponse | null; loading: boolean; error: string | null; disabled: boolean };
+
+export function compareView(state: CompareState, view: SimPageView, runId: string | null): SimCompareView {
+  const busy = view.view === 'ready' && view.controls.busy;
+  const current = state.status !== 'idle' && state.runId === runId ? state : COMPARE_IDLE;
+  const loading = current.status === 'loading';
+  return {
+    response: current.status === 'done' ? current.response : null,
+    loading,
+    error: current.status === 'error' ? COMPARE_FAILED_TEXT : null,
+    disabled: busy && !loading,
   };
 }
 
