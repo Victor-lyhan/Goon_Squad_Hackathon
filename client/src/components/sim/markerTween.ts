@@ -46,5 +46,35 @@ export function shouldSnap(
 
 export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
+export type MarkerFrame = Pick<Snapshot, 'runId' | 'timeMin' | 'markers' | 'packagePositions'>;
+
+/** What MapMarkers draws: a blend of `prev` and `next` at `alpha`. `tween` = run the rAF loop for `next`. */
+export type FrameState<F extends MarkerFrame = MarkerFrame> = { prev: MarkerFrame; next: F; alpha: number; tween: boolean };
+
+export const initialFrames = <F extends MarkerFrame>(snapshot: F): FrameState<F> =>
+  ({ prev: snapshot, next: snapshot, alpha: 1, tween: false });
+
+/** Positions drawn for a frame state. */
+export function framePositions(state: FrameState, reducedMotion = false): Pick<MarkerFrame, 'markers' | 'packagePositions'> {
+  return {
+    markers: tweenMarkers(state.prev.markers, state.next.markers, state.alpha, reducedMotion),
+    packagePositions: tweenPackages(state.prev.packagePositions, state.next.packagePositions, state.alpha, reducedMotion),
+  };
+}
+
+/**
+ * Pure step run during render whenever a snapshot is passed in. The same snapshot object returns
+ * `state` unchanged (no tween restart). A new snapshot tweens from what is on screen right now
+ * (alpha 0 = the positions last drawn), unless it must snap (reduced motion, new run, rewind, seek/jump).
+ */
+export function advanceFrames<F extends MarkerFrame>(
+  state: FrameState<F>, snapshot: F, clock: Pick<Clock, 'speed'>, reducedMotion: boolean,
+): FrameState<F> {
+  if (state.next === snapshot) return state;
+  if (!shouldTween(reducedMotion) || shouldSnap(state.next, snapshot, clock)) return initialFrames(snapshot);
+  const shown: MarkerFrame = { ...state.next, ...framePositions(state, reducedMotion) };
+  return { prev: shown, next: snapshot, alpha: 0, tween: true };
+}
+
 /** Pure flag: tween between polls only when the user has not asked for reduced motion. */
 export const shouldTween = (reducedMotion: boolean): boolean => !reducedMotion;
