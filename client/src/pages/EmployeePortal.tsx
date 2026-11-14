@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import type { Trip } from '../../../shared/types';
 import type { JobResponse } from '../../../shared/api';
 import type { PutCommuteRequest } from '../../../shared/schemas';
-import { ApiRequestError, getEmployees, getJob, putCommute } from '../api';
+import { ApiRequestError, getEmployees, getJob, isAbortError, putCommute } from '../api';
 import { Drawer, Toast, useToasts } from '../ui';
 import { EmployeeNotFound, JobLinkNotice } from '../components/employee/JobDetail';
 import { employeeLookup, jobLinkState, type EmployeeLookup } from '../components/employee/jobDetailModel';
@@ -40,18 +40,19 @@ export default function EmployeePortal() {
     setJobMissing(false);
     if (!jobId) { setJob(null); return; }
     let alive = true;
-    const load = () => getJob(jobId)
+    const ctl = new AbortController();
+    const load = () => getJob(jobId, { signal: ctl.signal })
       .then((j) => { if (alive) { setJob(j); setJobError(null); setJobMissing(false); } })
       .catch((e: unknown) => {
-        if (!alive) return;
+        if (!alive || isAbortError(e)) return;
         if (e instanceof ApiRequestError && e.status === 404) { setJob(null); setJobError(null); setJobMissing(true); return; }
         setJobError(e instanceof Error ? e.message : 'Could not load job');
       });
     let t: ReturnType<typeof setTimeout> | undefined;
     const loop = () => { void load().finally(() => { if (alive) t = setTimeout(loop, 1000); }); };
     loop();
-    return () => { alive = false; if (t) clearTimeout(t); };
-  }, [jobId, data.runId]);
+    return () => { alive = false; ctl.abort(); if (t) clearTimeout(t); };
+  }, [jobId, id, data.runId]);
 
   // Unknown employee: when the dashboard fails, ask the API who exists (also catches a runId change).
   useEffect(() => {
