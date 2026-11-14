@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { CreateShipmentRequest } from '../../../shared/schemas';
 import type { Business } from '../../../shared/types';
 import { Button, Field, formatCents } from '../ui';
-import { defaultForm, newClientRequestId, toRequest, validate, type FormState } from './business/shipmentFormModel';
+import { Link } from 'react-router-dom';
+import { FORM_FIELDS, LOCKED_MESSAGE, createRequestIdHolder, defaultForm, toRequest, validate, type FormState, type TimeWindow } from './business/shipmentFormModel';
 import { RouteMiniMap } from './business/RouteMiniMap';
 import './business/ShipmentForm.css';
 
@@ -13,36 +14,43 @@ export type ShipmentFormProps = {
   submitting: boolean;
   fieldErrors?: Record<string, string>;
   initial?: Partial<FormState>;
+  /** Form-level failure from the last submit (retry hint or locked). */
+  formError?: { kind: 'retry' | 'locked' | 'other'; message: string };
+  window?: TimeWindow;
   onSubmit: (req: CreateShipmentRequest) => void;
 };
 
 /** Assumed flat customer price shown before matching (spec: $10). */
 const ASSUMED_PRICE_CENTS = 1000;
 
-export function ShipmentForm({ origin, businesses, locked, submitting, fieldErrors, initial, onSubmit }: ShipmentFormProps) {
+export function ShipmentForm({ origin, businesses, locked, submitting, fieldErrors, initial, formError, window, onSubmit }: ShipmentFormProps) {
   const [form, setForm] = useState<FormState>(() => ({ ...defaultForm(), ...initial, originBusinessId: origin.id }));
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
-  // Same content resubmitted reuses its id (idempotent POST); edited content gets a new one.
-  const lastRequest = useRef({ sig: '', id: '' });
-  useEffect(() => { setForm({ ...defaultForm(), ...initial, originBusinessId: origin.id }); setLocalErrors({}); }, [initial, origin.id]);
+  // One id per package attempt: failed submits (network, 5xx, 400, 409) retry with the same id (idempotent POST).
+  // It resets on success (the form unmounts) and when the form is reset or prefilled (Duplicate).
+  const originRef = useRef(origin.id);
+  originRef.current = origin.id;
+  const ids = useRef(createRequestIdHolder(() => originRef.current)).current;
+  useEffect(() => {
+    setForm({ ...defaultForm(), ...initial, originBusinessId: origin.id });
+    setLocalErrors({});
+    ids.reset();
+  }, [initial, origin.id, ids]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
   const errors = { ...localErrors, ...fieldErrors };
   const disabled = locked || submitting;
+  const otherErrors = Object.entries(fieldErrors ?? {}).filter(([k]) => !FORM_FIELDS.includes(k)).map(([, m]) => m);
   const destination = businesses.find((b) => b.id === form.destinationBusinessId);
   const others = businesses.filter((b) => b.id !== origin.id);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (disabled) return;
-    const errs = validate(form);
+    const errs = validate(form, window);
     setLocalErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    const sig = JSON.stringify(form);
-    if (lastRequest.current.sig !== sig) {
-      lastRequest.current = { sig, id: newClientRequestId(origin.id) };
-    }
-    onSubmit(toRequest(form, lastRequest.current.id));
+    onSubmit(toRequest(form, ids.current()));
   }
 
   const dayTime = (prefix: 'ready' | 'deadline', label: string, error?: string) => (
@@ -67,7 +75,14 @@ export function ShipmentForm({ origin, businesses, locked, submitting, fieldErro
     <form className="shipment-form" onSubmit={submit} noValidate>
       <h2>Send a package</h2>
       <p>From {origin.name} ({origin.district})</p>
-      {locked && <p className="shipment-form__locked">Simulation has started, so new requests are closed until the next planning cycle.</p>}
+      {locked && formError?.kind !== 'locked' && <p className="shipment-form__locked">{LOCKED_MESSAGE}</p>}
+      {formError?.kind === 'locked' && (
+        <p className="shipment-form__locked" role="alert">
+          {LOCKED_MESSAGE} <Link to="/simulator">Open Setup in the simulator</Link> to start a new planning cycle.
+        </p>
+      )}
+      {formError && formError.kind !== 'locked' && <p className="shipment-form__error" role="alert">{formError.message}</p>}
+      {otherErrors.length > 0 && <p className="shipment-form__error" role="alert">{otherErrors.join(' ')}</p>}
       <Field label="Destination business" error={errors.destinationBusinessId}>
         <select value={form.destinationBusinessId} disabled={disabled} onChange={(e) => set('destinationBusinessId', e.target.value)}>
           <option value="">Choose a business…</option>
