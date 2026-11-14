@@ -77,6 +77,18 @@ describe('new job arrives by polling', () => {
     expect(stepBaseline(first.baseline, 'run-2', next).newIds).toEqual([]);
     expect(stepBaseline(second.baseline, 'run-1', { ...prev, version: next.version - 1 }).newIds).toEqual([]);
 
+    // New city, same emp id, stale run id, higher version: nothing is new
+    const otherCity: EmployeeDashboard = {
+      ...next, version: next.version + 5,
+      employee: { ...next.employee, homeNodeId: 'other-home', name: 'Someone Else' },
+      assigned: next.assigned.map((v) => ({ ...v, job: { ...v.job, id: `new-${v.job.id}` } })),
+      completed: [],
+    };
+    expect(stepBaseline(second.baseline, 'run-1', otherCity).newIds).toEqual([]);
+    // Same employee but none of the old jobs survive (job ids changed): also a reset
+    const noOverlap: EmployeeDashboard = { ...otherCity, employee: next.employee };
+    expect(stepBaseline(second.baseline, 'run-1', noOverlap).newIds).toEqual([]);
+
     // Badge lifetime
     const arr = nextArrivals({}, second.newIds, next, 1000);
     expect(Object.keys(arr)).toContain(newJobId);

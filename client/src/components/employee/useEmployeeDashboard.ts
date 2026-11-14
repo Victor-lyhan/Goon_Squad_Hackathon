@@ -56,7 +56,15 @@ export function useEmployeeDashboard(employeeId: string): EmployeeData {
     try {
       const next = await getEmployeeDashboard(id);
       if (!alive.current || idRef.current !== id) return;
-      const refetchMap = needsMapRefetch(lastVersion.current, next.version, haveMap.current);
+      let refetchMap = needsMapRefetch(lastVersion.current, next.version, haveMap.current);
+      // Versions only ever go up (even for a new city), so check the run id once per version change.
+      if (lastVersion.current !== null && next.version !== lastVersion.current && !refetchMap) {
+        try {
+          const m = await getMap();
+          if (!alive.current || idRef.current !== id) return;
+          if (m.runId !== runIdRef.current) { runIdRef.current = m.runId; refetchMap = true; }
+        } catch { /* keep the old run id; the next change retries */ }
+      }
       lastVersion.current = next.version;
       const step = stepBaseline(baseline.current, runIdRef.current, next);
       baseline.current = step.baseline;

@@ -14,7 +14,9 @@ export function dashboardJobIds(d: EmployeeDashboard): Set<string> {
   return new Set([...d.assigned, ...d.completed].map((v) => v.job.id));
 }
 
-export type JobBaseline = { runId: string | null; version: number; ids: ReadonlySet<string> };
+export type JobBaseline = { runId: string | null; version: number; ids: ReadonlySet<string>; employeeKey: string };
+
+const employeeKey = (d: EmployeeDashboard) => `${d.employee.id}|${d.employee.name}|${d.employee.homeNodeId}|${d.employee.businessId}`;
 
 /**
  * One poll step. The baseline resets (nothing new) when the run changes or the
@@ -23,10 +25,14 @@ export type JobBaseline = { runId: string | null; version: number; ids: Readonly
 export function stepBaseline(
   prev: JobBaseline | null, runId: string | null, d: EmployeeDashboard,
 ): { baseline: JobBaseline; newIds: string[] } {
-  const reset = prev !== null && ((prev.runId !== null && runId !== null && prev.runId !== runId) || d.version < prev.version);
+  const ids = dashboardJobIds(d);
+  // Also a reset: a different employee/city behind the same ID, or none of the old jobs survive.
+  const otherCity = prev !== null && (prev.employeeKey !== employeeKey(d)
+    || (prev.ids.size > 0 && ![...prev.ids].some((id) => ids.has(id))));
+  const reset = prev !== null && (otherCity || (prev.runId !== null && runId !== null && prev.runId !== runId) || d.version < prev.version);
   const base = reset ? null : prev ? prev.ids : null;
   return {
-    baseline: { runId: runId ?? prev?.runId ?? null, version: d.version, ids: dashboardJobIds(d) },
+    baseline: { runId: runId ?? prev?.runId ?? null, version: d.version, ids, employeeKey: employeeKey(d) },
     newIds: diffNewJobs(base, d),
   };
 }
