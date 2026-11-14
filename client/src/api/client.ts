@@ -19,12 +19,15 @@ export class ApiRequestError extends Error {
   readonly fieldErrors: Record<string, string> | undefined;
   /** 'http' for server replies; status 0 errors are 'network', 'timeout' or 'abort'. */
   readonly kind: ApiErrorKind;
-  constructor(status: number, message: string, fieldErrors?: Record<string, string>, kind?: ApiErrorKind) {
+  /** Machine-readable `code` of the error body, if the server sent one (the /api/v2 503 TravelUnavailable bodies do). */
+  readonly code: string | undefined;
+  constructor(status: number, message: string, fieldErrors?: Record<string, string>, kind?: ApiErrorKind, code?: string) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
     this.fieldErrors = fieldErrors;
     this.kind = kind ?? (status === 0 ? 'network' : 'http');
+    this.code = code;
   }
 }
 
@@ -50,7 +53,11 @@ export const DEFAULT_TIMEOUT_MS = 8000;
 /** Mutable settings; tests set `apiConfig.timeoutMs` and restore DEFAULT_TIMEOUT_MS afterwards. */
 export const apiConfig = { timeoutMs: DEFAULT_TIMEOUT_MS };
 
-async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {},
+/**
+ * The one fetch wrapper (timeout, abort, error mapping). Exported only for client/src/api/v2.ts; UI code
+ * uses the typed helpers. Capitalised function expression so the route-coverage test skips it (see above).
+ */
+export const request = async function ApiRequest<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {},
   extra: { cache?: RequestCache; ignoreBody?: boolean } = {}): Promise<T> {
   const { signal } = opts;
   const timeoutMs = opts.timeoutMs ?? apiConfig.timeoutMs;
@@ -82,16 +89,18 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
     if (!res.ok) {
       let message = `Request failed (${res.status})`;
       let fieldErrors: Record<string, string> | undefined;
+      let code: string | undefined;
       try {
-        const data = (await res.json()) as { error?: unknown; fieldErrors?: Record<string, string> };
+        const data = (await res.json()) as { error?: unknown; fieldErrors?: Record<string, string>; code?: unknown };
         if (typeof data?.error === 'string') message = data.error;
         fieldErrors = data?.fieldErrors;
+        if (typeof data?.code === 'string') code = data.code;
       } catch {
         /* non-JSON error body: keep the default message */
       }
       if (timedOut) return fail(new Error('timeout'));
       if (signal?.aborted) return fail(new Error('aborted'));
-      throw new ApiRequestError(res.status, message, fieldErrors);
+      throw new ApiRequestError(res.status, message, fieldErrors, undefined, code);
     }
     try {
       if (extra.ignoreBody) { await res.arrayBuffer(); return undefined as T; }
@@ -103,7 +112,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
   }
-}
+};
 
 /**
  * Server liveness probe: GET /api/health with cache 'no-store' and the same timeout/signal handling
