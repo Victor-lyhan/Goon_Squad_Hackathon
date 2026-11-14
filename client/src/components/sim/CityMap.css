@@ -11,9 +11,13 @@
 .city-map .biz { fill: #475569; }
 .city-map .hub { fill: #2563eb; stroke: #fff; stroke-width: 3; }
 .city-map .home { fill: #16a34a; stroke: #fff; stroke-width: 2; }
-.city-map text { font: 600 18px system-ui, sans-serif; fill: #334155; paint-order: stroke; stroke: #f8fafc; stroke-width: 4px; }
+.city-map text { font: 600 20px system-ui, sans-serif; fill: #334155; paint-order: stroke; stroke: #f8fafc; stroke-width: 4px; }
 .city-map .legend-bg { fill: #fff; stroke: #e2e8f0; }
 .city-map .route-base-leg { stroke-width: 4; opacity: .35; }
-.city-map .route-hi-alt { stroke-dasharray: 26 12; }
+.city-map .route-hi-alt { stroke-dasharray: 26 12; stroke-width: 9; }
+.city-map .legend-route-alt { stroke-dasharray: 10 6; stroke-width: 6; }
+.city-map .legend-vehicle { fill: var(--accent, #f97316); stroke: #fff; stroke-width: 2; }
+.city-map .hub-ring { fill: none; stroke: #2563eb; stroke-width: 5; stroke-dasharray: 3 7; stroke-linecap: round; }
+.city-map .label-strong { font-weight: 800; fill: #1d4ed8; }
 .city-map .node-click:focus-visible { stroke: #0f172a; stroke-width: 4; }
 @media (prefers-reduced-motion: reduce) { .city-map * { transition: none !important; animation: none !important; } }
