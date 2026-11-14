@@ -69,14 +69,20 @@
 .ep-btn:focus-visible, .ep-links a:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
 .ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #28618A); text-decoration: underline; }
 
+/* The employee's name above a job screen (#634): the same heading as the workspace's. */
+.ep-name { margin: 0; padding: var(--space-4, 16px) var(--space-4, 16px) 0; font-size: 20px; font-weight: 600; line-height: 1.2; }
 .ep-job { padding: var(--space-4, 16px); }
+/* The list heading that takes focus after a job without a row is closed (#634). */
+.ep h2[tabindex="-1"]:focus { outline: none; }
+.ep h2[tabindex="-1"]:focus-visible { outline: 2px solid var(--accent, #28618A); outline-offset: 2px; }
 .ep-route { margin-top: var(--space-4, 16px); min-width: 0; }
 .ep-route-note { margin: var(--space-3, 12px) 0 0; font-size: var(--text-sm, 14px); color: var(--muted, #5B6472); }
 .ep-route-note.ep-problem { color: var(--danger, #A4322A); }
 
 @media (max-width: 390px) {
   .ep-state { margin: var(--space-2, 8px); padding: var(--space-3, 12px); }
-  .ep-notices, .ep-job { padding-left: var(--space-2, 8px); padding-right: var(--space-2, 8px); }
+  .ep-notices, .ep-job, .ep-name { padding-left: var(--space-2, 8px); padding-right: var(--space-2, 8px); }
+  .ep-name { font-size: 18px; }
   .ep-editor { padding: var(--space-2, 8px); }
   .ep-editor-head { flex-wrap: wrap; }
 }

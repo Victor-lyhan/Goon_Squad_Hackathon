@@ -8,6 +8,14 @@ import { formatCents, formatDuration, formatMin } from '../../../ui/format';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 
+// A `?job=` that this employee cannot open (#634). The job request answers 404 after a re-match
+// (Recompute, a commute save) as well as after a new run, so the text names both and never says that
+// the city changed. The words are "delivery" and "carrier", as on the rest of the page.
+export const JOB_MISSING_TITLE = 'This delivery is no longer assigned to you';
+export const JOB_MISSING_TEXT = 'It was re-matched or the run changed. Your current deliveries are on your page.';
+export const JOB_OTHER_TITLE = 'This delivery is assigned to another carrier';
+export const JOB_OTHER_TEXT = 'Your current deliveries are on your page.';
+
 export type RouteRow = {
   key: string;
   /** 'start' and 'end' are the commute's own endpoints; the rest are stops at network businesses. */
