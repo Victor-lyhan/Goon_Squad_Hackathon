@@ -602,9 +602,6 @@ class SlowControlServer extends FakeSimServer {
       const answer = this.answer(req);
       return new Promise<SimulatorResponse>((res) => { setTimeout(() => res(answer), DELAY_MS); });
     },
-    generateScenario: () => Promise.reject(new Error('unused')),
-    resetPlanning: () => Promise.reject(new Error('unused')),
-    recomputeMatches: () => Promise.reject(new Error('unused')),
     compareMatches: () => Promise.reject(new Error('unused')),
   }, (a) => this.set(simDataReducer(this.state, a)), () => {});
 

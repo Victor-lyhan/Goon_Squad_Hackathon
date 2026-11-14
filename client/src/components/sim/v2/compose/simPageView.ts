@@ -7,7 +7,6 @@
 // (DECISIONS pass 46).
 // Statuses, metrics, times and positions are read from the response, never computed (AGENTS.md).
 import type { CompareResponse, MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
-import { GenerateScenarioRequest } from '../../../../../../shared/v2/schemas';
 import type { Clock, Metrics } from '../../../../../../shared/v2/types';
 import type { LatLngBounds, MapMover, MapPanTarget, MapPlace, MapRoute, MapStop } from '../../../map/types';
 import { dayNightAt, dayNightClockText, type DayNight } from '../../../map/dayNight';
@@ -36,16 +35,10 @@ export const BACK_TO_NETWORK = 'Back to network';
 export const COMPARE_FAILED_TEXT = 'The comparison could not run. Try again.';
 
 /**
- * SimulatorResponse carries no settings, so the scrubber uses the planning window every scenario
- * uses today: Day 1 15:30 to Day 2 12:00 (Settings.simStartMin / simEndMin defaults).
+ * The minute the run ends, where Play has nothing left and reads "Run finished". SimulatorResponse
+ * carries no settings, so this is the end every run has today: Day 2 12:00 (the Settings.simEndMin default).
  */
-export const SIM_WINDOW = { simStartMin: 930, simEndMin: 2160 } as const;
-
-/**
- * The scenario form's starting values: the schema's defaults for the demo preset. SimulatorResponse
- * does not say which preset or seed built the run, so the form starts from the defaults.
- */
-export const DEFAULT_SCENARIO: GenerateScenarioRequest = GenerateScenarioRequest.parse({ preset: 'demo' });
+export const SIM_END_MIN = 2160;
 
 // ---------- Output types ----------
 export type SimMapProps = {
@@ -66,13 +59,11 @@ export type SimMapProps = {
   clockText: string;
 };
 
+/** What the one Play/Pause button and "Back to start" read. */
 export type SimControlsView = {
   clock: Clock;
-  nextEventMin: number | null;
   busy: boolean;
-  simStartMin: number;
   simEndMin: number;
-  scenario: GenerateScenarioRequest;
 };
 
 /** Right panel content. */
@@ -202,13 +193,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
     packages,
     packageList: mapPending ? { kind: 'pending' as const, items: packages } : { kind: 'panel' as const, sim, map },
     focusOptions: focusOptions(map),
-    controls: {
-      clock: sim.clock,
-      nextEventMin: sim.nextEventMin,
-      busy: data.busy,
-      ...SIM_WINDOW,
-      scenario: DEFAULT_SCENARIO,
-    },
+    controls: { clock: sim.clock, busy: data.busy, simEndMin: SIM_END_MIN },
     actionError: data.actionError,
   };
 

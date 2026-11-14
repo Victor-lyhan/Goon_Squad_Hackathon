@@ -98,9 +98,6 @@ export function hookOf(data: SimDataState): SimulatorV2 {
   return {
     ...data,
     control: vi.fn(async () => null),
-    generate: vi.fn(async () => null),
-    resetPlanning: vi.fn(async () => null),
-    recompute: vi.fn(async () => null),
     compare: vi.fn(async () => null),
     refetch: vi.fn(),
     dismissActionError: vi.fn(),

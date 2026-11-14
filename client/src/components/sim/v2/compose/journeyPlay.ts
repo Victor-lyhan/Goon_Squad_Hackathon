@@ -10,7 +10,7 @@
 import type { SimControlRequest } from '../../../../../../shared/v2/schemas';
 import type { Clock } from '../../../../../../shared/v2/types';
 import {
-  BUSY_REASON, FINISHED_REASON, PAUSE_LABEL, PLAY_LABEL, isRunFinished, type PlayButtonView, type SimWindow,
+  BUSY_REASON, FINISHED_REASON, PAUSE_LABEL, PLAY_LABEL, isRunFinished, type PlayButtonView,
 } from '../controls/controlsModel';
 import { journeyEndMin, startJourneyPlayback, type JourneyWindow } from '../motion/journeyPlayback';
 import { playPlan, type Journey, type JourneyResult } from '../journey/journeyModel';
@@ -187,7 +187,8 @@ export type PlayButtonInput = {
   clock: Pick<Clock, 'playing' | 'timeMin'>;
   /** A control other than a seek is open (the data hook's `busy`). */
   busy: boolean;
-  window: SimWindow;
+  /** The minute the run ends; at or past it the clock has nothing left to play. */
+  simEndMin: number;
 };
 
 /**
@@ -195,7 +196,7 @@ export type PlayButtonInput = {
  * a playing server clock. Otherwise Play: the picked package's journey, or with no package the
  * server clock. An unmatched package has nothing to play, and a finished run needs Back to start.
  */
-export function playButtonView({ packagePicked, journey, play, clock, busy, window }: PlayButtonInput): PlayButtonView {
+export function playButtonView({ packagePicked, journey, play, clock, busy, simEndMin }: PlayButtonInput): PlayButtonView {
   if (play.status === 'running') return { label: PAUSE_LABEL, action: 'pause_journey', note: null };
   if (clock.playing) {
     return busy ? { label: PAUSE_LABEL, action: null, note: BUSY_REASON } : { label: PAUSE_LABEL, action: 'pause_clock', note: null };
@@ -205,7 +206,7 @@ export function playButtonView({ packagePicked, journey, play, clock, busy, wind
     return { label: PLAY_LABEL, action: null, note: journey?.kind === 'unmatched' ? NO_JOURNEY_TEXT : null };
   }
   if (busy) return { label: PLAY_LABEL, action: null, note: BUSY_REASON };
-  if (isRunFinished(clock, window)) return { label: PLAY_LABEL, action: null, note: FINISHED_REASON };
+  if (isRunFinished(clock, simEndMin)) return { label: PLAY_LABEL, action: null, note: FINISHED_REASON };
   return { label: PLAY_LABEL, action: 'play_clock', note: null };
 }
 

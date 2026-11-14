@@ -82,7 +82,7 @@ export const samePollAgain = (s: SimDataState): SimDataState => structuredClone(
 
 export type Call =
   | { name: 'control'; req: SimControlRequest }
-  | { name: 'generate' | 'resetPlanning' | 'recompute' | 'compare' | 'refetch' | 'dismissActionError'; req?: unknown };
+  | { name: 'compare' | 'refetch' | 'dismissActionError'; req?: unknown };
 
 export class FakeSimServer {
   state: SimDataState;
@@ -149,9 +149,6 @@ export class FakeSimServer {
     return {
       ...state,
       control: (req) => this.control(req),
-      generate: async (req) => { log('generate', req); return null; },
-      resetPlanning: async () => { log('resetPlanning'); return null; },
-      recompute: async () => { log('recompute'); return null; },
       compare: async () => { log('compare'); return null; },
       refetch: () => log('refetch'),
       dismissActionError: () => log('dismissActionError'),

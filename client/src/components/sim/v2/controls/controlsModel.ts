@@ -41,11 +41,9 @@ export const PAUSE_REQUEST: SimControlRequest = { action: 'pause' };
 /** "Back to start": the clock goes to the start of the run, paused. */
 export const RESET_REQUEST: SimControlRequest = { action: 'reset_playback' };
 
-export type SimWindow = { simStartMin: number; simEndMin: number };
-
-/** The clock is at the end of the run: Play has nothing left, Back to start watches it again. */
-export function isRunFinished(clock: Pick<Clock, 'timeMin'>, w: SimWindow): boolean {
-  return clock.timeMin >= w.simEndMin;
+/** The clock is at the end of the run (`simEndMin`): Play has nothing left, Back to start watches it again. */
+export function isRunFinished(clock: Pick<Clock, 'timeMin'>, simEndMin: number): boolean {
+  return clock.timeMin >= simEndMin;
 }
 
 /** Why "Back to start" is disabled, or null. */

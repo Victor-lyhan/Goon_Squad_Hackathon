@@ -4,7 +4,7 @@ export type PanelSectionProps = { title: string; children: ReactNode };
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-/** A titled group in a workspace panel (Scenario, Playback, Layers, Focus, Planning cycle), 1px divider on top. */
+/** A titled group in a workspace panel (Playback, Packages, Focus, Direct only vs relay points), 1px divider on top. */
 export function PanelSection({ title, children }: PanelSectionProps) {
   const headingId = `sw-section-${slug(title)}`;
   return (

@@ -45,9 +45,6 @@ function hookOf(state: Partial<SimDataState>): SimulatorV2 {
     ...INITIAL_SIM_DATA,
     ...state,
     control: vi.fn(async () => null),
-    generate: vi.fn(async () => null),
-    resetPlanning: vi.fn(async () => null),
-    recompute: vi.fn(async () => null),
     compare: vi.fn(async () => null),
     refetch: vi.fn(),
     dismissActionError: vi.fn(),
@@ -399,8 +396,8 @@ describe('SimPageBody wiring', () => {
     playback.onReset();
     expect(s.hook.control).toHaveBeenCalledTimes(2);
     expect(s.hook.control).toHaveBeenLastCalledWith(RESET_REQUEST);
-    // Nothing on the page generates a scenario or starts a planning cycle any more (#648).
-    for (const gone of [s.hook.generate, s.hook.resetPlanning, s.hook.recompute]) expect(gone).not.toHaveBeenCalled();
+    // The page's only writes are controls: the hook has no scenario or planning action any more (#700).
+    expect(s.hook.compare).not.toHaveBeenCalled();
   });
 
   it('focus and the package list update the page state', () => {
@@ -607,7 +604,7 @@ describe('#460 wiring: direct-only vs relay comparison', () => {
     expect(s.setCompare).toHaveBeenNthCalledWith(1, { status: 'loading', runId: 'run-1' });
     await flush();
     expect(s.setCompare).toHaveBeenNthCalledWith(2, { status: 'done', runId: 'run-1', response });
-    for (const write of [hook.control, hook.generate, hook.resetPlanning, hook.recompute]) expect(write).not.toHaveBeenCalled();
+    expect(hook.control).not.toHaveBeenCalled();
 
     const loading = setup({ ...hook, busy: true }, null, { compare: { status: 'loading', runId: 'run-1' } });
     const lt = text(loading.html());

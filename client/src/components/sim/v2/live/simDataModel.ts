@@ -17,7 +17,7 @@ export type SimDataState = {
   error: string | null;
   /** True when a poll failed after data was shown: the last data stays on screen. */
   reconnecting: boolean;
-  /** True while a control or scenario action is in flight. */
+  /** True while a control other than a `seek`, or the comparison, is in flight. */
   busy: boolean;
   /** Message of the last failed action (409 and others). Never changes `view`. */
   actionError: string | null;
