@@ -39,16 +39,27 @@ function ratio(num: number, den: number): string {
 
 export function toMetricCards(m: Metrics): MetricCard[] {
   const hasRequests = finite(m.requested) && m.requested > 0;
+  const unmatched = finite(m.unmatched) ? m.unmatched : 0;
+  const spendCaption = unmatched > 0
+    ? `Includes ${unmatched} unmatched ${unmatched === 1 ? 'package' : 'packages'} at the external-delivery cost assumption (not simulated)`
+    : 'All packages are matched';
+  // Spec §4: top row is delivered/requested, matched/requested, average added minutes,
+  // projected savings, employee earnings; the rest follow.
   return [
     {
-      key: 'matched', label: 'Projected matched', kind: 'projected',
+      key: 'delivered', label: 'Delivered / requested', kind: 'actual',
+      value: ratio(m.delivered, m.requested),
+      caption: 'Delivered so far out of requested',
+    },
+    {
+      key: 'matched', label: 'Projected matched / requested', kind: 'projected',
       value: ratio(m.matched, m.requested),
       caption: 'Projected: packages matched out of requested',
     },
     {
-      key: 'mix', label: 'Projected direct / relay / unmatched', kind: 'projected',
-      value: `${count(m.direct)} / ${count(m.relay)} / ${count(m.unmatched)}`,
-      caption: 'Projected: direct vs relay vs unmatched',
+      key: 'avgExtra', label: 'Projected average added minutes', kind: 'projected',
+      value: formatMin(m.avgExtraMinPerTrip),
+      caption: 'Projected: average added commuter time per trip',
     },
     {
       key: 'savings', label: 'Projected customer savings', kind: 'projected',
@@ -56,9 +67,19 @@ export function toMetricCards(m: Metrics): MetricCard[] {
       caption: 'Projected: saved vs the external courier',
     },
     {
+      key: 'rewards', label: 'Employee earnings so far', kind: 'actual',
+      value: formatCents(m.earnedRewardsCents),
+      caption: 'Rewards earned by commuters for completed legs',
+    },
+    {
+      key: 'mix', label: 'Projected direct / relay / unmatched', kind: 'projected',
+      value: `${count(m.direct)} / ${count(m.relay)} / ${count(m.unmatched)}`,
+      caption: 'Projected: direct vs relay vs unmatched',
+    },
+    {
       key: 'spend', label: 'Projected customer spend', kind: 'projected',
       value: hasRequests ? formatCents(m.projectedCustomerSpendCents) : DASH,
-      caption: 'Projected: unmatched packages are priced at the external-courier assumption',
+      caption: spendCaption,
     },
     {
       key: 'contribution', label: 'Projected platform contribution', kind: 'projected',
@@ -66,12 +87,7 @@ export function toMetricCards(m: Metrics): MetricCard[] {
       caption: 'Projected: platform margin once all matched packages are delivered',
     },
     {
-      key: 'avgExtra', label: 'Projected avg extra min per trip', kind: 'projected',
-      value: formatMin(m.avgExtraMinPerTrip),
-      caption: 'Projected: average extra commuter time per trip',
-    },
-    {
-      key: 'maxExtra', label: 'Projected max extra min per trip', kind: 'projected',
+      key: 'maxExtra', label: 'Projected max added minutes', kind: 'projected',
       value: formatMin(m.maxExtraMin),
       caption: 'Projected: longest single detour',
     },
@@ -79,16 +95,6 @@ export function toMetricCards(m: Metrics): MetricCard[] {
       key: 'extraDistance', label: 'Projected extra commuter distance', kind: 'projected',
       value: formatKm(m.extraDistanceM),
       caption: 'Projected: total added commuter distance',
-    },
-    {
-      key: 'delivered', label: 'Delivered', kind: 'actual',
-      value: ratio(m.delivered, m.requested),
-      caption: 'Delivered so far out of requested',
-    },
-    {
-      key: 'rewards', label: 'Rewards earned so far', kind: 'actual',
-      value: formatCents(m.earnedRewardsCents),
-      caption: 'Paid to commuters for completed legs',
     },
     {
       key: 'earnedContribution', label: 'Earned platform contribution', kind: 'actual',

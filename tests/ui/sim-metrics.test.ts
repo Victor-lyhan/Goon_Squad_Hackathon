@@ -28,7 +28,7 @@ describe('metrics model', () => {
     expect(c.delivered.kind).toBe('actual');
     expect(c.rewards.value).toBe('$6.00');
     expect(c.earnedContribution.value).toBe('$3.00');
-    expect(c.spend.caption).toMatch(/external-courier/);
+    expect(c.spend.caption).toMatch(/all packages are matched/i);
   });
 
   it('never emits NaN/undefined for all-zero metrics', () => {
