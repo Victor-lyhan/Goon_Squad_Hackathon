@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import type { Trip } from '../../../shared/types';
 import type { JobResponse } from '../../../shared/api';
 import type { PutCommuteRequest } from '../../../shared/schemas';
 import { ApiRequestError, getJob, putCommute } from '../api';
@@ -7,7 +8,7 @@ import { Toast, useToasts } from '../ui';
 import { EmployeePortalView } from '../components/employee/EmployeePortalView';
 import { useEmployeeDashboard } from '../components/employee/useEmployeeDashboard';
 import {
-  NEW_JOB_TOAST, newJobNotifications, saveErrorMessage, saveMessage,
+  NEW_JOB_TOAST, newJobNotifications, saveErrorMessage,
 } from '../components/employee/employeePortalModel';
 
 export default function EmployeePortal() {
@@ -19,12 +20,13 @@ export default function EmployeePortal() {
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string> | undefined>();
   const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const [saved, setSaved] = useState<{ trips: Trip[]; rematchedShipmentIds: string[] } | null>(null);
   const [job, setJob] = useState<JobResponse | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
 
   // New-delivery-job toast: first poll for an employee only seeds the seen set.
   const seen = useRef<Set<string> | null>(null);
-  useEffect(() => { seen.current = null; setNotice(null); setFieldErrors(undefined); }, [id]);
+  useEffect(() => { seen.current = null; setNotice(null); setSaved(null); setFieldErrors(undefined); }, [id]);
   useEffect(() => {
     if (!data.dash) return;
     const fresh = newJobNotifications(seen.current, data.dash.notifications);
@@ -52,9 +54,10 @@ export default function EmployeePortal() {
     setSaving(true);
     setFieldErrors(undefined);
     setNotice(null);
+    setSaved(null);
     try {
       const res = await putCommute(id, req);
-      setNotice({ kind: 'success', text: saveMessage(res) });
+      setSaved({ trips: res.trips, rematchedShipmentIds: res.rematchedShipmentIds });
       await data.refetch();
     } catch (e) {
       if (e instanceof ApiRequestError) {
@@ -74,6 +77,7 @@ export default function EmployeePortal() {
         {...data}
         saving={saving}
         fieldErrors={fieldErrors}
+        saved={saved}
         saveNotice={notice}
         job={job}
         jobError={jobError}

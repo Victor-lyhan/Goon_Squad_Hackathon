@@ -10,8 +10,18 @@
 .commute-editor__save { display: flex; }
 .commute-editor__save .ui-btn { flex: 1; }
 @media (max-width: 600px) {
-  .commute-editor__save { position: sticky; bottom: 0; padding: 10px 0; background: #fff; z-index: 2; }
+  .commute-editor__save { position: sticky; bottom: 0; padding: 12px 6px; background: #fff; z-index: 2; }
+  .commute-editor__save .ui-btn:focus-visible { outline: 3px solid var(--accent, #0e7c86); outline-offset: 2px; }
 }
+.commute-editor__layout { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.commute-editor__fields, .commute-editor__mapcol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (min-width: 900px) {
+  .commute-editor__layout { grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr); align-items: start; gap: 20px; }
+  .commute-editor__map { max-height: 420px; }
+}
+.commute-editor__saved { padding: 8px 10px; border-radius: 8px; background: #e6f6ea; color: #14532d; font-size: 0.9rem; }
+.commute-editor__saved p { margin: 0; }
+.commute-editor__saved-title { font-weight: 600; }
 .commute-editor__adjust { border: 1px solid #d0d7de; border-radius: 8px; padding: 8px 10px; }
 .commute-editor__adjust summary { cursor: pointer; font-weight: 600; min-height: 32px; }
 .commute-editor__dir { display: flex; gap: 6px; margin: 8px 0; }
