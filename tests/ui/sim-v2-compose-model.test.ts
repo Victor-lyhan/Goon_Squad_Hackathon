@@ -1,8 +1,8 @@
 // #426: the simulator page's pure view model over the merged pieces (live data, network, journey).
 import { describe, expect, it } from 'vitest';
 import {
-  BACK_TO_NETWORK, COMPARE_FAILED_TEXT, COMPARE_IDLE, DEFAULT_SCENARIO, MAP_PENDING_TEXT, MISSING_BUSINESS_TEXT,
-  MISSING_EMPLOYEE_TEXT, MISSING_PACKAGE_TEXT, SIM_WINDOW, compareView, initialSelectionFromSearch, panTargetFor, selectionAfterMapClick, simPageView, type SimReadyView,
+  BACK_TO_NETWORK, COMPARE_FAILED_TEXT, COMPARE_IDLE, MAP_PENDING_TEXT, MISSING_BUSINESS_TEXT,
+  MISSING_EMPLOYEE_TEXT, MISSING_PACKAGE_TEXT, SIM_END_MIN, compareView, initialSelectionFromSearch, panTargetFor, selectionAfterMapClick, simPageView, type SimReadyView,
 } from '../../client/src/components/sim/v2/compose/simPageView';
 import { INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, type SimDataState } from '../../client/src/components/sim/v2/live/simDataModel';
 import { dayNightAt, dayNightClockText } from '../../client/src/components/map/dayNight';
@@ -89,13 +89,12 @@ describe('simPageView: network mode', () => {
     ]);
   });
 
-  it('controls: clock, next event, busy, the sim window and the default scenario', () => {
+  it('controls: only what Play/Pause and Back to start read (clock, busy, the end of the run)', () => {
     const data = ready({ busy: true });
     const v = asReady(view(data));
-    expect(v.controls).toEqual({
-      clock: data.sim!.clock, nextEventMin: 1100, busy: true, ...SIM_WINDOW, scenario: DEFAULT_SCENARIO,
-    });
-    expect(DEFAULT_SCENARIO).toEqual({ preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 12 });
+    // No next event, scrubber range or scenario form values: those controls are gone (#648, #700).
+    expect(v.controls).toEqual({ clock: data.sim!.clock, busy: true, simEndMin: SIM_END_MIN });
+    expect(SIM_END_MIN).toBe(2160); // Day 2 12:00, the Settings.simEndMin default
   });
 
   it('focus options are names sorted by label', () => {

@@ -1,22 +1,14 @@
 // The one hook that owns the MVP II simulator page's server traffic (#380): the 1 s poll, the map
-// refetch, and the control/scenario actions. Pages render its state; they never fetch on their own.
+// refetch, the control actions and the read-only comparison. Pages render its state; they never fetch on their own.
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { CompareResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
 import type { SimControlRequest } from '../../../../../../shared/v2/schemas';
-import {
-  compareMatches, generateScenario, getMap, getSimulator, isAbortError, recomputeMatches,
-  resetPlanning, simulatorControl,
-} from '../../../../api/v2';
+import { compareMatches, getMap, getSimulator, isAbortError, simulatorControl } from '../../../../api/v2';
 import { INITIAL_SIM_DATA, errorMessage, simDataReducer, type SimDataAction, type SimDataState } from './simDataModel';
 import { createSimPoller, type SimPollerApi } from './simPoller';
 
-export type GenerateRequest = Parameters<typeof generateScenario>[0];
-
 export type SimActionsApi = {
   simulatorControl: (req: SimControlRequest) => Promise<SimulatorResponse>;
-  generateScenario: (req: GenerateRequest) => Promise<SimulatorResponse>;
-  resetPlanning: () => Promise<SimulatorResponse>;
-  recomputeMatches: () => Promise<SimulatorResponse>;
   compareMatches: () => Promise<CompareResponse>;
 };
 
@@ -25,9 +17,6 @@ export type SimulatorV2Api = SimPollerApi & SimActionsApi;
 /** Each write resolves to the applied response, or null when it failed (the message is in `actionError`). */
 export type SimActions = {
   control: (req: SimControlRequest) => Promise<SimulatorResponse | null>;
-  generate: (req: GenerateRequest) => Promise<SimulatorResponse | null>;
-  resetPlanning: () => Promise<SimulatorResponse | null>;
-  recompute: () => Promise<SimulatorResponse | null>;
   /** Read-only what-if; nothing is applied. */
   compare: () => Promise<CompareResponse | null>;
 };
@@ -42,9 +31,6 @@ export const SIMULATOR_V2_API: SimulatorV2Api = {
   getSimulator: (opts) => getSimulator(opts),
   getMap: (opts) => getMap(opts),
   simulatorControl: (req) => simulatorControl(req),
-  generateScenario: (req) => generateScenario(req),
-  resetPlanning: () => resetPlanning(),
-  recomputeMatches: () => recomputeMatches(),
   compareMatches: () => compareMatches(),
 };
 
@@ -53,8 +39,8 @@ export const SIMULATOR_V2_API: SimulatorV2Api = {
  * applies its SimulatorResponse at once, then calls `afterWrite` (the poller's refetchNow, which drops a
  * poll that may predate the write and fetches the map if the plans changed). Errors go to `actionError`.
  *
- * A `seek` (Play journey every 500 ms, the scrubber, a journey step) is quiet (#594, DECISIONS pass 61):
- * it never sets `busy`, so the playback buttons and the Scenario form stay as they are. Its answer is
+ * A `seek` (Play journey every 500 ms, a journey step) is quiet (#594, DECISIONS pass 61):
+ * it never sets `busy`, so the playback buttons stay as they are. Its answer is
  * applied only when no write sent after it has already been applied, so a slow answer never steps the
  * clock back. A dropped answer still resolves to the response (the server accepted the seek); only a
  * failure resolves to null and sets `actionError`.
@@ -96,9 +82,6 @@ export function createSimActions(
 
   return {
     control: (req) => write(() => api.simulatorControl(req), req.action === 'seek'),
-    generate: (req) => write(() => api.generateScenario(req)),
-    resetPlanning: () => write(() => api.resetPlanning()),
-    recompute: () => write(() => api.recomputeMatches()),
     compare: () => run(() => api.compareMatches(), null),
     dispose: () => { disposed = true; },
   };
@@ -122,16 +105,13 @@ export function useSimulatorV2(api: SimulatorV2Api = SIMULATOR_V2_API): Simulato
   }, [api]);
 
   const control = useCallback((req: SimControlRequest) => live.current?.actions.control(req) ?? Promise.resolve(null), []);
-  const generate = useCallback((req: GenerateRequest) => live.current?.actions.generate(req) ?? Promise.resolve(null), []);
-  const reset = useCallback(() => live.current?.actions.resetPlanning() ?? Promise.resolve(null), []);
-  const recompute = useCallback(() => live.current?.actions.recompute() ?? Promise.resolve(null), []);
   const compare = useCallback(() => live.current?.actions.compare() ?? Promise.resolve(null), []);
   const refetch = useCallback(() => live.current?.refetch(), []);
   const dismissActionError = useCallback(() => dispatch({ type: 'dismissActionError' }), []);
 
   // Same object while the state is unchanged, so an equal poll re-renders nothing downstream.
   return useMemo(
-    () => ({ ...state, control, generate, resetPlanning: reset, recompute, compare, refetch, dismissActionError }),
-    [state, control, generate, reset, recompute, compare, refetch, dismissActionError],
+    () => ({ ...state, control, compare, refetch, dismissActionError }),
+    [state, control, compare, refetch, dismissActionError],
   );
 }

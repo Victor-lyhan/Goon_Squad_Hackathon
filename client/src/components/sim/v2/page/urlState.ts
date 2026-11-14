@@ -92,7 +92,7 @@ function contains(ids: Iterable<string>, id: string): boolean {
 }
 
 /**
- * Checks the selection against the current run. An unknown ID (after Generate or Import,
+ * Checks the selection against the current run. An unknown ID (a new run on the server,
  * or an old link) becomes `{ stale: true }` so the page shows a message with
  * "Back to network" instead of an empty map (DECISIONS pass 9). Call it once the run has loaded.
  */

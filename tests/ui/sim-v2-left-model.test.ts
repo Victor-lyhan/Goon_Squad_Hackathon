@@ -13,7 +13,7 @@ import type { Journey, UnmatchedJourney } from '../../client/src/components/sim/
 import { SimControlRequest } from '../../shared/v2/schemas';
 import type { Clock } from '../../shared/v2/types';
 
-const W = { simStartMin: 930, simEndMin: 2160 };
+const SIM_END = 2160;
 const clock = (over: Partial<Clock> = {}): Clock => ({ phase: 'planning', playing: false, timeMin: 930, speed: 120, ...over });
 
 describe('server clock requests', () => {
@@ -35,8 +35,8 @@ describe('server clock requests', () => {
   });
 
   it('the run is finished at simEndMin, not before', () => {
-    expect(isRunFinished(clock({ timeMin: 2159 }), W)).toBe(false);
-    expect(isRunFinished(clock({ timeMin: 2160 }), W)).toBe(true);
+    expect(isRunFinished(clock({ timeMin: 2159 }), SIM_END)).toBe(false);
+    expect(isRunFinished(clock({ timeMin: 2160 }), SIM_END)).toBe(true);
   });
 
   it('Back to start is disabled only while another control is open', () => {
@@ -60,7 +60,7 @@ describe('the one Play/Pause button', () => {
   const unmatched: UnmatchedJourney = { kind: 'unmatched', shipmentId: 'shp-2', title: 'Box', reason: 'No commute fits.' };
   const target = { shipmentId: 'shp-1', runId: 'run-1' };
   const view = (over: Partial<PlayButtonInput> = {}) =>
-    playButtonView({ packagePicked: false, journey: null, play: PLAY_IDLE, clock: clock(), busy: false, window: W, ...over });
+    playButtonView({ packagePicked: false, journey: null, play: PLAY_IDLE, clock: clock(), busy: false, simEndMin: SIM_END, ...over });
   const picked = (over: Partial<PlayButtonInput> = {}) => view({ packagePicked: true, journey, ...over });
 
   it('no package: Play plays the server clock, Pause pauses it', () => {

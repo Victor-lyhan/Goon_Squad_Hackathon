@@ -66,9 +66,6 @@ describe('createSimActions', () => {
     const control = deferred<SimulatorResponse>();
     const api = {
       simulatorControl: vi.fn(() => control.promise),
-      generateScenario: vi.fn(async () => simAt('run-b', 1)),
-      resetPlanning: vi.fn(async () => simAt('run-a', 6, [])),
-      recomputeMatches: vi.fn(async () => { throw httpError(409, 'Planning is locked while the day plays'); }),
       compareMatches: vi.fn(async () => ({ directOnly: {}, withRelay: {} }) as unknown as CompareResponse),
     };
     const actions = createSimActions(api, dispatch, afterWrite);
@@ -87,35 +84,22 @@ describe('createSimActions', () => {
     expect(t.afterWrite).toHaveBeenCalledTimes(1);
   });
 
-  it('generate applies the new run (map cleared until the refetch)', async () => {
-    const t = setup();
-    await t.actions.generate({ preset: 'random', seed: 7 });
-    expect(t.api.generateScenario).toHaveBeenCalledWith({ preset: 'random', seed: 7 });
-    expect(t.state.sim?.runId).toBe('run-b');
-    expect(t.state.map).toBeNull();
-    expect(t.afterWrite).toHaveBeenCalledTimes(1);
-  });
-
-  it('resetPlanning applies its response', async () => {
-    const t = setup();
-    await t.actions.resetPlanning();
-    expect(t.state.sim?.version).toBe(6);
-    expect(t.state.sim?.plans).toEqual([]);
-  });
-
   it('a 409 goes to actionError, not to the page state', async () => {
     const t = setup();
     const before = t.state.sim;
-    expect(await t.actions.recompute()).toBeNull();
-    expect(t.state).toMatchObject({ view: 'ready', busy: false, actionError: 'Planning is locked while the day plays' });
+    const p = t.actions.control({ action: 'play' });
+    t.control.reject(httpError(409, 'The run has finished'));
+    expect(await p).toBeNull();
+    expect(t.state).toMatchObject({ view: 'ready', busy: false, actionError: 'The run has finished' });
     expect(t.state.sim).toBe(before);
     expect(t.afterWrite).not.toHaveBeenCalled();
   });
 
   it('a 503 from a write is an actionError too', async () => {
     const t = setup();
-    t.api.generateScenario.mockRejectedValueOnce(travel503('travel_data_missing', 'x'));
-    await t.actions.generate({ preset: 'demo' });
+    const p = t.actions.control({ action: 'play' });
+    t.control.reject(travel503('travel_data_missing', 'x'));
+    await p;
     expect(t.state.view).toBe('ready');
     expect(t.state.unavailable).toBeNull();
     expect(t.state.actionError).toMatch(/npm run fetch:routes/);
@@ -152,9 +136,6 @@ describe('createSimActions', () => {
       const answers: Array<ReturnType<typeof deferred<SimulatorResponse>>> = [];
       const api = {
         simulatorControl: vi.fn(() => { const d = deferred<SimulatorResponse>(); answers.push(d); return d.promise; }),
-        generateScenario: vi.fn(async () => simAt('run-b', 1)),
-        resetPlanning: vi.fn(async () => simAt('run-a', 6, [])),
-        recomputeMatches: vi.fn(async () => simAt('run-a', 6)),
         compareMatches: vi.fn(async () => ({}) as CompareResponse),
       };
       const sim = createSimActions(api, dispatch, afterWrite);
@@ -213,7 +194,7 @@ describe('createSimActions', () => {
       expect(busyActions(t.actions)).toEqual([]);
     });
 
-    it('every other control and the scenario writes still set busy', async () => {
+    it('every other control still sets busy', async () => {
       const t = seekSetup();
       const reqs: SimControlRequest[] = [
         { action: 'play' }, { action: 'pause' }, { action: 'speed', speed: 600 }, { action: 'next_event' },
@@ -228,13 +209,6 @@ describe('createSimActions', () => {
         expect(t.state.busy).toBe(false);
         expect(busyActions(t.actions).length).toBe(before + 2);
       }
-      for (const call of [() => t.sim.generate({ preset: 'demo' }), () => t.sim.resetPlanning(), () => t.sim.recompute()]) {
-        const before = busyActions(t.actions).length;
-        const p = call();
-        expect(t.state.busy).toBe(true);
-        await p;
-        expect(busyActions(t.actions).length).toBe(before + 2);
-      }
     });
   });
 
@@ -246,8 +220,8 @@ describe('createSimActions', () => {
     await p;
     expect(t.state.sim?.version).toBe(5);
     expect(t.afterWrite).not.toHaveBeenCalled();
-    expect(await t.actions.recompute()).toBeNull();
-    expect(t.api.recomputeMatches).not.toHaveBeenCalled();
+    expect(await t.actions.compare()).toBeNull();
+    expect(t.api.compareMatches).not.toHaveBeenCalled();
   });
 });
 
@@ -259,9 +233,6 @@ describe('useSimulatorV2', () => {
     getSimulator: vi.fn(async (o?: RequestOptions) => { if (o?.signal) signals.push(o.signal); return sim; }),
     getMap: vi.fn(async () => mapOf(sim.runId)),
     simulatorControl: vi.fn(async () => { sim = simAt(sim.runId, sim.version + 1, sim.plans.map((p) => p.id), 1440); return sim; }),
-    generateScenario: vi.fn(async () => { sim = simAt('run-b', 1); return sim; }),
-    resetPlanning: vi.fn(async () => sim),
-    recomputeMatches: vi.fn(async () => sim),
     compareMatches: vi.fn(async () => ({}) as CompareResponse),
   };
 
@@ -298,20 +269,28 @@ describe('useSimulatorV2', () => {
     expect(h.st.renders).toBe(renders);
   });
 
-  it('a control action applies at once; a generate refetches the map of the new run', async () => {
+  it('a control action applies at once; a new run on the server gets its own map', async () => {
     mount();
     await vi.advanceTimersByTimeAsync(10);
-    await current.control({ action: 'jump_to_morning' });
+    await current.control({ action: 'reset_playback' });
     expect(current.sim?.clock.timeMin).toBe(1440);
-    await current.generate({ preset: 'random' });
+    expect(current.busy).toBe(false);
+    // Another run (a server restart with a new state file): the next poll shows it without the old
+    // run's map. The first map was requested < 2 s ago, so the new run's map waits for the rest of
+    // the 2 s gap between map requests (#528).
+    sim = simAt('run-b', 1);
+    await vi.advanceTimersByTimeAsync(1000);
     expect(current.sim?.runId).toBe('run-b');
-    // The refetch after the write: the first map was requested < 2 s ago, so the new run's map waits
-    // for the rest of the 2 s gap between map requests (#528).
-    await vi.advanceTimersByTimeAsync(10);
     expect(current.map).toBeNull();
     await vi.advanceTimersByTimeAsync(2000);
     expect(current.map?.runId).toBe('run-b');
-    expect(current.busy).toBe(false);
+  });
+
+  it('exposes control, compare, refetch and dismissActionError, and no setup action', async () => {
+    mount();
+    await vi.advanceTimersByTimeAsync(10);
+    const actions = Object.keys(current).filter((k) => typeof (current as Record<string, unknown>)[k] === 'function').sort();
+    expect(actions).toEqual(['compare', 'control', 'dismissActionError', 'refetch']);
   });
 
   it('unmount stops the poll and aborts the open request', async () => {
@@ -348,6 +327,10 @@ describe('sim/v2/live folder rules', () => {
     for (const s of specs.filter((x) => !x.includes('shared/') && /\/api(\/|$)/.test(x))) expect(s).toBe('../../../../api/v2');
     expect(src).not.toMatch(/api\/client/);
     expect(specs.filter((x) => x.includes('shared/') && !x.includes('shared/v2/'))).toEqual([]);
+  });
+
+  it.each(files.map((x) => [x.f, x.src]))('%s calls no setup route: generate, recompute or a new planning cycle (#700)', (_f, src) => {
+    expect(src).not.toMatch(/generateScenario|recomputeMatches|resetPlanning|importScenario|exportScenario/);
   });
 
   it.each(files.map((x) => [x.f, x.src]))('%s never says hub or synthetic', (_f, src) => {

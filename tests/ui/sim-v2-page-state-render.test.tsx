@@ -19,8 +19,7 @@ const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '
 function readyHook(over: Partial<SimDataState> = {}): SimulatorV2 {
   return {
     ...INITIAL_SIM_DATA, view: 'ready', sim: makeSim(), map: makeMap(), ...over,
-    control: vi.fn(async () => null), generate: vi.fn(async () => null), resetPlanning: vi.fn(async () => null),
-    recompute: vi.fn(async () => null), compare: vi.fn(async () => null), refetch: vi.fn(), dismissActionError: vi.fn(),
+    control: vi.fn(async () => null), compare: vi.fn(async () => null), refetch: vi.fn(), dismissActionError: vi.fn(),
   };
 }
 

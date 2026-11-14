@@ -68,7 +68,7 @@ export function pagePlayButton(view: SimReadyView, play: PlayState): PlayButtonV
     play,
     clock: c.clock,
     busy: c.busy,
-    window: { simStartMin: c.simStartMin, simEndMin: c.simEndMin },
+    simEndMin: c.simEndMin,
   });
 }
 
