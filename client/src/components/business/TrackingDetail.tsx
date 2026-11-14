@@ -1,15 +1,18 @@
-import type { ShipmentView } from '../../../../shared/api';
+import type { MapResponse, ShipmentView } from '../../../../shared/api';
 import type { Business, Employee, Hub } from '../../../../shared/types';
 import { StatusPill, formatKg, formatMin } from '../../ui';
+import { RouteMiniMap } from './RouteMiniMap';
 import { legRows, progressSteps } from './trackingModel';
 import './tracking.css';
 
-export type TrackingDetailProps = { view: ShipmentView; businesses: Business[]; hubs: Hub[]; employees: Employee[] };
+export type TrackingDetailProps = { view: ShipmentView; businesses: Business[]; hubs: Hub[]; employees: Employee[]; map?: MapResponse | null };
 
-export function TrackingDetail({ view, businesses, hubs, employees }: TrackingDetailProps) {
+export function TrackingDetail({ view, businesses, hubs, employees, map }: TrackingDetailProps) {
   const { shipment: s, plan } = view;
   const name = (id: string) => businesses.find((b) => b.id === id)?.name ?? 'Business';
   const hub = plan?.hubId ? hubs.find((h) => h.id === plan.hubId) : undefined;
+  const origin = businesses.find((b) => b.id === s.originBusinessId);
+  const dest = businesses.find((b) => b.id === s.destinationBusinessId);
   const rows = legRows(view, { businesses, hubs, employees });
   return (
     <div className="trk-detail">
@@ -26,6 +29,14 @@ export function TrackingDetail({ view, businesses, hubs, employees }: TrackingDe
         {plan?.kind === 'relay' && <><dt>Relay hub</dt><dd>{hub?.name ?? 'Hub'}</dd></>}
       </dl>
       {!plan && view.unmatchedReason && <p className="trk-reason">{view.unmatchedReason}</p>}
+      <h4>Route</h4>
+      <RouteMiniMap
+        originNodeId={origin?.nodeId ?? ''}
+        destinationNodeId={dest?.nodeId ?? ''}
+        hubId={plan?.kind === 'relay' ? plan.hubId : undefined}
+        legRoutes={plan?.legs.map((l) => l.routeNodeIds)}
+        map={map}
+      />
       <h4>Progress</h4>
       <ol className="trk-steps">
         {progressSteps(view).map((st) => (

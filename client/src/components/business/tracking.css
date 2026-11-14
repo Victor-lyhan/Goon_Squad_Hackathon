@@ -14,3 +14,6 @@
 .trk-step--current{color:#1d4ed8;font-weight:600}.trk-step--current::before{content:'◉'}
 .trk-legs{margin:0;padding-left:1.25rem;display:grid;gap:.4rem}
 .trk-legs li{display:grid}
+.route-mini-map{max-width:420px;margin:.5rem 0}
+.route-mini-map .route-mini-map__svg{max-height:220px}
+.route-mini-map__note{color:#64748b;font-size:.9rem;margin:.5rem 0}
