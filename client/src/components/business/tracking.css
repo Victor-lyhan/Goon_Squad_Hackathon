@@ -27,3 +27,12 @@
 .trk-legs{padding-left:1rem}
 .route-mini-map{max-width:100%}
 }
+.trk-count{margin:0 0 .5rem;color:#475569;font-size:.9rem}
+.trk-row__id{overflow-wrap:anywhere;color:#64748b;font-weight:400;font-size:.85rem}
+.trk-row__mode,.trk-row__reason{color:#475569;font-size:.9rem;min-width:0;overflow-wrap:anywhere}
+.trk-row__reason{color:#991b1b}
+.trk-row__who{min-width:0}
+@media (max-width:599px){
+.trk-row{min-width:0;max-width:100%}
+.trk-row__label,.trk-row__id,.trk-row__who,.trk-row__mode,.trk-row__reason{max-width:100%;overflow-wrap:anywhere}
+}

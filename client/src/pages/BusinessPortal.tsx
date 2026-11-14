@@ -96,10 +96,10 @@ export default function BusinessPortal() {
           />
         )}
         {nav === 'outgoing' && (
-          <Card title="Outgoing"><ShipmentList views={dashboard.outgoing} direction="outgoing" businesses={businesses} selectedId={selectedId ?? undefined} onSelect={select} /></Card>
+          <Card title="Outgoing"><ShipmentList views={dashboard.outgoing} direction="outgoing" businesses={businesses} hubs={hubs} selectedId={selectedId ?? undefined} onSelect={select} /></Card>
         )}
         {nav === 'incoming' && (
-          <Card title="Incoming"><ShipmentList views={dashboard.incoming} direction="incoming" businesses={businesses} selectedId={selectedId ?? undefined} onSelect={select} /></Card>
+          <Card title="Incoming"><ShipmentList views={dashboard.incoming} direction="incoming" businesses={businesses} hubs={hubs} selectedId={selectedId ?? undefined} onSelect={select} /></Card>
         )}
       </div>
       <Drawer open={lookup.kind !== 'none'} onClose={() => select(null)} title="Tracking">
