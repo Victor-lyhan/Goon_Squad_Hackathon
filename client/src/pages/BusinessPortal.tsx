@@ -7,7 +7,9 @@ import { SummaryCards } from '../components/business/SummaryCards';
 import { NotificationList } from '../components/business/NotificationList';
 import { SendPackagePanel } from '../components/business/SendPackagePanel';
 import { ShipmentList } from '../components/business/ShipmentList';
-import { TrackingDetail } from '../components/business/TrackingDetail';
+import { StaleShipmentNotice, TrackingDetail } from '../components/business/TrackingDetail';
+import { BusinessNotFound } from '../components/business/BusinessNotFound';
+import { lookupShipment } from '../components/business/trackingModel';
 import { formFromShipment, type FormState } from '../components/business/shipmentFormModel';
 import '../components/business/BusinessPortal.css';
 
@@ -31,16 +33,22 @@ export default function BusinessPortal() {
   }, [dashboard, id, push]);
 
   const selectedId = params.get('shipment');
-  const selected = useMemo(
-    () => (dashboard && selectedId ? [...dashboard.outgoing, ...dashboard.incoming].find((v) => v.shipment.id === selectedId) : undefined),
-    [dashboard, selectedId],
-  );
+  const lookup = useMemo(() => lookupShipment(selectedId, dashboard), [dashboard, selectedId]);
+  const selected = lookup.kind === 'found' ? lookup.view : undefined;
+  // Switching business closes the drawer: drop ?shipment when the id changes.
+  const prevId = useRef(id);
+  useEffect(() => {
+    if (prevId.current === id) return;
+    prevId.current = id;
+    setParams((p) => { const n = new URLSearchParams(p); n.delete('shipment'); return n; }, { replace: true });
+  }, [id, setParams]);
   const select = (sid: string | null) => {
     const next = new URLSearchParams(params);
     if (sid) next.set('shipment', sid); else next.delete('shipment');
     setParams(next, { replace: true });
   };
 
+  if (state.status === 'not_found') return <BusinessNotFound businesses={businesses} />;
   if (state.status === 'loading') return <div className="bp-main"><Spinner label="Loading your dashboard" /></div>;
   if (state.status === 'error' || !dashboard) {
     return (
@@ -94,7 +102,8 @@ export default function BusinessPortal() {
           <Card title="Incoming"><ShipmentList views={dashboard.incoming} direction="incoming" businesses={businesses} selectedId={selectedId ?? undefined} onSelect={select} /></Card>
         )}
       </div>
-      <Drawer open={!!selected} onClose={() => select(null)} title="Tracking">
+      <Drawer open={lookup.kind !== 'none'} onClose={() => select(null)} title="Tracking">
+        {lookup.kind === 'missing' && <StaleShipmentNotice onClose={() => select(null)} />}
         {selected && (
           <>
             <TrackingDetail view={selected} businesses={businesses} hubs={hubs} employees={employees} />
