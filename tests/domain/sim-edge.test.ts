@@ -64,10 +64,8 @@ function expectFiniteSnapshot(run: Run, timeMin: number): void {
 
 describe('simulation edge runs', () => {
   it('keeps every-unmatched runs finite and rewind-safe at window and event boundaries', () => {
-    const scenario = generateScenario({
-      preset: 'random', seed: 31, employees: 0, packages: 3, hubs: 0, maxExtraMin: 8,
-    });
-    const run = runForScenario(scenario);
+    const run = UNMATCHED_RUN;
+    const { scenario } = run;
     const { simStartMin, simEndMin } = scenario.settings;
 
     expect(run.assignments.plans).toEqual([]);
@@ -90,9 +88,7 @@ describe('simulation edge runs', () => {
   });
 
   it('supports a generated city with zero hubs, including snapshots before and after its timeline', () => {
-    const run = runForScenario(generateScenario({
-      preset: 'random', seed: 11, employees: 60, packages: 12, hubs: 0, maxExtraMin: 8,
-    }));
+    const run = ZERO_HUB_RUN;
     const { simStartMin, simEndMin } = run.scenario.settings;
     const firstEvent = run.events[0]?.timeMin;
     const lastEvent = run.events[run.events.length - 1]?.timeMin;
@@ -172,3 +168,10 @@ describe('simulation edge runs', () => {
     expect(applyControl(clock, { action: 'jump_to_morning' }, [], DEFAULT_SETTINGS).timeMin).toBe(1860);
   });
 });
+
+const UNMATCHED_RUN = runForScenario(generateScenario({
+  preset: 'random', seed: 31, employees: 0, packages: 3, hubs: 0, maxExtraMin: 8,
+}));
+const ZERO_HUB_RUN = runForScenario(generateScenario({
+  preset: 'random', seed: 11, employees: 60, packages: 12, hubs: 0, maxExtraMin: 8,
+}));
