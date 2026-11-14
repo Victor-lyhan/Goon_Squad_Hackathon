@@ -131,7 +131,8 @@ describe('assignShipments', () => {
     if (kind === 'unknown-origin') shipment.originBusinessId = 'missing';
     if (kind === 'unknown-destination') shipment.destinationBusinessId = 'missing';
     if (kind === 'deadline') shipment.deadlineMin = 1960;
-    expect(assignShipments([shipment], ctx)).toEqual({ plans: [], unmatched: [{ shipmentId: shipment.id, reason: noCommute }], computeMs: 0 });
+    const reason = kind === 'deadline' ? 'No commute can arrive before the deadline' : noCommute;
+    expect(assignShipments([shipment], ctx)).toEqual({ plans: [], unmatched: [{ shipmentId: shipment.id, reason }], computeMs: 0 });
   });
 
   it('honors disabled evening availability after rebuilding trips (spec 10)', () => {

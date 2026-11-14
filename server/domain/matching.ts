@@ -47,7 +47,7 @@ export function assignShipments(
       for (const leg of selected.plan.legs) reserved.add(leg.tripId);
     } else {
       unmatched.push({ shipmentId: shipment.id, reason: candidates.length === 0
-        ? 'No commute can carry this package within its times and added-time limits'
+        ? unmatchedReason(shipment, ctx, opts?.mode)
         : 'Every matching commute is already carrying a package' });
     }
   }
@@ -58,6 +58,27 @@ export function assignShipments(
     (createdSeq.get(a.shipmentId) ?? Infinity) - (createdSeq.get(b.shipmentId) ?? Infinity) ||
     compareId(a.shipmentId, b.shipmentId));
   return { plans, unmatched, computeMs: 0 };
+}
+
+/** Diagnose only failed shipments, using the same scheduling rules as matching.
+ * Prefer a deadline fix, then readiness, then a larger added-time allowance.
+ * Disconnected routes and invalid business pairs retain the general fallback.
+ */
+function unmatchedReason(shipment: Shipment, ctx: MatchContext, mode?: MatchMode): string {
+  const fallback = 'No commute can carry this package within its times and added-time limits';
+  if (shipment.originBusinessId === shipment.destinationBusinessId) return fallback;
+  if (generateCandidates({ ...shipment, deadlineMin: Infinity }, ctx, mode).length) {
+    return 'No commute can arrive before the deadline';
+  }
+  if (generateCandidates({ ...shipment, readyMin: -Infinity }, ctx, mode).length) {
+    return 'No commute is available after the package is ready';
+  }
+  const relaxed = { ...ctx, employees: ctx.employees.map(employee => ({ ...employee, maxExtraMin: Infinity })) };
+  if (generateCandidates(shipment, relaxed, mode).length) {
+    return "Every route would exceed the employees' added-time limit";
+  }
+  if (ctx.trips.length === 0) return 'No commute is available after the package is ready';
+  return fallback;
 }
 
 /** Compare fresh allocations without reserving trips from any live assignments. */
