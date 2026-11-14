@@ -14,11 +14,12 @@ import { postShipment, patchShipment, postShipmentMatch } from './api/shipments'
 import { postCompare, postRecompute, postPlanningReset } from './api/planning';
 import { postGenerateScenario, getExportScenario, postImportScenario } from './api/scenario';
 import { startClockTicker } from './api/ticker';
+import { createV2Router, V2_DEPS_NOT_LOADED, type V2Deps } from './api/v2/router';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.resolve(here, '../client/dist');
 
-export function createApp(store: Store, opts: { clientDist?: string } = {}) {
+export function createApp(store: Store, opts: { clientDist?: string; v2?: V2Deps } = {}) {
   const dist = opts.clientDist ?? clientDist;
   const app = express();
   app.use(express.json({ limit: '5mb' }));
@@ -47,6 +48,9 @@ export function createApp(store: Store, opts: { clientDist?: string } = {}) {
   app.post('/api/scenario/generate', postGenerateScenario(store));
   app.get('/api/scenario/export', getExportScenario(store));
   app.post('/api/scenario/import', postImportScenario(store));
+
+  // MVP II lives next to MVP 1 under /api/v2. Its routes are registered in server/api/v2/router.ts, not here.
+  app.use('/api/v2', createV2Router(opts.v2 ?? V2_DEPS_NOT_LOADED));
 
   // Unknown API paths never fall through to the SPA.
   app.use('/api', (_req, res) => {
