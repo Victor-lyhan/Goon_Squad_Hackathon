@@ -34,8 +34,8 @@
   border-radius: var(--radius, 2px);
   background: var(--panel, #FFFFFF);
 }
-.ep-problem { border-left-color: var(--danger, #B42318); }
-.ep-success { border-left-color: var(--success, #1F7A4D); }
+.ep-problem { border-left-color: var(--danger, #A4322A); }
+.ep-success { border-left-color: var(--ok, #2F6B4F); }
 
 .ep-editor {
   margin-bottom: var(--space-4, 16px);
@@ -58,7 +58,7 @@
 .ep-btn {
   min-height: 36px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--border-strong, #9AA4B2);
+  border: 1px solid var(--muted, #5B6472);
   border-radius: var(--radius, 2px);
   background: var(--panel, #FFFFFF);
   color: var(--text, #151B26);
@@ -71,12 +71,16 @@
 
 .ep-job { padding: var(--space-4, 16px); }
 .ep-route { margin-top: var(--space-4, 16px); min-width: 0; }
-.ep-route-note { margin: var(--space-3, 12px) 0 0; font-size: var(--text-sm, 14px); color: var(--muted, #5B6574); }
-.ep-route-note.ep-problem { color: var(--danger, #B42318); }
+.ep-route-note { margin: var(--space-3, 12px) 0 0; font-size: var(--text-sm, 14px); color: var(--muted, #5B6472); }
+.ep-route-note.ep-problem { color: var(--danger, #A4322A); }
 
 @media (max-width: 390px) {
   .ep-state { margin: var(--space-2, 8px); padding: var(--space-3, 12px); }
   .ep-notices, .ep-job { padding-left: var(--space-2, 8px); padding-right: var(--space-2, 8px); }
   .ep-editor { padding: var(--space-2, 8px); }
   .ep-editor-head { flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ep, .ep *, .ep *::before, .ep *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }

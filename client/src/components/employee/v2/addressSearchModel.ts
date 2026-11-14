@@ -136,3 +136,30 @@ export function statusText(state: AddressSearchState): string | null {
     default: return null;
   }
 }
+
+/** What a key press in the search input does (#478). Pure, so the keyboard map is tested in Node. */
+export type KeyIntent =
+  | { kind: 'highlight'; delta: 1 | -1 }
+  | { kind: 'choose'; index: number }
+  | { kind: 'close' }
+  | { kind: 'cancel' }
+  /** Enter with nothing highlighted: swallowed so it never submits the surrounding form. */
+  | { kind: 'swallow' }
+  | { kind: 'none' };
+
+export function keyIntent(
+  state: AddressSearchState, key: string, ctx: { hasValue: boolean; editing: boolean },
+): KeyIntent {
+  switch (key) {
+    case 'ArrowDown':
+    case 'ArrowUp':
+      return isOpen(state) ? { kind: 'highlight', delta: key === 'ArrowDown' ? 1 : -1 } : { kind: 'none' };
+    case 'Enter':
+      return isOpen(state) && state.highlight >= 0 ? { kind: 'choose', index: state.highlight } : { kind: 'swallow' };
+    case 'Escape':
+      if (isOpen(state) || state.status !== 'idle') return { kind: 'close' };
+      return ctx.hasValue && ctx.editing ? { kind: 'cancel' } : { kind: 'swallow' };
+    default:
+      return { kind: 'none' };
+  }
+}

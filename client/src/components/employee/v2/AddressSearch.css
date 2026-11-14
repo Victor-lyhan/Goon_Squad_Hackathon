@@ -166,3 +166,7 @@
     min-height: 44px;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .addr-search, .addr-search *, .addr-search *::before, .addr-search *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
