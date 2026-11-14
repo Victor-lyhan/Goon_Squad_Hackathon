@@ -130,3 +130,27 @@ export function buttons(root: ParentNode, name: string | RegExp): HTMLButtonElem
   return [...root.querySelectorAll('button')].filter((b) =>
     typeof name === 'string' ? norm(b.textContent) === name : name.test(norm(b.textContent)));
 }
+
+/** The one link whose text is exactly `name` (or matches it). */
+export function link(root: ParentNode, name: string | RegExp): HTMLAnchorElement {
+  const all = [...root.querySelectorAll('a')].filter((a) =>
+    typeof name === 'string' ? norm(a.textContent) === name : name.test(norm(a.textContent)));
+  if (all.length !== 1) throw new Error(`link(): ${all.length} links "${String(name)}"`);
+  return all[0];
+}
+
+const FOCUSABLE = 'a[href], button, select, input, textarea, [tabindex]';
+
+/**
+ * The elements Tab visits, in order (jsdom has no Tab key of its own): positive tabindex first, then
+ * document order; skips disabled controls, tabindex="-1", and anything inside [hidden] or inert.
+ */
+export function tabOrder(root: ParentNode = document.body): HTMLElement[] {
+  const els = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) =>
+    el.tabIndex >= 0
+    && !(el as HTMLButtonElement).disabled
+    && !el.closest('[hidden], [inert]')
+    && !(el instanceof HTMLInputElement && el.type === 'hidden'));
+  const positive = els.filter((el) => el.tabIndex > 0).sort((a, b) => a.tabIndex - b.tabIndex);
+  return [...positive, ...els.filter((el) => el.tabIndex === 0)];
+}

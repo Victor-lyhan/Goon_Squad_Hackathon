@@ -71,6 +71,11 @@ export function helpPathFor(pathname: string): string {
   return isPreviewPath(pathname) ? PREVIEW_HELP_PATH : HELP_PAGE_PATH;
 }
 
+/** True when the path is the Help page the header links to (a trailing slash counts, as in the router). */
+export function isHelpPath(pathname: string): boolean {
+  return pathname.replace(/\/+$/, '') === helpPathFor(pathname);
+}
+
 /** True on any /nyc or /nyc/… path. */
 export function isPreviewPath(pathname: string): boolean {
   return /^\/nyc(?:\/|$)/.test(pathname);
