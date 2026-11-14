@@ -41,6 +41,9 @@ function respond(store: Store, id: string, res: Res, status = 200) {
 
 const isMatched = (run: Run, id: string) => run.assignments.plans.some((p) => p.shipmentId === id);
 
+/** In-flight creates per store and clientRequestId, so a double-click shares one state update. */
+const inflight = new WeakMap<Store, Map<string, Promise<{ id: string; created: boolean }>>>();
+
 export const postShipment = (store: Store) => async (req: Request, res: Res) => {
   const parsed = CreateShipmentRequest.safeParse(req.body);
   if (!parsed.success) {
@@ -75,9 +78,12 @@ export const postShipment = (store: Store) => async (req: Request, res: Res) => 
     return;
   }
 
-  let id = '';
-  let created = false;
-  try {
+  let flights = inflight.get(store);
+  if (!flights) inflight.set(store, (flights = new Map()));
+  const existing = flights.get(body.clientRequestId);
+  const create = async () => {
+    let id = '';
+    let created = false;
     await store.mutate((run) => {
       // Re-check inside the serialized mutation so concurrent replays never double-create.
       const dup = run.scenario.shipments.find((s) => s.clientRequestId === body.clientRequestId);
@@ -91,6 +97,15 @@ export const postShipment = (store: Store) => async (req: Request, res: Res) => 
       id = shipment.id;
       created = true;
     });
+    return { id, created };
+  };
+  const flight = existing ?? create().finally(() => flights.delete(body.clientRequestId));
+  if (!existing) flights.set(body.clientRequestId, flight);
+  let id: string;
+  let created: boolean;
+  try {
+    ({ id, created } = await flight);
+    if (existing) created = false; // the replay of an in-flight create is a 200
   } catch (e) {
     const locked = (e as Error).message === LOCKED;
     res.status(locked ? 409 : 500).json({ error: (e as Error).message });
