@@ -1,6 +1,6 @@
-/* Map legend for the MVP II simulator (docs/mvp2-ui-redesign.md §1).
-   Square corners, 1px border, panel background, no shadow, no gradient. Colors only through tokens
-   here; swatch colors are set inline from the map layer constants. At most 240px wide so it never
+/* Map legend for the simulator's network view (docs/mvp2-ui-redesign.md §1, docs/mvp3.md P4).
+   Radius var(--radius) (4px), 1px hairline border, panel background, no shadow, no gradient. Colors
+   only through tokens (tokens.css) here; swatch colors are set inline from the map layer constants. At most 240px wide so it never
    covers much of the map. The page positions it in the map corner. */
 
 .ml {
@@ -100,16 +100,4 @@
 }
 .ml__swatch--line {
   width: 20px;
-}
-.ml__swatch--numbered {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  font-family: var(--font-sans);
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1;
 }

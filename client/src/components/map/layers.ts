@@ -56,8 +56,8 @@ export type BuildLayerInput = {
 
 // Palette (docs/mvp3.md P4): carriers blue and green, the package orange, relay points ink, background
 // items grey. Chosen to stay apart for colour-blind viewers too; shapes and letter badges back them up.
-/** The UI accent token (#28618A): network vehicles keep it. */
-export const ACCENT: RGBA = [40, 97, 138, 235]; // #28618A
+/** The MVP III primary (`--accent` in tokens.css, #1D5075). */
+export const ACCENT: RGBA = [29, 80, 117, 235]; // #1D5075
 /** Carrier A (leg 1) and every untoned delivery route, also in the Business and Employee previews. */
 export const LEG1: RGBA = [29, 80, 117, 235]; // #1D5075
 /** Carrier B (leg 2). */
@@ -72,8 +72,6 @@ export const LEG_WIDTH = 4;
 export const COMMUTE_WIDTH = 3;
 /** Journey: the part of the commute where the carrier has the package, thick. */
 export const CARRIED_WIDTH = 7;
-export const STOP_FILL: RGBA = [21, 27, 38, 255]; // #151B26
-export const STOP_TEXT: RGBA = [255, 255, 255, 255];
 export const STOP_RADIUS = 10;
 /** Extra radius per additional stop sharing one place (relay drop and next-morning pickup). */
 export const STOP_SHARED_GROWTH = 5;
@@ -102,15 +100,18 @@ export const PACKAGE_HALO: RGBA = [255, 255, 255, 200];
 export const SWAP_DX = 42;
 /** Pixels between a symbol's centre and the near edge of its label: outside the package ring and halo. */
 export const SYMBOL_LABEL_GAP = PACKAGE_RING_AT_SYMBOL + PACKAGE_RING_WIDTH / 2 + PACKAGE_HALO_WIDTH + 2;
-export const BUSINESS_FILL: RGBA = [21, 27, 38, 235]; // #151B26
+/** Network businesses: ink (`--text` in tokens.css, #171C24). */
+export const BUSINESS_FILL: RGBA = [23, 28, 36, 235]; // #171C24
 export const HOME_FILL: RGBA = [FADED[0], FADED[1], FADED[2], 230];
-export const VEHICLE_FILL: RGBA = [40, 97, 138, 255];
+/** Network vehicles: the MVP III primary (#1D5075). */
+export const VEHICLE_FILL: RGBA = [29, 80, 117, 255]; // #1D5075
 /** A vehicle with a letter badge is drawn larger, so the letter fits. */
 export const BADGED_VEHICLE_RADIUS = 10;
 export const BADGE_TEXT: RGBA = [255, 255, 255, 255];
 export const PACKAGE_FILL: RGBA = [232, 89, 12, 255]; // #E8590C
 export const OUTLINE: RGBA = [255, 255, 255, 255];
-export const LABEL: RGBA = [21, 27, 38, 255];
+/** Names on the map: ink (#171C24). */
+export const LABEL: RGBA = [23, 28, 36, 255]; // #171C24
 /** Alpha for items outside the current selection. */
 export const DIM_ALPHA = 40;
 
@@ -578,7 +579,7 @@ function stopsRole(ns: number[]): string {
 }
 
 /**
- * Numbered stop circles plus their numbers, in stop order. Empty when there are no stops. Stops that
+ * Stop circles with their numbers (Business and Employee previews), in stop order. Empty when there are no stops. Stops that
  * share a place (the relay drop and the next-morning pickup) get one larger circle each, drawn on top
  * of each other, with their numbers side by side, and a tooltip naming both.
  */
@@ -593,7 +594,7 @@ function stopSpecs(groups: StopGroup[], hoveredId: string | null): LayerSpec[] {
       circles.push({
         id: s.id,
         position: g.position,
-        fillColor: STOP_FILL,
+        fillColor: RELAY_INK,
         lineColor: OUTLINE,
         radius: hovered ? g.radius + 2 : g.radius,
         lineWidth: 2,
@@ -605,7 +606,7 @@ function stopSpecs(groups: StopGroup[], hoveredId: string | null): LayerSpec[] {
         },
       });
       const dx = (i - (g.stops.length - 1) / 2) * STOP_NUMBER_SPACING;
-      numbers.push({ id: s.id, position: g.position, text: String(s.n), color: STOP_TEXT, offset: [dx, 0] });
+      numbers.push({ id: s.id, position: g.position, text: String(s.n), color: BADGE_TEXT, offset: [dx, 0] });
     });
   }
   return [

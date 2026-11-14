@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { legendRows, type LegendRow } from '../../client/src/components/sim/v2/legend/legendModel';
+import { journeySymbolRows, legendRows, type LegendRow } from '../../client/src/components/sim/v2/legend/legendModel';
+import { SYMBOL_GLYPH } from '../../client/src/components/map/layers';
 import * as legendModel from '../../client/src/components/sim/v2/legend/legendModel';
 
 const keys = (rows: LegendRow[]) => rows.map((r) => r.key);
@@ -36,7 +37,7 @@ describe('legendRows: network mode', () => {
     expect(new Set(keys(rows)).size).toBe(rows.length);
     for (const r of rows) {
       expect(r.key).toMatch(/^[a-z0-9]+$/);
-      expect(['dot', 'ring', 'line', 'numbered']).toContain(r.shape);
+      expect(['dot', 'ring', 'line']).toContain(r.shape);
       expect(r.color).toMatch(/^rgba\(\d{1,3}, \d{1,3}, \d{1,3}, (0|1|0?\.\d+)\)$/);
       if (r.shape === 'line') expect(r.width).toBeGreaterThan(0);
     }
@@ -72,29 +73,28 @@ describe('legendRows: network mode', () => {
   });
 });
 
-describe('legendRows: journey mode', () => {
-  it('shows the numbered stop, package, vehicle, faint commute and both legs', () => {
-    const rows = legendRows({ mode: 'journey' });
-    expect(keys(rows)).toEqual(['stop', 'package', 'vehicle', 'baseline', 'leg1', 'leg2']);
-    expect(rows.map((r) => r.shape)).toEqual(['numbered', 'dot', 'dot', 'line', 'line', 'line']);
-    expect(rows.map((r) => r.label)).toEqual([
-      'Numbered stop, in journey order',
-      'Package',
-      'Commuter vehicle',
-      'Normal commute (faint)',
-      'Leg 1 route',
-      'Leg 2 route',
-    ]);
-    assertCleanLabels(rows);
+describe('legendRows: journey mode (#699)', () => {
+  it('has no rows: the old numbered stop, vehicle, faint commute and leg rows are gone', () => {
+    expect(legendRows({ mode: 'journey' })).toEqual([]);
+    expect(legendRows({ mode: 'journey', hasSelection: true, focus: { kind: 'employee', id: 'emp-1' } })).toEqual([]);
+  });
+});
+
+describe('journeySymbolRows: the key of the journey map\'s marks (#699)', () => {
+  it('relay: package, then sender, overnight, handoff and delivered with the map\'s glyphs', () => {
+    const rows = journeySymbolRows(true);
+    expect(rows.map((r) => r.key)).toEqual(['package', 'sender', 'relay', 'swap', 'recipient']);
+    expect(rows.map((r) => r.label)).toEqual(['Package', 'Sender', 'Overnight at the relay point', 'Handoff', 'Delivered']);
+    for (const r of rows) if (r.key !== 'package') expect(r.glyph).toBe(SYMBOL_GLYPH[r.key]);
+    expect(rows.slice(1).map((r) => ('glyph' in r ? r.glyph : ''))).toEqual(['\u25A0', '\u25C6', '\u21C4', '\u2691']);
   });
 
-  it('ignores the selection and the focus', () => {
-    const base = legendRows({ mode: 'journey' });
-    expect(legendRows({ mode: 'journey', hasSelection: true, focus: { kind: 'employee', id: 'emp-1' } })).toEqual(base);
+  it('direct: no overnight and no handoff', () => {
+    expect(journeySymbolRows(false).map((r) => r.key)).toEqual(['package', 'sender', 'recipient']);
   });
 
-  it('does not repeat carrier names (those live in JourneyLegend)', () => {
-    const labels = legendRows({ mode: 'journey' }).map((r) => r.label).join(' ');
-    expect(labels).not.toMatch(/carried by|from /i);
+  it('no old MVP II wording', () => {
+    const labels = [...journeySymbolRows(true), ...journeySymbolRows(false)].map((r) => r.label).join(' ');
+    expect(labels).not.toMatch(/Numbered stop|Leg \d|hub|Commuter vehicle|Normal commute/i);
   });
 });

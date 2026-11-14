@@ -1,7 +1,10 @@
-// Map legend rows for the MVP II simulator (docs/mvp2-ui-redesign.md §1). Pure: no React, no DOM.
-// Every color and line width comes from the map's own layer constants, converted by `cssColor`, so
-// the legend cannot drift from what the map draws. The legend describes layers only; it computes
+// Map legend rows for the simulator (docs/mvp2-ui-redesign.md §1, docs/mvp3.md P1/P4). Pure: no React,
+// no DOM. Every color and line width comes from the map's own layer constants, converted by `cssColor`,
+// so the legend cannot drift from what the map draws. The legend describes layers only; it computes
 // nothing about the run.
+//
+// Network mode: MapLegend shows `legendRows`. Journey mode: MapLegend shows nothing; JourneyLegend lists
+// the carriers and the `journeySymbolRows` (the map's symbols and the package, issue 699).
 import {
   BASELINE,
   BASELINE_WIDTH,
@@ -9,18 +12,19 @@ import {
   DIM_ALPHA,
   HOME_FILL,
   LEG1,
-  LEG2,
   LEG_WIDTH,
   PACKAGE_FILL,
-  STOP_FILL,
-  STOP_TEXT,
+  PACKAGE_HALO,
+  RELAY_INK,
+  SYMBOL_GLYPH,
   VEHICLE_FILL,
   type RGBA,
 } from '../../../map/layers';
+import type { StopSymbol } from '../../../map/types';
 import type { Focus } from '../workspaceModel';
 
 export type LegendMode = 'network' | 'journey';
-export type LegendShape = 'dot' | 'ring' | 'line' | 'numbered';
+export type LegendShape = 'dot' | 'ring' | 'line';
 
 export type LegendRow = {
   key: string;
@@ -30,8 +34,6 @@ export type LegendRow = {
   color: string;
   /** Line rows: the stroke width the map uses, in px. */
   width?: number;
-  /** Numbered rows: the color of the number. */
-  textColor?: string;
 };
 
 export type LegendInput = {
@@ -76,22 +78,38 @@ function networkRows({ hasSelection, focus }: LegendInput): LegendRow[] {
   return rows;
 }
 
-function journeyRows(): LegendRow[] {
-  return [
-    { key: 'stop', label: 'Numbered stop, in journey order', shape: 'numbered', color: cssColor(STOP_FILL), textColor: cssColor(STOP_TEXT) },
-    dot('package', 'Package', PACKAGE_FILL),
-    dot('vehicle', 'Commuter vehicle', VEHICLE_FILL),
-    line('baseline', 'Normal commute (faint)', BASELINE, BASELINE_WIDTH),
-    line('leg1', 'Leg 1 route', LEG1, LEG_WIDTH),
-    line('leg2', 'Leg 2 route', LEG2, LEG_WIDTH),
-  ];
-}
-
 /**
- * The legend rows for what the map shows now, in a fixed order. Network mode has its six rows and
- * adds a "Dimmed" row with a selection or a focus. Journey mode always shows its six rows; the
- * carrier names live in JourneyLegend.
+ * The legend rows for what the map shows now, in a fixed order. Network mode has its six rows and adds
+ * a "Dimmed" row with a selection or a focus. Journey mode has none: JourneyLegend explains the journey
+ * map (carriers, symbols, package), so MapLegend renders nothing there.
  */
 export function legendRows(input: LegendInput): LegendRow[] {
-  return input.mode === 'journey' ? journeyRows() : networkRows(input);
+  return input.mode === 'journey' ? [] : networkRows(input);
+}
+
+// ---------- Journey symbol key (JourneyLegend) ----------
+
+export type JourneySymbolRow =
+  | { key: 'package'; label: string; color: string; halo: string }
+  | { key: StopSymbol; label: string; glyph: string; color: string };
+
+const SYMBOL_LABEL: Record<StopSymbol, string> = {
+  sender: 'Sender',
+  relay: 'Overnight at the relay point',
+  swap: 'Handoff',
+  recipient: 'Delivered',
+};
+
+/**
+ * The key of the journey map's own marks, in journey order: the package (an orange ring with a white
+ * halo), then the symbols the map draws (`SYMBOL_GLYPH`, in RELAY_INK). A direct journey (one carrier)
+ * has no overnight stop and no handoff, so it lists neither.
+ */
+export function journeySymbolRows(relay: boolean): JourneySymbolRow[] {
+  const ink = cssColor(RELAY_INK);
+  const symbols: StopSymbol[] = relay ? ['sender', 'relay', 'swap', 'recipient'] : ['sender', 'recipient'];
+  return [
+    { key: 'package', label: 'Package', color: cssColor(PACKAGE_FILL), halo: cssColor(PACKAGE_HALO) },
+    ...symbols.map((s) => ({ key: s, label: SYMBOL_LABEL[s], glyph: SYMBOL_GLYPH[s], color: ink })),
+  ];
 }

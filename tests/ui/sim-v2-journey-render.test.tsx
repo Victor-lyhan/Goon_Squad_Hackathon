@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { PACKAGE_FILL, PACKAGE_HALO, RELAY_INK, SYMBOL_GLYPH } from '../../client/src/components/map/layers';
 import { JourneyLegend } from '../../client/src/components/sim/v2/journey/JourneyLegend';
+import { cssColor } from '../../client/src/components/sim/v2/legend/legendModel';
 import { JourneyTimeline } from '../../client/src/components/sim/v2/journey/JourneyTimeline';
 import { buildJourney, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
 import { T, map, simAt } from './sim-v2-journey-sample';
@@ -202,6 +204,50 @@ describe('JourneyLegend', () => {
     expect(t).not.toMatch(/\bB · /);
   });
 
+  /** The symbol key's rows: [data-symbol, glyph or '' (package), label]. */
+  const symbolRows = (html: string) => {
+    const list = html.match(/<ul class="jl__list jl__symbols"[^>]*>([\s\S]*?)<\/ul>/)![1];
+    return [...list.matchAll(/<li[^>]*data-symbol="(\w+)"[^>]*><span class="jl__glyph" aria-hidden="true" style="color:([^"]+)">([\s\S]*?)<\/span><span class="jl__text"><span class="jl__label">([^<]+)<\/span>/g)]
+      .map((m) => ({ key: m[1], color: m[2], glyph: m[3].startsWith('<svg') ? '' : m[3], svg: m[3], label: m[4] }));
+  };
+
+  it('relay: a symbol key under the carrier rows, five rows, each glyph the map\'s SYMBOL_GLYPH in its ink (#699)', () => {
+    const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map }) as Journey;
+    expect(j.carriers).toHaveLength(2);
+    const html = renderToStaticMarkup(<JourneyLegend carriers={j.carriers} />);
+    const rows = symbolRows(html);
+    expect(rows.map((r) => [r.key, r.label])).toEqual([
+      ['package', 'Package'],
+      ['sender', 'Sender'],
+      ['relay', 'Overnight at the relay point'],
+      ['swap', 'Handoff'],
+      ['recipient', 'Delivered'],
+    ]);
+    expect(rows.slice(1).map((r) => r.glyph)).toEqual([SYMBOL_GLYPH.sender, SYMBOL_GLYPH.relay, SYMBOL_GLYPH.swap, SYMBOL_GLYPH.recipient]);
+    for (const r of rows.slice(1)) expect(r.color).toBe(cssColor(RELAY_INK));
+    // The package: an orange ring over a white halo, the map's own colours.
+    expect(rows[0].svg).toContain(`stroke="${cssColor(PACKAGE_HALO)}"`);
+    expect(rows[0].svg).toContain(`stroke="${cssColor(PACKAGE_FILL)}"`);
+    // Under the carrier rows and the thick/thin key, which stays.
+    expect(html.indexOf('jl__symbols')).toBeGreaterThan(html.indexOf('Thick: carrying the package · thin: rest of the commute'));
+    expect(html.indexOf('jl__symbols')).toBeGreaterThan(html.indexOf('B · Ben Okafor'));
+    expect(text(html)).not.toMatch(/Numbered stop|\bLeg [12]\b/);
+    assertClean(html);
+  });
+
+  it('direct: package, sender and delivered only; no overnight and no handoff row (#699)', () => {
+    const j = buildJourney({ shipmentId: 'shp-1', sim: simAt(T.overnight), map }) as Journey;
+    expect(j.carriers).toHaveLength(1);
+    const html = renderToStaticMarkup(<JourneyLegend carriers={j.carriers} />);
+    const rows = symbolRows(html);
+    expect(rows.map((r) => r.key)).toEqual(['package', 'sender', 'recipient']);
+    expect(rows.slice(1).map((r) => r.glyph)).toEqual([SYMBOL_GLYPH.sender, SYMBOL_GLYPH.recipient]);
+    expect(html).not.toContain(SYMBOL_GLYPH.relay);
+    expect(html).not.toContain(SYMBOL_GLYPH.swap);
+    expect(text(html)).not.toMatch(/Overnight|Handoff/);
+    expect(text(html)).toContain('Thick: carrying the package');
+  });
+
   it('the same person on both legs: one row per leg, A and B', () => {
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map }) as Journey;
     const same = j.carriers.map((c) => ({ ...c, employeeId: 'emp-3', name: 'Cy Lam' }));
@@ -224,6 +270,21 @@ describe('journey.css', () => {
     expect(css).not.toMatch(/box-shadow/);
     expect(css).not.toMatch(/gradient/);
   });
+  it('the legend rules (.jl*) use only tokens: no hex, no fallbacks, radius at most 6px, 1px hairline borders only (#699)', () => {
+    const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const legend = [...noComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => /\.jl\b|\.jl__/.test(m[1]));
+    expect(legend.length).toBeGreaterThan(5);
+    for (const [, selector, body] of legend) {
+      expect(selector, selector).not.toMatch(/\.jt\b/);
+      expect(body, selector).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+      expect(body, selector).not.toMatch(/\b(rgb|rgba|hsl|hsla)\(/);
+      expect(body, selector).not.toMatch(/var\(--[\w-]+\s*,/);
+      expect(body, selector).not.toMatch(/shadow/);
+      for (const m of body.matchAll(/border(?:-\w+)?:\s*(\d+)px/g)) expect(Number(m[1]), selector).toBeLessThanOrEqual(1);
+      for (const m of body.matchAll(/border-radius:\s*([^;]+);/g)) expect(['0', 'var(--radius)', 'var(--radius-lg)']).toContain(m[1].trim());
+    }
+  });
+
   it('step buttons have a visible focus style', () => {
     expect(css).toMatch(/\.jt-step__button:focus-visible\s*\{[^}]*outline:/);
   });

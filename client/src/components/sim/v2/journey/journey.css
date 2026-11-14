@@ -1,8 +1,7 @@
 /* Package journey mode: timeline (right panel) and legend (docs/mvp2-ui-redesign.md §1).
    Square corners, 1px borders, flat fills only, no drop shadow. Tokens as var(--name, fallback). */
 
-.jt,
-.jl {
+.jt {
   color: var(--text, #151B26);
   font-family: var(--font-sans, 'IBM Plex Sans', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
@@ -219,12 +218,18 @@
   color: var(--muted, #5B6472);
 }
 
-/* ---------- Legend ---------- */
+/* ---------- Legend ----------
+   MVP III (docs/mvp3.md P4, #699): tokens only (tokens.css, no hex), radius at most 6px, a 1px hairline
+   border and no shadow. Carrier and symbol colours are set inline from map/layers.ts. */
 .jl {
-  padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #D7DDE5);
-  border-radius: var(--radius, 2px);
-  background: var(--panel, #FFFFFF);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.45;
 }
 .jl__list {
   list-style: none;
@@ -232,12 +237,18 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1, 4px);
+  gap: var(--space-1);
+}
+/* The map's symbols, under the carrier rows, after a hairline. */
+.jl__symbols {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
 }
 .jl__item {
   display: flex;
   align-items: center;
-  gap: var(--space-2, 8px);
+  gap: var(--space-2);
 }
 .jl__swatches {
   display: inline-flex;
@@ -251,12 +262,13 @@
   display: block;
   width: 20px;
   height: 5px;
-  background: var(--text, #151B26);
+  background: var(--text);
 }
 .jl__swatch--thin {
   height: 2px;
 }
-/* The carrier's letter badge, as on its vehicle on the map (background set inline from layers.ts). */
+/* The carrier's letter badge, as on its vehicle on the map (background set inline from layers.ts;
+   the letter is white like the map's, through the white panel token). */
 .jl__badge {
   flex: 0 0 auto;
   display: inline-flex;
@@ -264,22 +276,42 @@
   justify-content: center;
   width: 20px;
   height: 20px;
-  border-radius: var(--radius, 2px);
-  color: #FFFFFF;
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
-  font-size: var(--text-xs, 12px);
+  border-radius: var(--radius);
+  color: var(--panel);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   font-weight: 700;
+}
+/* A map symbol (SYMBOL_GLYPH, colour set inline from RELAY_INK) or the package ring, in a 20px box so
+   the labels line up with the carrier rows. */
+.jl__glyph {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--text-md);
+  line-height: 1;
+}
+/* The package's white halo needs a ground to show on, as on the map: a hairline-grey tile. */
+.jl__item--package .jl__glyph {
+  border-radius: var(--radius);
+  background: var(--border);
+}
+.jl__pkg {
+  display: block;
 }
 .jl__text {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0 var(--space-2, 8px);
+  gap: 0 var(--space-2);
 }
 .jl__sub {
-  color: var(--muted, #5B6472);
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
-  font-size: var(--text-xs, 12px);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
 }
 .jl__name {
   font-weight: 600;

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as L from '../../client/src/components/map/layers';
-import { cssColor, legendRows, type LegendRow } from '../../client/src/components/sim/v2/legend/legendModel';
+import { cssColor, journeySymbolRows, legendRows, type LegendRow } from '../../client/src/components/sim/v2/legend/legendModel';
 
 /** Parse `rgba(r, g, b, a)` back to the map's 0–255 RGBA. */
 function parse(css: string): L.RGBA {
@@ -33,15 +33,6 @@ const NETWORK: Record<string, { color: L.RGBA; width?: number }> = {
   dimmed: { color: dim(L.BUSINESS_FILL) },
 };
 
-const JOURNEY: Record<string, { color: L.RGBA; width?: number }> = {
-  stop: { color: L.STOP_FILL },
-  package: { color: L.PACKAGE_FILL },
-  vehicle: { color: L.VEHICLE_FILL },
-  baseline: { color: L.BASELINE, width: L.BASELINE_WIDTH },
-  leg1: { color: L.toneColor('leg1'), width: L.LEG_WIDTH },
-  leg2: { color: L.toneColor('leg2'), width: L.LEG_WIDTH },
-};
-
 function check(rows: LegendRow[], table: Record<string, { color: L.RGBA; width?: number }>) {
   expect(rows.map((r) => r.key).sort()).toEqual(Object.keys(table).sort());
   for (const r of rows) {
@@ -56,15 +47,25 @@ describe('legend swatches match map/layers.ts', () => {
     check(legendRows({ mode: 'network', hasSelection: true }), NETWORK);
   });
 
-  it('journey mode, including the stop number color', () => {
-    const rows = legendRows({ mode: 'journey' });
-    check(rows, JOURNEY);
-    expectSame(rows.find((r) => r.key === 'stop')!.textColor!, L.STOP_TEXT);
+  it('journey mode has no rows of its own (JourneyLegend explains the journey map, #699)', () => {
+    expect(legendRows({ mode: 'journey' })).toEqual([]);
   });
 
-  it('leg 1 and leg 2 have distinct colors, and the dimmed alpha is the map DIM_ALPHA', () => {
-    const rows = legendRows({ mode: 'journey' });
-    expect(rows.find((r) => r.key === 'leg1')!.color).not.toBe(rows.find((r) => r.key === 'leg2')!.color);
+  it('journey symbol key: the package ring and halo, and every symbol in the map\'s ink and glyph', () => {
+    for (const relay of [true, false]) {
+      for (const r of journeySymbolRows(relay)) {
+        if (r.key === 'package') {
+          expectSame(r.color, L.PACKAGE_FILL);
+          expectSame(r.halo, L.PACKAGE_HALO);
+        } else {
+          expectSame(r.color, L.RELAY_INK);
+          expect(r.glyph).toBe(L.SYMBOL_GLYPH[r.key]);
+        }
+      }
+    }
+  });
+
+  it('the dimmed alpha is the map DIM_ALPHA', () => {
     const dimmedRow = legendRows({ mode: 'network', hasSelection: true }).find((r) => r.key === 'dimmed')!;
     expect(parse(dimmedRow.color)[3]).toBe(L.DIM_ALPHA);
   });
@@ -83,5 +84,18 @@ describe('legend swatches match map/layers.ts', () => {
       expect(src, f).not.toMatch(/\b(rgb|rgba|hsl|hsla)\(\s*\d/);
       expect(src, f).not.toMatch(/:\s*(white|black|red|blue|green|gray|grey)\b/);
     }
+  });
+
+  it('the map palette is MVP III: primary #1D5075 and ink #171C24, alphas kept (#699)', () => {
+    const rgb = (c: L.RGBA) => c.slice(0, 3);
+    for (const c of [L.ACCENT, L.VEHICLE_FILL]) expect(rgb(c)).toEqual([0x1d, 0x50, 0x75]);
+    for (const c of [L.BUSINESS_FILL, L.LABEL, L.RELAY_INK]) expect(rgb(c)).toEqual([0x17, 0x1c, 0x24]);
+    expect([L.ACCENT[3], L.VEHICLE_FILL[3], L.BUSINESS_FILL[3], L.LABEL[3]]).toEqual([235, 255, 235, 255]);
+    // The numbered-stop constants went with the legend's numbered row.
+    expect(L).not.toHaveProperty('STOP_FILL');
+    expect(L).not.toHaveProperty('STOP_TEXT');
+    const src = readFileSync(resolve(__dirname, '../../client/src/components/map/layers.ts'), 'utf8');
+    expect(src).not.toMatch(/#28618A|#151B26/i);
+    expect(src).not.toMatch(/\[40, 97, 138,|\[21, 27, 38,/);
   });
 });
