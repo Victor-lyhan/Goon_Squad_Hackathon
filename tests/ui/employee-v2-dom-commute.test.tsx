@@ -160,18 +160,15 @@ describe('CommuteForm in a real DOM: invalid values', () => {
       expect(err?.textContent).toBeTruthy();
     }
     expect(f.morning().hasAttribute('aria-invalid')).toBe(false);
-    expect(f.saveButton().disabled).toBe(true);
+    expect(f.saveButton().disabled).toBe(false); // pressable: pressing it moves focus instead (#550)
 
     click(f.saveButton());
     f.form().requestSubmit(); // what Enter in a field would do
     expect(f.save).not.toHaveBeenCalled();
   }, T);
 
-  // BUG (#518), in client/src/components/employee/v2/CommuteForm.tsx: Save is disabled while a value is
-  // invalid and `submit()` returns early, so nothing ever moves focus to the first invalid field. A keyboard
-  // user who tries to save is left on the last field with no hint which one is wrong. Not fixed here because
-  // #513 (same folder) was not merged when this issue started (DECISIONS pass 56).
-  it.fails('trying to save with invalid values moves focus to the first invalid field', () => {
+  // Fixed in #550 (found by #518): Save used to be disabled, so nothing moved focus to the wrong field.
+  it('trying to save with invalid values moves focus to the first invalid field', () => {
     const f = setup(async () => { throw new Error('not called'); });
     typeInto(f.evening(), '');
     typeInto(f.detour(), '45');

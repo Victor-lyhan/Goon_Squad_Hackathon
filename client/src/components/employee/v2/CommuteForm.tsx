@@ -11,6 +11,12 @@ import {
 } from './commuteFormModel';
 import './CommuteForm.css';
 
+/** The fields in the order they appear, for moving focus to the first invalid one. */
+const FIELD_ORDER: FieldKey[] = [
+  'businessId', 'home', 'eveningDepartureMin', 'morningDepartureMin',
+  'availableEvening', 'availableMorning', 'maxExtraMin',
+];
+
 /** A new home picked by the address search slot (#331). Only these three values are kept. */
 export type ChosenHome = { neighborhood: string; lat: number; lng: number };
 
@@ -74,7 +80,10 @@ export function CommuteForm({
   const validation = toRequest(draft);
   const serverErrors: FieldErrors = save.status === 'error' ? save.fieldErrors : {};
   const errors: FieldErrors = { ...serverErrors, ...(validation.ok ? {} : validation.errors) };
-  const canSave = !locked && !saving && dirty && validation.ok;
+  // Save stays pressable while a value is invalid: pressing it sends nothing and moves focus to the
+  // first invalid field (#550), so a keyboard user learns which one is wrong.
+  const canPress = !locked && !saving && dirty;
+  const formRef = useRef<HTMLFormElement>(null);
   const message = saveMessage(save, phase);
 
   const update = (patch: Partial<Draft>) => {
@@ -90,7 +99,11 @@ export function CommuteForm({
   };
 
   const submit = async () => {
-    if (!canSave || !validation.ok) return;
+    if (!canPress) return;
+    if (!validation.ok) {
+      focusFirstInvalid(validation.errors);
+      return;
+    }
     dispatch({ type: 'start' });
     try {
       const res = await onSave(validation.request);
@@ -105,6 +118,13 @@ export function CommuteForm({
       if (mounted.current) dispatch({ type: 'failure', error });
     }
   };
+
+  function focusFirstInvalid(found: FieldErrors) {
+    const first = FIELD_ORDER.find((k) => found[k]);
+    if (!first) return;
+    const el = formRef.current?.ownerDocument.getElementById(id(first));
+    el?.focus();
+  }
 
   const fieldProps = (k: FieldKey) => ({
     id: id(k),
@@ -124,6 +144,7 @@ export function CommuteForm({
       className="cf"
       aria-label="Commute"
       noValidate
+      ref={formRef}
       onSubmit={(e) => { e.preventDefault(); void submit(); }}
     >
       <div className="cf-field">
@@ -144,6 +165,8 @@ export function CommuteForm({
       <div
         className="cf-field"
         role="group"
+        id={id('home')}
+        tabIndex={-1}
         aria-labelledby={id('home-label')}
         aria-describedby={errors.home ? id('home-err') : undefined}
       >
@@ -247,7 +270,7 @@ export function CommuteForm({
       </div>
 
       <div className="cf-actions">
-        <button type="submit" className="cf-btn cf-btn-primary" disabled={!canSave}>
+        <button type="submit" className="cf-btn cf-btn-primary" disabled={!canPress}>
           {saving ? 'Saving…' : 'Save commute'}
         </button>
         <button type="button" className="cf-btn" disabled={locked || saving || !dirty} onClick={discard}>

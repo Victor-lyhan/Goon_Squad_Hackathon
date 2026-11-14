@@ -1,7 +1,7 @@
 // MVP II Employee page (#438): puts the merged Employee pieces together. Props only, so tests render
 // every screen without the data hook. Local UI state: whether the commute form is open, the last save
 // outcome, and the run whose "city changed" note was dismissed. All data comes from the hook state.
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { CommuteResponse } from '../../../../../../shared/v2/api';
 import type { PutCommuteRequest } from '../../../../../../shared/v2/schemas';
 import { AddressSearch } from '../AddressSearch';
@@ -50,6 +50,25 @@ export function EmployeePageView({
   const screen = pageScreen(state, jobId);
 
   useEffect(() => { if (jobId) markSeen(jobId); }, [jobId, markSeen]);
+
+  // Focus after the editor or a job closes (#550). The element to focus only exists after the re-render,
+  // so the close handlers set a flag and a layout effect moves focus once the DOM is in place.
+  const mainRef = useRef<HTMLElement>(null);
+  const focusEdit = useRef(false);
+  const lastJob = useRef(jobId);
+  useLayoutEffect(() => {
+    const root = mainRef.current;
+    if (focusEdit.current && !editing) {
+      focusEdit.current = false;
+      root?.querySelector<HTMLButtonElement>('.ew-commute .ew-btn')?.focus(); // CommuteSummary's Edit commute
+    }
+    const closedJob = lastJob.current;
+    lastJob.current = jobId;
+    if (closedJob && !jobId && root) {
+      const row = [...root.querySelectorAll<HTMLElement>('[data-job-id]')].find((r) => r.dataset.jobId === closedJob);
+      row?.querySelector<HTMLElement>('[data-row-focus]')?.focus();
+    }
+  });
 
   if (screen.kind === 'loading') {
     return <main className="ep"><p className="ep-state" role="status">{LOADING_TEXT}</p></main>;
@@ -105,12 +124,26 @@ export function EmployeePageView({
     try {
       const res = await saveCommute(req);
       setOutcome(outcomeFromResponse(res));
+      focusEdit.current = true;
       setEditing(false);
       return res;
     } catch (e) {
       setOutcome(outcomeFromError(e)); // the form keeps its input and stays open
       throw e;
     }
+  };
+
+  const closeEditor = () => {
+    focusEdit.current = true;
+    setEditing(false);
+    setOutcome(null);
+  };
+  // Esc anywhere in the editor closes it without saving, unless a control already used the key
+  // (the open address list closes itself and calls preventDefault).
+  const onEditorKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || saving) return;
+    e.preventDefault();
+    closeEditor();
   };
 
   const homeControl = ({ value, onChoose, disabled }: HomeControlArgs) => (
@@ -127,14 +160,14 @@ export function EmployeePageView({
 
   const pageNotice = notice && notice.at === 'page' ? notice : null;
   const commuteBlock = editing ? (
-    <section className="ep-editor" aria-labelledby="ep-editor-heading">
+    <section className="ep-editor" aria-labelledby="ep-editor-heading" onKeyDown={onEditorKeyDown}>
       <div className="ep-editor-head">
         <h2 id="ep-editor-heading">Edit commute</h2>
         <button
           type="button"
           className="ep-btn"
           disabled={saving}
-          onClick={() => { setEditing(false); setOutcome(null); }}
+          onClick={closeEditor}
         >
           Close
         </button>
@@ -217,7 +250,7 @@ export function EmployeePageView({
   }
 
   return (
-    <main className="ep">
+    <main className="ep" ref={mainRef}>
       {notices}
       {body}
     </main>
