@@ -23,7 +23,8 @@ UI workers (victor-2, p2-b) use components from `client/src/ui/` (owned by p2-a)
 Frontend workers call the backend only through `client/src/api/` (owned by victor-1). If a call is missing, write BLOCKED.md.
 
 ### MVP II additions (overrides the table above where they conflict)
-- agent:victor-1 also owns `server/geo/`, `scripts/fetch-routes.ts`, the `fetch:routes` script entry in `package.json`, and `fixtures/nyc/matrix.json` + `fixtures/nyc/polylines.json` (generated cache format; humans run the script). victor-1 may edit `shared/` **only** in the single MVP II contracts issue.
+- agent:victor-3 (Claude Fable, Victor's Ultra) owns the Google/geo layer: `server/geo/`, `scripts/fetch-routes.ts`, the `fetch:routes` script entry in `package.json`, `fixtures/nyc/matrix.json` + `fixtures/nyc/polylines.json` (generated cache format; humans run the script), and the geocode route in `server/api/geo.ts` + `tests/geo/`.
+- agent:victor-1 keeps the API and persistence. victor-1 may edit `shared/` **only** in the single MVP II contracts issue.
 - agent:p1-b also owns `fixtures/nyc/businesses.json`, `fixtures/nyc/neighborhoods.json`, `fixtures/nyc/demoStory.json` and the NYC scenario generator.
 - agent:victor-2 also owns `client/src/components/map/` (Google map + deck.gl layers).
 - agent:p2-a also owns the design tokens in `client/src/styles/` and `client/src/pages/Help.tsx`.
