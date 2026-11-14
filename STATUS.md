@@ -1,30 +1,32 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 06:14 (Sat), planner pass 18_
+_Last update: 2026-11-14 06:26 (Sat), planner pass 19_
 
 ## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Since pass 17: no merges. #300 went `stuck` because the CI log showed the failure is in another worker's file. This pass re-routed it to #301 (p1-b) and closed #300.
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Since pass 18: #302 (#301) merged and main is green again. This pass queued one CI timing sweep per worker (#303–#308).
 
-## Main health: RED
-- The last 3 main runs failed (since PR #297 merged). The p1-a worker read the CI log (run 43587593187). The only failure is `tests/domain/metrics-timeline.test.ts` (p1-b, from PR #285): one test loops over 22 generated cities under a 4.5 s timeout and took 5.7 s on CI. That's 1 failed out of 1,490 tests. `matching-properties.test.ts` passed (13 s for 50 tests, slowest 760 ms).
-- Fix queued: **#301** (p1-b, P0). It splits the test into one test per city, gives each a CI-sized timeout and walks the events once.
-- Every other explicit timeout in `tests/` is ≥ 10 s, so no other test is this close to its limit.
+## Main health: GREEN
+- The latest main run (#302 merge) passed. #301 split `metrics-timeline.test.ts` into one test per city with CI-sized timeouts.
+- Remaining risk: `vitest.config.ts` still uses the 5 s default timeout, and about 25 test files build generated cities, start real servers or check wall-clock budgets. Most of them set no explicit timeout. #303–#308 sweep them, one worker per test area.
 
 ## Stuck
-- #300 (p1-a) closed: the cause was outside p1-a's files. Replaced by #301.
+- None.
 
 ## In review
 - None.
 
-## Queued (label `ready`)
-- p1-b: **#301** [P0] metrics-timeline test per city, CI-sized timeouts.
-- p1-a, victor-1, victor-2, p2-a, p2-b: nothing. Their areas are covered by spec tests and audits (DECISIONS pass 13: no filler). Waiting on the humans' M6 bug list.
+## Queued (label `ready`), all test-only, disjoint test paths
+- p1-a **#303** `tests/domain/matching*|routing*` · p1-b **#304** `tests/domain/sim*|metrics*|generator*`
+- victor-1 **#305** `tests/api/` · victor-2 **#306** `tests/ui/sim*|map*`
+- p2-a **#307** `tests/ui/business*|landing*|kit*` · p2-b **#308** `tests/ui/employee*|commute*`
+- One issue per worker, not 4. No filler (DECISIONS pass 13).
 
 ## Next up
-- Get main green (#301). Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10) and a fresh-clone `npm install && npm run dev` check.
+- Merge #303–#308, so CI stays green until the freeze. Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and an answer on a global `testTimeout`.
 
 ## Done (newest first)
-- PR #299 (#298) p2-a: connection banner uses the `client/src/api` health probe, no overlapping probes (no raw `fetch` left in UI code)
+- PR #302 (#301) p1-b: metrics-timeline test per city, CI-sized timeouts (main green again)
+- PR #299 (#298) p2-a: connection banner uses the `client/src/api` health probe, no overlapping probes
 - PR #297 (#259), #294 (#257), #293 (#136), #292 (#134) p1-a: matcher property tests on 20 seeds; routing insertion §6; spec test 10; matcher edge cases
 - PR #285 (#271), #283 (#256), #270 (#255), #267 (#254) p1-b: metrics at every event minute; spec test 7; simulation §7 audit; generator §5 audit
 - PR #296 (#295), #284 (#277), #282 (#276), #280 (#275) p2-a: business poll cancellation; accessible toasts; tracking drawer §3A; reconnect/runId
@@ -34,6 +36,6 @@ Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Du
 - PR #240 and earlier: see git log
 
 ## Known bugs / gaps
-- Main CI red since PR #297's merge, caused by the timeout in `metrics-timeline.test.ts` (#301).
+- CI timing flakes are possible in any test that sets no explicit timeout (#303–#308).
 - Nobody has done a real two-tab browser walkthrough. All checks so far are server-side renders and API tests.
 - Setup drawer CRUD (nice-to-have 16) is blocked on `shared/` contracts.
