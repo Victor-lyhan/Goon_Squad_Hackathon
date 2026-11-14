@@ -10,27 +10,47 @@ export type Store = {
 
 const SCHEMA_VERSION = 1;
 
+// Keep a copy of an unusable state file as <file>.bad-<n> (first free n) so it is never lost.
+function backupBad(filePath: string): string | null {
+  for (let n = 1; n < 1000; n++) {
+    const dest = `${filePath}.bad-${n}`;
+    if (fs.existsSync(dest)) continue;
+    try {
+      fs.copyFileSync(filePath, dest);
+      return dest;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function startFresh(filePath: string, initial: () => Run, reason: string): Run {
+  const copy = backupBad(filePath);
+  console.warn(`[store] ${filePath} is unusable (${reason}); starting from the demo city${copy ? `, bad file kept at ${copy}` : ''}`);
+  return initial();
+}
+
 function load(filePath: string, initial: () => Run): Run {
   let text: string;
   try {
     text = fs.readFileSync(filePath, 'utf8');
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.warn(`[store] cannot read ${filePath}, starting fresh:`, e);
+      console.warn(`[store] cannot read ${filePath}, starting from the demo city:`, e);
     }
     return initial();
   }
   try {
     const parsed = JSON.parse(text);
     if (!parsed || parsed.schemaVersion !== SCHEMA_VERSION || !parsed.run?.clock) {
-      throw new Error(`unexpected schemaVersion or shape`);
+      throw new Error('unexpected schemaVersion or shape');
     }
     const run = parsed.run as Run;
     run.clock.playing = false; // restart restores a paused state
     return run;
   } catch (e) {
-    console.warn(`[store] ${filePath} is invalid, starting fresh:`, e);
-    return initial();
+    return startFresh(filePath, initial, (e as Error).message);
   }
 }
 
