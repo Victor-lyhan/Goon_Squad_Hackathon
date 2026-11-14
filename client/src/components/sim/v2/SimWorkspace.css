@@ -5,7 +5,7 @@
 
 .sim-v2 {
   position: fixed;
-  top: var(--app-header-h, 57px);
+  top: var(--app-header-h, 48px);
   left: 0;
   right: 0;
   bottom: 0;
@@ -193,8 +193,12 @@
 }
 .sw-pkg:hover { background: var(--bg, #F7F7F4); }
 .sw-pkg.is-selected { border-left-color: var(--accent, #1D5075); background: var(--bg, #F7F7F4); }
-.sw-pkg-top { display: flex; justify-content: space-between; gap: var(--space-2, 8px); }
-.sw-pkg-label { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The name keeps its own line when name and status do not fit side by side (#718: in the 320 px panel
+   the status squeezed "Navy Yard grinder burrs" to "Navy Yard grind…"); the status then wraps under it.
+   Side by side, the growing name pushes the status to the right. The ellipsis is left for a name longer
+   than the whole row. */
+.sw-pkg-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px var(--space-2, 8px); }
+.sw-pkg-label { flex: 1 1 auto; max-width: 100%; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sw-pkg-status { flex: 0 0 auto; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .sw-pkg-route { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .sw-empty { margin: 0; padding: var(--space-3, 12px) 0; color: var(--muted, #5B6472); }

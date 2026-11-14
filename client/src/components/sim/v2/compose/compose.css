@@ -6,7 +6,7 @@
 /* ---------- Loading, unavailable (503) and error: the whole workspace area ---------- */
 .spc-state {
   position: fixed;
-  top: var(--app-header-h, 57px);
+  top: var(--app-header-h, 48px);
   left: 0;
   right: 0;
   bottom: 0;
