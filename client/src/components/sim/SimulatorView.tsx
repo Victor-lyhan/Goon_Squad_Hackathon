@@ -47,7 +47,9 @@ export function SimulatorView({ sim, map, employees, selectedId, onSelect, onCon
         <div className="sp-map">
           <CityMap graph={map.graph} businesses={map.businesses} hubs={map.hubs} homes={map.homes}
             highlightRoutes={routes.legs} baselineRoutes={routes.baselines}>
-            <MapMarkers graph={map.graph} snapshot={sim.snapshot} clock={sim.clock} />
+            <MapMarkers graph={map.graph} snapshot={sim.snapshot} clock={sim.clock}
+              shipmentLabels={Object.fromEntries(sim.shipments.map((s) => [s.id, s.label]))}
+              employeeNames={Object.fromEntries(employees.map((e) => [e.id, e.name]))} />
           </CityMap>
         </div>
         <aside className="sp-side">

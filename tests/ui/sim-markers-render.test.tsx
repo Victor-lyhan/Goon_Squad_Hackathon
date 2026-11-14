@@ -15,11 +15,12 @@ describe('MapMarkers', () => {
   it('renders projected markers inside CityMap', () => {
     const html = renderToStaticMarkup(
       <CityMap graph={graph} businesses={[]} hubs={[]}>
-        <MapMarkers graph={graph} snapshot={snapshot} clock={{ speed: 30 }} />
+        <MapMarkers graph={graph} snapshot={snapshot} clock={{ speed: 30 }}
+          shipmentLabels={{ s1: 'Invoice packet' }} employeeNames={{ e1: 'Ana' }} />
       </CityMap>,
     );
-    expect(html).toContain('aria-label="Vehicle e1, carrying s1, servicing"');
-    expect(html).toContain('aria-label="Package s1"');
+    expect(html).toContain('aria-label="Carrier Ana, carrying Invoice packet, servicing"');
+    expect(html).toContain('aria-label="Package: Invoice packet"');
     expect(html).toContain('cx="500"');
     expect(html).toContain('marker-ring');
   });
