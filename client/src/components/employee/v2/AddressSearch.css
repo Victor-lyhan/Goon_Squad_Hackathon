@@ -118,10 +118,6 @@
   min-height: 40px;
 }
 
-.addr-search__neighborhood {
-  font-weight: 600;
-}
-
 .addr-search__btn {
   min-height: 40px;
   padding: 0 var(--space-3, 12px);
@@ -144,9 +140,17 @@
   cursor: not-allowed;
 }
 
-.addr-search__locked {
-  margin: 0;
+/* Inside a disabled fieldset (the commute form during a save, #598) the input and the buttons are
+   disabled by the browser; the options are not form controls, so they are switched off here. */
+fieldset:disabled .addr-search__list {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+fieldset:disabled .addr-search__input {
+  background: var(--accent-soft, #E8F0F6);
   color: var(--muted, #5B6472);
+  cursor: not-allowed;
 }
 
 @media (max-width: 390px) {

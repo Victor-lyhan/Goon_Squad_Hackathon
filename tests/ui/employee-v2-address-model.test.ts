@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EMPTY_TEXT, UNAVAILABLE_TEXT, addressSearchReducer as reduce, describeSearchError, initialSearchState, isOpen,
+  EMPTY_TEXT, NOT_ANSWERING_TEXT, UNAVAILABLE_TEXT, addressSearchReducer as reduce, describeSearchError, initialSearchState, isOpen,
   pickHome, statusText, toHomeChoice, type AddressResult, type AddressSearchAction, type AddressSearchState,
 } from '../../client/src/components/employee/v2/addressSearchModel';
 
@@ -77,11 +77,34 @@ describe('address search model: failures', () => {
     expect(statusText(s)).toBe(UNAVAILABLE_TEXT);
   });
 
-  it('keeps other error messages for the error state', () => {
-    const s = fail(Object.assign(new Error('Geocoding failed (500).'), { status: 500 }));
-    expect(s.status).toBe('error');
-    expect(statusText(s)).toBe('Geocoding failed (500).');
-    expect(fail('weird').message).toMatch(/failed/);
+  it('keeps the key sentence for google_key_missing only (#598)', () => {
+    const keyMissing = fail(Object.assign(new Error('No Google key'), { status: 503, code: 'google_key_missing' }));
+    expect(keyMissing.status).toBe('unavailable');
+    expect(statusText(keyMissing)).toBe(UNAVAILABLE_TEXT);
+    // The code may also sit in the error's body (the shape the commute form reads too).
+    expect(fail({ status: 503, body: { code: 'google_key_missing' } }).status).toBe('unavailable');
+    for (const code of ['google_unavailable', 'travel_data_missing', 'something_new']) {
+      const s = fail(Object.assign(new Error('Google did not answer'), { status: 503, code }));
+      expect(s.status, code).toBe('error');
+      expect(statusText(s), code).toBe(NOT_ANSWERING_TEXT);
+    }
+  });
+
+  it('says one plain sentence for every other failure, never the raw message (#598)', () => {
+    const raw: unknown[] = [
+      Object.assign(new Error('Request timed out after 8000 ms'), { name: 'ApiRequestError', status: 0, kind: 'timeout' }),
+      Object.assign(new Error('Failed to fetch'), { name: 'ApiRequestError', status: 0, kind: 'network' }),
+      Object.assign(new Error('Geocoding failed (500).'), { status: 500 }),
+      Object.assign(new Error('Request failed (502)'), { status: 502 }),
+      new TypeError('fetch failed'),
+      'weird', null, undefined, 42,
+    ];
+    for (const err of raw) {
+      const s = fail(err);
+      expect(s.status).toBe('error');
+      expect(statusText(s)).toBe(NOT_ANSWERING_TEXT);
+    }
+    expect(NOT_ANSWERING_TEXT).toBe('Address search is not answering. Try again.');
   });
 
   it('leaves the state unchanged on abort', () => {

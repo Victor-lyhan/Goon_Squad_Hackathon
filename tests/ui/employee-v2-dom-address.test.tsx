@@ -157,9 +157,10 @@ describe('AddressSearch in a real DOM: what a pick keeps', () => {
     expect(Object.keys(picked).sort()).toEqual(['lat', 'lng', 'neighborhood']);
     expect(picked).toEqual({ neighborhood: 'Harlem', lat: HARLEM.lat, lng: HARLEM.lng });
 
-    // The chosen view shows the neighborhood; the street label and the typed query are gone from the page.
+    // The chosen view shows Change only (the form around it prints the home, #598); the street label and
+    // the typed query are gone from the page.
     const page = document.body;
-    expect(textOf(page)).toContain('Home: Harlem');
+    expect(textOf(page)).toBe('Change');
     for (const street of [HARLEM.label, '310 W 144th St', HAMILTON.label, INWOOD.label]) {
       expect(page.innerHTML).not.toContain(street);
     }

@@ -23,7 +23,7 @@ Workers finish small issues in about a minute, so make each issue a complete fea
 
 ## Never
 - edit product code, shared/, SPEC.md or AGENTS.md (humans own those)
-- create more than 16 issues in one pass
+- create more than 24 issues in one pass
 - reopen a decision already in DECISIONS.md unless something is broken
 
 ## Finish

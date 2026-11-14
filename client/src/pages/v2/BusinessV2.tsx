@@ -2,9 +2,10 @@
 // /business/:id after the cutover: it only ever changes the query string (`?shipment=`), never the path.
 // The open delivery's route map (#549) loads GET /api/v2/map once per run and when that delivery's plan
 // is new to the loaded map, never on the poll (DECISIONS pass 52).
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useBusinessWorkspace } from '../../components/business/v2/live/useBusinessWorkspace';
+import { NewDeliveryServicesContext } from '../../components/business/v2/NewDeliveryForm';
 import { BusinessPageView } from '../../components/business/v2/page/BusinessPageView';
 import { pageScreen, siblingBusinessPath, withShipment } from '../../components/business/v2/page/businessPageModel';
 import { DeliveryRouteSlot } from '../../components/business/v2/route/DeliveryRoutePreview';
@@ -26,19 +27,26 @@ export default function BusinessV2() {
   const onCloseShipment = useCallback(() => setParams((p) => withShipment(p, null)), [setParams]);
   const businessHref = useCallback((other: string) => siblingBusinessPath(pathname, other), [pathname]);
 
+  // The New delivery form's result card names its carriers and re-matches a no-match through the workspace (#582).
+  const formServices = useMemo(
+    () => ({ employees: ws.employees, matchShipment: ws.matchShipment }), [ws.employees, ws.matchShipment],
+  );
+
   return (
-    <BusinessPageView
-      key={id}
-      state={ws}
-      shipmentId={shipmentId}
-      createShipment={ws.createShipment}
-      matchShipment={ws.matchShipment}
-      refetchNow={ws.refetchNow}
-      dismissRunChanged={ws.dismissRunChanged}
-      onOpenShipment={onOpenShipment}
-      onCloseShipment={onCloseShipment}
-      businessHref={businessHref}
-      deliveryRoute={openView ? <DeliveryRouteSlot slot={routeMap.slot} view={openView} onRetry={routeMap.retry} /> : null}
-    />
+    <NewDeliveryServicesContext.Provider value={formServices}>
+      <BusinessPageView
+        key={id}
+        state={ws}
+        shipmentId={shipmentId}
+        createShipment={ws.createShipment}
+        matchShipment={ws.matchShipment}
+        refetchNow={ws.refetchNow}
+        dismissRunChanged={ws.dismissRunChanged}
+        onOpenShipment={onOpenShipment}
+        onCloseShipment={onCloseShipment}
+        businessHref={businessHref}
+        deliveryRoute={openView ? <DeliveryRouteSlot slot={routeMap.slot} view={openView} onRetry={routeMap.retry} /> : null}
+      />
+    </NewDeliveryServicesContext.Provider>
   );
 }

@@ -5,7 +5,7 @@ import {
   RESULT_COPY, emptyDraft, validate, type NewDeliveryDraft, type SubmitStatus, type FieldErrors,
 } from '../../client/src/components/business/v2/newDeliveryModel';
 import type { ShipmentResponse } from '../../shared/v2/api';
-import { BUSINESSES, ME } from './business-v2-table-sample';
+import { BUSINESSES, ME, plan, shipment, view as shipmentView } from './business-v2-table-sample';
 
 const noop = () => {};
 const never = () => new Promise<ShipmentResponse>(() => {});
@@ -47,7 +47,8 @@ describe('NewDeliveryForm (static renders)', () => {
     expect(html).toContain('Bakery Row · Midtown');
     expect(html).not.toContain('Acme Studio · Midtown</option>');
     expect(html).toContain('Choose a business');
-    expect(html).toContain('Day 1 15:30 to Day 2 12:00');
+    expect(html).toContain('Simulation window: Day 1, 3:30 PM to Day 2, 12:00 PM.');
+    expect(html).not.toContain('15:30');
     expect(html).toMatch(/<button type="submit"[^>]*>Send request</);
     expect(html).not.toMatch(/<button type="submit"[^>]*disabled/);
     expect(html).toContain('role="status"');
@@ -79,12 +80,33 @@ describe('NewDeliveryForm (static renders)', () => {
     expectClean(html);
   });
 
-  it('matched: "Delivery arranged." with View delivery in the status region', () => {
-    const html = view({ kind: 'matched', shipmentId: 'shp-9' });
+  it('matched: "Delivery arranged." with the plan, ETA, price and both actions in the status region', () => {
+    const response: ShipmentResponse = {
+      ...shipmentView(shipment('shp-9', {}), plan('shp-9', { deliveryMin: 1990, customerPriceCents: 1250 }), 'scheduled'),
+      matched: true,
+    };
+    const html = view({ kind: 'matched', shipmentId: 'shp-9', response });
     const status = regionText(html, 'status');
     expect(status).toContain(RESULT_COPY.matched);
+    expect(status).toContain('<dt>Plan</dt><dd>Direct</dd>');
+    expect(status).toContain('<dt>ETA</dt><dd class="nd-mono">Day 2, 9:10 AM</dd>');
+    expect(status).toContain('<dt>Price</dt><dd class="nd-mono">$12.50</dd>');
     expect(status).toMatch(/<button[^>]*>View delivery<\/button>/);
+    expect(status).toMatch(/<a [^>]*href="\/simulator\?package=shp-9"[^>]*>Watch in simulator<\/a>/);
     expectClean(html);
+  });
+
+  it('the primary button reads "Try matching again" for an unchanged no-match draft, "Matching…" while it runs', () => {
+    const status: SubmitStatus = { kind: 'unmatched', shipmentId: 'shp-9', reason: 'No commute.' };
+    const retry = (s: SubmitStatus, on: boolean) => renderToStaticMarkup(
+      <NewDeliveryFormView origin={ME} businesses={BUSINESSES} phase="planning" draft={filled} errors={{}} status={s}
+        retry={on} onChange={noop} onSubmit={noop} onOpenDelivery={noop} onCancel={noop} />,
+    );
+    expect(retry(status, true)).toMatch(/<button type="submit"[^>]*>Try matching again</);
+    expect(retry(status, false)).toMatch(/<button type="submit"[^>]*>Send request</);
+    const pending = retry({ kind: 'submitting', retry: true }, true);
+    expect(pending).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Matching…</);
+    expect(regionText(pending, 'status')).toContain('Looking for a matching commute again');
   });
 
   it('unmatched: the server reason and the same action', () => {
@@ -113,6 +135,10 @@ describe('NewDeliveryForm (static renders)', () => {
     expect(html).not.toContain(code);
     expect(html).not.toMatch(/<button type="submit"[^>]*disabled/);
     expectClean(html);
+    // The same 503 on "Try matching again": the delivery is already saved, so the text must not say otherwise.
+    const retried = view({ kind: 'unavailable', code, saved: true });
+    expect(regionText(retried, 'alert')).toContain(RESULT_COPY.unavailableRetry);
+    expect(retried).not.toContain('Nothing was saved');
   });
 
   it('error: the server message in an alert, field errors inline', () => {

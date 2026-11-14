@@ -1,25 +1,44 @@
-import { useId, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useContext, useId, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { ShipmentResponse } from '../../../../../shared/v2/api';
 import type { CreateShipmentRequest } from '../../../../../shared/v2/schemas';
-import type { NetworkBusiness, PackageCategory, Phase } from '../../../../../shared/v2/types';
+import type { Employee, NetworkBusiness, PackageCategory, Phase } from '../../../../../shared/v2/types';
+import { matchShipment as apiMatchShipment } from '../../../api/v2';
 import { newClientRequestId } from '../shipmentFormModel';
 import {
-  DEFAULT_WINDOW, RESULT_COPY, draftAfterResult, emptyDraft, firstInvalidField, initialSubmitState,
-  mapServerFieldErrors, recipientOptions, submitReducer, toRequest, validate,
-  type DraftField, type FieldErrors, type NewDeliveryDraft, type SubmitStatus, type TimeWindow,
+  DEFAULT_WINDOW, RESULT_COPY, arrangedCard, draftAfterResult, emptyDraft, firstInvalidField,
+  initialSubmitState, mapServerFieldErrors, recipientOptions, retryShipmentId, submitReducer, toRequest, validate,
+  windowText,
+  type ArrangedCard, type DraftField, type FieldErrors, type NewDeliveryDraft, type SubmitStatus, type TimeWindow,
 } from './newDeliveryModel';
 import './newDelivery.css';
+
+type CarrierNames = Pick<Employee, 'id' | 'name'>[];
+type MatchShipment = (shipmentId: string) => Promise<ShipmentResponse>;
+
+/**
+ * What the form needs from the workspace besides its props: the employee directory (carrier names of the
+ * result card) and the re-match call. The route page provides it (pages/v2/BusinessV2.tsx), so the form
+ * gets both without a change to the page component that mounts it. Props win over the context.
+ */
+export type NewDeliveryServices = { employees: CarrierNames; matchShipment: MatchShipment };
+export const NewDeliveryServicesContext = createContext<NewDeliveryServices | null>(null);
 
 export type NewDeliveryFormProps = {
   origin: NetworkBusiness;
   businesses: NetworkBusiness[];
   phase: Phase;
   onSubmit: (req: CreateShipmentRequest) => Promise<ShipmentResponse>;
+  /** "Try matching again" for a saved delivery. Default: the context's call, else POST /api/v2/shipments/:id/match. */
+  onMatch?: MatchShipment;
+  /** Names for the carriers of the result card. Default: the context's directory. */
+  employees?: CarrierNames;
   onOpenDelivery: (shipmentId: string) => void;
   onCancel: () => void;
-  /** Planning window (settings.simStartMin / simEndMin); defaults to Day 1 15:30 to Day 2 12:00. */
+  /** Planning window (settings.simStartMin / simEndMin); defaults to Day 1, 3:30 PM to Day 2, 12:00 PM. */
   window?: TimeWindow;
 };
+
+const NO_EMPLOYEES: CarrierNames = [];
 
 /**
  * The New delivery form. The typed draft is local state: a re-render with equal props (a 1 s poll) never
@@ -27,6 +46,9 @@ export type NewDeliveryFormProps = {
  */
 export function NewDeliveryForm(props: NewDeliveryFormProps) {
   const { origin, onSubmit } = props;
+  const services = useContext(NewDeliveryServicesContext);
+  const onMatch = props.onMatch ?? services?.matchShipment ?? apiMatchShipment;
+  const employees = props.employees ?? services?.employees ?? NO_EMPLOYEES;
   const [draft, setDraft] = useState<NewDeliveryDraft>(emptyDraft);
   const [draftOrigin, setDraftOrigin] = useState(origin.id);
   const [clientErrors, setClientErrors] = useState<FieldErrors>({});
@@ -55,20 +77,27 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
     if (Object.keys(clientErrors).length > 0) setClientErrors(validate(next, origin.id, timeWindow));
   };
 
+  // Set while the draft is unchanged since a no-match answer: the button then re-matches that delivery.
+  const retryId = retryShipmentId(submitState, draft);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy.current || props.phase === 'locked') return; // a double click sends one request
-    const errors = validate(draft, origin.id, timeWindow);
-    setClientErrors(errors);
-    if (firstInvalidField(errors)) { focusFirst(errors); return; }
+    if (!retryId) {
+      const errors = validate(draft, origin.id, timeWindow);
+      setClientErrors(errors);
+      if (firstInvalidField(errors)) { focusFirst(errors); return; }
+    }
     busy.current = true;
     const sent = draft;
-    dispatch({ type: 'submit' });
+    dispatch({ type: retryId ? 'retry' : 'submit' });
     try {
-      const response = await onSubmit(toRequest(sent, origin.id, submitState.clientRequestId));
-      const nextRequestId = newClientRequestId(origin.id);
-      dispatch({ type: 'success', response, nextRequestId });
-      if (response.matched) setDraft((d) => (d === sent ? draftAfterResult(d, { kind: 'matched', shipmentId: response.shipment.id }) : d));
+      // A retry is the same delivery (never a second POST /shipments); only a new request gets a new ID.
+      const response = retryId
+        ? await onMatch(retryId)
+        : await onSubmit(toRequest(sent, origin.id, submitState.clientRequestId));
+      dispatch({ type: 'success', response, draft: sent, nextRequestId: retryId ? undefined : newClientRequestId(origin.id) });
+      if (response.matched) setDraft((d) => (d === sent ? draftAfterResult(d, { kind: 'matched' }) : d));
     } catch (error) {
       dispatch({ type: 'failure', error });
       const server = (error as { status?: number; fieldErrors?: Record<string, string> } | null);
@@ -86,8 +115,10 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
     <NewDeliveryFormView
       origin={origin}
       businesses={props.businesses}
+      employees={employees}
       phase={props.phase}
       window={timeWindow}
+      retry={retryId !== null}
       draft={draft}
       errors={errors}
       status={status}
@@ -103,8 +134,12 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
 export type NewDeliveryFormViewProps = {
   origin: NetworkBusiness;
   businesses: NetworkBusiness[];
+  /** Names for the carriers of the result card. */
+  employees?: CarrierNames;
   phase: Phase;
   window?: TimeWindow;
+  /** True while the draft is unchanged since a no-match answer: the primary button re-matches that delivery. */
+  retry?: boolean;
   draft: NewDeliveryDraft;
   errors: FieldErrors;
   status: SubmitStatus;
@@ -120,11 +155,6 @@ const CATEGORIES: { value: PackageCategory; label: string }[] = [
   { value: 'small_box', label: 'Small box' },
 ];
 
-function windowText(w: TimeWindow): string {
-  const t = (m: number) => `Day ${Math.floor(m / 1440) + 1} ${String(Math.floor((m % 1440) / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-  return `${t(w.startMin)} to ${t(w.endMin)}`;
-}
-
 /** Stateless markup for every state (static-render tests use this directly). */
 export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
   const base = useId();
@@ -133,6 +163,7 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
   // Option values are positions, so business IDs never reach the DOM.
   const recipientIndex = options.findIndex((o) => o.id === p.draft.recipientId);
   const submitting = p.status.kind === 'submitting';
+  const retrying = p.status.kind === 'submitting' && p.status.retry === true;
   const locked = p.phase === 'locked' || p.status.kind === 'locked';
   const ref = (f: DraftField) => p.fieldRef?.(f);
 
@@ -153,7 +184,7 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
 
   const alertText = locked
     ? (p.status.kind === 'locked' && p.status.message) || RESULT_COPY.locked
-    : p.status.kind === 'unavailable' ? RESULT_COPY.unavailable
+    : p.status.kind === 'unavailable' ? (p.status.saved ? RESULT_COPY.unavailableRetry : RESULT_COPY.unavailable)
     : p.status.kind === 'error' ? p.status.message
     : '';
 
@@ -235,9 +266,18 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
       </fieldset>
 
       <div className="nd-result" role="status" aria-live="polite">
-        {submitting && <p className="nd-result__line">Sending request and looking for a matching commute…</p>}
+        {submitting && (
+          <p className="nd-result__line">
+            {retrying ? 'Looking for a matching commute again…' : 'Sending request and looking for a matching commute…'}
+          </p>
+        )}
         {p.status.kind === 'matched' && (
-          <ResultLine tone="ok" text={RESULT_COPY.matched} shipmentId={p.status.shipmentId} onOpen={p.onOpenDelivery} />
+          <ArrangedResult
+            card={arrangedCard(p.status.response, {
+              businesses: p.businesses, employees: p.employees ?? NO_EMPLOYEES, viewerBusinessId: p.origin.id,
+            })}
+            onOpen={p.onOpenDelivery}
+          />
         )}
         {p.status.kind === 'unmatched' && (
           <ResultLine tone="warn" text={RESULT_COPY.unmatched} detail={p.status.reason}
@@ -250,11 +290,56 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
 
       <div className="nd-actions">
         <button type="submit" className="nd-btn nd-btn--primary" disabled={submitting || locked}>
-          {submitting ? 'Sending…' : 'Send request'}
+          {retrying ? 'Matching…' : submitting ? 'Sending…' : p.retry ? 'Try matching again' : 'Send request'}
         </button>
         <button type="button" className="nd-btn" onClick={p.onCancel}>Cancel</button>
       </div>
     </form>
+  );
+}
+
+/** The match result (DECISIONS pass 60): every value is text the model formatted from the server's answer. */
+function ArrangedResult({ card, onOpen }: { card: ArrangedCard; onOpen: (id: string) => void }) {
+  return (
+    <div className="nd-result__line nd-result__line--ok nd-arranged">
+      <p className="nd-result__text">
+        <strong>{RESULT_COPY.matched}</strong>
+        {' '}<span className="nd-result__id">Shipment <span className="nd-mono">{card.shipmentId}</span></span>
+      </p>
+      {card.facts.length > 0 && (
+        <dl className="nd-facts">
+          {card.facts.map((f) => (
+            <div key={f.label} className="nd-fact">
+              <dt>{f.label}</dt>
+              <dd className={f.mono ? 'nd-mono' : undefined}>{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {card.carriers.length > 0 && (
+        <ol className="nd-carriers" aria-label="Carriers">
+          {card.carriers.map((c) => (
+            <li key={c.key} className="nd-carrier">
+              <p className="nd-carrier__who">
+                <span className="nd-carrier__name">{c.name}</span>
+                {' · '}<span className="nd-carrier__trip">{c.tripText}</span>
+              </p>
+              <ul className="nd-stops">
+                {c.stops.map((st) => (
+                  <li key={st.key}>
+                    <span className="nd-mono">{st.timeText}</span>{' · '}{st.actionLabel} {st.placeText}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ol>
+      )}
+      <div className="nd-result__actions">
+        <button type="button" className="nd-btn nd-btn--link" onClick={() => onOpen(card.shipmentId)}>View delivery</button>
+        <a className="nd-btn nd-btn--link" href={card.simulatorHref}>Watch in simulator</a>
+      </div>
+    </div>
   );
 }
 

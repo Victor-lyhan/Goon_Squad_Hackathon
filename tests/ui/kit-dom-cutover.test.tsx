@@ -138,6 +138,24 @@ describe('the five main paths show the MVP II pages on the real NYC run', () => 
     expect(link(s.header(), 'Business').getAttribute('href')).toBe(`/business/${bizIds[1]}`);
     await s.until(() => !!s.main().querySelector('div.bp h1'), 'the chosen business page');
   }, T);
+
+  it('the employee selector names each employer, in the API\'s order (#568)', async () => {
+    const b = (await (await fetch('/api/v2/businesses')).json()) as BusinessesResponse;
+    const e = (await (await fetch('/api/v2/employees')).json()) as EmployeesResponse;
+    const employer = new Map(b.businesses.map((x) => [x.id, x.name]));
+    const s = await renderApp(`/employee/${empId}`);
+    const sel = () => s.header().querySelector('.demo-account select') as HTMLSelectElement | null;
+    await s.until(() => !!sel() && sel()!.options[0].text.includes(' · '), 'selector with employers');
+    expect([...sel()!.options].map((o) => o.value)).toEqual(e.employees.map((x) => x.id));
+    // Every real employee has an employer in the business list, so no label is a name alone.
+    expect([...sel()!.options].map((o) => o.text)).toEqual(e.employees.map((x) => `${x.name} · ${employer.get(x.businessId)}`));
+    for (const o of sel()!.options) expect(o.text).not.toMatch(/undefined|\bbiz-|\bemp-/);
+    expect(sel()!.value).toBe(empId);
+    const second = e.employees[1];
+    select(sel()!, `${second.name} · ${employer.get(second.businessId)}`);
+    expect(s.where.path).toBe(`/employee/${second.id}`);
+    expect(readIdentity()).toEqual({ employeeId: second.id });
+  }, T);
 });
 
 describe('/nyc/... redirects to the main paths', () => {

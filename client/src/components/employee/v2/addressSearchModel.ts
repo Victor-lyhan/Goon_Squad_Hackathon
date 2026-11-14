@@ -44,7 +44,8 @@ export const EMPTY_TEXT = 'No address found. Try a street and number in New York
 export const UNAVAILABLE_TEXT = 'Address search needs the Google key on the server. Your saved home is unchanged.';
 export const SEARCHING_TEXT = 'Searching…';
 export const SHORT_QUERY_TEXT = 'Type at least 3 characters to search.';
-export const GENERIC_ERROR_TEXT = 'Address search failed. Try again.';
+/** Every failure that is not a missing key: Google slow or down, a timeout, no network (#598). */
+export const NOT_ANSWERING_TEXT = 'Address search is not answering. Try again.';
 
 export const initialSearchState: AddressSearchState = {
   query: '', status: 'idle', results: [], highlight: -1, pendingQuery: null, message: null, attempt: 0,
@@ -110,14 +111,23 @@ export function pickHome(state: AddressSearchState, index: number = state.highli
   return r ? toHomeChoice(r) : null;
 }
 
-/** Classifies anything a SearchFn rejects with. Aborts are silent; HTTP 503 means no Google key on the server. */
+/**
+ * Classifies anything a SearchFn rejects with (#598, DECISIONS pass 61). Aborts are silent. The key
+ * sentence is only for a 503 with code `google_key_missing` (or a 503 with no code at all). Everything
+ * else (`google_unavailable`, a browser timeout, no network, any other answer) is one plain sentence with
+ * Retry: the raw message ("Request timed out after 8000 ms", "Request failed (500)") is never shown.
+ */
 export function describeSearchError(err: unknown, signal?: AbortSignal): SearchFailure {
   if (signal?.aborted) return { kind: 'aborted' };
-  const e = err as { name?: unknown; status?: unknown; kind?: unknown; message?: unknown } | null;
-  if (e && (e.name === 'AbortError' || e.kind === 'abort')) return { kind: 'aborted' };
-  if (e && e.status === 503) return { kind: 'unavailable' };
-  const message = e && typeof e.message === 'string' && e.message.trim() ? e.message : GENERIC_ERROR_TEXT;
-  return { kind: 'error', message };
+  const e = (typeof err === 'object' && err !== null ? err : {}) as {
+    name?: unknown; status?: unknown; kind?: unknown; code?: unknown; body?: { code?: unknown } | null;
+  };
+  if (e.name === 'AbortError' || e.kind === 'abort') return { kind: 'aborted' };
+  const code = e.code ?? e.body?.code;
+  if (e.status === 503 && (code === 'google_key_missing' || code === undefined || code === null)) {
+    return { kind: 'unavailable' };
+  }
+  return { kind: 'error', message: NOT_ANSWERING_TEXT };
 }
 
 /** Text for the live status line under the input, or null when nothing needs saying. */
@@ -125,7 +135,7 @@ export function statusText(state: AddressSearchState): string | null {
   switch (state.status) {
     case 'searching': return SEARCHING_TEXT;
     case 'empty': return EMPTY_TEXT;
-    case 'error': return state.message ?? GENERIC_ERROR_TEXT;
+    case 'error': return state.message ?? NOT_ANSWERING_TEXT;
     case 'unavailable': return UNAVAILABLE_TEXT;
     case 'results': {
       const n = state.results.length;

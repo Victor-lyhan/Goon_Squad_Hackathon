@@ -227,6 +227,20 @@ const IMPORT_CASES: Case[] = [
   ['an employee whose workplace is not in the file', broken(file, 'scenario.employees.0.businessId', 'biz-not-in-the-file')],
   ['a delivery from a business that is not in the file', broken(file, 'scenario.shipments.0.originBusinessId', LONG_ID)],
   ['a job for a plan that is not in the file', broken(file, 'jobs.0.planId', 'plan-not-in-the-file')],
+  // Every place ID must be a business or a home of the file (#570).
+  ['a commute trip that starts at a place that is not in the file', broken(file, 'trips.0.originPlaceId', 'place-not-in-the-file')],
+  ['a commute trip that ends at an employee ID', (c) => withField(file(c), 'trips.0.destinationPlaceId', c.employee.id)],
+  ['a plan leg through a place that is not in the file', broken(file, 'assignments.plans.0.legs.0.placeIds.1', 'place-not-in-the-file')],
+  ['a stop at a place that is not in the file', broken(file, 'assignments.plans.0.legs.0.stops.0.placeId', LONG_ID)],
+  ['a job pickup at a place that is not in the file', broken(file, 'jobs.0.pickup.placeId', 'place-not-in-the-file')],
+  ['a relay plan through a business that is not in the file', broken(file, 'assignments.plans.0.relayBusinessId', 'biz-not-in-the-file')],
+  // A home of the file that this server has no travel time for, at the end of a commute trip.
+  ['a commute trip to a home the travel cache does not know', (c) => {
+    const run = file(c) as { scenario: { homes: object[] }; trips: { destinationPlaceId: string }[] };
+    run.scenario.homes.push({ id: 'home-not-in-the-cache', neighborhood: 'Midtown', ...MIDTOWN });
+    run.trips[0].destinationPlaceId = 'home-not-in-the-cache';
+    return run as Body;
+  }],
   ['an empty run ID', broken(file, 'runId', '')],
   ['a clock at 1e999', infinite(file, 'clock.timeMin')],
   ['a version of 1e999', infinite(file, 'version')],
@@ -513,28 +527,38 @@ describe('bodyProblem', () => {
   }, T);
 });
 
-// Found by the sweep and left open: it needs a rule for the travel data an imported file must have,
-// which is more than a fix to this route (see the PR description of #521).
-describe('known gap: POST /scenario/import', () => {
+// Found by the sweep (#521) and closed by #570: a file whose trip starts at a place that is not in the file
+// was stored, and from then on POST /planning/reset and POST /matches/recompute answered 503
+// `travel_data_missing` until a scenario was generated or another file was imported.
+describe('POST /scenario/import: a place that is not in the file', () => {
   let sweep: SweepApi;
   beforeAll(async () => {
     sweep = await startSweepApi();
+  }, T);
+  afterEach(async () => {
+    await sweep.confirmExport();
   }, T);
   afterAll(async () => {
     await sweep?.close();
   }, T);
 
-  // BUG in server/api/v2/planningOps.ts (`parseImportedRun` checks the employees' homes only):
-  //   request:  POST /api/v2/scenario/import with the server's own export, in which
-  //             `trips[0].originPlaceId` is changed to "place-not-in-the-file"
-  //   answer:   200 with the SimulatorResponse, and the file is stored
-  //   then:     POST /api/v2/planning/reset and POST /api/v2/matches/recompute answer
-  //             503 {"error":"No travel time is cached for place-not-in-the-file to biz-...","code":"travel_data_missing"}
-  //             until a scenario is generated or another file is imported (reads keep answering 200)
-  //   wanted:   400, like a file whose employee lives at a home that is not in the file
-  it.fails('refuses a file whose commute trip starts at a place that is not in the file', async () => {
+  it('refuses a file whose commute trip starts at a place that is not in the file', async () => {
     const run = validImport(sweep.ctx());
-    const reply = await sweep.send('POST', '/scenario/import', json(withField(run, 'trips.0.originPlaceId', 'place-not-in-the-file')));
-    expect(reply.status).toBe(400);
+    const error = await sweep.refused(
+      'POST', '/scenario/import', json(withField(run, 'trips.0.originPlaceId', 'place-not-in-the-file')), [400], 'a trip from nowhere',
+    );
+    expect(error).toStrictEqual({
+      error: 'A commute trip in this file refers to a place that is not in the file, so it was not loaded.',
+      fieldErrors: { 'trips.0.originPlaceId': 'Unknown place' },
+    });
+  }, T);
+
+  it('a new planning cycle and Recompute still answer 200 afterwards', async () => {
+    for (const url of ['/planning/reset', '/matches/recompute']) {
+      const before = sweep.store.get().version;
+      const reply = await sweep.send('POST', url);
+      expect(reply.status, `${url}: ${reply.text.slice(0, 200)}`).toBe(200);
+      expect(sweep.store.get().version).toBe(before + 1);
+    }
   }, T);
 });

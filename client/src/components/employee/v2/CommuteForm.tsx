@@ -162,13 +162,21 @@ export function CommuteForm({
         {fieldError('businessId')}
       </div>
 
-      <div
-        className="cf-field"
+      {/* #598: a fieldset, so the whole home control (input, Change, Cancel, Retry) is disabled by the
+          browser while a save is pending or the run is locked. This label is the one place the home is
+          printed; the address search inside shows only its controls. */}
+      <fieldset
+        className="cf-field cf-home"
         role="group"
         id={id('home')}
         tabIndex={-1}
         aria-labelledby={id('home-label')}
         aria-describedby={errors.home ? id('home-err') : undefined}
+        disabled={locked || saving}
+        // The search results are list items, which a disabled fieldset does not switch off.
+        onClickCapture={(e) => {
+          if (locked || saving) { e.preventDefault(); e.stopPropagation(); }
+        }}
       >
         <p className="cf-label" id={id('home-label')}>
           Home: <span className="cf-home-name">{draft.home.neighborhood}</span>
@@ -187,7 +195,7 @@ export function CommuteForm({
           <p className="cf-hint">Shown by neighborhood only.</p>
         )}
         {fieldError('home')}
-      </div>
+      </fieldset>
 
       <div className="cf-row">
         <div className="cf-field">

@@ -1,9 +1,11 @@
 // Pure model for the MVP II "New delivery" form (Business workspace). No React, no fetch: tested in Node.
 // The form never decides whether a package matches; it only shapes the request and reports the server's answer.
 import { CreateShipmentRequest } from '../../../../../shared/v2/schemas';
-import type { ShipmentResponse, TravelUnavailable } from '../../../../../shared/v2/api';
+import type { ShipmentResponse, ShipmentView, TravelUnavailable } from '../../../../../shared/v2/api';
 import type { NetworkBusiness, PackageCategory } from '../../../../../shared/v2/types';
+import { formatMin } from '../../../ui/format';
 import { DEFAULT_WINDOW, dayTimeToMin, parseWeightKg, type TimeWindow } from '../shipmentFormModel';
+import { deliveryDetails, type DetailsLookups, type StopRow } from './deliveryDetailsModel';
 
 export { DEFAULT_WINDOW, type TimeWindow };
 
@@ -86,11 +88,10 @@ export function toRequest(draft: NewDeliveryDraft, originId: string, clientReque
   return rawRequest(draft, originId, clientRequestId) as CreateShipmentRequest;
 }
 
-function clock(min: number): string {
-  const m = ((min % DAY) + DAY) % DAY;
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+/** "Day 1, 3:30 PM to Day 2, 12:00 PM": the planning window in the format of the shipments table. */
+export function windowText(w: TimeWindow): string {
+  return `${formatMin(w.startMin)} to ${formatMin(w.endMin)}`;
 }
-const dayTime = (min: number) => `Day ${Math.floor(min / DAY) + 1} ${clock(min)}`;
 
 /**
  * One message per field (empty object = valid). Uses CreateShipmentRequest from shared/v2/schemas plus the
@@ -126,13 +127,13 @@ export function validate(
   const readyEnd = Math.min(window.endMin, DAY - 1);
   if (Number.isNaN(ready)) errors.readyTime = 'Enter a ready time as HH:MM';
   else if (ready < window.startMin || ready > readyEnd) {
-    errors.readyTime = `Ready time must be between ${dayTime(window.startMin)} and ${dayTime(readyEnd)}`;
+    errors.readyTime = `Ready time must be between ${formatMin(window.startMin)} and ${formatMin(readyEnd)}`;
   } else delete errors.readyTime;
 
   if (draft.deadlineDay !== 1 && draft.deadlineDay !== 2) errors.deadlineDay = 'Choose Day 1 or Day 2';
   if (Number.isNaN(deadline)) errors.deadlineTime = 'Enter a deliver-by time as HH:MM';
   else if (deadline < window.startMin || deadline > window.endMin) {
-    errors.deadlineTime = `Deliver-by time must be between ${dayTime(window.startMin)} and ${dayTime(window.endMin)}`;
+    errors.deadlineTime = `Deliver-by time must be between ${formatMin(window.startMin)} and ${formatMin(window.endMin)}`;
   } else if (!Number.isNaN(ready) && deadline <= ready) {
     errors.deadlineTime = 'Deliver-by must be after ready time';
   } else delete errors.deadlineTime;
@@ -152,25 +153,46 @@ const UNAVAILABLE_CODES: readonly UnavailableCode[] = ['google_key_missing', 'tr
 
 export type SubmitStatus =
   | { kind: 'idle' }
-  | { kind: 'submitting' }
-  | { kind: 'matched'; shipmentId: string }
+  /** `retry`: the pending call is "Try matching again" for a saved delivery, not a new request. */
+  | { kind: 'submitting'; retry?: true }
+  /** `response` is the server's answer; the result card is formatted from it (arrangedCard). */
+  | { kind: 'matched'; shipmentId: string; response: ShipmentResponse }
   | { kind: 'unmatched'; shipmentId: string; reason: string | null }
   /** `message` is the server's 409 text when it sent one; the form falls back to RESULT_COPY.locked. */
   | { kind: 'locked'; message?: string }
-  | { kind: 'unavailable'; code: UnavailableCode }
+  /** `saved`: the 503 answered a retry, so the delivery itself is already saved. */
+  | { kind: 'unavailable'; code: UnavailableCode; saved?: true }
   | { kind: 'error'; message: string; fieldErrors: FieldErrors };
 
-/** `clientRequestId` is kept across failed attempts (a retry is the same request) and replaced after a success. */
-export type SubmitState = { status: SubmitStatus; clientRequestId: string };
+/** The saved delivery that found no match, with the draft it was sent from. */
+export type RetryTarget = { shipmentId: string; draft: NewDeliveryDraft };
+
+/**
+ * `clientRequestId` is kept across failed attempts (a retry is the same request) and replaced after a success.
+ * `retryOf` is set by a no-match answer: while the draft still equals it, the button re-matches that delivery
+ * (`POST /shipments/:id/match`) and never creates a second one (DECISIONS pass 60).
+ */
+export type SubmitState = { status: SubmitStatus; clientRequestId: string; retryOf: RetryTarget | null };
 
 export type SubmitAction =
   | { type: 'submit' }
-  | { type: 'success'; response: ShipmentResponse; nextRequestId: string }
+  | { type: 'retry' }
+  /** `draft`: what was sent. `nextRequestId` comes with the answer to a new request; a retry keeps the ID. */
+  | { type: 'success'; response: ShipmentResponse; nextRequestId?: string; draft?: NewDeliveryDraft }
   | { type: 'failure'; error: unknown }
   | { type: 'dismiss' };
 
 export function initialSubmitState(clientRequestId: string): SubmitState {
-  return { status: { kind: 'idle' }, clientRequestId };
+  return { status: { kind: 'idle' }, clientRequestId, retryOf: null };
+}
+
+export function sameDraft(a: NewDeliveryDraft, b: NewDeliveryDraft): boolean {
+  return DRAFT_FIELDS.every((f) => a[f] === b[f]);
+}
+
+/** The delivery "Try matching again" is for: set while the draft is unchanged since its no-match answer. */
+export function retryShipmentId(state: SubmitState, draft: NewDeliveryDraft): string | null {
+  return state.retryOf && sameDraft(state.retryOf.draft, draft) ? state.retryOf.shipmentId : null;
 }
 
 const SERVER_KEYS: Record<string, DraftField> = {
@@ -206,18 +228,29 @@ export function submitReducer(state: SubmitState, action: SubmitAction): SubmitS
   switch (action.type) {
     case 'submit':
       return { ...state, status: { kind: 'submitting' } };
+    case 'retry':
+      return { ...state, status: { kind: 'submitting', retry: true } };
     case 'success': {
       const { response } = action;
       const shipmentId = response.shipment.id;
-      const status: SubmitStatus = response.matched
-        ? { kind: 'matched', shipmentId }
-        : { kind: 'unmatched', shipmentId, reason: response.unmatchedReason?.trim() || null };
-      return { status, clientRequestId: action.nextRequestId };
+      const clientRequestId = action.nextRequestId ?? state.clientRequestId;
+      if (response.matched) return { status: { kind: 'matched', shipmentId, response }, clientRequestId, retryOf: null };
+      return {
+        status: { kind: 'unmatched', shipmentId, reason: response.unmatchedReason?.trim() || null },
+        clientRequestId,
+        retryOf: action.draft ? { shipmentId, draft: action.draft } : null,
+      };
     }
-    case 'failure':
-      return { ...state, status: statusForError(action.error) };
+    case 'failure': {
+      const status = statusForError(action.error);
+      const wasRetry = state.status.kind === 'submitting' && state.status.retry === true;
+      if (!wasRetry) return { ...state, status };
+      // The delivery is gone (another run): the next click is a new request, not a retry that can never work.
+      if ((action.error as { status?: unknown } | null)?.status === 404) return { ...state, status, retryOf: null };
+      return { ...state, status: status.kind === 'unavailable' ? { ...status, saved: true } : status };
+    }
     case 'dismiss':
-      return { ...state, status: { kind: 'idle' } };
+      return { ...state, status: { kind: 'idle' }, retryOf: null };
     default:
       return state;
   }
@@ -230,9 +263,47 @@ export const RESULT_COPY = {
   unmatched: 'No matching commute yet.',
   locked: 'The simulation has started, so new requests are closed until the next planning cycle.',
   unavailable: 'Travel data is not available on the server, so this request could not be matched. Nothing was saved.',
+  unavailableRetry: 'Travel data is not available on the server, so matching could not run. Your request is still saved.',
 } as const;
 
 /** After a matched result the form starts a fresh package (recipient kept); otherwise the typed draft stays. */
-export function draftAfterResult(draft: NewDeliveryDraft, status: SubmitStatus): NewDeliveryDraft {
+export function draftAfterResult(draft: NewDeliveryDraft, status: Pick<SubmitStatus, 'kind'>): NewDeliveryDraft {
   return status.kind === 'matched' ? { ...emptyDraft(), recipientId: draft.recipientId } : draft;
+}
+
+// ---------- The "Delivery arranged" card ----------
+
+export type ArrangedFact = { label: string; value: string; mono: boolean };
+export type ArrangedCarrier = { key: string; name: string; tripText: string; stops: StopRow[] };
+
+export type ArrangedCard = {
+  shipmentId: string;
+  /** Plan (Direct or Relay), ETA, Price and, for a relay, Relay point. Empty when the answer carries no plan. */
+  facts: ArrangedFact[];
+  /** One row per leg, in plan order: the carrier's name, the commute and its stops. */
+  carriers: ArrangedCarrier[];
+  /** The delivery details' "View journey" link. */
+  simulatorHref: string;
+};
+
+/**
+ * What the form shows under "Delivery arranged", formatted by the delivery details model from the server's
+ * answer. Nothing is computed here: the ETA is `plan.deliveryMin`, the price `plan.customerPriceCents`.
+ */
+export function arrangedCard(response: ShipmentView, lookups: DetailsLookups): ArrangedCard {
+  const d = deliveryDetails(response, lookups);
+  const r = d.result;
+  const facts: ArrangedFact[] = [];
+  if (r.kind === 'matched') {
+    facts.push({ label: 'Plan', value: r.planKind === 'relay' ? 'Relay' : 'Direct', mono: false });
+    facts.push({ label: r.timeLabel, value: r.timeText, mono: true });
+    if (r.priceText) facts.push({ label: 'Price', value: r.priceText, mono: true });
+    if (r.relayPointName) facts.push({ label: 'Relay point', value: r.relayPointName, mono: false });
+  }
+  return {
+    shipmentId: d.header.shipmentId,
+    facts,
+    carriers: d.legs.map((leg) => ({ key: leg.key, name: leg.carrierName, tripText: leg.tripText, stops: leg.stops })),
+    simulatorHref: d.journeyHref,
+  };
 }

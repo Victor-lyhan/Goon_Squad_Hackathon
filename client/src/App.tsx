@@ -5,15 +5,16 @@ import {
   getBusinesses as getV2Businesses, getEmployees as getV2Employees, getSimulator as getV2Simulator, isTravelUnavailable,
 } from './api/v2';
 import {
-  activeDestination, cutoverPath, DESTINATIONS, ENV_INDICATOR_TEXT, HELP_PAGE_PATH, HOME_PATH, isFullWidthPath, isHelpPath,
-  pickAccount, reconcileSelection, RUN_POLL_MS, runChanged, staleNote, workspaceHrefs,
+  activeDestination, cutoverPath, DESTINATIONS, employeeOptions, ENV_INDICATOR_TEXT, HELP_PAGE_PATH, HOME_PATH,
+  isFullWidthPath, isHelpPath, pickAccount, reconcileSelection, RUN_POLL_MS, runChanged, staleNote, workspaceHrefs,
+  type AccountOption,
 } from './ui/shellModel';
 import type { NycSummary } from './pages/landingModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
 import NotFoundPage from './ui/NotFoundPage';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import {
-  startV2BusinessDirectory, startV2Directory, switchIdentityPath,
+  startV2BusinessDirectory, startV2DirectoryWithEmployers, switchIdentityPath,
   type V2BusinessDirectory, type V2Directory,
 } from './ui/shell';
 import './styles/global.css';
@@ -32,6 +33,8 @@ export { readIdentity, writeIdentity, resolveIdentity };
 /**
  * The header's two /api/v2 lists, reloaded when the polled NYC runId changes (a Random city or an import
  * gives new IDs). Requests are aborted on unmount. A list passed in is used as is and never loaded (tests).
+ * With only one list passed, the effect still runs: it loads the other list, starts the runId poll, and a
+ * run change reloads only that other list. With both passed, nothing is loaded and no poll starts.
  */
 function useV2Lists(initialEmployees?: V2Directory, initialBusinesses?: V2BusinessDirectory) {
   const [employees, setEmployees] = useState<V2Directory>(initialEmployees ?? { status: 'loading' });
@@ -45,7 +48,7 @@ function useV2Lists(initialEmployees?: V2Directory, initialBusinesses?: V2Busine
       for (const stop of stops) stop();
       stops = [];
       // A reload keeps the last list on screen until the new one answers.
-      if (!initialEmployees) stops.push(startV2Directory(getV2Employees, isTravelUnavailable, (d) => { if (alive) setEmployees((old) => keepReady(old, d)); }));
+      if (!initialEmployees) stops.push(startV2DirectoryWithEmployers(getV2Employees, isTravelUnavailable, (d) => { if (alive) setEmployees((old) => keepReady(old, d)); }));
       if (!initialBusinesses) stops.push(startV2BusinessDirectory(getV2Businesses, isTravelUnavailable, (d) => { if (alive) setBusinesses((old) => keepReady(old, d)); }));
     };
     load();
@@ -78,7 +81,8 @@ const idsOf = (d: V2Directory | V2BusinessDirectory): string[] | undefined =>
 
 /**
  * Demo account on /business/:id and /employee/:id: the /api/v2 accounts. Choosing one stores it as the demo
- * identity and opens its page (path only, so ?shipment= / ?job= and the hash are dropped).
+ * identity and opens its page (path only, so ?shipment= / ?job= and the hash are dropped). An employee reads
+ * "Name · Employer" (`employeeOptions`); until the business list is ready it reads the name alone.
  */
 function DemoAccountSelector({ employees, businesses }: { employees: V2Directory; businesses: V2BusinessDirectory }) {
   const { pathname } = useLocation();
@@ -95,6 +99,9 @@ function DemoAccountSelector({ employees, businesses }: { employees: V2Directory
     return <span className="demo-account-status demo-account-error" role="alert">Accounts unavailable</span>;
   }
   const accounts: Account[] = 'businesses' in dir ? dir.businesses : dir.employees;
+  const options: AccountOption[] = 'businesses' in dir
+    ? dir.businesses.map((b) => ({ id: b.id, label: b.name }))
+    : employeeOptions(dir.employees, businesses.status === 'ready' ? businesses.businesses : undefined);
   const choose = (id: string) => {
     const next = switchIdentityPath(pathname, id);
     if (!next) return;
@@ -109,7 +116,7 @@ function DemoAccountSelector({ employees, businesses }: { employees: V2Directory
       <label className="demo-account">
         <span>Demo account</span>
         <select value={sel.id} onChange={(e) => choose(e.target.value)}>
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </select>
       </label>
       {sel.stale && (
