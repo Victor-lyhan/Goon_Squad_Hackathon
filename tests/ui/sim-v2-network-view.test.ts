@@ -155,7 +155,7 @@ describe('hoverText', () => {
 });
 
 describe('performance', () => {
-  it('builds the 60-employee view 2,000 times within budget', { timeout: 20_000 }, () => {
+  it('builds the 60-employee view 2,000 times in under 2,500 ms (order-of-magnitude check only)', { timeout: 20_000 }, () => {
     const { map, sim } = makeLargeSample();
     const first = buildNetworkView({ map, sim });
     expect(first.places.filter((p) => p.kind === 'home')).toHaveLength(60);
@@ -174,8 +174,9 @@ describe('performance', () => {
     };
     // Best of three batches, so a busy parallel test run doesn't make this flaky.
     const ms = Math.min(batch(), batch(), batch());
-    // Measured on an Apple-silicon laptop: ≈90 ms alone, 105–235 ms inside the full parallel
-    // `bash scripts/test.sh` run. Budget = 3x the worst measured run.
-    expect(ms).toBeLessThan(700);
+    // Order-of-magnitude check only (DECISIONS pass 52): CI runners are 1.5x–3.5x slower than a laptop.
+    // Measured on an Apple-silicon laptop: 88–91 ms alone, 105–235 ms inside the full parallel
+    // `bash scripts/test.sh` run. Limit = 10x the worst measured run.
+    expect(ms).toBeLessThan(2500);
   });
 });

@@ -180,35 +180,64 @@ describe('shouldSnapV2', () => {
 });
 
 describe('performance', () => {
-  // A 400-point route (a long Google polyline) zig-zagging north through Manhattan.
-  const path: LngLat[] = Array.from({ length: 400 }, (_, i) => [-74.0 + (i % 2) * 0.0005, 40.7 + i * 0.0003]);
-  const pathFor = () => path;
+  // A route of n points (a long Google polyline) zig-zagging north through Manhattan.
+  const zigzag = (n: number): LngLat[] => Array.from({ length: n }, (_, i) => [-74.0 + (i % 2) * 0.0005, 40.7 + i * 0.0003]);
+  const short = zigzag(40);
+  const long = zigzag(400);
 
-  // Measured 65–77 ms per 5,000 calls on an M-series laptop (Node, vitest). Budget = 3x that.
-  // Best of three timed runs, so one GC pause does not fail the test.
-  it('5,000 calls on a 400-point path stay inside the budget (measured ≈ 75 ms, 3x headroom)', () => {
-    const BUDGET_MS = 225;
-    const run = () => {
-      let sink = 0;
-      for (let i = 0; i < 5000; i++) {
-        const a = path[(i * 7) % 300];
-        const b = path[((i * 7) % 300) + 50];
-        const out = tweenMovers({
-          prev: [vehicle('v1', { lng: a[0], lat: a[1] })],
-          next: [vehicle('v1', { lng: b[0], lat: b[1] })],
-          alpha: (i % 100) / 100, pathFor, reducedMotion: false,
-        });
-        sink += out[0].lat;
-      }
-      return sink;
-    };
-    run(); // warm-up (JIT), not measured
-    let best = Infinity;
-    for (let k = 0; k < 3; k++) {
-      const t0 = performance.now();
-      expect(run()).toBeGreaterThan(0);
-      best = Math.min(best, performance.now() - t0);
+  /** 5,000 tweens on `path`; the polled points sit on the first 7/8 of it, 1/8 of its length apart. */
+  const run = (path: LngLat[]) => {
+    const pathFor = () => path;
+    const span = (path.length * 3) / 4;
+    const gap = path.length / 8;
+    let sink = 0;
+    for (let i = 0; i < 5000; i++) {
+      const a = path[(i * 7) % span];
+      const b = path[((i * 7) % span) + gap];
+      const out = tweenMovers({
+        prev: [vehicle('v1', { lng: a[0], lat: a[1] })],
+        next: [vehicle('v1', { lng: b[0], lat: b[1] })],
+        alpha: (i % 100) / 100, pathFor, reducedMotion: false,
+      });
+      sink += out[0].lat;
     }
-    expect(best).toBeLessThan(BUDGET_MS);
+    return sink;
+  };
+  const time = (path: LngLat[]) => {
+    const t0 = performance.now();
+    expect(run(path)).toBeGreaterThan(0);
+    return performance.now() - t0;
+  };
+
+  // A wall-clock limit only catches an order-of-magnitude slowdown (DECISIONS pass 52): CI runners
+  // are 1.5x–3.5x slower than a laptop and a busy parallel run adds more. Measured on an M-series
+  // laptop: 62–65 ms with this file alone, 68–161 ms inside the full parallel `vitest run`.
+  // Limit = 10x the slowest of those. The scaling check below is the one that does not depend on the machine.
+  // Best of three timed runs, so one GC pause does not count.
+  it('5,000 calls on a 400-point path take under 1,600 ms (order-of-magnitude check only)', { timeout: 15_000 }, () => {
+    const LIMIT_MS = 1600;
+    run(long); // warm-up (JIT), not measured
+    const best = Math.min(time(long), time(long), time(long));
+    expect(best).toBeLessThan(LIMIT_MS);
+  });
+
+  // Same machine, same moment: the ratio cancels out how fast the runner is. Each call projects two
+  // points onto the path, which is linear in its length, plus a fixed per-call cost (Maps, objects),
+  // so 10x the points costs a little under 10x the time. Measured ratio (400 / 40 points, best of
+  // three each, M-series laptop): 8.65–8.76 with this file alone (≈ 7 ms vs ≈ 60 ms), 8.72–9.30 inside
+  // the full parallel `vitest run`. Bound = 28, 3x the highest. A change that makes the cost grow faster
+  // than the path length (e.g. a projection that is quadratic in the points) gives a ratio near 100 on
+  // any runner.
+  it('the cost grows no faster than the path length (40 vs 400 points, same test)', { timeout: 15_000 }, () => {
+    const MAX_RATIO = 28;
+    run(short); run(long); // warm-up (JIT), not measured
+    let bestShort = Infinity;
+    let bestLong = Infinity;
+    // Interleaved, so a burst of load from another test file hits both sizes alike.
+    for (let k = 0; k < 3; k++) {
+      bestShort = Math.min(bestShort, time(short));
+      bestLong = Math.min(bestLong, time(long));
+    }
+    expect(bestLong / bestShort).toBeLessThan(MAX_RATIO);
   });
 });

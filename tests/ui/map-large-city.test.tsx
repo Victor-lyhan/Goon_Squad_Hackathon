@@ -71,14 +71,17 @@ describe('largest random city map', { timeout: 15_000 }, () => {
       expect(d).not.toContain('route-hi-alt');
     });
 
-    it('draws exactly the snapshot markers, no NaN/undefined/raw node ids, under 200 ms', () => {
+    // One render takes 2–10 ms with this file alone and up to 69 ms inside the full parallel `vitest run`
+    // (Apple-silicon laptop). The 700 ms limit is 10x the worst and only catches an order-of-magnitude
+    // slowdown (DECISIONS pass 52); CI runners are 1.5x–3.5x slower than a laptop.
+    it('draws exactly the snapshot markers, no NaN/undefined/raw node ids, under 700 ms', () => {
       const { html, sim, ms } = render(t);
       expect(count(html, /class="marker-vehicle/g)).toBe(sim.snapshot.markers.length);
       expect(count(html, /class="marker-package"/g)).toBe(Object.keys(sim.snapshot.packagePositions).length);
       expect(html).not.toMatch(/NaN|undefined|Infinity/);
       const text = html.replace(/<[^>]*>/g, ' ');
       for (const n of s.graph.nodes) expect(text).not.toMatch(new RegExp(`(^|\\s)${n.id}(\\s|$)`));
-      expect(ms).toBeLessThan(200);
+      expect(ms).toBeLessThan(700);
     });
   });
 
