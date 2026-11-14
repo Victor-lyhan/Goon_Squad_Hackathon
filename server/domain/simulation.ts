@@ -177,7 +177,9 @@ function packagePosition(
   nodes: Map<string, Point>,
   timeMin: number,
 ): Point | undefined {
-  if (plan === undefined) return origin;
+  // An unmatched shipment has no simulated custody route, so it must not
+  // appear as a package marker at its origin (or anywhere else).
+  if (plan === undefined) return undefined;
   const firstLeg = plan.legs[0];
   const lastLeg = plan.legs[plan.legs.length - 1];
   const firstPickup = firstLeg?.stops[0];
