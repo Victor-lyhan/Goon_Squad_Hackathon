@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { ShipmentRow, SortDir, SortKey } from './shipmentsTableModel';
 import { shipmentCountText } from './shipmentsTableModel';
 import './businessWorkspace.css';
@@ -34,10 +34,31 @@ const COLUMNS: Column[] = [
 const ariaSort = (dir: SortDir) => (dir === 'asc' ? 'ascending' : 'descending');
 
 export function ShipmentsTable(props: ShipmentsTableProps) {
+  const lastSelected = useRef(props.selectedId);
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  /** The caption, or the title of an empty state: where focus goes when the closed delivery has no row. */
+  const headingRef = useRef<HTMLElement | null>(null);
+  const setHeading = (el: HTMLElement | null) => { headingRef.current = el; };
+
+  // Closing a delivery (Close, Esc) removes its panel and the focused element with it. Focus then goes to
+  // that delivery's row, or to the heading when the row is filtered out, so the user keeps their place
+  // (#609). Focus that is somewhere else on the page is left alone.
+  useEffect(() => {
+    const closedId = lastSelected.current;
+    lastSelected.current = props.selectedId;
+    if (closedId === null || props.selectedId !== null) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const index = props.rows.findIndex((r) => r.id === closedId);
+    const row = index >= 0 ? tbodyRef.current?.rows[index] : null;
+    (row ?? headingRef.current)?.focus();
+    // Only a change of the selection moves focus; a poll that brings new rows does not.
+  }, [props.selectedId]);
+
   if (props.totalCount === 0) {
     return (
       <div className="bw-empty" role="status">
-        <p className="bw-empty__title">No shipments yet</p>
+        <p className="bw-empty__title" tabIndex={-1} ref={setHeading}>No shipments yet</p>
         <p className="bw-empty__text">Create a delivery request and Relay matches it to an employee commute.</p>
         <button type="button" className="bw-btn bw-btn--primary" onClick={props.onNewDelivery}>New delivery</button>
       </div>
@@ -46,7 +67,7 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
   if (props.rows.length === 0) {
     return (
       <div className="bw-empty" role="status">
-        <p className="bw-empty__title">No shipments match the filters</p>
+        <p className="bw-empty__title" tabIndex={-1} ref={setHeading}>No shipments match the filters</p>
         <p className="bw-empty__text">{shipmentCountText(props.totalCount)} in total.</p>
         <button type="button" className="bw-btn" onClick={props.onClearFilters}>Clear filters</button>
       </div>
@@ -61,7 +82,7 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
   return (
     <div className="bw-table-wrap">
       <table className="bw-table">
-        <caption className="bw-table__caption">
+        <caption className="bw-table__caption" tabIndex={-1} ref={setHeading}>
           Shipments
           <span className="bw-table__count">
             {props.rows.length === props.totalCount
@@ -96,7 +117,7 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
             })}
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={tbodyRef}>
           {props.rows.map((r) => {
             const selected = r.id === props.selectedId;
             return (
@@ -116,10 +137,13 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                   <span className={`bw-status bw-status--${r.statusTone}`}>{r.statusLabel}</span>
                 </td>
                 <td data-label="Plan">
-                  {r.planKind === 'relay' && r.relayPointName
-                    ? <>Relay <span className="bw-muted">via {r.relayPointName}</span></>
-                    : r.planLabel}
-                  {r.unmatchedReason && <span className="bw-reason">{r.unmatchedReason}</span>}
+                  {/* One child per cell: the stacked 390 px cell is a two-column grid (label, value). */}
+                  <div className="bw-plan">
+                    {r.planKind === 'relay' && r.relayPointName
+                      ? <>Relay <span className="bw-muted">via {r.relayPointName}</span></>
+                      : r.planLabel}
+                    {r.unmatchedReason && <span className="bw-reason">{r.unmatchedReason}</span>}
+                  </div>
                 </td>
                 <td data-label="Ready" className="bw-mono">{r.readyText}</td>
                 <td data-label="Deadline" className="bw-mono">{r.deadlineText}</td>

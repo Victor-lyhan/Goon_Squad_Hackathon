@@ -16,6 +16,16 @@ describe('businessWorkspace.css', () => {
     expect(narrow).not.toMatch(/overflow-x: (auto|scroll)/);
   });
 
+  it('the stacked cell is a two-column grid: the label, then the cell\'s one child (#609)', () => {
+    const narrow = css.match(/@media \(max-width: 640px\) \{([\s\S]*)\}\s*$/)![1];
+    const td = /\.bw-table td \{([^}]*display: grid[^}]*)\}/.exec(narrow);
+    expect(td).not.toBeNull();
+    expect(td![1]).toMatch(/grid-template-columns: 7\.5rem minmax\(0, 1fr\);/);
+    expect(td![1]).toContain('overflow-wrap: anywhere');
+    // The reason is a block inside the value, never a grid item of its own.
+    expect(css).toMatch(/\.bw-reason \{[^}]*display: block/);
+  });
+
   it('has no radius over 4px', () => {
     for (const [, value] of css.matchAll(/border-radius:\s*([^;]+);/g)) {
       for (const [, px] of value.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px)).toBeLessThanOrEqual(4);
