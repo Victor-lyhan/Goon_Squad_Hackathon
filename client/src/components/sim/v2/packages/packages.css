@@ -1,0 +1,66 @@
+/* Left-panel package list: search, status filter chips, count line, empty state (#418). */
+.pk-panel { display: grid; gap: var(--space-2, 8px); }
+
+.pk-filters { display: grid; gap: var(--space-2, 8px); }
+.pk-search { display: grid; gap: var(--space-1, 4px); }
+.pk-search label,
+.pk-group-label { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.pk-search input {
+  font: inherit;
+  font-size: var(--text-sm, 13px);
+  padding: 6px var(--space-2, 8px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+}
+
+.pk-status { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px); }
+.pk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: var(--text-xs, 12px);
+  padding: 3px var(--space-2, 8px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #151B26);
+  cursor: pointer;
+}
+.pk-chip:hover { border-color: var(--accent, #28618A); }
+.pk-chip.is-pressed {
+  border-color: var(--accent, #28618A);
+  background: var(--accent-soft, #E6EFF6);
+  color: var(--accent-dark, #1D4866);
+}
+.pk-count { font-family: var(--font-mono, monospace); color: var(--muted, #5B6472); }
+.pk-chip.is-pressed .pk-count { color: inherit; }
+
+.pk-search input:focus-visible,
+.pk-chip:focus-visible,
+.pk-clear:focus-visible {
+  outline: 2px solid var(--accent, #28618A);
+  outline-offset: 1px;
+}
+
+.pk-total { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+
+.pk-empty { display: grid; gap: var(--space-2, 8px); justify-items: start; padding: var(--space-3, 12px) 0; }
+.pk-empty p { margin: 0; color: var(--muted, #5B6472); }
+
+.pk-clear {
+  justify-self: start;
+  font: inherit;
+  font-size: var(--text-xs, 12px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent, #28618A);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* A row's kind + status can be long ("Relay via … · At relay point"): let it wrap on the right. */
+.pk-panel .sw-pkg-status { flex: 0 1 auto; text-align: right; }
