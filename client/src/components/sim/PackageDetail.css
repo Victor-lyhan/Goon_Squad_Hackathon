@@ -10,3 +10,10 @@
 .pd-leg-top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
 .pd a { color: #2563eb; }
 .pd-h { margin: 10px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #475569; }
+.pd { min-width: 0; overflow-wrap: anywhere; }
+.pd-title, .pd-route, .pd-row, .pd-leg, .pd-leg-top > * { min-width: 0; overflow-wrap: anywhere; }
+.pd-leg-top { flex-wrap: wrap; }
+.pd-ev-state { font-weight: 700; }
+.pd-ev-past { color: #475569; }
+.pd-ev-current { border-color: #2563eb; background: #eff6ff; font-weight: 600; }
+.pd-ev-future { color: #64748b; }
