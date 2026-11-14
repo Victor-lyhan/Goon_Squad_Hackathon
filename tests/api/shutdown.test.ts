@@ -2,12 +2,20 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createStore } from '../../server/store';
-import { startClockTicker } from '../../server/api/ticker';
+import { createStore, type Store } from '../../server/store';
 import { createInitialRun, loadDefaultScenario } from '../../server/api/initialRun';
 import { portInUseMessage, shutdown } from '../../server/index';
 
 const initial = () => createInitialRun(loadDefaultScenario());
+
+/** A small stand-in for a clock ticker (the MVP 1 one is deleted): one simulated minute per interval while playing. */
+function startTestTicker(store: Store, intervalMs: number): { stop(): void } {
+  const timer = setInterval(() => {
+    if (!store.get().clock.playing) return;
+    void store.mutate((r) => { r.clock.timeMin += 1; });
+  }, intervalMs);
+  return { stop: () => clearInterval(timer) };
+}
 let dir: string;
 let file: string;
 beforeEach(() => {
@@ -19,8 +27,7 @@ afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 describe('shutdown', () => {
   it('stops the ticker, pauses, and persists the final state (spec test 13)', async () => {
     const store = createStore({ filePath: file, initial });
-    let t = 0;
-    const ticker = startClockTicker(store, { intervalMs: 5, now: () => (t += 1000) });
+    const ticker = startTestTicker(store, 5);
     await store.mutate((r) => {
       r.clock.playing = true;
       r.clock.phase = 'locked';

@@ -1,6 +1,6 @@
 // Typed fetch helpers for the MVP II routes under /api/v2 (route list: shared/v2/api.ts).
-// Same names as the MVP 1 helpers in ./client, so UI code imports them from 'client/src/api/v2'
-// (not from the index). Timeout, abort and error behaviour are the MVP 1 ones: both share `request`.
+// UI code imports them from 'client/src/api/v2' (not from the index). Timeout, abort and error behaviour
+// come from the one `request` wrapper in ./http.
 // Plain TS + fetch only (no JSX / DOM-only APIs / import.meta.env) so Node tests can typecheck it.
 import type { z } from 'zod';
 import type { Run } from '../../../shared/v2/types';
@@ -13,13 +13,13 @@ import type {
   CreateShipmentRequest, PatchShipmentRequest, PutCommuteRequest,
   SimControlRequest, GenerateScenarioRequest,
 } from '../../../shared/v2/schemas';
-import { ApiRequestError, request, type RequestOptions } from './client';
+import { ApiRequestError, request, type RequestOptions } from './http';
 
 // Re-exported so a v2 page needs one import for helpers and error handling.
 export {
   ApiRequestError, isNetworkError, isAbortError, probeHealth, apiConfig, DEFAULT_TIMEOUT_MS,
-} from './client';
-export type { ApiErrorKind, RequestOptions } from './client';
+} from './http';
+export type { ApiErrorKind, RequestOptions } from './http';
 
 export const API_V2_PREFIX = '/api/v2';
 
@@ -45,8 +45,8 @@ type CreateShipmentInput = z.input<typeof CreateShipmentRequest>;
 type PutCommuteInput = z.input<typeof PutCommuteRequest>;
 type GenerateScenarioInput = z.input<typeof GenerateScenarioRequest>;
 
-// Every helper takes RequestOptions (signal, timeoutMs) as its last argument. For the GETs this is
-// the MVP 1 behaviour; the writes accept it too because PUT commute may wait on a live Google call.
+// Every helper takes RequestOptions (signal, timeoutMs) as its last argument, the writes too,
+// because PUT commute may wait on a live Google call.
 export const getBusinesses = (opts?: RequestOptions) =>
   request<BusinessesResponse>('GET', v2('/businesses'), undefined, opts);
 export const getBusinessDashboard = (id: string, opts?: RequestOptions) =>

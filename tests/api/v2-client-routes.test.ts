@@ -98,10 +98,11 @@ describe('v2 client: route coverage', () => {
     expect(Object.keys(cases).sort()).toEqual(helpers.sort());
   });
 
-  it('has the same helper names as the MVP 1 client, plus geocode', () => {
+  it('the index has no route helper left: the MVP 1 ones are deleted (#628) and the v2 ones are only in v2.ts', () => {
     const names = (mod: Record<string, unknown>) => Object.entries(mod)
       .filter(([, v]) => typeof v === 'function' && !/^[A-Z]/.test((v as { name?: string }).name || '')).map(([k]) => k).sort();
-    expect(names(v2)).toEqual([...names(v1), 'geocode'].sort());
+    expect(names(v1)).toEqual([]);
+    expect(names(v2)).toEqual(Object.keys(cases).sort());
   });
 });
 

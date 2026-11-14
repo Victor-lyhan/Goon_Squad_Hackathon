@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import './ui.css';
-import { probeHealth } from '../api';
+import { probeHealth } from '../api/http';
 import { createHealthPoller } from './healthPoller';
 import {
   HEALTH_POLL_MS, initialConnection, nextConnection, type ConnectionState,

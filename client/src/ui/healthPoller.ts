@@ -1,4 +1,4 @@
-import { isAbortError } from '../api';
+import { isAbortError } from '../api/http';
 
 export type HealthProbe = (opts: { signal: AbortSignal }) => Promise<boolean>;
 

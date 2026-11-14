@@ -300,13 +300,13 @@ describe('all start lines', () => {
       listeningLine(one.port),
     ]);
     expect((await fetch(`${one.origin}/api/v2/simulator`)).status).toBe(503);
-    expect((await fetch(`${one.origin}/api/simulator`)).status).toBe(200); // MVP 1 still answers
+    expect((await fetch(`${one.origin}/api/simulator`)).status).toBe(404); // the MVP 1 API is gone (#628)
     expect(fs.existsSync(one.repo.statePath)).toBe(false);
   }, T);
 });
 
 describe('stop()', () => {
-  it('closes the server and saves both runs paused in the temp folder; a second call is the same promise', async () => {
+  it('closes the server and saves the run paused in the temp folder; a second call is the same promise', async () => {
     const one = await boot();
     const play = await fetch(`${one.origin}/api/v2/simulator/control`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'play' }),
@@ -322,8 +322,8 @@ describe('stop()', () => {
 
     const v2 = JSON.parse(fs.readFileSync(one.repo.statePath, 'utf8'));
     expect(v2.run.clock).toMatchObject({ phase: 'locked', playing: false });
-    // The MVP 1 state file is next to it, by default.
-    const mvp1 = JSON.parse(fs.readFileSync(one.repo.mvp1StatePath, 'utf8'));
-    expect(mvp1.run.clock.playing).toBe(false);
+    // No MVP 1 run is created any more (#628), so no state.json is written next to it.
+    expect(fs.existsSync(one.repo.mvp1StatePath)).toBe(false);
+    expect(fs.readdirSync(path.dirname(one.repo.statePath)).sort()).toStrictEqual(['state-v2.json', 'state-v2.source.json']);
   }, T);
 });

@@ -128,10 +128,10 @@ describe('/api/v2 before the NYC travel data is loaded (createApp defaults)', ()
     expect(res.status).toBe(503);
   });
 
-  it('MVP 1 is untouched: /api/businesses is 200, /api/unknown is the JSON 404, the SPA still loads', async () => {
-    const ok = await call(unloaded, 'GET', '/api/businesses');
-    expect(ok.status).toBe(200);
-    expect(Array.isArray(ok.body.businesses)).toBe(true);
+  it('outside /api/v2: /api/health is 200, the deleted MVP 1 /api/businesses and /api/unknown are the JSON 404, the SPA still loads', async () => {
+    const gone = await call(unloaded, 'GET', '/api/businesses'); // an MVP 1 route until #628
+    expect(gone.status).toBe(404);
+    expect(gone.body).toEqual({ error: 'Not found' });
     expect((await call(unloaded, 'GET', '/api/health')).body).toEqual({ ok: true });
 
     const missing = await call(unloaded, 'GET', '/api/unknown');
@@ -157,7 +157,8 @@ describe('/api/v2 before the NYC travel data is loaded (createApp defaults)', ()
         expect(status).toBe(503);
         expect(body).toEqual(NOT_LOADED);
       }
-      expect((await call(base, 'GET', '/api/businesses')).status).toBe(200);
+      expect((await call(base, 'GET', '/api/health')).status).toBe(200);
+      expect((await call(base, 'GET', '/api/businesses')).status).toBe(404); // an MVP 1 route until #628
     }
   });
 });
@@ -219,9 +220,10 @@ describe('/api/v2 with travel data and a v2 store', () => {
     expect(body).toEqual({ error: 'Request body is not valid JSON' });
   });
 
-  it('MVP 1 routes still answer next to a loaded v2 router', async () => {
-    expect((await call(loaded, 'GET', '/api/businesses')).status).toBe(200);
-    expect((await call(loaded, 'GET', '/api/simulator')).status).toBe(200);
+  it('the deleted MVP 1 routes are the JSON 404 next to a loaded v2 router, and /api/health answers (#628)', async () => {
+    expect((await call(loaded, 'GET', '/api/businesses')).status).toBe(404);
+    expect((await call(loaded, 'GET', '/api/simulator')).status).toBe(404);
+    expect((await call(loaded, 'GET', '/api/health')).body).toEqual({ ok: true });
     const missing = await call(loaded, 'GET', '/api/unknown');
     expect(missing.status).toBe(404);
     expect(missing.body).toEqual({ error: 'Not found' });

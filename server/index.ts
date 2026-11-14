@@ -4,18 +4,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createStore, type Store } from './store';
-import { createInitialRun, loadDefaultScenario } from './api/initialRun';
-import { getBusinesses } from './api/businesses';
-import { getEmployees } from './api/employees';
-import { getMap } from './api/map';
-import { putCommute } from './api/commute';
-import { getSimulator, postSimulatorControl } from './api/simulator';
-import { getBusinessDashboard, getEmployeeDashboard, getJob, getShipment } from './api/portals';
-import { postShipment, patchShipment, postShipmentMatch } from './api/shipments';
-import { postCompare, postRecompute, postPlanningReset } from './api/planning';
-import { postGenerateScenario, getExportScenario, postImportScenario } from './api/scenario';
-import { startClockTicker } from './api/ticker';
+import type { Store } from './store';
 import { createV2Router, V2_DEPS_NOT_LOADED, type V2Deps } from './api/v2/router';
 import { createV2Runtime } from './api/v2/bootstrap';
 import { DEFAULT_V2_STATE_PATH, NYC_FIXTURES_DIR } from './api/v2/bootRun';
@@ -89,7 +78,14 @@ export function errorLogLine(what: string, req: { method: string; originalUrl: s
   }
 }
 
-export function createApp(store: Store, opts: { clientDist?: string; v2?: V2Deps } = {}) {
+/**
+ * The app: `/api/health`, `/api/v2`, the JSON 404 for every other `/api` path, the built client and the
+ * error handler. The MVP 1 routes are gone (#628).
+ *
+ * The first argument was the MVP 1 store. It is still accepted and is not used, because the v2 tests and
+ * helpers call `createApp(store, { v2 })`. A later sweep removes it together with those calls.
+ */
+export function createApp(_unused?: unknown, opts: { clientDist?: string; v2?: V2Deps } = {}) {
   const dist = opts.clientDist ?? clientDist;
   const app = express();
 
@@ -110,29 +106,8 @@ export function createApp(store: Store, opts: { clientDist?: string; v2?: V2Deps
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
   });
-  app.get('/api/businesses', getBusinesses(store));
-  app.get('/api/employees', getEmployees(store));
-  app.get('/api/map', getMap(store));
-  app.put('/api/employees/:id/commute', putCommute(store));
-  app.get('/api/simulator', getSimulator(store));
-  app.post('/api/simulator/control', postSimulatorControl(store));
-  app.get('/api/businesses/:id/dashboard', getBusinessDashboard(store));
-  app.get('/api/employees/:id/dashboard', getEmployeeDashboard(store));
-  app.post('/api/shipments', postShipment(store));
-  app.patch('/api/shipments/:id', patchShipment(store));
-  app.post('/api/shipments/:id/match', postShipmentMatch(store));
-  app.get('/api/shipments/:id', getShipment(store));
-  app.get('/api/jobs/:id', getJob(store));
 
-  app.post('/api/matches/compare', postCompare(store));
-  app.post('/api/matches/recompute', postRecompute(store));
-  app.post('/api/planning/reset', postPlanningReset(store));
-
-  app.post('/api/scenario/generate', postGenerateScenario(store));
-  app.get('/api/scenario/export', getExportScenario(store));
-  app.post('/api/scenario/import', postImportScenario(store));
-
-  // MVP II lives next to MVP 1 under /api/v2. Its routes are registered in server/api/v2/router.ts, not here.
+  // Every other route is MVP II and is registered in server/api/v2/router.ts, not here.
   app.use('/api/v2', createV2Router(opts.v2 ?? V2_DEPS_NOT_LOADED));
 
   // Unknown API paths never fall through to the SPA.
@@ -188,9 +163,12 @@ export function portInUseMessage(port: number): string {
   return `Port ${port} is already in use. Stop the other Relay server or set PORT=${port + 1}.`;
 }
 
-// Stop the ticker, pause the clock, and wait until the final state write has landed.
-// `v2` is the MVP II runtime (server/api/v2/bootstrap.ts): it does the same for the v2 run and its own
-// state file. Both are always tried, so a failed save of one never skips the other.
+// Stops a ticker, pauses a store's clock and waits until its final state write has landed; `v2` is the
+// MVP II runtime (server/api/v2/bootstrap.ts), which does the same for the v2 run and its own state file.
+// Both are always tried, so a failed save of one never skips the other.
+// The server itself no longer calls this: it has no MVP 1 store, so `stop()` below calls the runtime's
+// `shutdown()` directly. It stays because tests/api/v2-bootstrap-runtime.test.ts, v2-bootstrap-not-loaded.test.ts
+// and shutdown.test.ts call it with a store of their own. A later sweep removes it with createApp's first argument.
 export async function shutdown(store: Store, ticker: { stop(): void }, v2?: { shutdown(): Promise<void> }): Promise<void> {
   ticker.stop();
   const v2Saved = v2 ? v2.shutdown() : Promise.resolve();
@@ -229,20 +207,18 @@ export type StartServerOptions = {
   fixturesDir: string;
   /** The MVP II state file (`DEFAULT_V2_STATE_PATH` in the app). */
   statePath: string;
-  /** The MVP 1 state file. Default: `state.json` in the folder of `statePath`, which is `data/state.json` in the app. */
-  mvp1StatePath?: string;
   /** Passed to the Google clients instead of the global `fetch`. Tests give a fake, so nothing touches the network. */
   fetch?: FetchLike;
   /** Called with 1 after the "port is already in use" line. Default: `process.exit`. */
   exit?: (code: number) => void;
 };
 
-/** The listening http server, plus `stop()`: close it, stop both tickers, pause both clocks, write both state files. */
+/** The listening http server, plus `stop()`: close it, stop the ticker, pause the clock and write the state file of the v2 run. */
 export type RelayServer = Server & { stop(): Promise<void> };
 
 /**
  * Starts the whole server, as `npm start` and `npm run dev` do. In this order: `.env` is loaded, then `PORT`
- * and the key are read; both runs are loaded; the start lines go to `log`: MVP II (`v2StartLines`), the built
+ * and the key are read; the v2 run is loaded; the start lines go to `log`: MVP II (`v2StartLines`), the built
  * client, the Google server key (set or not set, never the value), and, once the port is bound, the address
  * with the port the server really listens on.
  */
@@ -251,12 +227,6 @@ export function startServer(opts: StartServerOptions): RelayServer {
   // First of all: a PORT or a key in .env counts. A variable that is already in the environment wins.
   loadDotEnv(opts.envPath, env);
   const port = Number(env.PORT ?? 3001);
-
-  const store = createStore({
-    filePath: opts.mvp1StatePath ?? path.join(path.dirname(opts.statePath), 'state.json'),
-    initial: () => createInitialRun(loadDefaultScenario()),
-  });
-  const ticker = startClockTicker(store);
 
   // MVP II: fixtures/nyc/ (travel cache + NYC files) -> the v2 run in data/state-v2.json -> /api/v2.
   // The key is read from the environment (.env at the repo root) and is never logged.
@@ -267,14 +237,13 @@ export function startServer(opts: StartServerOptions): RelayServer {
   log(clientStartLine(opts.clientDist));
   log(keyStartLine(key));
 
-  const server: Server = createApp(store, { clientDist: opts.clientDist, v2: v2.deps }).listen(port, (err?: Error) => {
+  const server: Server = createApp(undefined, { clientDist: opts.clientDist, v2: v2.deps }).listen(port, (err?: Error) => {
     if (err) return; // Express 5 also passes listen errors here; the 'error' handler below reports them
     // The bound port, not the configured one: PORT=0 (or an empty PORT) lets the system choose.
     log(`Relay API listening on http://localhost:${(server.address() as AddressInfo).port}`);
   });
   server.on('error', (e: NodeJS.ErrnoException) => {
     if (e.code === 'EADDRINUSE') {
-      ticker.stop();
       console.error(portInUseMessage(port));
       (opts.exit ?? ((code: number) => process.exit(code)))(1);
       return;
@@ -287,7 +256,7 @@ export function startServer(opts: StartServerOptions): RelayServer {
     stopped ??= (async () => {
       const closed = new Promise<void>((resolve) => server.close(() => resolve()));
       server.closeAllConnections?.();
-      await Promise.all([closed, shutdown(store, ticker, v2)]);
+      await Promise.all([closed, v2.shutdown()]);
     })();
     return stopped;
   };
