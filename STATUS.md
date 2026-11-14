@@ -1,46 +1,50 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 04:25 (Sat), planner pass 10_
+_Last update: 2026-11-14 04:40 (Sat), planner pass 11_
 
 ## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Pass 9's queue mostly merged in 7 minutes (PRs #167–#173). This pass queues production-mode and restart checks, two-tab sync, playback endgame, spec §3A/§3B/§8 audits, and simulator/landing polish.
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Pass 10's queue: 5 merged and 9 PRs open for review. This pass queues the CI fix, the §8 metrics follow-up, cross-portal consistency, API hardening, reduced motion (M6 item) and §3A/§3B audits.
 
-## Main health
-- CI on main: green at PR #173 (#157). Runs for #172 (#152) and #171 (#160) failed, and the next merge (#173) fixed main. No `stuck` items, and no `it.fails` tests left in `tests/`.
+## Main health: RED (flaky timeout, not broken code)
+- The latest finished main run (at #201 / issue #184) failed, and so did the PR runs for #200, #201 and #202. In each one, the only failure is `tests/domain/generator-quality.test.ts` › "has matches for every default seed…", which takes 7.2 s against the 5 s vitest timeout. The other 95 files and 774 tests pass.
+- Fix queued: **#213 (p1-b, P0)**. Runs for #202/#203 were still going at 04:40.
 
-## In review (9 PRs)
-- victor-1: PR #178 (#153) JSON 404 test · PR #181 (#154) poll budget test
-- victor-2: PR #177 (#158) simulator layout + a11y
-- p2-a: PR #175 (#161) shell 404/skip link · PR #179 (#162) business 390 px + drawer focus trap
-- p2-b: PR #174 (#163) "New" job badge · PR #176 (#164) stale employee links · PR #180 (#165) job card §3B audit · PR #182 (#166) earnings + 390 px
-- Already opened this pass: PR #196 (#183)
+## Stuck
+- #197 (p1-b metrics §8) asked for a new `Metrics` field in `shared/`. Decided no contract change (DECISIONS pass 11). Closed and replaced by #214 (p1-b) plus the UI label in #218 (victor-2).
 
-## Queued (label `ready`), 18 issues
-- victor-1: #183 production deep links + README build steps · #184 state-file restart/corruption · #185 two-tab sync + concurrent double-submit · #186 playback endgame (600x to 2160, controls at the end)
-- victor-2: #187 run change / reconnect on simulator page · #188 package queue + detail keyboard pass · #189 Setup drawer confirm + error states · #190 timeline scrubber keyboard + event ticks
-- p2-a: #191 send-form edge cases (§3A) · #192 business copy audit (§3A) · #193 UI kit/formatter audit · #194 landing live city summary + 390 px
-- p2-b: #195 commute editor §3B audit (only free p2-b files; the rest are in 4 open PRs)
-- p1-b: #199 pricing §8 audit · #197 metrics §8 audit (extra distance once per trip) · #198 snapshotAt perf + marker continuity
-- p1-a: #134 matcher edge cases · #136 spec test 10 (test-only). Nothing new: #134 covers every p1-a file.
+## In review (10 PRs)
+- p1-b: PR #211 (#198) snapshotAt perf + marker continuity · #199 pricing §8 in progress
+- victor-1: PR #206 (#185) two-tab sync · PR #208 (#186) playback endgame
+- victor-2: PR #204 (#189) Setup drawer confirm/errors · PR #209 (#190) scrubber keyboard + ticks
+- p2-a: PR #205 (#192) §3A copy · PR #207 (#193) UI kit/formatter · PR #210 (#194) landing live summary
+- p2-b: PR #182 (#166) earnings + 390 px: **needs-fix**
+
+## Queued (label `ready`)
+- p1-b: **#213 CI timeout (do first)** · #214 per-trip metrics + projected = actual
+- victor-1: #215 portals agree with the simulator · #216 bad-body sweep on mutating routes · #217 client/src/api ↔ server route parity
+- victor-2: #218 metrics cards §4/§8 + external-cost label · #219 reduced-motion markers · #220 map legibility · #221 playback bar end states
+- p2-a: #222 reduced motion + focus rings · #223 package lists §3A · #224 route maps · #225 shell resilience
+- p2-b: #195 commute editor §3B · #226 job detail §3B · #227 portal reconnect / runId change
+- p1-a: #134 matcher edge cases · #136 spec test 10. Both have been `ready` since pass 9 with no pickup (see QUESTIONS).
 
 ## Next up
-- p2-b: queue more once PRs #174/#176/#180/#182 merge and free the portal files (job detail §3B audit, 390 px job feed).
-- p1-a: after #134/#136, queue a check that matching honors `maxExtraMin` per direction with waypoints on random cities.
-- Fixes found by this pass's audits (`it.fails` tests naming another owner's file).
-- M6 (11 p.m. Sat): bug fixes only, from the humans' list. A human two-tab browser walkthrough (spec §10) is still needed.
+- After #213 merges: confirm main is green. If the slow part turns out to be `matching.ts`, queue a matcher perf issue for p1-a.
+- p2-b: once PR #182 is fixed and merged, the 390 px job feed / EmployeePortalView pass.
+- Fixes for any `it.fails` tests left by #215–#217 (shipments.ts/simulator.ts, once PRs #206/#208 merge).
+- M6 (11 p.m. Sat): bug fixes only, from the humans' list. A human two-tab browser walkthrough (spec §10) and a fresh-clone `npm install && npm run dev` check are still needed.
 
 ## Done (newest first)
-- PR #173 (#157), #170 (#156), #168 (#155) victor-2: real-data playback test; ComparePanel proof slide; Recompute button + step-7 hint
-- PR #172 (#152), #167 (#151) victor-1: random/zero-hub/no-match API flow + export/import; full Demo-city run test
-- PR #171 (#160), #169 (#159), #147 (#126) p2-a: no-match → edit/retry/duplicate; stale business links; business playback test
-- PR #150 (#138), #149 (#137) p1-b: generator quality; sim/metrics edge runs
-- PR #148 (#133) p2-b: commute editor edge states
-- PR #146 (#130), #143 (#128), #140 (#127) victor-2: large/zero-hub map; playback shortcuts; `/simulator?package=`
-- PR #145 (#132), #141 (#131) p2-b: job detail links + live progress; employee playback test
-- PR #144 (#125), #139 (#124) p2-a: carrier/simulator links; landing "Run the demo" strip
-- PR #142 (#123), #135 (#122), #129 (#121) victor-1: planning-cycle flow; README; scenario routes
+- PR #203 (#191) p2-a: send-form edge cases §3A
+- PR #202 (#188), #200 (#187) victor-2: queue/detail keyboard pass; run change / reconnect on simulator page
+- PR #201 (#184), #196 (#183), #181 (#154), #178 (#153) victor-1: state-file restart/corruption; production deep links + README; poll budget; JSON 404s
+- PR #180 (#165), #176 (#164), #174 (#163) p2-b: job card §3B; stale employee links; "New" job badge
+- PR #179 (#162), #175 (#161) p2-a: business 390 px + drawer focus; shell 404/skip link
+- PR #177 (#158) victor-2: simulator layout + a11y
+- PR #173 (#157), #172 (#152), #171 (#160), #170 (#156), #168 (#155), #167 (#151): real-data playback, random/zero-hub flow, no-match retry, ComparePanel, Recompute
 - Earlier (M0–M5): see git log and previous STATUS versions
 
 ## Known bugs / gaps
+- Main CI red from the generator-quality timeout (#213).
+- `metrics.ts` averages added minutes per leg, not per trip, and can report negative savings if price > courier (#214).
 - Nobody has done a real two-tab browser walkthrough. All checks so far are server-side renders and API tests.
-- Production mode (`npm run build && npm start`) and restart behaviour are untested until #183/#184 merge.
+- p1-a has picked up nothing since pass 9.
