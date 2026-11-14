@@ -62,7 +62,7 @@ describe('employee portal with real Demo-city data', () => {
     expect(out.some((o) => o.kind === 'direct')).toBe(true);
     out.forEach((o) => clean(o.html));
     earnings.forEach((e) => clean(e.html));
-  });
+  }, 10_000); // ~0.13 s locally; explicit timeout for slower CI runners
 
   it('after simEndMin jobs are completed and carriers have formatted earnings', () => {
     const { out, earnings } = renderAll(run.scenario.settings.simEndMin);
@@ -75,5 +75,5 @@ describe('employee portal with real Demo-city data', () => {
       expect(e.html).toContain(formatCents(e.earned));
       clean(e.html);
     }
-  });
+  }, 10_000);
 });

@@ -53,7 +53,7 @@ describe('employee feed grouping across the run', () => {
         expect(text(html)).not.toMatch(/\bn-\d+-\d+\b/);
       }
     }
-  });
+  }, 30_000); // ~0.7 s locally: 4 clock times x every employee; 30 s for slower CI runners
 
   it('relay first leg is Completed after the hub drop while the second leg is still Upcoming', () => {
     expect(pickupMin).toBeGreaterThan(dropMin);
