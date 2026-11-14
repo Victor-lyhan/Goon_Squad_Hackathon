@@ -1,0 +1,22 @@
+{
+  "businesses": [
+    { "id": "biz-penguin-random-house", "name": "Penguin Random House", "address": "1745 Broadway, New York, NY 10019", "neighborhood": "Midtown", "borough": "Manhattan", "kind": "office" },
+    { "id": "biz-mcgraw-hill", "name": "McGraw Hill", "address": "1325 Avenue of the Americas, New York, NY 10019", "neighborhood": "Midtown", "borough": "Manhattan", "kind": "office" },
+    { "id": "biz-bh-photo", "name": "B&H Photo Video", "address": "420 9th Avenue, New York, NY 10001", "neighborhood": "Chelsea", "borough": "Manhattan", "kind": "shop" },
+    { "id": "biz-starbucks-reserve", "name": "Starbucks Reserve Roastery", "address": "61 9th Avenue, New York, NY 10011", "neighborhood": "Chelsea", "borough": "Manhattan", "kind": "cafe" },
+    { "id": "biz-century-21", "name": "Century 21", "address": "22 Cortlandt Street, New York, NY 10007", "neighborhood": "Financial District", "borough": "Manhattan", "kind": "shop" },
+    { "id": "biz-blue-bottle-wall", "name": "Blue Bottle Coffee", "address": "1 Wall Street, New York, NY 10005", "neighborhood": "Financial District", "borough": "Manhattan", "kind": "cafe" },
+    { "id": "biz-zabars", "name": "Zabar's", "address": "2245 Broadway, New York, NY 10024", "neighborhood": "Upper West Side", "borough": "Manhattan", "kind": "shop" },
+    { "id": "biz-levain-uws", "name": "Levain Bakery", "address": "167 West 74th Street, New York, NY 10023", "neighborhood": "Upper West Side", "borough": "Manhattan", "kind": "cafe" },
+    { "id": "biz-etsy", "name": "Etsy", "address": "55 Washington Street, Brooklyn, NY 11201", "neighborhood": "DUMBO", "borough": "Brooklyn", "kind": "office" },
+    { "id": "biz-powerhouse-arena", "name": "Powerhouse Arena", "address": "28 Adams Street, Brooklyn, NY 11201", "neighborhood": "DUMBO", "borough": "Brooklyn", "kind": "shop" },
+    { "id": "biz-brooklyn-roasting", "name": "Brooklyn Roasting Company", "address": "200 Flushing Avenue, Brooklyn, NY 11205", "neighborhood": "DUMBO", "borough": "Brooklyn", "kind": "cafe" },
+    { "id": "biz-mast-brothers", "name": "Mast Brothers Chocolate", "address": "111 North 3rd Street, Brooklyn, NY 11249", "neighborhood": "Williamsburg", "borough": "Brooklyn", "kind": "shop" },
+    { "id": "biz-community-bookstore", "name": "Community Bookstore", "address": "143 7th Avenue, Brooklyn, NY 11215", "neighborhood": "Park Slope", "borough": "Brooklyn", "kind": "shop" },
+    { "id": "biz-wework-montague", "name": "WeWork", "address": "195 Montague Street, Brooklyn, NY 11201", "neighborhood": "Downtown Brooklyn", "borough": "Brooklyn", "kind": "office" },
+    { "id": "biz-jetblue", "name": "JetBlue", "address": "27-01 Queens Plaza North, Long Island City, NY 11101", "neighborhood": "Long Island City", "borough": "Queens", "kind": "office" },
+    { "id": "biz-sweetleaf", "name": "Sweetleaf Coffee Roasters", "address": "10-93 Jackson Avenue, Long Island City, NY 11101", "neighborhood": "Long Island City", "borough": "Queens", "kind": "cafe" },
+    { "id": "biz-titan-foods", "name": "Titan Foods", "address": "25-56 31st Street, Astoria, NY 11106", "neighborhood": "Astoria", "borough": "Queens", "kind": "shop" },
+    { "id": "biz-kinship-coffee", "name": "Kinship Coffee", "address": "30-02 39th Avenue, Astoria, NY 11103", "neighborhood": "Astoria", "borough": "Queens", "kind": "cafe" }
+  ]
+}
