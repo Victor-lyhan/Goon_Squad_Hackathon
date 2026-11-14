@@ -17,13 +17,15 @@ export type ShipmentFormProps = {
   /** Form-level failure from the last submit (retry hint or locked). */
   formError?: { kind: 'retry' | 'locked' | 'other'; message: string };
   window?: TimeWindow;
+  /** Move focus to the first field on mount (after "Send another package"). */
+  focusFirst?: boolean;
   onSubmit: (req: CreateShipmentRequest) => void;
 };
 
 /** Assumed flat customer price shown before matching (spec: $10). */
 const ASSUMED_PRICE_CENTS = 1000;
 
-export function ShipmentForm({ origin, businesses, locked, submitting, fieldErrors, initial, formError, window, onSubmit }: ShipmentFormProps) {
+export function ShipmentForm({ origin, businesses, locked, submitting, fieldErrors, initial, formError, window, focusFirst, onSubmit }: ShipmentFormProps) {
   const [form, setForm] = useState<FormState>(() => ({ ...defaultForm(), ...initial, originBusinessId: origin.id }));
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   // One id per package attempt: failed submits (network, 5xx, 400, 409) retry with the same id (idempotent POST).
@@ -36,6 +38,9 @@ export function ShipmentForm({ origin, businesses, locked, submitting, fieldErro
     setLocalErrors({});
     ids.reset();
   }, [initial, origin.id, ids]);
+
+  const firstRef = useRef<HTMLSelectElement>(null);
+  useEffect(() => { if (focusFirst) firstRef.current?.focus(); }, [focusFirst]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
   const errors = { ...localErrors, ...fieldErrors };
@@ -84,7 +89,7 @@ export function ShipmentForm({ origin, businesses, locked, submitting, fieldErro
       {formError && formError.kind !== 'locked' && <p className="shipment-form__error" role="alert">{formError.message}</p>}
       {otherErrors.length > 0 && <p className="shipment-form__error" role="alert">{otherErrors.join(' ')}</p>}
       <Field label="Destination business" error={errors.destinationBusinessId}>
-        <select value={form.destinationBusinessId} disabled={disabled} onChange={(e) => set('destinationBusinessId', e.target.value)}>
+        <select ref={firstRef} value={form.destinationBusinessId} disabled={disabled} onChange={(e) => set('destinationBusinessId', e.target.value)}>
           <option value="">Choose a business…</option>
           {others.map((b) => <option key={b.id} value={b.id}>{b.name} · {b.district}</option>)}
         </select>

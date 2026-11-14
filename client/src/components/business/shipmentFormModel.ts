@@ -151,6 +151,16 @@ export function fromShipment(s: Shipment): FormState {
 /** Prefill for Edit request / Duplicate (grams -> kg, minutes -> day + HH:MM). */
 export const formFromShipment = fromShipment;
 
+/** "Send another package": package fields cleared, the sender kept. The form then draws a new clientRequestId. */
+export function nextPackageForm(originBusinessId: string): FormState {
+  return { ...defaultForm(), originBusinessId };
+}
+
+/** Form values to show after a result: a no-match keeps what was typed (adjust and retry); a match starts a fresh package. */
+export function formAfterResult(form: FormState, matched: boolean): FormState {
+  return matched ? nextPackageForm(form.originBusinessId) : { ...form };
+}
+
 let requestCounter = 0;
 /** Fresh id for a new request. Module-wide counter so a Duplicate never reuses the original's id (POST is idempotent per id). */
 export function newClientRequestId(originId: string): string {
