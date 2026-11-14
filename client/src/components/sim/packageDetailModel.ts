@@ -2,8 +2,7 @@ import type { Business, Employee, Hub, ShipmentProgress, Stop } from '../../../.
 import { jobIdFor } from '../../../../shared/types';
 import type { SimulatorResponse } from '../../../../shared/api';
 import { STATUS_LABEL } from './packageQueueModel';
-import { formatMin } from './simFormat';
-import { formatCents } from '../../ui/format';
+import { formatCents, formatMin } from '../../ui/format';
 
 export type LegDetail = {
   jobId: string;

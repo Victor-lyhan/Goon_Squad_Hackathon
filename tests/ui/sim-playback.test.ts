@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Clock } from '../../shared/types';
 import { toPlaybackModel } from '../../client/src/components/sim/playbackModel';
-import { formatMin } from '../../client/src/components/sim/simFormat';
+import { formatMin } from '../../client/src/ui/format';
 
 const settings = { simStartMin: 930, simEndMin: 2160 };
 const clock = (o: Partial<Clock> = {}): Clock => ({ phase: 'locked', playing: false, timeMin: 930, speed: 120, ...o });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Metrics } from '../../shared/types';
-import { formatCents, formatKm, toMetricCards } from '../../client/src/components/sim/metricsModel';
+import { formatCents, formatKm, formatMin, toMetricCards } from '../../client/src/components/sim/metricsModel';
 
 const fixture: Metrics = {
   requested: 1, matched: 1, delivered: 1, direct: 0, relay: 1, unmatched: 0,
@@ -57,5 +57,15 @@ describe('metrics model', () => {
     expect(formatCents(null)).toBe('—');
     expect(formatKm(1400)).toBe('1.4 km');
     expect(formatKm(NaN)).toBe('—');
+  });
+
+  it('never renders NaN: null, undefined and non-finite give an em dash', () => {
+    for (const bad of [null, undefined, NaN, Infinity]) {
+      expect(formatCents(bad)).toBe('—');
+      expect(formatMin(bad)).toBe('—');
+      expect(formatKm(bad)).toBe('—');
+    }
+    expect(formatMin(6)).toBe('6 min');
+    expect(formatMin(65)).toBe('1 h 5 min');
   });
 });
