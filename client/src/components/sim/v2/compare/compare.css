@@ -1,0 +1,64 @@
+/* Direct only vs relay points (#406). Fits a 280px panel: no fixed widths, the table fills its column. */
+.cmp { display: grid; gap: var(--space-2, 8px); min-width: 0; max-width: 100%; }
+
+.cmp-text,
+.cmp-note,
+.cmp-error { margin: 0; font-size: var(--text-sm, 13px); line-height: 1.4; color: var(--text, #151B26); }
+.cmp-note { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.cmp-error { color: var(--danger, #B42318); }
+
+.cmp-summary {
+  margin: 0;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: var(--text-sm, 13px);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.cmp-summary--gain { border-color: var(--accent, #28618A); color: var(--accent-dark, #1D4866); background: var(--accent-soft, #E8F0F6); }
+.cmp-summary--neutral { color: var(--text, #151B26); background: var(--panel, #FFFFFF); }
+.cmp-summary--loss { border-color: var(--warn, #B54708); color: var(--warn, #B54708); background: var(--panel, #FFFFFF); }
+
+.cmp-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border, #D7DDE5);
+  border-radius: var(--radius, 2px);
+  font-size: var(--text-xs, 12px);
+  background: var(--panel, #FFFFFF);
+}
+.cmp-table th,
+.cmp-table td {
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  border-top: 1px solid var(--border, #D7DDE5);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.cmp-table thead th {
+  border-top: 0;
+  color: var(--muted, #5B6472);
+  font-weight: 600;
+}
+.cmp-table thead th:first-child { width: 42%; }
+.cmp-table tbody th { font-weight: 400; color: var(--muted, #5B6472); }
+.cmp-table td + td,
+.cmp-table th + th { border-left: 1px solid var(--border, #D7DDE5); }
+.cmp-table tbody th + td { border-left: 1px solid var(--border, #D7DDE5); }
+.cmp-num {
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--text, #151B26);
+}
+.cmp-row.is-emphasis .cmp-num { font-weight: 600; }
+
+.cmp-run { justify-self: start; }
+
+.cmp-sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
