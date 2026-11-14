@@ -3,6 +3,7 @@
 import express from 'express';
 import type { Run as RunV2, TravelProvider } from '../../../shared/v2/types';
 import type { Store } from '../../store';
+import { refuseBrokenBody } from './bodyGuard';
 import { sendTravelError, travelUnavailable, TRAVEL_NOT_LOADED_MESSAGE } from './errors';
 
 export type { RunV2 };
@@ -29,6 +30,10 @@ export function createV2Router(deps: V2Deps): express.Router {
     });
     return router;
   }
+
+  // Ahead of every route: a body no route may get (a `__proto__` key, nesting far too deep, a text far too
+  // long) is a 400 here, so the route groups below and any group added later never see it (bodyGuard.ts).
+  router.use(refuseBrokenBody);
 
   // ===== v2 route groups: register here =====
   // One line per group, paths relative to /api/v2, handlers built from `store` and `travel`, e.g.

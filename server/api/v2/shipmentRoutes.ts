@@ -13,6 +13,7 @@ import type { ShipmentResponse } from '../../../shared/v2/api';
 import type { ApiError } from '../../../shared/v2/schemas';
 import type { Leg, Run as RunV2, Shipment, Snapshot, TravelProvider } from '../../../shared/v2/types';
 import type { Store } from '../../store';
+import { takesNoOptions } from './bodyGuard';
 import { matchPending, type PipelineDeps } from './pipeline';
 import {
   planCreateShipment, planMatchRetry, planPatchShipment, withShipment, type ShipmentRefusal,
@@ -124,7 +125,8 @@ export function registerShipmentRoutes(router: express.Router, deps: ShipmentRou
     return plan.kind === 'patch' ? storeAndMatch(draft, plan.shipment) : plan;
   }));
 
-  router.post('/shipments/:id/match', write(200, (draft, req) => {
+  // A retry has no options: a body that is a list is a 400 and matches nothing.
+  router.post('/shipments/:id/match', takesNoOptions, write(200, (draft, req) => {
     const plan = planMatchRetry(draft, String(req.params.id));
     if (plan.kind !== 'match') return plan;
     matchPending(draft, [plan.shipmentId], pipeline);

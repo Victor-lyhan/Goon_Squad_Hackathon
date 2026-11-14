@@ -165,20 +165,23 @@ export function planGenerate(body: unknown, inputs: GenerateInputs): GeneratePla
 // `satisfies z.ZodType<Run>` fails the typecheck when the contract gains a field this schema lacks.
 const idText = z.string().min(1);
 const num = z.number(); // finite: Zod refuses NaN and Infinity
+// A point in time, by the rule the request schemas apply to a form (shared/schemas.ts): a whole minute of
+// the two simulated days. So a file cannot bring in a time that no create, edit, commute save or seek could.
+const minute = z.number().int().min(0).max(2 * 1440);
 const borough = z.enum(['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island']);
 const point = { lat: num.min(-90).max(90), lng: num.min(-180).max(180) };
 
 const StopSchema = z.object({
   placeId: idText, kind: z.enum(['pickup', 'hub_drop', 'hub_pickup', 'delivery']),
-  arrivalMin: num, serviceStartMin: num, serviceEndMin: num,
+  arrivalMin: minute, serviceStartMin: minute, serviceEndMin: minute,
 });
 const LegSchema = z.object({
   tripId: idText, employeeId: idText, placeIds: z.array(idText), stops: z.array(StopSchema).min(1),
-  finishMin: num, extraMin: num, extraDistanceM: num, rewardCents: num,
+  finishMin: minute, extraMin: num, extraDistanceM: num, rewardCents: num,
 });
 const PlanSchema = z.object({
   id: idText, shipmentId: idText, kind: z.enum(['direct', 'relay']), legs: z.array(LegSchema).min(1),
-  relayBusinessId: idText.optional(), deliveryMin: num, customerPriceCents: num, platformContributionCents: num,
+  relayBusinessId: idText.optional(), deliveryMin: minute, customerPriceCents: num, platformContributionCents: num,
 });
 const ScenarioSchema = z.object({
   schemaVersion: z.literal(2),
@@ -190,18 +193,18 @@ const ScenarioSchema = z.object({
   homes: z.array(z.object({ id: idText, neighborhood: z.string(), ...point })),
   employees: z.array(z.object({
     id: idText, name: z.string(), businessId: idText, homeId: idText,
-    eveningDepartureMin: num, morningDepartureMin: num, maxExtraMin: num,
+    eveningDepartureMin: minute, morningDepartureMin: minute, maxExtraMin: num,
     availableEvening: z.boolean(), availableMorning: z.boolean(),
   })),
   shipments: z.array(z.object({
     id: idText, clientRequestId: z.string(), label: z.string(),
-    originBusinessId: idText, destinationBusinessId: idText, readyMin: num, deadlineMin: num,
+    originBusinessId: idText, destinationBusinessId: idText, readyMin: minute, deadlineMin: minute,
     category: z.enum(['envelope', 'small_box']), description: z.string(), weightGrams: num,
     pickupInstructions: z.string(), dropoffInstructions: z.string(), createdSeq: num,
   })),
   settings: z.object({
     handlingMin: num, defaultMaxExtraMin: num, priceCents: num, legRewardCents: num, hubCostCents: num,
-    platformVariableCostCents: num, courierPriceCents: num, simStartMin: num, simEndMin: num,
+    platformVariableCostCents: num, courierPriceCents: num, simStartMin: minute, simEndMin: minute,
     allowRelay: z.boolean(),
   }),
 });
@@ -211,7 +214,7 @@ const RunSchema = z.object({
   scenario: ScenarioSchema,
   trips: z.array(z.object({
     id: idText, employeeId: idText, direction: z.enum(['evening', 'morning']),
-    originPlaceId: idText, destinationPlaceId: idText, departureMin: num,
+    originPlaceId: idText, destinationPlaceId: idText, departureMin: minute,
     baselineDurationMin: num, baselineDistanceM: num,
   })),
   assignments: z.object({
@@ -229,12 +232,12 @@ const RunSchema = z.object({
     jobId: idText.optional(), message: z.string(), createdSeq: num,
   })),
   events: z.array(z.object({
-    id: idText, timeMin: num, shipmentId: idText, planId: idText, jobId: idText,
+    id: idText, timeMin: minute, shipmentId: idText, planId: idText, jobId: idText,
     kind: z.enum(['pickup', 'hub_drop', 'hub_pickup', 'delivered']), employeeId: idText,
     relayBusinessId: idText.optional(), seq: num,
   })),
   clock: z.object({
-    phase: z.enum(['planning', 'locked']), playing: z.boolean(), timeMin: num,
+    phase: z.enum(['planning', 'locked']), playing: z.boolean(), timeMin: minute,
     speed: z.union([z.literal(30), z.literal(120), z.literal(600)]),
   }),
 }) satisfies z.ZodType<Run>;
