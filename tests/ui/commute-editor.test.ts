@@ -55,3 +55,32 @@ describe('commute model', () => {
     expect(emptyForm().maxExtraMin).toBe(8);
   });
 });
+
+import { addWaypoint, removeWaypoint, clearWaypoints, MAX_WAYPOINTS } from '../../client/src/components/employee/commuteModel';
+
+describe('waypoints', () => {
+  it('appends in order, caps at 3 per direction, and keeps directions separate', () => {
+    let f = emptyForm('biz-a');
+    for (const id of ['a', 'b', 'c']) f = addWaypoint(f, 'evening', id).form;
+    expect(f.eveningViaNodeIds).toEqual(['a', 'b', 'c']);
+    expect(MAX_WAYPOINTS).toBe(3);
+    const r = addWaypoint(f, 'evening', 'd');
+    expect(r.error).toBe('Up to 3 waypoints');
+    expect(r.form.eveningViaNodeIds).toEqual(['a', 'b', 'c']);
+    expect(addWaypoint(f, 'morning', 'd').form.morningViaNodeIds).toEqual(['d']);
+  });
+  it('removes by index and clears one direction', () => {
+    let f = { ...emptyForm('biz-a'), eveningViaNodeIds: ['a', 'b', 'c'], morningViaNodeIds: ['z'] };
+    f = removeWaypoint(f, 'evening', 1);
+    expect(f.eveningViaNodeIds).toEqual(['a', 'c']);
+    f = clearWaypoints(f, 'evening');
+    expect(f.eveningViaNodeIds).toEqual([]);
+    expect(f.morningViaNodeIds).toEqual(['z']);
+  });
+  it('sends via ids in the request', () => {
+    const f = addWaypoint(addWaypoint(emptyForm('biz-a'), 'morning', 'x').form, 'evening', 'y').form;
+    const req = toRequest(f);
+    expect(req.eveningViaNodeIds).toEqual(['y']);
+    expect(req.morningViaNodeIds).toEqual(['x']);
+  });
+});
