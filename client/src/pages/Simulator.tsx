@@ -21,7 +21,7 @@ export default function Simulator() {
   const [setupOpen, setSetupOpen] = useState(false);
   const [params, setParams] = useSearchParams();
   const { toasts, push, dismiss } = useToasts();
-  const { sim, map, employees, error, busy, control, refresh } = useSimulatorData();
+  const { sim, map, employees, error, networkError, busy, control, refresh } = useSimulatorData();
 
   const param = params.get(PACKAGE_PARAM);
   const { selectedId } = resolveDeepLink(param, sim?.shipments);
@@ -39,7 +39,8 @@ export default function Simulator() {
   }, [stale, setParams]);
 
   const choose = (id: string | undefined) => { if (id) setNote(null); select(id); };
-  const reconnecting = isReconnecting(error, !!(sim && map));
+  // Only a lost connection keeps the last frame with a note; HTTP errors show their message.
+  const reconnecting = networkError && isReconnecting(error, !!(sim && map));
 
   return (
     <>
