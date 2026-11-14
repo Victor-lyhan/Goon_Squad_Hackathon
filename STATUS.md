@@ -1,28 +1,28 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14 06:38 (Sat), planner pass 20_
+_Last update: 2026-11-14 06:50 (Sat), planner pass 21_
 
 ## Current milestone: all spec items done → verification, edge cases and demo polish (M6 freeze at 11 p.m. Sat)
-Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Since pass 19, five of the six CI timing sweeps are merged (#309–#313). This pass queued one follow-up from them (#314).
+Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Duplicate request from 16. Setup drawer CRUD (16) is still cut until `shared/` has the contracts (QUESTIONS.md). Since pass 20, #314 is merged (PR #315). Five of the six CI timing sweeps are merged; only p1-a's (#303) is left. No issues were queued this pass.
 
 ## Main health: GREEN
-- The latest finished main runs (#305, #307 merges) passed. The run for #313 (#304) was still in progress at 06:38.
-- Every test area except `tests/domain/matching*|routing*` (#303) now has explicit CI timeouts and builds its data once per file.
+- The last three main runs passed, including the merge of #315 (#314).
+- Every test area except `tests/domain/matching*|routing*` (#303) has explicit CI timeouts and builds its data once per file.
 
 ## Stuck
 - None.
 
 ## In review
-- **#303** p1-a, matcher/routing timing sweep. It's labeled `in-review`, but there was no open PR at 06:38. Check next pass.
+- **#303** p1-a, matcher/routing timing sweep. It's been labeled `in-review` since 11:31 UTC, but there was no open PR at 06:50 (2 passes). If there's still no PR next pass, check whether the p1-a Codex worker is running.
 
 ## Queued (label `ready`)
-- victor-1 **#314** `tests/api/notifications-cycles*` plus a new `commute-latency` test: find out why the test takes 10–15 s, get it under 3 s, and add a commute PUT budget (demo step 7).
-- Every other worker has no issue by design (no filler, DECISIONS pass 13).
+- None. All workers are idle by design (no filler, DECISIONS pass 13).
 
 ## Next up
-- Merge #303 and #314. If #314 finds that the cost is in `matching.ts`, queue the fix for p1-a. Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and answers on a global `testTimeout` and on the Codex sandbox's EPERM on listen.
+- Merge #303. Then M6 (11 p.m. Sat): bug fixes only, from the humans' list. Still needed from humans: a two-tab browser walkthrough (spec §10), a fresh-clone `npm install && npm run dev` check, and answers on a global `testTimeout` and on the Codex sandbox's EPERM on listen.
 
 ## Done (newest first)
+- PR #315 (#314) victor-1: `notifications-cycles` cut from 8.4 s to about 1.0 s (all assertions kept). New `commute-latency` test: the demo commute PUT median is about 26 ms, against a 150 ms budget. The PUT cost is the matcher retrying unmatched packages (25–40 ms per PUT).
 - PR #313 (#304) p1-b, #312 (#305) victor-1, #311 (#307) p2-a, #310 (#308) p2-b, #309 (#306) victor-2: CI timing sweeps (explicit 3x timeouts, data built once per file, perf limits unchanged)
 - PR #302 (#301) p1-b: metrics-timeline test per city, CI-sized timeouts (main green again)
 - PR #299 (#298) p2-a: connection banner uses the `client/src/api` health probe, no overlapping probes
@@ -35,7 +35,7 @@ Must-haves 1–10 and nice-to-haves 11–15 are merged, plus the scrubber and Du
 - PR #240 and earlier: see git log
 
 ## Known bugs / gaps
-- `notifications-cycles` takes 9.5–14.8 s locally. The commute PUT latency in demo step 7 isn't measured yet (#314).
+- A commute PUT that rescues unmatched packages takes about 77 ms on the `notifications-cycles` test city (matcher retry). The demo city is about 26 ms. Not being optimized before the freeze (DECISIONS pass 21).
 - The `GET /api/simulator` payload is about 103 KB on the largest random city, against a 150 KB budget (#312). It passes, but there's limited headroom.
 - The p1-b Codex sandbox can't run the API tests (EPERM on `listen(0)`), so its PRs rely on CI.
 - Nobody has done a real two-tab browser walkthrough. All checks so far are server-side renders and API tests.
