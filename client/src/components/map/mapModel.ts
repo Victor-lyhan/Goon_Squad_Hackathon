@@ -3,10 +3,60 @@ import { roleOf } from './layers';
 import { MAP_STYLE, NYC_CENTER, NYC_ZOOM } from './mapStyle';
 import type { LatLngBounds, MapMover, MapPanTarget, MapPlace, MapStop } from './types';
 
-export type MapStatus = 'missing-key' | 'loading' | 'ready' | 'error';
+export type MapStatus = 'missing-key' | 'loading' | 'ready' | 'error' | 'auth-error';
 
 export const KEY_MISSING_TEXT = 'Google Maps key missing.';
 export const LOAD_ERROR_TEXT = 'Google Maps could not be loaded';
+export const AUTH_ERROR_TEXT = 'Google rejected the browser key.';
+
+/** Anything with Google's global auth-failure hook: `window` in the app, a plain object in tests. */
+export type AuthFailureTarget = { gm_authFailure?: unknown };
+
+/**
+ * Sets `target.gm_authFailure`, which Google calls (with no arguments) when it rejects the key:
+ * API not enabled, referrer not allowed, billing off, invalid key. The script still loads in that
+ * case, so this is the only signal. A handler that was already there is still called. The returned
+ * function puts the old value back (deleting the property if there was none) when ours is still the
+ * one installed, and stops `onFailure` from firing again either way.
+ */
+export function watchAuthFailure(target: AuthFailureTarget, onFailure: () => void): () => void {
+  const hadOwn = Object.prototype.hasOwnProperty.call(target, 'gm_authFailure');
+  const previous = target.gm_authFailure;
+  let active = true;
+  const handler = () => {
+    if (active) onFailure();
+    if (typeof previous === 'function') (previous as () => void)();
+  };
+  target.gm_authFailure = handler;
+  return () => {
+    active = false;
+    if (target.gm_authFailure !== handler) return; // someone installed theirs after us: leave it
+    if (hadOwn) target.gm_authFailure = previous;
+    else delete target.gm_authFailure;
+  };
+}
+
+/** What happens to the map's load: the loader starts (mount or Retry), resolves, throws, or Google rejects the key. */
+export type MapEvent = 'load-start' | 'loaded' | 'load-failed' | 'auth-failed';
+
+/**
+ * The map status after an event. `auth-error` is final for the page: a load that resolves after
+ * Google's auth callback (or a Retry) does not switch it back, because Google will not accept the
+ * key until the page is reloaded. Without a key nothing loads, so `missing-key` is final too.
+ */
+export function nextMapStatus(status: MapStatus, event: MapEvent): MapStatus {
+  if (status === 'auth-error' || status === 'missing-key') return status;
+  switch (event) {
+    case 'auth-failed':
+      return 'auth-error';
+    case 'load-start':
+      return 'loading';
+    case 'loaded':
+      return 'ready';
+    case 'load-failed':
+      return 'error';
+  }
+}
 
 /** The browser key from Vite env, or null. Never log or render the returned value. */
 export function readBrowserKey(env: Record<string, unknown> | undefined): string | null {
@@ -15,8 +65,9 @@ export function readBrowserKey(env: Record<string, unknown> | undefined): string
 }
 
 /** First status before any effect runs: no key ⇒ missing-key (and no network request). */
-export function initialStatus(key: string | null): MapStatus {
-  return key ? 'loading' : 'missing-key';
+export function initialStatus(key: string | null, authFailed = false): MapStatus {
+  if (!key) return 'missing-key';
+  return authFailed ? 'auth-error' : 'loading';
 }
 
 /** Options for the one google.maps.Map: light JSON style, reduced UI, no mapId. */
