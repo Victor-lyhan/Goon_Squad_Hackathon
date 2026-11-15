@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import { AppShell, BADGE_TEXT } from '../../client/src/App';
+import { AppShell } from '../../client/src/App';
+
+/** The line the header's top right held until #854 (the homepage lost it in #833). */
+const OLD_ENV_TEXT = 'Real NYC locations · simulated deliveries';
 
 const render = (path: string) =>
   renderToStaticMarkup(
@@ -22,15 +25,16 @@ describe('landing page', () => {
   });
 
   it('shows no environment line on the homepage, header included (#833), and no MVP 1 step cards', () => {
-    expect(html).not.toContain(BADGE_TEXT);
+    expect(html).not.toContain(OLD_ENV_TEXT);
     expect(html).not.toContain('class="panel step"');
   });
 });
 
 describe('shell', () => {
-  it('keeps header and badge on other routes', () => {
+  it('keeps the header on other routes, without the badge (#854)', () => {
     const html = render('/simulator');
-    expect(html).toContain(BADGE_TEXT);
+    expect(html).toContain('<header class="shell-header">');
+    expect(html).not.toContain(OLD_ENV_TEXT);
     expect(html).toContain('Relay');
   });
 

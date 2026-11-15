@@ -48,16 +48,6 @@ export function runChanged(prev: string | null, next: string | null | undefined)
   return prev !== null && !!next && prev !== next;
 }
 
-/** Header environment indicator. The label must describe the data on screen (DECISIONS pass 44). */
-export const ENV_LABELS = {
-  synthetic: 'Synthetic city · simulated deliveries',
-  nyc: 'Real NYC locations · simulated deliveries',
-} as const;
-export type EnvDataset = keyof typeof ENV_LABELS;
-/** The one dataset the app shows: NYC since the MVP II cutover (#548). */
-export const ENV_DATASET: EnvDataset = 'nyc';
-export const ENV_INDICATOR_TEXT: string = ENV_LABELS[ENV_DATASET];
-
 /** The three primary destinations, in header order. */
 export type Destination = 'business' | 'employee' | 'simulator';
 export const DESTINATIONS: readonly { key: Destination; label: string }[] = [
