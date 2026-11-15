@@ -108,6 +108,16 @@ function LegLine({ carrier }: { carrier: JourneyCarrier }) {
   );
 }
 
+/**
+ * #718: at 1440 x 900 the last steps sit below the fold of the Inspector, so the step the package is
+ * heading for scrolls into view ('nearest': no scroll when it is already shown). A callback ref on the
+ * current step only, one function for the module: React calls it when a step becomes the current one,
+ * not on every poll, so a reader who scrolled up is left alone. No hook, so Step stays a plain function.
+ */
+function showCurrentStep(el: HTMLLIElement | null): void {
+  el?.scrollIntoView?.({ block: 'nearest' });
+}
+
 type StepProps = { step: JourneyStep; next: JourneyStep | undefined; onSeek: JourneyTimelineProps['onSeek'] };
 
 function Step({ step, next, onSeek }: StepProps) {
@@ -116,7 +126,7 @@ function Step({ step, next, onSeek }: StepProps) {
   // line on the map); between legs (overnight at the relay point) it stays a thin grey rail.
   const carried = next !== undefined && next.legIndex === step.legIndex;
   return (
-    <li className={`jt-step jt-step--${step.state}`}>
+    <li ref={step.state === 'current' ? showCurrentStep : undefined} className={`jt-step jt-step--${step.state}`}>
       <button
         type="button"
         className="jt-step__button"

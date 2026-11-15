@@ -79,6 +79,8 @@
   font-size: var(--text-xs, 12px);
 }
 .bdr__time {
+  /* One box: "Day 1, 5:25 PM" moves to the next line whole and is never split after "5:25" (#714). */
+  display: inline-block;
   color: var(--muted, #5B6472);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);

@@ -165,7 +165,9 @@
 
 .insp-leg-nums {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Finish, Extra, Reward. The finish time ("Day 1, 5:41 PM", 14 mono characters, about 101 px) gets the
+     wider column: in thirds it broke as "Day 1, 5:41 / PM" (#718). */
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) minmax(0, 2fr);
   gap: var(--space-2, 8px);
   margin: 0;
   padding: var(--space-2, 8px);

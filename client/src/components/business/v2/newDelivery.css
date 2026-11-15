@@ -147,7 +147,8 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
 
 /* 390 px: one column, controls at least 40 px high, full-width actions. */
 @media (max-width: 480px) {
-  .nd { padding: var(--space-3, 12px); border-left: 0; border-right: 0; max-width: none; }
+  /* The form sits inside the page's padding, so it keeps all four borders (#714). */
+  .nd { padding: var(--space-3, 12px); max-width: none; }
   .nd-row { grid-template-columns: 1fr; }
   .nd-input, .nd-btn { height: 44px; min-height: 44px; }
   .nd-btn--link { min-height: 40px; }

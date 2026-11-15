@@ -222,9 +222,13 @@ export function saveReducer(state: SaveState, action: SaveAction): SaveState {
 
 // ---------- Copy ----------
 
-/** The one locked sentence of the editor (#598); the address search prints none of its own. */
+/**
+ * The one locked sentence of the editor (#598); the address search prints none of its own. It names no
+ * control (#720): the simulator's "Start new planning cycle" button went with MVP III (#700), so the old
+ * sentence sent the presenter to a button that is not there.
+ */
 export const LOCKED_MESSAGE =
-  'The run is playing, so the commute is read-only. To edit it, press "Start new planning cycle" in the simulator.';
+  'The run is playing, so the commute is read-only until a new planning cycle starts.';
 
 export function unavailableMessage(code: UnavailableCode): string {
   return code === 'google_key_missing'

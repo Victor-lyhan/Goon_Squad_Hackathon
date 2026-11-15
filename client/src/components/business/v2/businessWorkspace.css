@@ -274,6 +274,8 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   }
   .bw-table .bw-num { text-align: left; }
   .bw-mono { white-space: normal; }
+  /* The status label keeps its own width; as a grid item it would stretch across the cell (#714). */
+  .bw-table td .bw-status { justify-self: start; }
 }
 
 /* Reduced motion (#497): nothing in this file animates or transitions, now or later. */
