@@ -348,10 +348,13 @@ function listText(parts: string[]): string {
 /**
  * The accessible name of an option's button (#880): what the button says, then which option and its price,
  * so a screen reader user hears the price on every stop ("Choose this option: As requested, $9.50").
+ * A label that already ends with the price ("Relay via Etsy, $9.50", #954) is not followed by it twice.
  */
 export function optionName(row: Pick<AdviceRow, 'label' | 'priceText' | 'cheapest'>, chosen: boolean): string {
   const price = row.cheapest ? `${row.priceText}, ${ADVICE_COPY.cheapest.toLowerCase()}` : row.priceText;
-  return `${chosen ? ADVICE_COPY.chosen : ADVICE_COPY.choose}: ${row.label}, ${price}`;
+  const ending = `, ${row.priceText}`;
+  const label = row.label.endsWith(ending) ? row.label.slice(0, -ending.length) : row.label;
+  return `${chosen ? ADVICE_COPY.chosen : ADVICE_COPY.choose}: ${label}, ${price}`;
 }
 
 /** The row whose times the form holds now (the first one, should two options share their times), or null. */

@@ -358,6 +358,11 @@ describe('each option is one Tab stop whose name holds its price', () => {
     expect(p.rows().map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$10.50', 'Cheapest $9.50']);
     for (const r of p.rows()) expect(r.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(true);
     expect(optionName({ label: 'As requested', priceText: '$9.50', cheapest: false }, false)).toBe('Choose this option: As requested, $9.50');
+    // #954: a label with its price at the end does not say the price twice.
+    expect(optionName({ label: 'Relay via Etsy, $9.50', priceText: '$9.50', cheapest: true }, false))
+      .toBe('Choose this option: Relay via Etsy, $9.50, cheapest');
+    expect(optionName({ label: 'Direct with Theo Martin, $7.00', priceText: '$7.00', cheapest: false }, true))
+      .toBe('In the form: Direct with Theo Martin, $7.00');
   }, T);
 
   it('one option only: it is the request, so the card offers nothing to choose and says what the price is for', async () => {

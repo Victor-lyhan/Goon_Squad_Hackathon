@@ -103,7 +103,8 @@ describe('POST /api/v2/advise on the README demo sentence, offline: the prices a
     const body = await adviseOk(run, draft);
 
     expect(body.options.length).toBeGreaterThan(0);
-    expect(body.note).toBeUndefined();
+    // #954: no direct plan as typed, and the note says why next to the relay.
+    expect(body.note).toBe('No direct: a direct trip would be a longer detour than its carrier allows.');
     const priced = expectEnginePrices(run.store.get(), run.travel, draft, body);
     // Every option of this request leaves at least 18 h (a variant only widens the window), so every one
     // shows the discount: its price is $1.00 under the same plan's price without it.
@@ -124,7 +125,8 @@ describe('POST /api/v2/advise on the README demo sentence, offline: the prices a
     // is no cheaper and arrives no earlier, and "deliver-by at ready + 18 h" is the request itself.
     expect(readme).toContain(`\n${DEMO_SENTENCE}\n`);
     expect(body.options).toHaveLength(1);
-    expect(step(2)).toContain(`for this sentence it has one option, "${asTyped.label}" at ${money(asTyped.customerPriceCents)},`);
+    expect(asTyped.label).toBe(`Relay via Etsy, ${money(asTyped.customerPriceCents)}`);
+    expect(step(2)).toContain(`for this sentence it has one option, "${asTyped.label}", marked "In the form", with a note on why there is no direct one,`);
     // README step 3: why the price is what it is, written from the run's own settings and the block's times.
     const withoutDiscount = 2 * settings.legRewardCents + settings.hubCostCents + settings.platformFeeCents;
     expect(step(3)).toContain(
@@ -168,7 +170,7 @@ describe('POST /api/v2/advise on the README demo sentence, offline: the prices a
     expect(body.options).toHaveLength(2);
     expect(optionsExample).toContain(
       `the demo sentence with "by 9 a.m." in place of "by 10 a.m." leaves ${(draft.deadlineMin - draft.readyMin) / 60} hours, `
-      + `so "${asTyped.option.label}" costs ${money(asTyped.option.customerPriceCents)}, `
+      + `so the relay as typed, "${asTyped.option.label}", costs ${money(asTyped.option.customerPriceCents)}, `
       + `and the card adds "${later[0].option.label}" at ${money(later[0].option.customerPriceCents)}, marked "Cheapest".`,
     );
     expect(optionsExample).toContain('`tests/api/v2-advise-readme-demo.test.ts` sends both sentences');

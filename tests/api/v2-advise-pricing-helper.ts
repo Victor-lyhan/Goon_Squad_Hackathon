@@ -11,7 +11,7 @@ export type DraftTimes = { originBusinessId: string; destinationBusinessId: stri
 
 export type PricedOption = {
   option: AdviseOption;
-  /** The plan the matcher picks for the option's two times, on `run`. */
+  /** The plan the matcher picks for the option's two times, on `run` (as typed: the best of the option's kind). */
   plan: DeliveryPlan;
   readyMin: number;
   deadlineMin: number;
@@ -20,7 +20,8 @@ export type PricedOption = {
 };
 
 /**
- * Every option's price is `customerPriceCents()` of the plan the matcher picks for the option's two times,
+ * Every option's price is `customerPriceCents()` of the plan the matcher picks for the option's two times
+ * (for an option as typed: the best plan of the option's kind, #954),
  * under the run's own settings, and the flexibility discount is in it exactly when the option's window
  * (ready to deliver-by, after its changes) is at least `settings.flexWindowMin`.
  * The price is also worked out here from the settings, without pricing.ts: legs x carrier pay + the relay fee
@@ -34,7 +35,9 @@ export function expectEnginePrices(run: RunV2, travel: TravelProvider, draft: Dr
     const what = `${option.label} ${JSON.stringify(option.changes)}`;
     const readyMin = option.changes.readyMin ?? draft.readyMin;
     const deadlineMin = option.changes.deadlineMin ?? draft.deadlineMin;
-    const answer = engine.match(readyMin, deadlineMin);
+    // #954: an option for the request as typed is the best plan of its own kind; a what-if is the matcher's pick.
+    const asTyped = Object.keys(option.changes).length === 0 && engine.matchKinds;
+    const answer = asTyped ? engine.matchKinds!(readyMin, deadlineMin)[option.kind] : engine.match(readyMin, deadlineMin);
     if (!('plan' in answer)) throw new Error(`the engine has no plan for ${what}: ${answer.reason}`);
     const { plan } = answer;
 

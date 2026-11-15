@@ -121,12 +121,18 @@ function expectUntouched(store: Store<RunV2>, before: ReturnType<typeof remember
   expect(store.get()).toEqual(before.copy);   // and nothing was changed in place
 }
 
-/** Every option's numbers are the engine's plan for its variant, read straight from the matcher. */
+/**
+ * Every option's numbers are the engine's plan for its variant, read straight from the matcher: for an option as
+ * typed, the best plan of its kind (#954); for a what-if, the matcher's pick.
+ */
 function expectEngineNumbers(run: RunV2, travel: TravelProvider, draft: ReturnType<typeof draftOf>, body: AdviseResponse) {
   const engine = advisorEngine(run, travel, draft);
   const names = new Map(run.scenario.employees.map((e) => [e.id, e.name]));
   for (const option of body.options) {
-    const answer = engine.match(option.changes.readyMin ?? draft.readyMin, option.changes.deadlineMin ?? draft.deadlineMin);
+    const readyMin = option.changes.readyMin ?? draft.readyMin;
+    const deadlineMin = option.changes.deadlineMin ?? draft.deadlineMin;
+    const answer = Object.keys(option.changes).length === 0
+      ? engine.matchKinds!(readyMin, deadlineMin)[option.kind] : engine.match(readyMin, deadlineMin);
     if (!('plan' in answer)) throw new Error(`the engine has no plan for ${JSON.stringify(option.changes)}`);
     const { plan } = answer;
     expect(option).toMatchObject({
@@ -311,22 +317,27 @@ describe('POST /api/v2/advise reads the run\'s flexWindowMin (#867)', () => {
     const run = await store.mutate((r) => withFlexWindow(r, 600));
     const before = remember(store);
     const draft = shortWindowDraft(run);
+    // #954: r1 and r2 are the best direct and relay plans as typed; Gemini's tries are r3 and r4.
     turns.push(
-      [call(TRY_VARIANT, {}), call(TRY_VARIANT, { deadlineMin: draft.readyMin + 600 }), call(TRY_VARIANT, { deadlineMin: draft.readyMin + 599 })],
+      [call(TRY_VARIANT, { deadlineMin: draft.readyMin + 600 }), call(TRY_VARIANT, { deadlineMin: draft.readyMin + 599 })],
       [call(PRESENT_OPTIONS, { options: [
-        { resultId: 'r2', label: 'Flexible', summary: 'A later deliver-by, a lower price.' },
-        { resultId: 'r3', label: 'One minute short', summary: 'Not flexible yet.' },
+        { resultId: 'r3', label: 'Flexible', summary: 'A later deliver-by, a lower price.' },
+        { resultId: 'r4', label: 'One minute short', summary: 'Not flexible yet.' },
+        { resultId: 'r1', label: 'Direct as typed', summary: 'One carrier, the request as it is.' },
       ] })],
     );
 
     const body = await adviseOk(draft);
 
     expect(body.source).toBe('gemini');
+    // The direct plan as typed comes first, in Gemini's words; then at most one what-if: the minute-short one
+    // costs what the request as typed costs, so it adds nothing.
     expect(body.options.map((o) => [o.label, o.changes, o.customerPriceCents])).toStrictEqual([
+      ['Direct as typed', {}, 700],
       ['Flexible', { deadlineMin: draft.readyMin + 600 }, 600],
-      ['One minute short', { deadlineMin: draft.readyMin + 599 }, 700],
     ]);
-    expect(expectEnginePrices(run, travel, draft, body).map((p) => p.flexible)).toStrictEqual([true, false]);
+    expect(body.note).toBe('No relay: a relay cannot arrive before the deadline.');
+    expect(expectEnginePrices(run, travel, draft, body).map((p) => p.flexible)).toStrictEqual([false, true]);
     expect(sent).toHaveLength(2);
     for (const text of sent) {
       const prompt: string = JSON.parse(text).systemInstruction.parts[0].text;
@@ -340,12 +351,13 @@ describe('POST /api/v2/advise reads the run\'s flexWindowMin (#867)', () => {
 
 describe('POST /api/v2/advise with a Gemini key', () => {
   it('Gemini picks and phrases; a price, a time and carriers it invents are ignored', async () => {
+    // #954: r1 (the best direct plan as typed) and r2 (no relay) are given up front; the tries are r3 and r4.
     const turns: Turn[] = [
       [call(TRY_VARIANT, {}), call(TRY_VARIANT, { readyMin: 0 })],   // 0 is clamped to the run clock
       [call(PRESENT_OPTIONS, {
         options: [
           { resultId: 'r1', label: 'As you asked', summary: 'Free, arrives tonight.', customerPriceCents: 1, deliveryMin: 1000, carrierNames: ['Nobody'] },
-          { resultId: 'r2', label: 'Hand it over earlier', summary: 'Ready earlier, delivered the same evening.' },
+          { resultId: 'r4', label: 'Hand it over earlier', summary: 'Ready earlier, delivered the same evening.' },
           { resultId: 'r7', label: 'Teleport', summary: 'Invented' },
         ],
       })],
@@ -365,6 +377,14 @@ describe('POST /api/v2/advise with a Gemini key', () => {
     expectEngineNumbers(run, travel, draft, body);
     expect(body.options[0].customerPriceCents).not.toBe(1);
     expect(body.options[0].carrierNames).not.toContain('Nobody');
+    expect(body.options[0].kind).toBe('direct');
+    expect(body.note).toBe('No relay: no evening commute from McGraw Hill leaves after the package is ready.');
+    // Gemini was told both kinds as typed in the first turn: the direct plan's price, and why there is no relay.
+    const request: string = JSON.parse(sent[0]).contents[0].parts[0].text;
+    expect(request).toContain('Best direct plan as typed: {"resultId":"r1"');
+    expect(request).toContain('"price":"$7.00"');
+    expect(request).toContain('Best relay plan as typed: {"resultId":"r2"');
+    expect(request).toContain('"reason":"No evening commute from McGraw Hill leaves after the package is ready"');
     expect(sent).toHaveLength(2);
     for (const text of sent) expect(text).not.toContain(KEY);   // the key travels only in the header
     expectUntouched(store, before);

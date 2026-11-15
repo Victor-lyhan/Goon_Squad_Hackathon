@@ -14,6 +14,14 @@
 // - deadlineMin: whole minutes, never earlier than the draft's and never after `settings.simEndMin`;
 // - a value outside those bounds is clamped to them; a value that is no number, or an unknown argument, is an error.
 //
+// #954: with an engine that has `matchKinds` (the route's always has), the options are built by kind instead:
+// the best DIRECT plan and the best RELAY plan of the request as typed (each shown when it exists, even when the
+// other is cheaper), plus at most one what-if (ready earlier, else a later deliver-by) when it changes the price
+// or the arrival. A kind with no plan gets a plain note with the matcher's reason ("No relay: every evening
+// commute from Titan Foods is already carrying a package."). With Gemini, the two kinds are given to it up front
+// as results r1 and r2; it may try what-ifs, and it picks and words the options, but the server always shows
+// each kind that matched. An engine without `matchKinds` (a test's fake) gets the variant options of #862.
+//
 // This file logs nothing, reads no environment and changes nothing: `AdvisorEngine.match` is read-only.
 import { z } from 'zod';
 import type { AdviseOption, AdviseResponse } from '../../shared/v2/api';
@@ -64,9 +72,20 @@ export type AdvisorEngine = {
    * reserved): the best plan it would pick, or its unmatched reason. Read-only, never reserves, never saves.
    */
   match: (readyMin: number, deadlineMin: number) => { plan: DeliveryPlan } | { reason: string };
+  /**
+   * The best direct plan and the best relay plan for the draft with these two times (#954), each with the same
+   * rules as `match` but among the candidates of its kind only, or the reason that kind has none. Read-only.
+   */
+  matchKinds?: (readyMin: number, deadlineMin: number) => Record<PlanKind, KindAnswer>;
   employeeName: (employeeId: string) => string;
   businessName: (businessId: string) => string | null;
 };
+
+export type PlanKind = DeliveryPlan['kind'];
+/** The engine's answer for one kind: its best plan, or the reason it has none (a sentence, no full stop). */
+export type KindAnswer = { plan: DeliveryPlan } | { reason: string };
+/** The two kinds, in the order the options show them. */
+export const KINDS: readonly PlanKind[] = ['direct', 'relay'];
 
 export type VariantChanges = { readyMin?: number; deadlineMin?: number };
 
@@ -129,7 +148,11 @@ export function resolveVariant(args: unknown, engine: AdvisorEngine): Variant | 
 
 /** Runs the engine for one checked variant and copies the plan's numbers into the option fields. */
 export function runVariant(variant: Variant, engine: AdvisorEngine): VariantOutcome {
-  const answer = engine.match(variant.readyMin, variant.deadlineMin);
+  return outcomeOf(variant, engine.match(variant.readyMin, variant.deadlineMin), engine);
+}
+
+/** A variant with the engine's answer for it: the plan's numbers copied into the option fields, or the reason. */
+function outcomeOf(variant: Variant, answer: KindAnswer, engine: AdvisorEngine): VariantOutcome {
   if ('reason' in answer) return { ...variant, matched: false, reason: answer.reason };
   const { plan } = answer;
   const extraM = plan.legs.reduce((sum, leg) => sum + leg.extraDistanceM, 0);
@@ -192,6 +215,17 @@ export function defaultSummary(outcome: Extract<VariantOutcome, { matched: true 
   );
 }
 
+/** The label of a kind's option (#954): "Direct with Elena Rossi, $7.00" / "Relay via Kinship Coffee, $10.50". */
+export function kindLabel(outcome: Extract<VariantOutcome, { matched: true }>, engine: AdvisorEngine): string {
+  const { option } = outcome;
+  const price = money(option.customerPriceCents);
+  if (option.kind === 'relay') {
+    const relay = option.relayBusinessId === undefined ? null : engine.businessName(option.relayBusinessId);
+    return cleanText(`Relay via ${relay ?? 'a relay point'}, ${price}`, MAX_LABEL_CHARS);
+  }
+  return cleanText(`Direct with ${option.carrierNames.join(' and ')}, ${price}`, MAX_LABEL_CHARS);
+}
+
 /** The server's own label of a variant, from what it changes. */
 export function defaultLabel(variant: Variant, engine: AdvisorEngine): string {
   const parts: string[] = [];
@@ -229,7 +263,8 @@ const changeCount = (v: Variant) => Object.keys(v.changes).length;
  */
 function reasonClause(reason: string): string {
   const text = cleanText(reason, 160).replace(/[.!?]+$/, '') || 'no carrier can take it';
-  return /^\p{Lu}\p{Ll}/u.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+  // "Every ..." and "A relay ..." start small; a name in capitals ("UPS ...") stays as it is.
+  return /^\p{Lu}(?:\p{Ll}|\s)/u.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
 }
 
 /**
@@ -279,6 +314,7 @@ export function offlineVariants(engine: AdvisorEngine): Variant[] {
  * kept; a later one only when it is cheaper or arrives earlier than every option kept before it.
  */
 export function adviseOffline(engine: AdvisorEngine): AdviseResponse {
+  if (engine.matchKinds) return adviseByKind(engine, kindOutcomes(engine));
   const outcomes = offlineVariants(engine).map((variant) => runVariant(variant, engine));
   const options: AdviseOption[] = [];
   for (const outcome of outcomes) {
@@ -288,6 +324,114 @@ export function adviseOffline(engine: AdvisorEngine): AdviseResponse {
   }
   const note = unmatchedNote(outcomes);
   return { options, source: 'offline', ...(note === undefined ? {} : { note }) };
+}
+
+// ---------- By kind (#954) ----------
+
+/** One kind's best plan for the request as typed, as an outcome with no changes. */
+export type KindOutcome = { kind: PlanKind; outcome: VariantOutcome };
+
+/** The request as typed, as a variant. */
+const asTyped = (engine: AdvisorEngine): Variant =>
+  ({ readyMin: engine.draft.readyMin, deadlineMin: engine.draft.deadlineMin, changes: {}, clamped: false });
+
+/** The best direct plan and the best relay plan of the request as typed, in that order. Needs `matchKinds`. */
+export function kindOutcomes(engine: AdvisorEngine): KindOutcome[] {
+  if (!engine.matchKinds) throw new Error('kindOutcomes needs an engine with matchKinds');
+  const variant = asTyped(engine);
+  const answers = engine.matchKinds(variant.readyMin, variant.deadlineMin);
+  return KINDS.map((kind) => ({ kind, outcome: outcomeOf(variant, answers[kind], engine) }));
+}
+
+/** The what-if variants, in the order they are tried: ready 2 h earlier, then the discount deliver-by. */
+export function whatIfVariants(engine: AdvisorEngine): Variant[] {
+  return offlineVariants(engine).filter((variant) => changeCount(variant) > 0);
+}
+
+/** A what-if is shown only when no option kept so far is at least as cheap and at least as early. */
+const changesTheDeal = (options: readonly AdviseOption[], outcome: VariantOutcome): outcome is Matched =>
+  outcome.matched && !options.some((o) => noWorse(o, outcome));
+
+/** "No relay: every evening commute from Titan Foods is already carrying a package." */
+export function kindNote(kind: PlanKind, reason: string): string {
+  return cleanText(`No ${kind}: ${reasonClause(reason)}.`, 200);
+}
+
+/**
+ * The note of a by-kind answer. A kind matched: one sentence for each kind that did not. Neither matched: the
+ * note of #898 from the matcher's own answer for the request as typed and the what-ifs tried.
+ */
+function byKindNote(engine: AdvisorEngine, kinds: readonly KindOutcome[], tried: readonly VariantOutcome[]): string | undefined {
+  if (kinds.some((k) => k.outcome.matched)) {
+    const lines = kinds.flatMap((k) => (k.outcome.matched ? [] : [kindNote(k.kind, k.outcome.reason)]));
+    return lines.length === 0 ? undefined : lines.join(' ');
+  }
+  return unmatchedNote([runVariant(asTyped(engine), engine), ...tried]);
+}
+
+/**
+ * The offline answer by kind: the best direct and the best relay plan as typed (each when it exists), then at
+ * most one what-if, the first of `whatIfVariants` that changes the price or the arrival. Deterministic.
+ */
+export function adviseByKind(engine: AdvisorEngine, kinds: readonly KindOutcome[]): AdviseResponse {
+  const options: AdviseOption[] = [];
+  for (const { outcome } of kinds) {
+    if (outcome.matched) options.push({ label: kindLabel(outcome, engine), summary: defaultSummary(outcome, engine), ...outcome.option });
+  }
+  const tried: VariantOutcome[] = [];
+  for (const variant of whatIfVariants(engine)) {
+    const outcome = runVariant(variant, engine);
+    tried.push(outcome);
+    if (!changesTheDeal(options, outcome)) continue;
+    options.push({ label: defaultLabel(outcome, engine), summary: defaultSummary(outcome, engine), ...outcome.option });
+    break;
+  }
+  const note = byKindNote(engine, kinds, tried);
+  return { options, source: 'offline', ...(note === undefined ? {} : { note }) };
+}
+
+/** The result ids the two kinds have in a Gemini conversation: r1 direct, r2 relay. */
+const KIND_RESULT_IDS: Record<PlanKind, string> = { direct: 'r1', relay: 'r2' };
+
+/**
+ * Gemini's picks with the kinds given up front: each kind that matched (Gemini's label and summary when it
+ * picked it, the server's otherwise), then at most one other matched result Gemini picked that changes the
+ * price or the arrival. Every number is the engine's.
+ */
+export function kindOptionsFromPicks(
+  picksArgs: unknown, results: ReadonlyMap<string, VariantOutcome>, engine: AdvisorEngine,
+): AdviseOption[] {
+  const parsed = Picks.safeParse(picksArgs);
+  const picks = parsed.success
+    ? parsed.data.options.flatMap((raw) => { const pick = Pick.safeParse(raw); return pick.success ? [pick.data] : []; })
+    : [];
+  // Picks that name no matched result are an unusable answer, as in `optionsFromPicks`: the offline options follow.
+  if (!picks.some((p) => results.get(p.resultId)?.matched)) return [];
+  const options: AdviseOption[] = [];
+  for (const kind of KINDS) {
+    const outcome = results.get(KIND_RESULT_IDS[kind]);
+    if (!outcome?.matched) continue;
+    const pick = picks.find((p) => p.resultId === KIND_RESULT_IDS[kind]);
+    options.push({
+      label: cleanText(pick?.label, MAX_LABEL_CHARS) || kindLabel(outcome, engine),
+      summary: cleanText(pick?.summary, MAX_SUMMARY_CHARS) || defaultSummary(outcome, engine),
+      ...outcome.option,
+      changes: { ...outcome.option.changes },
+    });
+  }
+  const kindIds = new Set(Object.values(KIND_RESULT_IDS));
+  for (const pick of picks) {
+    const outcome = results.get(pick.resultId);
+    if (kindIds.has(pick.resultId) || !outcome || !changesTheDeal(options, outcome)) continue;
+    options.push({
+      label: cleanText(pick.label, MAX_LABEL_CHARS) || defaultLabel(outcome, engine),
+      summary: cleanText(pick.summary, MAX_SUMMARY_CHARS) || defaultSummary(outcome, engine),
+      ...outcome.option,
+      changes: { ...outcome.option.changes },
+    });
+    break;
+  }
+  return options;
 }
 
 // ---------- Gemini ----------
@@ -359,6 +503,24 @@ export function buildAdvisorPrompt(engine: AdvisorEngine): string {
   const earliest = earliestReady(engine);
   const latest = latestDeadline(engine);
   const { draft } = engine;
+  if (engine.matchKinds) {
+    return [
+      'You advise a business sending one package with Relay, where employees carry packages on their commutes.',
+      'A package goes direct (one carrier) or by relay (two carriers who hand it over at a third business).',
+      'Times are whole minutes since Day 1 00:00 (Day 2 08:30 = 1950).',
+      `The request as typed is already priced: result ${KIND_RESULT_IDS.direct} is the best direct plan and`
+        + ` ${KIND_RESULT_IDS.relay} the best relay plan (or why there is none). Each one that matched is always shown.`,
+      `You may use the ${TRY_VARIANT} tool to ask the matching engine about one what-if:`,
+      `- an earlier ready time: readyMin from ${earliest} (${timeText(earliest)}) up to ${draft.readyMin} (preferred);`,
+      `- or a later deliver-by: deadlineMin from ${draft.deadlineMin} up to ${latest} (${timeText(latest)}).`,
+      `A deliver-by at least ${flexWindowText(engine.flexWindowMin)} after the ready time gets a flexibility discount.`,
+      `Call ${TRY_VARIANT} at most ${MAX_TOOL_CALLS} times. Then call ${PRESENT_OPTIONS} once with a label and summary`,
+      `for each matched result of ${KIND_RESULT_IDS.direct} and ${KIND_RESULT_IDS.relay}, plus at most one what-if result`,
+      'that changes the price or the arrival time.',
+      `Each label is at most ${MAX_LABEL_CHARS} characters, each summary one plain sentence of at most ${MAX_SUMMARY_CHARS}.`,
+      'Write no number that is not in a tool result. The server copies every price and time from the engine.',
+    ].join('\n');
+  }
   return [
     'You advise a business sending one package with Relay, where employees carry packages on their commutes.',
     'Times are whole minutes since Day 1 00:00 (Day 2 08:30 = 1950).',
@@ -375,14 +537,19 @@ export function buildAdvisorPrompt(engine: AdvisorEngine): string {
   ].join('\n');
 }
 
-/** The user turn: the request's facts. */
-export function buildAdvisorRequest(engine: AdvisorEngine): string {
+/**
+ * The user turn: the request's facts, and with `kinds` the engine's best plan of each kind as typed (#954),
+ * written like a tool result.
+ */
+export function buildAdvisorRequest(engine: AdvisorEngine, kinds?: readonly KindOutcome[]): string {
   const { draft } = engine;
   const name = (id: string) => engine.businessName(id) ?? 'a network business';
   return [
     `From ${name(draft.originBusinessId)} to ${name(draft.destinationBusinessId)}.`,
     `Ready at ${draft.readyMin} (${timeText(draft.readyMin)}). Deliver by ${draft.deadlineMin} (${timeText(draft.deadlineMin)}).`,
     `The simulation clock is at ${engine.clockMin} (${timeText(engine.clockMin)}).`,
+    ...(kinds ?? []).map(({ kind, outcome }) =>
+      `Best ${kind} plan as typed: ${JSON.stringify(toolAnswer(KIND_RESULT_IDS[kind], outcome, engine))}`),
   ].join('\n');
 }
 
@@ -472,8 +639,11 @@ export async function adviseWithGemini(
   const budget = settings.timeoutMs ?? ADVISE_TIMEOUT_MS;
   const endAt = now() + budget;
   const systemText = buildAdvisorPrompt(engine);
-  const contents: GeminiContent[] = [{ role: 'user', parts: [{ text: buildAdvisorRequest(engine) }] }];
+  // #954: the two kinds as typed are results r1 and r2 before Gemini says anything.
+  const kinds = engine.matchKinds ? kindOutcomes(engine) : null;
   const results = new Map<string, VariantOutcome>();
+  for (const { kind, outcome } of kinds ?? []) results.set(KIND_RESULT_IDS[kind], outcome);
+  const contents: GeminiContent[] = [{ role: 'user', parts: [{ text: buildAdvisorRequest(engine, kinds ?? undefined) }] }];
   let toolCalls = 0;
 
   for (let turn = 0; turn < MAX_MODEL_TURNS; turn++) {
@@ -489,12 +659,14 @@ export async function adviseWithGemini(
     const responses: Record<string, unknown>[] = [];
     for (const call of answer.calls) {
       if (call.name === PRESENT_OPTIONS) {
-        const options = optionsFromPicks(call.args, results, engine);
+        const options = kinds ? kindOptionsFromPicks(call.args, results, engine) : optionsFromPicks(call.args, results, engine);
         if (options.length === 0) {
           const outcomes = [...results.values()];
           throw new AdvisorNoAnswer(outcomes.length > 0 && outcomes.every((o) => !o.matched));
         }
-        const note = unmatchedNote([...results.values()]);
+        const tried = [...results.entries()]
+          .filter(([id]) => !kinds || !Object.values(KIND_RESULT_IDS).includes(id)).map(([, outcome]) => outcome);
+        const note = kinds ? byKindNote(engine, kinds, tried) : unmatchedNote(tried);
         return { options, source: 'gemini', ...(note === undefined ? {} : { note }) };
       }
       let response: Record<string, unknown>;
