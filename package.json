@@ -12,6 +12,7 @@
     "start": "tsx server/index.ts",
     "test": "vitest run",
     "fetch:routes": "tsx scripts/fetch-routes.ts",
+    "study": "tsx scripts/study.ts",
     "typecheck": "tsc --noEmit -p client && tsc --noEmit -p server && tsc --noEmit -p ."
   },
   "dependencies": {
