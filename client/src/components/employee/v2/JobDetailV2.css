@@ -86,13 +86,14 @@
 .job-v2__text { margin: 0; }
 .job-v2__actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
 .job-v2__link, .job-v2__button {
-  display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
-  padding: var(--space-2, 8px) var(--space-4, 16px);
+  /* 36 px like Edit commute and Close (issue 941); 44 px on a phone, below. */
+  display: inline-flex; align-items: center; justify-content: center; min-height: 36px;
+  padding: 0 var(--space-4, 16px);
   border: 1px solid var(--accent, #1D5075); border-radius: var(--radius, 4px);
   font: inherit; font-size: var(--text-sm, 13px); font-weight: 600; text-decoration: none; cursor: pointer;
 }
 .job-v2__link { background: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
-.job-v2__button { background: var(--panel, #FFFFFF); color: var(--accent-dark, #173E5B); }
+.job-v2__button { background: var(--panel, #FFFFFF); color: var(--accent, #1D5075); }
 .job-v2__link:focus-visible, .job-v2__button:focus-visible {
   outline: 2px solid var(--accent-dark, #173E5B); outline-offset: 2px;
   box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
@@ -105,7 +106,7 @@
   .job-v2__stop { grid-template-columns: 18px minmax(0, 1fr); }
   .job-v2__stop-body { grid-column: 2; }
   .job-v2__numbers { grid-template-columns: minmax(0, 1fr); }
-  .job-v2__link, .job-v2__button { flex: 1 1 100%; }
+  .job-v2__link, .job-v2__button { flex: 1 1 100%; min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .job-v2, .job-v2 *, .job-v2 *::before, .job-v2 *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

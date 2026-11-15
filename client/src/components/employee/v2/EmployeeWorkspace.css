@@ -16,7 +16,7 @@
 
 .ew h1 { font-size: 20px; font-weight: 600; margin: 0; }
 .ew h2 { font-size: 14px; font-weight: 600; margin: 0; }
-.ew-header { margin-bottom: var(--space-3, 12px); }
+.ew-header { margin-bottom: var(--space-4, 16px); }
 .ew-header p { margin: var(--space-1, 4px) 0 0; }
 
 .ew-muted { color: var(--muted, #5B6472); }
@@ -28,16 +28,17 @@
 }
 
 .ew-locked {
-  margin: 0 0 var(--space-3, 12px);
-  padding: var(--space-2, 8px) var(--space-3, 12px);
+  margin: 0 0 var(--space-4, 16px);
+  padding: var(--space-2, 8px) var(--space-4, 16px);
   border: 1px solid var(--border, #E3E3DE);
   border-left: 2px solid var(--accent, #1D5075);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 
+/* Spacing sits on 8 px steps (issue 941): 16 px inside a block, 24 px between blocks. */
 .ew-section {
-  margin-bottom: var(--space-4, 16px);
+  margin-bottom: var(--space-6, 24px);
   background: var(--panel, #FFFFFF);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
@@ -47,43 +48,47 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2, 8px);
-  padding: var(--space-2, 8px) var(--space-3, 12px);
+  /* As tall with a button as without one, so the four block heads line up. */
+  min-height: 56px;
+  padding: var(--space-2, 8px) var(--space-4, 16px);
   border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .ew-count { color: var(--muted, #5B6472); }
-.ew-empty { margin: 0; padding: var(--space-3, 12px); color: var(--muted, #5B6472); }
-/* What is missing, in ink; the reason after it stays muted (#882). */
-.ew-empty-title { color: var(--text, #171C24); font-weight: 600; }
+.ew-empty { margin: 0; max-width: 64ch; padding: var(--space-4, 16px); color: var(--muted, #5B6472); }
+/* What is missing, in ink on its own line; the reason under it stays muted (#882). */
+.ew-empty-title { display: block; margin-bottom: var(--space-1, 4px); color: var(--text, #171C24); font-weight: 600; }
 
 /* ---------- Commute ---------- */
-.ew-workplace { margin: 0; padding: var(--space-3, 12px) var(--space-3, 12px) 0; }
+.ew-workplace { margin: 0; padding: var(--space-4, 16px) var(--space-4, 16px) 0; }
 .ew-address { display: block; font-size: var(--text-xs, 12px); }
-.ew-trips { list-style: none; margin: 0; padding: var(--space-2, 8px) var(--space-3, 12px); }
+.ew-trips { list-style: none; margin: 0; padding: var(--space-2, 8px) var(--space-4, 16px); }
 .ew-trip {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
-  gap: 2px var(--space-2, 8px);
+  gap: var(--space-1, 4px) var(--space-2, 8px);
   padding: var(--space-2, 8px) 0;
   border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .ew-trip:last-child { border-bottom: 0; }
 .ew-trip-label { font-weight: 600; }
-.ew-trip-data { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--space-1, 4px) var(--space-3, 12px); }
+.ew-trip-data { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--space-1, 4px) var(--space-4, 16px); }
 .ew-trip.is-off .ew-trip-route { color: var(--muted, #5B6472); }
 .ew-detour {
   margin: 0;
-  padding: var(--space-2, 8px) var(--space-3, 12px);
+  padding: var(--space-2, 8px) var(--space-4, 16px);
   border-top: 1px solid var(--border, #E3E3DE);
 }
 
 /* ---------- Delivery rows ---------- */
 .ew-rows { list-style: none; margin: 0; padding: 0; }
 .ew-row {
-  padding: var(--space-3, 12px);
+  padding: var(--space-4, 16px);
   border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .ew-row:last-child { border-bottom: 0; }
 .ew-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px); }
+/* The package is the row's title: one step above the 13 px text around it. */
+.ew-row-head .ew-strong { font-size: var(--text-md, 14px); }
 .ew-status { margin-left: auto; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .ew-status.is-in_progress { color: var(--accent, #1D5075); font-weight: 600; }
 .ew-new {
@@ -94,25 +99,59 @@
   font-size: var(--text-xs, 12px);
   font-weight: 600;
 }
-.ew-row-meta { margin-top: 2px; font-size: var(--text-xs, 12px); }
+.ew-row-meta { margin-top: var(--space-1, 4px); font-size: var(--text-xs, 12px); }
 .ew-stops, .ew-earnings {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2, 8px) var(--space-3, 12px);
-  margin: var(--space-2, 8px) 0 0;
+  gap: var(--space-2, 8px) var(--space-4, 16px);
+  margin: var(--space-4, 16px) 0 0;
 }
 .ew-stops dt, .ew-earnings dt { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .ew-stops dd, .ew-earnings dd { margin: 0; }
-.ew-earnings { margin: 0; padding: var(--space-3, 12px); }
+.ew-earnings { margin: 0; padding: var(--space-4, 16px); }
 .ew-earnings dd { font-size: 16px; }
-.ew-row-links { display: flex; flex-wrap: wrap; gap: var(--space-3, 12px); margin-top: var(--space-2, 8px); }
+.ew-row-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-4, 16px); margin-top: var(--space-4, 16px); }
+
+/* ---------- The next job (issue 941) ----------
+   The first row of the assigned list is the one loud thing on the page: an accent bar down its left
+   side, the package in the large size, the stop times one step up, and "View job" as the page's only
+   filled button. Every other row and block stays quiet. The order of the list is the server's. */
+.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child {
+  /* 12 px on the left: with the 4 px bar the words start on the same line as the other rows'. */
+  padding: var(--space-6, 24px) var(--space-4, 16px) var(--space-6, 24px) var(--space-3, 12px);
+  border-left: 4px solid var(--accent, #1D5075);
+  background: var(--accent-soft, #E8EEF1);
+}
+.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-head .ew-strong {
+  font-size: var(--text-lg, 18px);
+  line-height: 1.25;
+}
+.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-stops dd { font-size: var(--text-md, 14px); }
+.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-stops dd .ew-mono,
+.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-stops dd.ew-mono { font-size: var(--text-md, 14px); font-weight: 500; }
+.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-links a:first-child {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-4, 16px);
+  border: 1px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
+  background: var(--accent, #1D5075);
+  color: var(--panel, #FFFFFF);
+  font-weight: 600;
+  text-decoration: none;
+}
+.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-links a:first-child:hover {
+  border-color: var(--accent-dark, #173E5B);
+  background: var(--accent-dark, #173E5B);
+}
 
 /* ---------- Actions ---------- */
 .ew a { color: var(--accent, #1D5075); }
 /* 36 px like the editor's Close, which takes this button's place (#882). */
 .ew-btn {
   min-height: 36px;
-  padding: var(--space-1, 4px) var(--space-3, 12px);
+  padding: 0 var(--space-4, 16px);
   border: 1px solid var(--accent, #1D5075);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
@@ -121,7 +160,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.ew-btn:hover { background: var(--bg, #F7F7F4); }
+.ew-btn:hover:not(:disabled) { background: var(--bg, #F7F7F4); }
 .ew-btn:disabled { color: var(--muted, #5B6472); border-color: var(--border, #E3E3DE); cursor: not-allowed; }
 .ew a:focus-visible,
 .ew button:focus-visible {
@@ -133,7 +172,7 @@
 
 /* ---------- 390 px ---------- */
 @media (max-width: 480px) {
-  .ew { padding: var(--space-3, 12px) var(--space-2, 8px); max-width: 100%; }
+  .ew { padding: var(--space-4, 16px) var(--space-2, 8px); max-width: 100%; }
   .ew-trip { grid-template-columns: minmax(0, 1fr); }
   .ew-trip-data { grid-column: 1; }
   .ew-stops { grid-template-columns: minmax(0, 1fr); }
@@ -142,6 +181,15 @@
   .ew-row { padding-bottom: var(--space-1, 4px); }
   .ew-row-links { gap: 0 var(--space-4, 16px); margin-top: var(--space-1, 4px); }
   .ew-row-links a { display: inline-flex; align-items: center; min-height: 44px; }
+  /* The next job keeps room under its filled button, which is 44 px tall here like every target. */
+  .ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child { padding: var(--space-4, 16px) var(--space-4, 16px) var(--space-4, 16px) var(--space-3, 12px); }
+  .ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-links { gap: var(--space-2, 8px) var(--space-4, 16px); margin-top: var(--space-4, 16px); }
+  .ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-links a:first-child { min-height: 44px; }
+}
+/* The commute at a glance on a wide screen: one line per trip, the numbers in a column on the right. */
+@media (min-width: 640px) {
+  .ew-trip { grid-template-columns: 72px minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-4, 16px); }
+  .ew-trip-data { grid-column: 3; justify-content: flex-end; }
 }
 @media (max-width: 390px) {
   .ew h1 { font-size: 18px; }
