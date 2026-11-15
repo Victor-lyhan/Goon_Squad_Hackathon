@@ -5,7 +5,8 @@
 // New delivery (MVP IV F1, docs/mvp4.md): it opens on one text box; the server reads the sentence and the
 // existing form opens prefilled as the confirmation card (DECISIONS pass 81). Only the form's button sends.
 // Above that card, the Options card (#863): the server's priced variants of the request (POST /api/v2/advise).
-// Choosing one sets the form's ready and deliver-by times; it is hidden when the call fails or has no option.
+// Choosing one sets the form's ready and deliver-by times. It follows the form (#948): without an option it
+// says why, the form marks the field the options wait for, and the card asks again when that field is filled.
 // The shell has the only <main> (#581, DECISIONS pass 60), so the page's root is a <div>.
 import {
   useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode,
@@ -15,13 +16,13 @@ import type { ParseRequestResponse } from '../../../../../../shared/v2/parseRequ
 import type { CreateShipmentRequest } from '../../../../../../shared/v2/schemas';
 import { advise as apiAdvise, parseRequest as apiParseRequest } from '../../../../api/v2';
 import { BusinessHeader } from '../activity/BusinessHeader';
-import { adviseDraft, type AdviseCall, type AdviseDraft } from '../adviceModel';
+import { adviseAsk, askMissing, sameAsk, type AdviseAsk, type AdviseCall } from '../adviceModel';
 import { AdviceOptions } from '../AdviceOptions';
 import { NotificationsPanel } from '../activity/NotificationsPanel';
 import { DeliveryDetails } from '../DeliveryDetails';
 import { RECONNECTING_TEXT, RUN_CHANGED_NOTE, type BusinessWorkspaceState } from '../live/businessWorkspaceState';
 import { NewDeliveryForm, isEchoPress, pressOf, type Press } from '../NewDeliveryForm';
-import { sameTimes, type DraftTimes, type NewDeliveryDraft } from '../newDeliveryModel';
+import type { DraftTimes, NewDeliveryDraft } from '../newDeliveryModel';
 import { ParsedRequestNote, RequestTextBox, type ParseRequestCall } from '../RequestTextBox';
 import { parsedRequest, type ParsedRequest } from '../requestTextModel';
 import { ShipmentsTable } from '../ShipmentsTable';
@@ -65,23 +66,13 @@ export type BusinessPageViewProps = {
 /**
  * What New delivery shows. `text`: the request text box, holding `text` when it is reopened. `form`: the New
  * delivery form, prefilled from `parsed` (the confirmation card) or empty ("Fill in the form instead");
- * `key` is new for every opening, so the form always starts from the draft it is given. `advice`: the request
- * the Options card asks about, or null when there is none to price (no read request, or no recipient in it).
+ * `key` is new for every opening, so the form always starts from the draft it is given. A read request
+ * (`parsed`) comes with the Options card, which asks about the request as the form holds it.
  */
 type NewView =
   | { kind: 'closed' }
   | { kind: 'text'; text: string }
-  | { kind: 'form'; key: number; parsed: ParsedRequest | null; advice: AdviseDraft | null };
-
-/** What the open form holds that the Options card looks at: its recipient and its three times. */
-type FormHolds = { recipientId: string; times: DraftTimes };
-
-function formHolds(draft: NewDeliveryDraft): FormHolds {
-  return {
-    recipientId: draft.recipientId,
-    times: { readyTime: draft.readyTime, deadlineDay: draft.deadlineDay, deadlineTime: draft.deadlineTime },
-  };
-}
+  | { kind: 'form'; key: number; parsed: ParsedRequest | null };
 
 /** The browser's answer for the one-column width, or null where there is none to ask (tests, old browsers). */
 function stackedMedia(): MediaQueryList | null {
@@ -110,7 +101,7 @@ export function BusinessPageView({
   initialRequestOpen = false, initialTable = INITIAL_TABLE, deliveryRoute = null,
 }: BusinessPageViewProps) {
   const [newView, setNewView] = useState<NewView>(
-    () => (initialNewOpen ? { kind: 'form', key: 0, parsed: null, advice: null } : initialRequestOpen ? { kind: 'text', text: '' } : { kind: 'closed' }),
+    () => (initialNewOpen ? { kind: 'form', key: 0, parsed: null } : initialRequestOpen ? { kind: 'text', text: '' } : { kind: 'closed' }),
   );
   const newOpen = newView.kind !== 'closed';
   const formKey = useRef(0);
@@ -136,12 +127,16 @@ export function BusinessPageView({
   const restoreFocus = useRef(false);
   /** The option chosen in the Options card: its times, for the form to take in (once per `seq`). */
   const [timesPatch, setTimesPatch] = useState<{ seq: number; times: DraftTimes } | null>(null);
-  /** The open form's recipient and times; the card marks the option the form holds. Unchanged values keep the object. */
-  const [inForm, setInForm] = useState<FormHolds | null>(null);
+  /**
+   * The read request as the open form holds it now: what the Options card asks about, and marks its options
+   * against. Null without a read request. Unchanged values keep the object.
+   */
+  const [ask, setAsk] = useState<AdviseAsk | null>(null);
+  const senderId = state.dashboard?.business.id ?? '';
   const noteDraft = useCallback((draft: NewDeliveryDraft) => {
-    const next = formHolds(draft);
-    setInForm((h) => (h && h.recipientId === next.recipientId && sameTimes(h.times, next.times) ? h : next));
-  }, []);
+    const next = adviseAsk(draft, senderId);
+    setAsk((a) => (a && sameAsk(a, next) ? a : next));
+  }, [senderId]);
 
   useEffect(() => {
     if (newOpen || !restoreFocus.current) return;
@@ -226,8 +221,8 @@ export function BusinessPageView({
     formKey.current += 1;
     focusForm.current = true;
     setTimesPatch(null);
-    setInForm(parsed ? formHolds(parsed.draft) : null);
-    setNewView({ kind: 'form', key: formKey.current, parsed, advice: parsed ? adviseDraft(parsed.draft, d.business.id) : null });
+    setAsk(parsed ? adviseAsk(parsed.draft, d.business.id) : null);
+    setNewView({ kind: 'form', key: formKey.current, parsed });
   };
   const showParsed = (answer: ParseRequestResponse, text: string) =>
     openForm(parsedRequest(answer, { origin: d.business, businesses }, text));
@@ -353,13 +348,12 @@ export function BusinessPageView({
           )}
           {newView.kind === 'form' && (
             <div className="bp-new" ref={newArea} onMouseDownCapture={dropEcho} onClickCapture={dropEcho}>
-              {newView.parsed && newView.advice && (
+              {newView.parsed && ask && (
                 <AdviceOptions
                   key={`options-${newView.key}`}
-                  draft={newView.advice}
+                  request={ask}
                   businesses={businesses}
                   advise={advise}
-                  current={inForm && inForm.recipientId === newView.advice.destinationBusinessId ? inForm.times : null}
                   onChoose={(times) => setTimesPatch((patch) => ({ seq: (patch?.seq ?? 0) + 1, times }))}
                 />
               )}
@@ -377,8 +371,10 @@ export function BusinessPageView({
                 dashboardVersion={d.version}
                 initialDraft={newView.parsed?.draft}
                 needsInput={newView.parsed?.needsInput}
+                fieldNotes={newView.parsed?.fieldNotes}
+                optionsNeed={newView.parsed && ask ? askMissing(ask) : undefined}
                 timesPatch={timesPatch ?? undefined}
-                onDraftChange={newView.advice ? noteDraft : undefined}
+                onDraftChange={newView.parsed ? noteDraft : undefined}
                 onSubmit={sendDelivery}
                 onOpenDelivery={onOpenShipment}
                 onCancel={closeNew}

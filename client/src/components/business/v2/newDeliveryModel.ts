@@ -117,6 +117,22 @@ export type ParsedFields = {
 /** Shown under every field of `needsInput` until the user edits it. */
 export const NEEDS_INPUT_HINT = 'Check this: not in your request';
 
+/**
+ * A line under a field of the prefilled form about how the request was read (#948): the business a misspelt
+ * name was taken for, a deliver-by time the server moved or assumed. `check`: the value is the server's
+ * guess, so the field is marked like one the request left out.
+ */
+export type FieldNote = { text: string; check: boolean };
+/** The fields that can carry such a line. The deliver-by line is about the day and the time together. */
+export type FieldNotes = { recipientId?: FieldNote; deadline?: FieldNote };
+
+/** The lines that still hold after the user changed `field`: a line goes with the value it was about. */
+export function notesAfterEdit(notes: FieldNotes, field: keyof NewDeliveryDraft): FieldNotes {
+  if (field === 'recipientId' && notes.recipientId) return { ...notes, recipientId: undefined };
+  if ((field === 'deadlineDay' || field === 'deadlineTime') && notes.deadline) return { ...notes, deadline: undefined };
+  return notes;
+}
+
 const CATEGORY_VALUES: readonly PackageCategory[] = ['envelope', 'small_box'];
 
 /** Whole minutes since Day 1 00:00 -> the form's day and "HH:MM" (24 h, as <input type="time"> holds it). */

@@ -52,6 +52,11 @@
 .nd-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); }
 /* A field a parsed request left out (MVP IV F1): the hint says so in words; the colour only adds to it. */
 .nd-check { margin: 0; font-size: var(--text-xs, 12px); font-weight: 600; color: var(--warn, #8A5A00); }
+/* How a value was read (#948): the business a misspelt name was taken for, a deliver-by time the server
+   moved. In the text colour, not the hint's grey: it is about the user's own request. A value the server
+   assumed reads like a field the request left out. */
+.nd-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--text, #171C24); overflow-wrap: anywhere; }
+.nd-note--check { font-weight: 600; color: var(--warn, #8A5A00); }
 
 .nd-input {
   height: 36px;
@@ -267,6 +272,17 @@ body:has(.nd) { overflow-x: clip; }
 /* One plain line under the title: what the card waits for, who made the options, or why there are none. */
 .nd-options__status { margin: 0; color: var(--muted, #5B6472); }
 .nd-options__status:empty { display: none; }
+/* No option to show (#948): the line is the answer itself, so it is in the text colour, not the status grey. */
+.nd-options__status--note { color: var(--text, #171C24); overflow-wrap: anywhere; }
+/* Under it, the form fields the options wait for: the card's one marked line, with the stripe of a field to check. */
+.nd-options__needed {
+  margin: 0;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-left: 3px solid var(--warn, #8A5A00);
+  border-radius: var(--radius, 4px);
+}
+.nd-options__need { font-weight: 600; color: var(--warn, #8A5A00); }
 .nd-options__list { display: flex; flex-direction: column; gap: var(--space-2, 8px); margin: 0; padding: 0; list-style: none; }
 .nd-options__hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .nd-options__applied { margin: 0; font-weight: 600; }

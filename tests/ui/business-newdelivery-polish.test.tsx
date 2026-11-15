@@ -12,7 +12,7 @@ import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequ
 import type { CreateShipmentRequest } from '../../shared/v2/schemas';
 import { ApiRequestError } from '../../client/src/api/v2';
 import {
-  ADVICE_COPY, WAITING_ROWS, adviceCard, adviceSourceLine, noOptionsText, optionName, type AdviseCall,
+  ADVICE_COPY, WAITING_ROWS, adviceCard, adviceSourceLine, noOptions, optionName, type AdviseCall,
 } from '../../client/src/components/business/v2/adviceModel';
 import { RESULT_COPY } from '../../client/src/components/business/v2/newDeliveryModel';
 import { BusinessPageView } from '../../client/src/components/business/v2/page/BusinessPageView';
@@ -268,7 +268,6 @@ describe('while the Options card waits (up to 10 s)', () => {
 describe('an /advise that fails is one plain sentence, and the form still sends', () => {
   const failures: Array<[string, () => Promise<AdviseResponse>]> = [
     ['a 500', async () => { throw new ApiRequestError(500, 'Internal Server Error'); }],
-    ['no answer in time', async () => { throw new ApiRequestError(0, 'Request timed out after 15000 ms', undefined, 'timeout'); }],
     ['a body that is not an answer', async () => ({ error: 'server_error' }) as unknown as AdviseResponse],
   ];
   for (const [name, advise] of failures) {
@@ -291,15 +290,31 @@ describe('an /advise that fails is one plain sentence, and the form still sends'
     }, T);
   }
 
-  it('an answer with no option: the server\'s sentence about why, then what can be done', async () => {
+  it('no answer in time: the card is not shown (#948), nothing is said as an alert, and the form sends', async () => {
+    const p = setup({ advise: async () => { throw new ApiRequestError(0, 'Request timed out after 15000 ms', undefined, 'timeout'); } });
+    await p.read();
+    expect(p.card()).toBeNull();
+    expect([...p.container.querySelectorAll('[role="alert"]')].map(textOf).filter(Boolean)).toEqual([]);
+    expect(textOf(p.area())).not.toMatch(/timed out|15000/);
+    expect(p.sendButton().disabled).toBe(false);
+    click(p.sendButton());
+    await flush();
+    expect(p.createShipment).toHaveBeenCalledTimes(1);
+    expect(p.formStatus()).toContain(RESULT_COPY.matched);
+  }, T);
+
+  it('an answer with no option: the server\'s sentence about why on one line, then what can be done', async () => {
     const note = 'No carrier can take it, even with an earlier ready time or a later deliver-by: every matching commute is full.';
     const p = setup({ advise: async () => ({ options: [], source: 'offline', note }) });
     await p.read();
-    expect(textOf(p.card()!)).toBe(`Options${note} You can change the times in the form below, or send the request as it is.`);
+    expect(textOf(p.cardStatus())).toBe(note);
+    expect([...p.card()!.querySelectorAll('.nd-options__hint')].map(textOf)).toEqual(['You can change the times in the form below, or send the request as it is.']);
+    expect(p.card()!.querySelector('.nd-options__needed')).toBeNull(); // the request lacks nothing
     expect(p.sendButton().disabled).toBe(false);
     // Without a sentence of the server's own, a plain default.
-    expect(noOptionsText({ options: [], source: 'offline' })).toBe(`${ADVICE_COPY.none} ${ADVICE_COPY.noneNext}`);
-    expect(noOptionsText(null)).toBe(ADVICE_COPY.failed);
+    const ask = { originBusinessId: 'a', destinationBusinessId: 'b', label: null, category: null, description: null, weightKg: null, readyMin: 960, deadlineMin: 2040 };
+    expect(noOptions({ options: [], source: 'offline' }, ask)).toEqual({ note: ADVICE_COPY.none, lead: '', fields: [], next: ADVICE_COPY.noneNext });
+    expect(noOptions(null, ask)).toEqual({ note: ADVICE_COPY.failed, lead: '', fields: [], next: null });
   }, T);
 });
 

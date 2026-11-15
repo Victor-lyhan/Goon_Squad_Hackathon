@@ -142,7 +142,8 @@ export type ParsedRequestNoteProps = {
 /**
  * The lines above the prefilled form, which together with it are the confirmation card: the sentence, who
  * read it ("Read by Gemini" / "Read by Relay’s rules", the latter with one plain line that says what it means), the
- * sender note and a rejected stop, each as plain text.
+ * sender note, a rejected stop and what else the server chose, each as plain text. What it chose for the
+ * recipient or the deliver-by time is under that field of the form instead (#948).
  */
 export function ParsedRequestNote({ parsed, onEdit }: ParsedRequestNoteProps) {
   const note = useRef<HTMLElement>(null);
@@ -163,6 +164,8 @@ export function ParsedRequestNote({ parsed, onEdit }: ParsedRequestNoteProps) {
       <div className="nd-parsed__notes" role="status">
         {parsed.rejected && <p className="nd-parsed__note nd-parsed__note--warn">{parsed.rejected}</p>}
         {parsed.senderNote && <p className="nd-parsed__note">{parsed.senderNote}</p>}
+        {/* What the server chose that has no field of its own in the form (#948), in its own words. */}
+        {parsed.notes.map((line) => <p key={line} className="nd-parsed__note">{line}</p>)}
         <p className="nd-hint">{REQUEST_COPY.confirm}</p>
       </div>
     </section>

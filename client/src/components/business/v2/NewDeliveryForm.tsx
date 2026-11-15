@@ -6,12 +6,13 @@ import type { ShipmentResponse } from '../../../../../shared/v2/api';
 import type { CreateShipmentRequest } from '../../../../../shared/v2/schemas';
 import type { Employee, NetworkBusiness, PackageCategory, Phase } from '../../../../../shared/v2/types';
 import { matchShipment as apiMatchShipment } from '../../../api/v2';
+import { ADVICE_COPY } from './adviceModel';
 import {
   DEFAULT_WINDOW, NEEDS_INPUT_HINT, RESULT_COPY, arrangedCard, draftAfterResult, emptyDraft, firstInvalidField,
-  firstNeedsInput, initialSubmitState, mapServerFieldErrors, newClientRequestId, recipientOptions, retryShipmentId, submitReducer,
-  toRequest, validate, windowTimes,
-  type ArrangedCard, type DraftField, type DraftTimes, type FieldErrors, type NewDeliveryDraft, type SubmitStatus,
-  type TimeWindow,
+  firstNeedsInput, initialSubmitState, mapServerFieldErrors, newClientRequestId, notesAfterEdit, recipientOptions,
+  retryShipmentId, submitReducer, toRequest, validate, windowTimes,
+  type ArrangedCard, type DraftField, type DraftTimes, type FieldErrors, type FieldNotes, type NewDeliveryDraft,
+  type SubmitStatus, type TimeWindow,
 } from './newDeliveryModel';
 import './newDelivery.css';
 
@@ -55,6 +56,17 @@ export type NewDeliveryFormProps = {
    * the first one on screen gets focus when the form opens. Read once, like `initialDraft`.
    */
   needsInput?: readonly DraftField[];
+  /**
+   * Lines about how the request was read (#948): under the Recipient, the business a misspelt name was taken
+   * for; under the deliver-by fields, a time the server moved or assumed. Each is shown until the user
+   * changes that field. Read once, like `initialDraft`.
+   */
+  fieldNotes?: FieldNotes;
+  /**
+   * The fields the Options card above the form still waits for (#948). Each is marked, and says so unless
+   * it already carries a "Check this" line. Follows the prop: the page takes a field off when it is filled.
+   */
+  optionsNeed?: readonly DraftField[];
   /**
    * Times to put in the draft (#863: an option chosen in the Options card above the form). Applied once per
    * `seq`, as if the user had typed them; the one the form mounts with is not applied. Nothing is sent.
@@ -148,6 +160,8 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   const [draft, setDraft] = useState<NewDeliveryDraft>(() => props.initialDraft ?? emptyDraft());
   // The listed fields the user has not edited yet. Empty without the prop, and then nothing below differs.
   const [unchecked, setUnchecked] = useState<readonly DraftField[]>(() => props.needsInput ?? []);
+  // The lines about how the request was read, each until the user changes the field it is about.
+  const [notes, setNotes] = useState<FieldNotes>(() => props.fieldNotes ?? {});
   const [draftOrigin, setDraftOrigin] = useState(origin.id);
   const [clientErrors, setClientErrors] = useState<FieldErrors>({});
   const [submitState, dispatch] = useReducer(submitReducer, origin.id, (id: string) => initialSubmitState(newClientRequestId(id)));
@@ -167,6 +181,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
     setDraftOrigin(origin.id);
     setDraft(emptyDraft());
     setUnchecked([]); // the prefill was the other business's request
+    setNotes({});
     setClientErrors({});
     dispatch({ type: 'dismiss' });
   }
@@ -190,6 +205,10 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
       const next = { ...draft, ...times };
       setDraft(next);
       setUnchecked(unchecked.filter((f) => !(f in times)));
+      // An option with another deliver-by: the line about the one that was read goes with it.
+      if (times.deadlineDay !== draft.deadlineDay || times.deadlineTime !== draft.deadlineTime) {
+        setNotes(notesAfterEdit(notes, 'deadlineTime'));
+      }
       if (Object.keys(clientErrors).length > 0) setClientErrors(validate(next, origin.id, timeWindow));
     }
   }
@@ -207,6 +226,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
     setDraft(next);
     // An edited field is the user's own value: its "not in your request" hint goes.
     if (unchecked.includes(key)) setUnchecked(unchecked.filter((f) => f !== key));
+    setNotes(notesAfterEdit(notes, key));
     // Once errors are on screen, they follow the typing (fixed fields clear right away).
     if (Object.keys(clientErrors).length > 0) setClientErrors(validate(next, origin.id, timeWindow));
   };
@@ -236,6 +256,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
       if (response.matched) {
         setDraft((d) => (d === sent ? draftAfterResult(d, { kind: 'matched' }) : d));
         setUnchecked([]); // the form starts a fresh package; the hints were about the one just sent
+        setNotes({});
       }
     } catch (error) {
       dispatch({ type: 'failure', error });
@@ -278,6 +299,8 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
       retry={retryId !== null}
       draft={draft}
       needsInput={unchecked}
+      fieldNotes={notes}
+      optionsNeed={props.optionsNeed}
       errors={errors}
       status={status}
       onChange={change}
@@ -302,6 +325,10 @@ export type NewDeliveryFormViewProps = {
   draft: NewDeliveryDraft;
   /** Fields a parsed request left out and the user has not edited yet: each shows NEEDS_INPUT_HINT. */
   needsInput?: readonly DraftField[];
+  /** Lines about how the request was read, under the Recipient and under the deliver-by fields (#948). */
+  fieldNotes?: FieldNotes;
+  /** Fields the Options card still waits for: marked, with ADVICE_COPY.neededHint unless "Check this" is there. */
+  optionsNeed?: readonly DraftField[];
   errors: FieldErrors;
   status: SubmitStatus;
   onChange: <K extends keyof NewDeliveryDraft>(key: K, value: NewDeliveryDraft[K]) => void;
@@ -333,19 +360,31 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
   /** The last pointer press on the submit button; a second press right after it is dropped (isRepeatPress). */
   const lastPress = useRef<Press | null>(null);
 
+  // The line about the deliver-by is under the day and the time together, and both are described by it.
+  const deadlineNote = p.fieldNotes?.deadline;
+  const isDeadline = (f: DraftField) => f === 'deadlineDay' || f === 'deadlineTime';
+
   const field = (f: DraftField, label: ReactNode, control: (a: {
     id: string; 'aria-invalid'?: true; 'aria-describedby'?: string; ref?: (el: HTMLElement | null) => void;
   }) => ReactNode, hint?: ReactNode) => {
     const err = p.errors[f];
     const check = p.needsInput?.includes(f) === true;
-    const describedBy = [hint ? id(`${f}-hint`) : '', check ? id(`${f}-check`) : '', err ? id(`${f}-err`) : '']
-      .filter(Boolean).join(' ') || undefined;
+    // The options above the form wait for this field; "Check this" says as much, so the two are never stacked.
+    const needed = !check && p.optionsNeed?.includes(f) === true;
+    const note = f === 'recipientId' ? p.fieldNotes?.recipientId : undefined;
+    const marked = check || needed || note?.check === true || (isDeadline(f) && deadlineNote?.check === true);
+    const describedBy = [
+      hint ? id(`${f}-hint`) : '', note ? id(`${f}-note`) : '', isDeadline(f) && deadlineNote ? id('deadline-note') : '',
+      check ? id(`${f}-check`) : '', needed ? id(`${f}-needed`) : '', err ? id(`${f}-err`) : '',
+    ].filter(Boolean).join(' ') || undefined;
     return (
-      <div className={`nd-field${check ? ' nd-field--check' : ''}${err ? ' nd-field--invalid' : ''}`}>
+      <div className={`nd-field${marked ? ' nd-field--check' : ''}${err ? ' nd-field--invalid' : ''}`}>
         <label className="nd-label" htmlFor={id(f)}>{label}</label>
         {control({ id: id(f), 'aria-invalid': err ? true : undefined, 'aria-describedby': describedBy, ref: ref(f) })}
         {hint && <p className="nd-hint" id={id(`${f}-hint`)}>{hint}</p>}
+        {note && <p className={`nd-note${note.check ? ' nd-note--check' : ''}`} id={id(`${f}-note`)}>{note.text}</p>}
         {check && <p className="nd-check" id={id(`${f}-check`)}>{NEEDS_INPUT_HINT}</p>}
+        {needed && <p className="nd-check" id={id(`${f}-needed`)}>{ADVICE_COPY.neededHint}</p>}
         {err && <p className="nd-error" id={id(`${f}-err`)}>{err}</p>}
       </div>
     );
@@ -439,6 +478,9 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
               type="time" value={p.draft.deadlineTime} onChange={(e) => p.onChange('deadlineTime', e.target.value)} />
           ))}
         </div>
+        {deadlineNote && (
+          <p className={`nd-note${deadlineNote.check ? ' nd-note--check' : ''}`} id={id('deadline-note')}>{deadlineNote.text}</p>
+        )}
       </fieldset>
 
       <div className="nd-result" role="status" aria-live="polite">

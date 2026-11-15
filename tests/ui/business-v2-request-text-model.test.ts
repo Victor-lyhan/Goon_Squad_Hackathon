@@ -82,6 +82,8 @@ describe('parsedRequest: what the page shows for an answer', () => {
       sourceLine: null, // only an offline answer gets the plain line (#880)
       senderNote: null,
       rejected: null,
+      fieldNotes: {}, // nothing chosen or changed by the server (#948)
+      notes: [],
     });
     expect(validate(p.draft, ACME.id)).toEqual({}); // the form accepts it as it is
   });

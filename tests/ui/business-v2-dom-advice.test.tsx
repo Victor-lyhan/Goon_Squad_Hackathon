@@ -2,8 +2,9 @@
 // #863 (the AI what-if advisor, UI half): after "Read my request" the Business page asks POST /api/v2/advise
 // (a stub here: no server, no Gemini) and shows the Options card above the confirmation card. Choosing an
 // option only sets the form's ready and deliver-by times: the form's own button still sends, through the
-// unchanged createShipment. A failed call or an answer without options is one plain sentence in the card
-// (#880; before it the card was hidden), and the form still sends.
+// unchanged createShipment. A call the server answers with an error, or an answer without options, is one
+// plain sentence in the card (#880), and the form still sends; only a call with no answer at all hides the
+// card (#948; what the card says and asks again for: business-v2-dom-advice-notes.test.tsx).
 // The pure model: business-v2-advice-model.test.ts.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdviseOption, AdviseResponse, ShipmentResponse } from '../../shared/v2/api';
@@ -345,15 +346,34 @@ describe('keyboard and screen reader', () => {
 });
 
 describe('no options: one plain sentence in the card, and the flow is as before', () => {
-  const NO_OPTION = `No carrier passes both businesses. ${ADVICE_COPY.noneNext}`;
+  // The server's sentence is the card's line; what can be done is a second, smaller line under it (#948).
+  const NO_OPTION = `No carrier passes both businesses.${ADVICE_COPY.noneNext}`;
   const failures: Array<[string, () => Promise<AdviseResponse>, string]> = [
     ['a 404 (a server without the route)', async () => { throw new ApiRequestError(404, 'Not found'); }, ADVICE_COPY.failed],
     ['a 500', async () => { throw new ApiRequestError(500, 'Internal Server Error'); }, ADVICE_COPY.failed],
-    ['no answer', async () => { throw new ApiRequestError(0, 'Request timed out after 15000 ms', undefined, 'timeout'); }, ADVICE_COPY.failed],
-    ['a thrown error', async () => { throw new TypeError('x is undefined'); }, ADVICE_COPY.failed],
     ['an answer with no option', async () => ({ options: [], source: 'offline', note: 'No carrier passes both businesses.' }), NO_OPTION],
     ['an answer that is not one', async () => ({ error: 'nope' }) as unknown as AdviseResponse, ADVICE_COPY.failed],
   ];
+  // No answer at all: the card is not drawn (#948), and the flow is the one of before the card.
+  const unanswered: Array<[string, () => Promise<AdviseResponse>]> = [
+    ['no answer in time', async () => { throw new ApiRequestError(0, 'Request timed out after 15000 ms', undefined, 'timeout'); }],
+    ['no network', async () => { throw new ApiRequestError(0, 'Failed to fetch', undefined, 'network'); }],
+    ['a thrown error', async () => { throw new TypeError('x is undefined'); }],
+  ];
+
+  for (const [name, advise] of unanswered) {
+    it(`${name}: no card, nothing said, and Send works`, async () => {
+      const p = setup({ advise });
+      await p.read();
+      expect(p.advise).toHaveBeenCalledTimes(1);
+      expect(p.card()).toBeNull();
+      expect([...p.container.querySelectorAll('[role="alert"]')].map(textOf).filter(Boolean)).toEqual([]);
+      expect(p.note()!.nextElementSibling).toBe(p.form());
+      await p.send();
+      expect(p.createShipment).toHaveBeenCalledTimes(1);
+      expect(textOf(p.form()!.querySelector('.nd-result')!)).toContain(RESULT_COPY.matched);
+    }, T);
+  }
 
   for (const [name, advise, sentence] of failures) {
     it(`${name}: one sentence, no rows, and Send works`, async () => {
@@ -406,11 +426,18 @@ describe('no options: one plain sentence in the card, and the flow is as before'
     expect(textOf(p.form()!.querySelector('.nd-result')!)).toContain(RESULT_COPY.matched);
   }, T);
 
-  it('a request without a recipient is not priced: no call, no card', async () => {
-    const p = setup({ parse: async () => parsed({ destinationBusinessId: null }) });
+  it('a request without a recipient has no price yet: the card stays and says what it waits for (#948)', async () => {
+    const p = setup({
+      parse: async () => parsed({ destinationBusinessId: null }),
+      advise: async () => ({ options: [], source: 'offline', note: 'Choose a recipient to see options.' }),
+    });
     await p.read();
-    expect(p.advise).not.toHaveBeenCalled();
-    expect(p.card()).toBeNull();
+    // Asked once, with the recipient null: the server's sentence is the card's line.
+    expect(p.advise).toHaveBeenCalledTimes(1);
+    expect(p.advise.mock.calls[0][0]).toMatchObject({ originBusinessId: ACME.id, destinationBusinessId: null, readyMin: 960, deadlineMin: 2040 });
+    expect(p.status()).toBe('Choose a recipient to see options.');
+    expect(textOf(p.card()!.querySelector('.nd-options__needed')!)).toBe('Still needed: Recipient');
+    expect(p.rows()).toHaveLength(0);
     expect(p.form()).not.toBeNull();
   }, T);
 

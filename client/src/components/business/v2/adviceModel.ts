@@ -7,7 +7,7 @@ import type { AdviseOption, AdviseResponse } from '../../../../../shared/v2/api'
 import type { NetworkBusiness, PackageCategory } from '../../../../../shared/v2/types';
 import { formatCents, formatDuration, formatMin } from '../../../ui/format';
 import {
-  dayTimeToMin, draftTimes, parseWeightKg, sameTimes, type DraftTimes, type NewDeliveryDraft,
+  dayTimeToMin, draftTimes, parseWeightKg, sameTimes, type DraftField, type DraftTimes, type FieldErrors, type NewDeliveryDraft,
 } from './newDeliveryModel';
 
 // ---------- The request (contract: AdviseRequest / AdviseResponse in shared/v2/api.ts, #862) ----------
@@ -27,8 +27,25 @@ export type AdviseDraft = {
   deadlineMin: number;
 };
 
+/**
+ * The request as the form holds it now (#948): an `AdviseDraft` whose recipient and two times are null while
+ * the form does not hold them (no recipient chosen, a time field that is empty). It is still a parse-request
+ * draft, so it can be sent: the server answers a request with a null field with no option and a sentence.
+ */
+export type AdviseAsk = Omit<AdviseDraft, 'destinationBusinessId' | 'readyMin' | 'deadlineMin'> & {
+  destinationBusinessId: string | null;
+  readyMin: number | null;
+  deadlineMin: number | null;
+};
+
 /** `advise` of client/src/api/v2, which waits 15 s by default: the server's agent has 10 s (tests pass a stub). */
-export type AdviseCall = (draft: AdviseDraft, opts?: { signal?: AbortSignal; timeoutMs?: number }) => Promise<AdviseResponse>;
+export type AdviseCall = (draft: AdviseAsk, opts?: { signal?: AbortSignal; timeoutMs?: number }) => Promise<AdviseResponse>;
+
+/**
+ * How long the card waits after the last change of the recipient or a time before it asks again (#948):
+ * a time typed digit by digit is one call, not four.
+ */
+export const REASK_DELAY_MS = 600;
 
 /** The card never shows more rows than this, whatever the answer holds. */
 export const MAX_OPTIONS = 3;
@@ -71,7 +88,23 @@ export const ADVICE_COPY = {
   none: 'No option was found for this request as it was read.',
   /** After the server's sentence about a request with no option: the form is still there to change and send. */
   noneNext: 'You can change the times in the form below, or send the request as it is.',
+  /** In front of the names of the fields the options wait for (#948). */
+  needed: 'Still needed:',
+  /** Under those names: what to do, and that nothing has to be pressed for the options to come. */
+  neededNext: 'Fill it in below and the options load by themselves.',
+  /** In front of the names of the fields the server could not take as they are (a time outside the simulation hours). */
+  check: 'Check in the form:',
+  checkNext: 'Change it below and the options load by themselves.',
+  /** In the form, under a field the options wait for that has no "Check this" line of its own. */
+  neededHint: 'Needed for the options above',
 } as const;
+
+/** The form fields the options cannot do without, in screen order, each with its name in a sentence. */
+const NEEDED_FIELDS: { field: DraftField; key: keyof AdviseAsk; name: string; inSentence: string }[] = [
+  { field: 'recipientId', key: 'destinationBusinessId', name: 'Recipient', inSentence: 'a recipient' },
+  { field: 'readyTime', key: 'readyMin', name: 'Ready for pickup', inSentence: 'a ready time' },
+  { field: 'deadlineTime', key: 'deadlineMin', name: 'Deliver by: time', inSentence: 'a deliver-by time' },
+];
 
 /** The label names the model only when the server says the model planned the options; anything else is Relay alone. */
 export function adviceSourceLabel(source: unknown): string {
@@ -89,20 +122,54 @@ export function adviceSourceLine(source: unknown): string {
  * when there is nothing to price yet: no recipient, or a time the form does not hold as a time.
  */
 export function adviseDraft(draft: NewDeliveryDraft, originId: string): AdviseDraft | null {
+  const ask = adviseAsk(draft, originId);
+  return originId && askMissing(ask).length === 0 ? (ask as AdviseDraft) : null;
+}
+
+/**
+ * The request to ask options for, as the form holds it now (#948). Like `adviseDraft`, but a form without a
+ * recipient or with an empty time still gives a request: those fields are null, and `askMissing` names them.
+ */
+export function adviseAsk(draft: NewDeliveryDraft, originId: string): AdviseAsk {
   const readyMin = dayTimeToMin(1, draft.readyTime);
   const deadlineMin = dayTimeToMin(draft.deadlineDay, draft.deadlineTime);
-  if (!originId || !draft.recipientId || Number.isNaN(readyMin) || Number.isNaN(deadlineMin)) return null;
   const weight = parseWeightKg(draft.weightKg);
   return {
     originBusinessId: originId,
-    destinationBusinessId: draft.recipientId,
+    destinationBusinessId: draft.recipientId || null,
     label: draft.label.trim() || null,
     category: draft.category,
     description: draft.description.trim() || null,
     weightKg: 'kg' in weight ? weight.kg : null,
-    readyMin,
-    deadlineMin,
+    readyMin: Number.isNaN(readyMin) ? null : readyMin,
+    deadlineMin: Number.isNaN(deadlineMin) ? null : deadlineMin,
   };
+}
+
+const ASK_KEYS = [
+  'originBusinessId', 'destinationBusinessId', 'label', 'category', 'description', 'weightKg', 'readyMin', 'deadlineMin',
+] as const satisfies readonly (keyof AdviseAsk)[];
+
+export function sameAsk(a: AdviseAsk, b: AdviseAsk): boolean {
+  return ASK_KEYS.every((k) => a[k] === b[k]);
+}
+
+/**
+ * What a new call is decided on: the recipient and the two times, the fields a request can lack and the
+ * ones an option depends on. A package name typed in the form never asks again.
+ */
+export function askKey(ask: AdviseAsk): string {
+  return [ask.destinationBusinessId ?? '', ask.readyMin ?? '', ask.deadlineMin ?? ''].join('|');
+}
+
+/** The form fields the options still wait for, in screen order. Empty for a request that can be priced. */
+export function askMissing(ask: AdviseAsk): DraftField[] {
+  return NEEDED_FIELDS.filter((n) => ask[n.key] === null).map((n) => n.field);
+}
+
+/** The times of a request as the form holds them (the option with the same times is marked); null when one is missing. */
+export function askTimes(ask: AdviseAsk): DraftTimes | null {
+  return ask.readyMin === null || ask.deadlineMin === null ? null : draftTimes(ask.readyMin, ask.deadlineMin);
 }
 
 // ---------- The card ----------
@@ -140,13 +207,16 @@ export type AdviceCard = {
 const isNum = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 const text = (s: unknown) => (typeof s === 'string' ? s.trim() : '');
 
-/** A time the option changes, or the request's own; NaN for a change that is not a number. */
-function changed(value: unknown, own: number): number {
-  return value === undefined || value === null ? own : isNum(value) ? value : NaN;
+/** A time the option changes, or the request's own; NaN for a change that is not a number or a request without that time. */
+function changed(value: unknown, own: number | null): number {
+  return value === undefined || value === null ? own ?? NaN : isNum(value) ? value : NaN;
 }
 
+/** What the rows are read against: the times of the request that was asked about, and the names of the relay points. */
+type CardContext = { draft: AdviseAsk; businesses: Pick<NetworkBusiness, 'id' | 'name'>[] };
+
 function row(
-  raw: unknown, index: number, context: { draft: AdviseDraft; businesses: Pick<NetworkBusiness, 'id' | 'name'>[] },
+  raw: unknown, index: number, context: CardContext,
 ): (AdviceRow & { cents: number }) | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const o = raw as Partial<Record<keyof AdviseOption, unknown>>;
@@ -179,13 +249,11 @@ function row(
 }
 
 /**
- * What the card shows for an answer, or null when there is nothing to show (no usable option, or a body
- * that is not an advise answer): the page then hides the card. An option the page cannot show or apply is
- * left out; the others keep the server's order.
+ * The rows the card shows for an answer, or null when there is none (no usable option, or a body that is not
+ * an advise answer): the card then says why (`noOptions`). An option the page cannot show or apply is left
+ * out; the others keep the server's order.
  */
-export function adviceCard(
-  response: unknown, context: { draft: AdviseDraft; businesses: Pick<NetworkBusiness, 'id' | 'name'>[] },
-): AdviceCard | null {
+export function adviceCard(response: unknown, context: CardContext): AdviceCard | null {
   const r = response as { options?: unknown; source?: unknown; note?: unknown } | null;
   if (typeof r !== 'object' || r === null || !Array.isArray(r.options)) return null;
   const rows = r.options
@@ -203,14 +271,78 @@ export function adviceCard(
   };
 }
 
+/** What a call that was rejected means for the card (#948). */
+export type AdviceFailure =
+  /** No answer from the server at all (no network, a timeout): the card is hidden, the form is as without it. */
+  | { kind: 'no_answer' }
+  /**
+   * The server answered with an error: the card stays and says so in one sentence. `refused` holds the
+   * server's own words about the recipient or a time it could not take (a 400), keyed by the form's field.
+   */
+  | { kind: 'failed'; refused: FieldErrors };
+
+/** Classifies a rejected `advise` (an ApiRequestError of client/src/api, or anything else that was thrown). */
+export function adviceFailure(error: unknown): AdviceFailure {
+  const e = (error ?? {}) as { status?: unknown; fieldErrors?: unknown };
+  if (typeof e.status !== 'number' || e.status <= 0) return { kind: 'no_answer' };
+  const sent = (e.status === 400 && typeof e.fieldErrors === 'object' && e.fieldErrors !== null ? e.fieldErrors : {}) as Record<string, unknown>;
+  const refused: FieldErrors = {};
+  for (const n of NEEDED_FIELDS) {
+    const message = text(sent[n.key]);
+    if (message) refused[n.field] = message;
+  }
+  return { kind: 'failed', refused };
+}
+
+/** The card without an option to show (#948): it stays, and says why in one line. */
+export type NoOptions = {
+  /** One plain line: the server's own sentence (its `note`, or its words about a field) when it sent one. */
+  note: string;
+  /** What stands in front of `fields`: "Still needed:" or "Check in the form:". */
+  lead: string;
+  /** The names of the form fields the options wait for ("Recipient"), highlighted under the line. Often empty. */
+  fields: string[];
+  /** What to do next, under the line; null when the line says it itself. */
+  next: string | null;
+};
+
 /**
- * What the card says for an answer with no option to show (`adviceCard` is null): the server's own sentence
- * about why (its `note`), or a plain default. A body that is not an advise answer reads like a failed call.
+ * What the card says when it has no option to show (`adviceCard` is null). `response` is the answer, or null
+ * for a call the server answered with an error (`refused`: its words about a field, if any). `ask` is the
+ * request as the form holds it now: a field it lacks is named, in the server's sentence or, without one (a
+ * server that refuses such a request), in the same words. A body that is not an advise answer reads like a
+ * failed call.
  */
-export function noOptionsText(response: unknown): string {
+export function noOptions(response: unknown, ask: AdviseAsk, refused: FieldErrors = {}): NoOptions {
   const r = response as { options?: unknown; note?: unknown } | null;
-  if (typeof r !== 'object' || r === null || !Array.isArray(r.options)) return ADVICE_COPY.failed;
-  return `${text(r.note) || ADVICE_COPY.none} ${ADVICE_COPY.noneNext}`;
+  const answered = typeof r === 'object' && r !== null && Array.isArray(r.options);
+  const note = answered ? text(r.note) : '';
+  const lacking = NEEDED_FIELDS.filter((n) => ask[n.key] === null);
+  if (lacking.length > 0) {
+    return {
+      note: note || `Choose ${listText(lacking.map((n) => n.inSentence))} to see options.`,
+      lead: ADVICE_COPY.needed,
+      fields: lacking.map((n) => n.name),
+      next: ADVICE_COPY.neededNext,
+    };
+  }
+  const wrong = NEEDED_FIELDS.filter((n) => refused[n.field]);
+  if (wrong.length > 0) {
+    const message = refused[wrong[0].field]!;
+    return {
+      note: /[.!?]$/.test(message) ? message : `${message}.`,
+      lead: ADVICE_COPY.check,
+      fields: wrong.map((n) => n.name),
+      next: ADVICE_COPY.checkNext,
+    };
+  }
+  if (!answered) return { note: ADVICE_COPY.failed, lead: '', fields: [], next: null };
+  return { note: note || ADVICE_COPY.none, lead: '', fields: [], next: ADVICE_COPY.noneNext };
+}
+
+/** "a recipient", "a recipient and a ready time", "a recipient, a ready time and a deliver-by time". */
+function listText(parts: string[]): string {
+  return parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
 
 /**
