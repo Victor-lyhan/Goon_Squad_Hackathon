@@ -90,7 +90,11 @@ describe('CommuteForm static renders', () => {
     expect(isDisabled(saveBtn(states.dirty))).toBe(false);
     expect(isDisabled(button(states.dirty, 'Discard changes'))).toBe(false);
     expect(isDisabled(saveBtn(states.invalid))).toBe(false);
-    expect(isDisabled(saveBtn(states.saving))).toBe(true);
+    // #735: while saving, Save is aria-disabled and not disabled, so it keeps the focus it was pressed with.
+    expect(isDisabled(saveBtn(states.saving))).toBe(false);
+    expect(attr(saveBtn(states.saving), 'aria-disabled')).toBe('true');
+    expect(saveBtn(states.dirty)).not.toContain('aria-disabled');
+    expect(saveBtn(states.clean)).not.toContain('aria-disabled');
     expect(states.saving).toContain('Saving…');
   });
 

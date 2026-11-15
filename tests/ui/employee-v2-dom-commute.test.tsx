@@ -86,8 +86,11 @@ describe('CommuteForm in a real DOM: save', () => {
     expect(req).toEqual(expectedRequest());
     expect(req.home).toEqual({ neighborhood: 'Harlem', lat: HARLEM.lat, lng: HARLEM.lng }); // no street address
 
-    // Pending: the button is disabled and its text says so; the live region says it too.
-    expect(f.saveButton().disabled).toBe(true);
+    // Pending: the button is switched off and its text says so; the live region says it too. It is
+    // aria-disabled, not disabled (#735), so the focus it was pressed with stays on it.
+    expect(f.saveButton().getAttribute('aria-disabled')).toBe('true');
+    expect(f.saveButton().disabled).toBe(false);
+    expect(document.activeElement).toBe(f.saveButton());
     expect(textOf(f.saveButton())).toBe('Saving…');
     expect(textOf(f.message())).toBe('Saving commute…');
     expect(f.message().getAttribute('aria-live')).toBe('polite');
@@ -103,6 +106,7 @@ describe('CommuteForm in a real DOM: save', () => {
     expect(f.detour().value).toBe(String(res.employee.maxExtraMin));
     expect(textOf(f.form())).toContain(`Home: ${res.home.neighborhood}`);
     expect(f.saveButton().disabled).toBe(true);
+    expect(f.saveButton().hasAttribute('aria-disabled')).toBe(false);
   }, T);
 
   it('a rejected save shows the error in a live region and keeps the draft', async () => {

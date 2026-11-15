@@ -187,11 +187,11 @@ describe('Employee page with the real data hook: Save pressed twice (#720)', () 
     server.holdPuts = true;
     const save = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     click(save);
-    click(save); // the second press: the button is disabled by now
+    click(save); // the second press: the button is switched off by now (aria-disabled, #735)
     act(() => { form.requestSubmit(); }); // and Enter in a field
     await settle();
     expect(server.puts).toHaveLength(1);
-    expect(save.disabled).toBe(true);
+    expect(save.getAttribute('aria-disabled')).toBe('true');
     expect(textOf(save)).toBe('Saving…');
 
     await p.release(server.heldPuts);

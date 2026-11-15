@@ -3,7 +3,7 @@
 // Only { neighborhood, lat, lng } ever leaves this control (SPEC MVP II rule 6).
 // #598: the control prints neither the home nor a locked sentence. The commute form around it does both,
 // once: its group label reads "Home: <neighborhood>" and its message says why a locked run is read-only.
-import { useCallback, useEffect, useId, useReducer, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import {
   DEFAULT_DEBOUNCE_MS, addressSearchReducer, describeSearchError, initialSearchState, isOpen, keyIntent, pickHome, statusText,
   type AddressResult, type AddressSearchAction, type AddressSearchState, type HomeChoice, type SearchFn,
@@ -31,11 +31,13 @@ export interface AddressSearchViewProps {
   onRetry?(): void;
   onChange?(): void;
   onCancel?(): void;
+  /** The Change button, so the control can give it focus when the search input goes away (#735). */
+  changeRef?: Ref<HTMLButtonElement>;
 }
 
 /** Stateless markup for every state; static-render tests use it directly. */
 export function AddressSearchView({
-  id, state, value, editing, disabled = false, onInput, onKeyDown, onPick, onRetry, onChange, onCancel,
+  id, state, value, editing, disabled = false, onInput, onKeyDown, onPick, onRetry, onChange, onCancel, changeRef,
 }: AddressSearchViewProps) {
   const inputId = `${id}-input`;
   const listId = `${id}-list`;
@@ -50,7 +52,7 @@ export function AddressSearchView({
     <div className="addr-search">
       {value !== null && !showSearch && (
         <div className="addr-search__chosen">
-          <button type="button" className="addr-search__btn" onClick={onChange} disabled={disabled}>Change</button>
+          <button type="button" className="addr-search__btn" ref={changeRef} onClick={onChange} disabled={disabled}>Change</button>
         </div>
       )}
       {showSearch && (
@@ -135,6 +137,15 @@ export function AddressSearch({ search, value, onChoose, disabled = false, debou
   searchRef.current = search;
   const onChooseRef = useRef(onChoose);
   onChooseRef.current = onChoose;
+  // #735: picking a result, Cancel and the Esc that leaves the search all remove the input that has
+  // focus. The Change button that takes its place gets the focus, so it never falls to <body>.
+  const changeRef = useRef<HTMLButtonElement>(null);
+  const focusChange = useRef(false);
+  useLayoutEffect(() => {
+    if (!focusChange.current || editing) return;
+    focusChange.current = false;
+    changeRef.current?.focus();
+  });
 
   const abortInFlight = useCallback(() => {
     controllerRef.current?.abort();
@@ -163,6 +174,7 @@ export function AddressSearch({ search, value, onChoose, disabled = false, debou
     if (!home) return;
     abortInFlight();
     dispatch({ type: 'choose' });
+    focusChange.current = true;
     setEditing(false);
     onChooseRef.current(home);
   };
@@ -175,6 +187,7 @@ export function AddressSearch({ search, value, onChoose, disabled = false, debou
   const cancel = () => {
     abortInFlight();
     dispatch({ type: 'clear' });
+    focusChange.current = true;
     setEditing(false);
   };
 
@@ -202,6 +215,7 @@ export function AddressSearch({ search, value, onChoose, disabled = false, debou
       onRetry={() => dispatch({ type: 'retry' })}
       onChange={() => setEditing(true)}
       onCancel={cancel}
+      changeRef={changeRef}
     />
   );
 }
