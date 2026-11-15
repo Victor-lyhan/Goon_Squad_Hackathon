@@ -23,7 +23,7 @@ function Party({ role, party }: { role: string; party: PartyText }) {
       <dt>{role}</dt>
       <dd>
         {party.name}
-        {party.neighborhood && <span className="bd-muted"> · {party.neighborhood}</span>}
+        {party.neighborhood && <span className="bd-muted">, {party.neighborhood}</span>}
       </dd>
     </div>
   );
@@ -48,6 +48,9 @@ export function DeliveryDetails(props: DeliveryDetailsProps) {
   }, [m.header.shipmentId]);
 
   const { header, result, steps, legs, facts } = m;
+  // The panel's one way on: the package's journey in the simulator (links.ts builds the address). With a
+  // plan it sits in the result, at the top of the panel; without one, at the end.
+  const journeyLink = <a className="bd-btn bd-btn--link" href={m.journeyHref}>{m.journeyLabel}</a>;
 
   return (
     <section
@@ -59,12 +62,12 @@ export function DeliveryDetails(props: DeliveryDetailsProps) {
       }}
     >
       <header className="bd-head" ref={headRef}>
+        {/* The heading comes first and takes focus when the panel opens, so it is announced and the next Tab is Close. */}
         <div className="bd-head__top">
-          <span className="bd-eyebrow">{header.directionLabel}</span>
+          <h2 id={headingId} className="bd-title" tabIndex={-1} ref={headingRef}>{header.label}</h2>
           <button type="button" className="bd-btn bd-btn--ghost" onClick={props.onClose} aria-label="Close delivery details">Close</button>
         </div>
-        <h2 id={headingId} className="bd-title" tabIndex={-1} ref={headingRef}>{header.label}</h2>
-        <p className="bd-id"><span className="bd-muted">Shipment ID </span><span className="bd-mono">{header.shipmentId}</span></p>
+        <p className="bd-kind"><span className="bd-eyebrow">{header.directionLabel}</span></p>
         <dl className="bd-parties">
           <Party role="From" party={header.sender} />
           <Party role="To" party={header.recipient} />
@@ -79,6 +82,7 @@ export function DeliveryDetails(props: DeliveryDetailsProps) {
             <div><dt>{result.timeLabel}</dt><dd className="bd-mono">{result.timeText}</dd></div>
             {result.priceText && <div><dt>Price</dt><dd className="bd-mono">{result.priceText}</dd></div>}
           </dl>
+          <div className="bd-actions">{journeyLink}</div>
         </div>
       ) : (
         <div className="bd-result bd-result--none" role="status">
@@ -137,9 +141,7 @@ export function DeliveryDetails(props: DeliveryDetailsProps) {
                       {leg.stops.map((st) => (
                         <li key={st.key} className={st.isRelay ? 'bd-stop bd-stop--relay' : 'bd-stop'}>
                           <span className="bd-mono">{st.timeText}</span>
-                          {' · '}
-                          <span className="bd-muted">{st.actionLabel}</span>{' '}
-                          {st.placeText}
+                          <span className="bd-stop__what"><span className="bd-muted">{st.actionLabel}</span> {st.placeText}</span>
                         </li>
                       ))}
                     </ul>
@@ -165,9 +167,7 @@ export function DeliveryDetails(props: DeliveryDetailsProps) {
         </dl>
       </div>
 
-      <div className="bd-footer">
-        <a className="bd-link" href={m.journeyHref}>{m.journeyLabel}</a>
-      </div>
+      {result.kind !== 'matched' && <div className="bd-footer">{journeyLink}</div>}
     </section>
   );
 }

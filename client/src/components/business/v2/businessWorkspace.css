@@ -2,7 +2,9 @@
    MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
    client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
    Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
-   IDs, weights and prices; Inter (--font-sans) for everything else. */
+   IDs, weights and prices; Inter (--font-sans) for everything else.
+   Design audit (#881): labels and column headers are sentence case (no tracked capitals), the state boxes are
+   left-aligned like the rest of the page, and controls are 44 px tall where the rows stack. */
 
 .bw-toolbar {
   display: flex;
@@ -20,8 +22,6 @@
   font-size: var(--text-xs, 12px);
   font-weight: 600;
   color: var(--muted, #5B6472);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .bw-toolbar__new { margin-left: auto; }
 
@@ -99,6 +99,8 @@
   font-size: var(--text-md, 14px);
   font-weight: 600;
 }
+/* The list's h2 sits in the caption and reads as the caption's own text. */
+.bw-table__title { display: inline; margin: 0; font: inherit; }
 .bw-table__count {
   margin-left: var(--space-2, 8px);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
@@ -118,11 +120,13 @@
   font-size: var(--text-xs, 12px);
   font-weight: 600;
   color: var(--muted, #5B6472);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 .bw-table .bw-num { text-align: right; }
+/* One word, never broken: without its capitals the header no longer holds this column open (#881). */
+.bw-table td[data-label='Direction'] { white-space: nowrap; }
+/* The shipment ID column is the row's key, never on screen (#881): no layout below may bring it back. */
+.bw-table tr > [hidden] { display: none !important; }
 
 .bw-sort {
   display: inline-flex;
@@ -184,18 +188,37 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
 .bw-status--success { color: var(--ok, #2F6B4F); }
 .bw-status--danger { color: var(--danger, #A4322A); }
 
-/* ---------- Empty states ---------- */
+/* ---------- The list's states without rows: loading, error, no deliveries yet, no match ---------- */
 .bw-empty {
-  padding: var(--space-8, 32px) var(--space-4, 16px);
+  padding: var(--space-6, 24px) var(--space-4, 16px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  text-align: center;
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   color: var(--text, #171C24);
 }
-.bw-empty__title { margin: 0 0 var(--space-1, 4px); font-weight: 600; font-size: var(--text-md, 14px); }
-.bw-empty__text { margin: 0 0 var(--space-4, 16px); color: var(--muted, #5B6472); font-size: var(--text-sm, 13px); }
+.bw-empty[role='alert'] { border-left: 2px solid var(--danger, #A4322A); }
+.bw-empty__title { margin: 0; font-weight: 600; font-size: var(--text-md, 14px); line-height: 1.45; }
+.bw-empty__text { max-width: 60ch; margin: var(--space-1, 4px) 0 0; color: var(--muted, #5B6472); font-size: var(--text-sm, 13px); }
+.bw-empty .bw-btn { margin-top: var(--space-4, 16px); }
+
+/* Rows on screen whose last update failed: one line above them with the retry. */
+.bw-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px) var(--space-3, 12px);
+  margin: 0 0 var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-left: 2px solid var(--danger, #A4322A);
+  border-radius: var(--radius, 4px);
+  background: var(--panel, #FFFFFF);
+  font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
+  color: var(--text, #171C24);
+}
 
 .bw-visually-hidden {
   position: absolute;
@@ -207,9 +230,9 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
 }
 
 /* ---------- Above 640 px the table never widens the page (#581) ----------
-   Columns drop when the table's box is narrow: Ready and Deadline first, then Shipment ID, then Direction.
-   Each stays in the delivery details, and the search and the filters still use them. Ten columns need
-   about 1120 px. What still does not fit scrolls inside the box, never the page. At 640 px and below the
+   Columns drop when the table's box is narrow: Ready and Deadline first, then Direction (the Shipment ID
+   column between them is never shown, #881). Each stays in the delivery details, and the search and the
+   filters still use them. All nine need about 1120 px. What still does not fit scrolls inside the box, never the page. At 640 px and below the
    rows stack instead (end of this file). */
 @media (min-width: 641px) {
   .bw-table-wrap { overflow-x: auto; }
@@ -235,6 +258,9 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   .bw-toolbar__search { flex: none; }
   .bw-toolbar__new { margin-left: 0; width: 100%; }
   .bw-segmented__btn { flex: 1 1 0; }
+  /* Touch: every control of the list is 44 px tall here (#881). */
+  .bw-input, .bw-btn, .bw-segmented__btn { height: 44px; }
+  .bw-stale .bw-btn, .bw-empty .bw-btn { width: 100%; }
 
   .bw-table-wrap { overflow-x: hidden; }
   .bw-table,
@@ -265,6 +291,9 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
     overflow-wrap: anywhere;
   }
   .bw-table td:last-child { border-bottom: 0; }
+  /* The package's name is the card's title: full width, no "Package" label in front of it (#881). */
+  .bw-table td.bw-cell--primary { display: block; padding: var(--space-2, 8px) var(--space-3, 12px); font-size: var(--text-md, 14px); }
+  .bw-table td.bw-cell--primary::before { content: none; }
   .bw-table td::before {
     content: attr(data-label);
     font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);

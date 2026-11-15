@@ -37,7 +37,8 @@ function checkPanel(api: ShipmentView, panel: string, side: Side) {
   const t = text(panel);
   const id = api.shipment.id;
   expect(t).toContain(api.shipment.label);
-  expect(t).toContain(id);
+  // The raw ID is in the panel's markup (heading id, simulator link) but never in its text (#881).
+  expect(t.split(/\s+/)).not.toContain(id);
   expect(t).toContain(nameOf(api.shipment.originBusinessId));
   expect(t).toContain(nameOf(api.shipment.destinationBusinessId));
   expect(panel).toContain(`href="/simulator?package=${encodeURIComponent(id)}&amp;play=1"`);

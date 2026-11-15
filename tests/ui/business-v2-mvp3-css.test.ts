@@ -214,7 +214,7 @@ describe('Business page, MVP III look (#684)', () => {
       expect(using(SANS)).toEqual({
         'activity/activity.css': ['.ba-header', '.ba-notes'],
         // td::before is the column label of a stacked row; the cell itself may be mono.
-        'businessWorkspace.css': ['.bw-toolbar', '.bw-table', '.bw-empty', '.bw-table td::before'],
+        'businessWorkspace.css': ['.bw-toolbar', '.bw-table', '.bw-empty', '.bw-stale', '.bw-table td::before'],
         // The "Extra" label in front of the mono minutes at 480 px and below.
         'deliveryDetails.css': ['.bd-panel', '.bd-legs td.bd-num::before'],
         'newDelivery.css': ['.nd'],
@@ -228,7 +228,8 @@ describe('Business page, MVP III look (#684)', () => {
     const DATA: Array<[file: string, mono: RegExp, values: string[]]> = [
       ['ShipmentsTable.tsx', /\bbw-mono\b/, ['r.id', 'r.readyText', 'r.deadlineText', 'r.deliveryText', 'r.priceText']],
       ['DeliveryDetails.tsx', /\bbd-mono\b/, [
-        'header.shipmentId', 'result.timeText', 'result.priceText', 'st.timeText', 'leg.extraText',
+        // No header.shipmentId: the panel no longer shows the raw ID (#881).
+        'result.timeText', 'result.priceText', 'st.timeText', 'leg.extraText',
         'facts.weight', 'facts.ready', 'facts.deadline',
       ]],
       // f.value is mono when the model says so (ETA and price; business-v2-new-delivery-result.test.tsx).

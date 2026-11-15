@@ -2,7 +2,9 @@
    MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
    client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
    Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
-   IDs, weights and prices; Inter (--font-sans) for everything else. No pills. */
+   IDs, weights and prices; Inter (--font-sans) for everything else. No pills.
+   Design audit (#881): the title row holds the heading and Close, section headings are sentence case (no
+   tracked capitals), every focus ring is the 2 px outline, and the panel fills its column when the page stacks. */
 
 .bd-panel {
   display: flex;
@@ -19,18 +21,23 @@
 }
 
 .bd-head { padding: var(--space-4, 16px); border-bottom: 1px solid var(--border, #E3E3DE); }
-.bd-head__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2, 8px); }
-.bd-eyebrow {
-  font-size: var(--text-xs, 12px);
+/* Heading left, Close right, on one row; a long name wraps and Close stays at the top. */
+.bd-head__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2, 8px); }
+.bd-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-1, 4px) 0; /* centres the first line on the 32 px Close button */
+  font-size: var(--text-lg, 18px);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted, #5B6472);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
-.bd-title { margin: var(--space-2, 8px) 0 var(--space-1, 4px); font-size: var(--text-lg, 18px); font-weight: 600; }
 .bd-title:focus { outline: none; }
 .bd-title:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-.bd-id { margin: 0 0 var(--space-3, 12px); }
+/* Outgoing, Incoming or Relay point: a plain line under the name, not a label above it. */
+.bd-kind { margin: 0 0 var(--space-3, 12px); }
+.bd-eyebrow { color: var(--muted, #5B6472); }
 
 .bd-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-xs, 12px); }
 .bd-muted { color: var(--muted, #5B6472); }
@@ -38,7 +45,7 @@
 .bd-num { text-align: right; white-space: nowrap; }
 
 .bd-parties, .bd-facts { display: grid; gap: var(--space-2, 8px); margin: 0; }
-.bd-parties > div, .bd-facts > div { display: grid; grid-template-columns: 120px 1fr; gap: var(--space-2, 8px); min-width: 0; }
+.bd-parties > div, .bd-facts > div { display: grid; grid-template-columns: 140px 1fr; gap: var(--space-2, 8px); min-width: 0; }
 .bd-parties dt, .bd-facts dt { color: var(--muted, #5B6472); }
 .bd-parties dd, .bd-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
@@ -49,15 +56,14 @@
 .bd-result__reason { margin: 0 0 var(--space-3, 12px); }
 .bd-note { margin: var(--space-2, 8px) 0 0; }
 .bd-actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+.bd-facts + .bd-actions { margin-top: var(--space-3, 12px); }
 
 .bd-section { padding: var(--space-4, 16px); border-bottom: 1px solid var(--border, #E3E3DE); }
 .bd-section__title {
   margin: 0 0 var(--space-3, 12px);
-  font-size: var(--text-xs, 12px);
+  font-size: var(--text-sm, 13px);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted, #5B6472);
+  color: var(--text, #171C24);
 }
 
 .bd-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2, 8px); }
@@ -89,6 +95,10 @@
 .bd-legs td.bd-num { padding-right: 0; }
 .bd-legs tr:last-child td { border-bottom: 0; }
 .bd-stops { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1, 4px); }
+/* Time in its own column, so the times of a carrier line up and the place wraps under the place. */
+.bd-stop { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-2, 8px); align-items: baseline; }
+.bd-stop .bd-mono { white-space: nowrap; }
+.bd-stop__what { min-width: 0; overflow-wrap: anywhere; }
 .bd-stop--relay { font-weight: 600; }
 /* The mono time of a bold relay stop stays at 500 (#714). IBM Plex Mono is loaded at 400, 500 and 600
    (styles/fonts.css, #737), so no weight here is a synthetic bold. */
@@ -113,10 +123,20 @@
 }
 .bd-btn:hover:not(:disabled) { border-color: var(--accent, #1D5075); }
 .bd-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.bd-btn:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--accent, #1D5075); border-color: var(--accent, #1D5075); }
+.bd-btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 .bd-btn--primary { background: var(--accent, #1D5075); border-color: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
 .bd-btn--primary:hover:not(:disabled) { background: var(--accent-dark, #173E5B); }
 .bd-btn--ghost { border-color: transparent; background: transparent; color: var(--muted, #5B6472); }
+/* A link that looks like the panel's buttons: "View journey", the way on to the simulator. */
+.bd-btn--link {
+  display: inline-flex;
+  align-items: center;
+  border-color: var(--accent, #1D5075);
+  color: var(--accent-dark, #173E5B);
+  font-weight: 600;
+  text-decoration: none;
+}
+.bd-btn--link:hover { background: var(--accent-soft, #E8EEF1); }
 
 .bd-visually-hidden {
   position: absolute;
@@ -127,9 +147,18 @@
   white-space: nowrap;
 }
 
+/* Up to 1160 px the page is one column (page/businessPage.css): the panel fills it, like the map above it,
+   instead of a 440 px box with empty space beside it (#881). */
+@media (max-width: 1160px) {
+  .bd-panel { max-width: none; }
+}
+
 @media (max-width: 480px) {
   /* The panel sits inside the page's padding, so it keeps all four borders (#714). */
   .bd-panel { max-width: none; }
+  /* Touch: 44 px controls (#881). */
+  .bd-btn { height: 44px; }
+  .bd-title { padding: 10px 0; } /* centres the first line on the 44 px Close button */
   .bd-head, .bd-result, .bd-section, .bd-footer { padding: var(--space-3, 12px); }
   .bd-parties > div, .bd-facts > div { grid-template-columns: 1fr; gap: 0; }
   .bd-legs thead { display: none; }

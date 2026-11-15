@@ -2,6 +2,7 @@
 // It only formats, filters and sorts what the API returned: it never derives a status, a price or an ETA.
 import type { BusinessDashboard, ShipmentView } from '../../../../../shared/v2/api';
 import type { NetworkBusiness, ShipmentProgress } from '../../../../../shared/v2/types';
+import type { BusinessWorkspaceState } from './live/businessWorkspaceState';
 import { formatCents, formatMin } from '../../../ui/format';
 
 export type Direction = 'outgoing' | 'incoming';
@@ -40,6 +41,21 @@ export type ShipmentRow = {
 };
 
 export const DASH = '—';
+/** The Plan column of a delivery without a plan: the simulator's word for it (sim/v2/packages/statusText.ts). */
+export const NO_MATCH = 'No match';
+
+// ---------- Copy of the list (#881): "deliveries" everywhere, as on the rest of the page ----------
+export const LIST_TITLE = 'Deliveries';
+export const LIST_LOADING_TEXT = 'Loading deliveries…';
+export const LIST_EMPTY_TITLE = 'No deliveries yet';
+export const LIST_EMPTY_TEXT = 'Choose New delivery and describe your package in a sentence. Relay matches it to an employee’s commute.';
+export const LIST_FILTERED_TITLE = 'No deliveries match the filters';
+export const LIST_ERROR_TITLE = 'Deliveries could not be loaded';
+export const LIST_ERROR_TEXT = 'Check that the Relay server is running, then try again.';
+/** Rows are on screen but the last update failed: they stay, with this line and the retry above them. */
+export const LIST_STALE_TEXT = 'This list could not be updated, so it may be out of date.';
+export const LIST_RETRY_LABEL = 'Try again';
+export const LIST_RETRYING_LABEL = 'Trying again…';
 
 /** Display order of statuses (also the sort order for the status column). */
 export const STATUS_ORDER: ShipmentProgress[] = [
@@ -96,7 +112,7 @@ function toRow(view: ShipmentView, direction: Direction, names: Map<string, stri
     statusLabel: shipmentStatusLabel(status),
     statusTone: statusTone(status),
     planKind: plan ? plan.kind : null,
-    planLabel: plan ? (plan.kind === 'relay' ? 'Relay' : 'Direct') : DASH,
+    planLabel: plan ? (plan.kind === 'relay' ? 'Relay' : 'Direct') : NO_MATCH,
     relayPointName,
     readyMin: shipment.readyMin,
     deadlineMin: shipment.deadlineMin,
@@ -136,7 +152,10 @@ export function hasActiveFilters(f: RowFilters): boolean {
   return f.query.trim() !== '' || f.direction !== 'all' || f.status !== 'all';
 }
 
-/** Query matches label, shipment ID, counterpart and relay point (case-insensitive). */
+/**
+ * Query matches label, shipment ID, counterpart and relay point (case-insensitive). The list no longer shows
+ * the ID (#881), but the New delivery result and the notifications name a delivery by it, so it still finds one.
+ */
 export function filterRows(rows: ShipmentRow[], filters: RowFilters): ShipmentRow[] {
   const q = filters.query.trim().toLowerCase();
   return rows.filter((r) => {
@@ -203,7 +222,42 @@ export function statusCounts(rows: ShipmentRow[]): StatusCount[] {
   return [...known, ...extra];
 }
 
-/** "3 shipments" / "1 shipment". */
+/** "3 deliveries" / "1 delivery". */
 export function shipmentCountText(n: number): string {
-  return `${n} ${n === 1 ? 'shipment' : 'shipments'}`;
+  return `${n} ${n === 1 ? 'delivery' : 'deliveries'}`;
+}
+
+// ---------- What the list shows instead of, or above, its rows (#881) ----------
+
+export type ListLoadKind = 'ready' | 'loading' | 'error';
+
+/**
+ * How long the list waits for the business names before it shows its rows without them. The page polls
+ * every second and asks for the names again on each poll, so this is about three failed tries.
+ */
+export const NAMES_WAIT_MS = 3000;
+
+/** True while the deliveries are here but the business names are not: rows would read "Unknown business". */
+export function namesMissing(s: Pick<BusinessWorkspaceState, 'dashboard' | 'businesses'>): boolean {
+  if (!s.dashboard) return false;
+  return s.dashboard.outgoing.length + s.dashboard.incoming.length > 0 && s.businesses.length === 0;
+}
+
+/**
+ * The list's own state, read from the workspace state alone (nothing is asked of the server here):
+ * `error` when the deliveries could not be read or the last update failed, `loading` before the first answer
+ * and while the deliveries are here but the business names are not, else `ready`.
+ * `namesLate`: the names have been missing for NAMES_WAIT_MS. The list then stops waiting: it is `error`,
+ * which keeps the rows on screen under the "could not be updated" line and its retry.
+ */
+export function listLoadKind(
+  s: Pick<BusinessWorkspaceState, 'view' | 'dashboard' | 'businesses' | 'reconnecting'>,
+  namesLate = false,
+): ListLoadKind {
+  if (s.view === 'error' || s.view === 'unavailable' || s.reconnecting) return 'error';
+  // A business that is not in this city has no list at all; the page shows its own screen for it.
+  if (s.view === 'not_found') return 'ready';
+  if (s.view === 'loading' || !s.dashboard) return 'loading';
+  if (!namesMissing(s)) return 'ready';
+  return namesLate ? 'error' : 'loading';
 }

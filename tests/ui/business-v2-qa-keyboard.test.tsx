@@ -59,7 +59,8 @@ function walkTabs(root: El): string[] {
 }
 
 const TOOLBAR = ['Search', 'All', 'Outgoing', 'Incoming', 'Status', 'New delivery'];
-const SORTS = ['Package', 'Shipment ID', 'Business', 'Status', 'Plan', 'Ready', 'Deadline', 'Delivery', 'Price'];
+// No 'Shipment ID': that column is `hidden` (a raw ID, #881), so its sort button is not a tab stop.
+const SORTS = ['Package', 'Business', 'Status', 'Plan', 'Ready', 'Deadline', 'Delivery', 'Price'];
 const FORM = [
   'Recipient', 'Package name', 'Type', 'Weight (kg)', 'Contents',
   'Pickup instructions (optional)', 'Drop-off instructions (optional)',
@@ -77,8 +78,13 @@ describe('keyboard walk (#497)', () => {
     // Rows come right after the sort headers, before the side panel.
     const firstRow = tabOrder(root).indexOf(rows[0]);
     expect(firstRow).toBe(TOOLBAR.length + SORTS.length);
-    // Each row is named by its cells (package, ID, status...), so a screen reader reads the delivery.
-    for (const r of rows) expect(accessibleName(root, r)).toMatch(/shp-\d+/);
+    // Each row is named by its cells (package, business, status...), so a screen reader reads the delivery;
+    // the raw ID sits only in a `hidden` cell, which a browser leaves out of the name (#881).
+    for (const r of rows) {
+      expect(accessibleName(root, r)).toMatch(/Outgoing|Incoming/);
+      const withId = all(r, (e) => e.tag === 'td' && /shp-\d+/.test(textOf(e)));
+      expect(withId.map((td) => td.attrs.hidden)).toEqual(['']);
+    }
     // Notification buttons follow the table.
     const rest = names.slice(firstRow + ROW_COUNT);
     expect(rest.length).toBeGreaterThan(0);
@@ -97,7 +103,7 @@ describe('keyboard walk (#497)', () => {
     expect(textOf(status)).toMatch(/All statuses \(\d+\)/);
     // The toolbar is a named search landmark.
     const search = all(root, (e) => e.attrs.role === 'search')[0];
-    expect(search.attrs['aria-label']).toBe('Shipments');
+    expect(search.attrs['aria-label']).toBe('Deliveries');
   });
 
   it('New delivery open: the form follows the toolbar, every field and both actions in order', () => {
@@ -117,12 +123,14 @@ describe('keyboard walk (#497)', () => {
     expect(all(root, (e) => e.tag === 'tr' && e.attrs['aria-selected'] === 'true')).toHaveLength(1);
   });
 
-  it('a matched relay delivery: the carrier links and View journey are reachable', () => {
+  it('a matched relay delivery: View journey comes right after Close, then the carrier links (#881)', () => {
     const names = walkTabs(page(ready(), { shipmentId: 'shp-8' }));
     const close = names.indexOf('Close delivery details');
     expect(close).toBeGreaterThan(0);
-    expect(names.slice(close)).toContain('View journey');
-    expect(names.slice(close, names.indexOf('View journey')).length).toBeGreaterThan(1); // carrier link(s)
+    // The journey link is in the result at the top of the panel, not under the package facts.
+    expect(names[close + 1]).toBe('View journey');
+    expect(names.slice(close + 2).length).toBeGreaterThan(0); // carrier link(s)
+    expect(names.filter((n) => n === 'View journey')).toHaveLength(1);
   });
 
   it('result cards: View delivery and Watch in simulator in a matched result, View delivery in an unmatched one', () => {
@@ -217,7 +225,7 @@ describe('announcements (#497)', () => {
     const root = page(ready());
     const table = all(root, (e) => e.tag === 'table' && cls(e).includes('bw-table'))[0];
     const caption = all(table, (e) => e.tag === 'caption')[0];
-    expect(textOf(caption)).toMatch(/^Shipments/);
+    expect(textOf(caption)).toMatch(/^Deliveries/);
     const ths = all(table, (e) => e.tag === 'th');
     expect(ths.length).toBe(10);
     for (const th of ths) expect(th.attrs.scope).toBe('col');
