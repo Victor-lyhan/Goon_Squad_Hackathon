@@ -257,6 +257,8 @@ export function statusForError(error: unknown): SubmitStatus {
   if (e.status === 503 && UNAVAILABLE_CODES.includes(e.code as UnavailableCode)) {
     return { kind: 'unavailable', code: e.code as UnavailableCode };
   }
+  // No HTTP answer (network failure or timeout, status 0): the browser's own text, "Failed to fetch", says nothing.
+  if (e.status === 0) return { kind: 'error', message: RESULT_COPY.noAnswer, fieldErrors: {} };
   const message = typeof e.message === 'string' && e.message.trim() ? e.message : 'The request failed. Please try again.';
   return { kind: 'error', message, fieldErrors: e.status === 400 ? mapServerFieldErrors(e.fieldErrors) : {} };
 }
@@ -301,6 +303,8 @@ export const RESULT_COPY = {
   locked: 'The simulation has started, so new requests are closed until the next planning cycle.',
   unavailable: 'Travel data is not available on the server, so this request could not be matched. Nothing was saved.',
   unavailableRetry: 'Travel data is not available on the server, so matching could not run. Your request is still saved.',
+  /** The typed draft stays, and the request ID is kept, so sending again never stores the delivery twice. */
+  noAnswer: 'The server did not answer. Your request is still in the form. Try again.',
 } as const;
 
 /** After a matched result the form starts a fresh package (recipient kept); otherwise the typed draft stays. */
