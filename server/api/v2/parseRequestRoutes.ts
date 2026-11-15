@@ -13,8 +13,11 @@
 // After one failed Gemini call the shared pause is on for 2 minutes (#884, server/ai/geminiPause.ts): Gemini is
 // not asked, the offline parser answers at once, and the line (to `log`) says so and why:
 // "[parse-request] Parsed offline: Gemini paused after timeout, next try in 87 s."
+// Both parsers get the run's planning window (#947): a deliver-by after its end is moved to the end and none at
+// all is assumed to be the end (`note` and `assumed` beside the contract's fields, see server/ai/deadline.ts).
 import type express from 'express';
-import { ParseRequestBody, type ParseRequestResponse } from '../../../shared/v2/parseRequest';
+import { ParseRequestBody } from '../../../shared/v2/parseRequest';
+import type { ParseAnswer } from '../../ai/deadline';
 import type { ApiError } from '../../../shared/v2/schemas';
 import type { Run as RunV2 } from '../../../shared/v2/types';
 import type { GeminiPause } from '../../ai/geminiPause';
@@ -86,7 +89,7 @@ export function registerParseRequestRoutes(router: express.Router, deps: ParseRe
   const { store } = deps;
 
   router.post('/parse-request', async (
-    req: express.Request, res: express.Response<ParseRequestResponse | ApiError>, next: express.NextFunction,
+    req: express.Request, res: express.Response<ParseAnswer | ApiError>, next: express.NextFunction,
   ) => {
     try {
       const parsed = ParseRequestBody.safeParse(req.body);
@@ -116,7 +119,7 @@ export function registerParseRequestRoutes(router: express.Router, deps: ParseRe
         }
         tell(deps.log, outcome.reason === 'paused' ? pausedLogLine(outcome.message) : fallbackLogLine(outcome.message));
       }
-      const offline = parseOffline(text, { businesses, nowMin });
+      const offline = parseOffline(text, { businesses, nowMin, windowStartMin: settings.simStartMin, windowEndMin: settings.simEndMin });
       if (!gemini) tell(deps.info, NO_KEY_LOG_LINE);
       res.json(offline);
     } catch (err) {

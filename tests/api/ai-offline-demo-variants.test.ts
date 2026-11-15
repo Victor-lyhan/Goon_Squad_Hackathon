@@ -71,8 +71,8 @@ const VARIANTS: Variant[] = [
     text: `${SEND} to Blue Bottle Coffee by 8 this evening, ready at 4 p.m.`, draft: { deadlineMin: 1200 },
   },
   {
-    what: 'time: this evening, with no hour: no deliver-by is made up, and ready is the clock',
-    text: `${SEND} to Blue Bottle Coffee this evening`, draft: { readyMin: CLOCK_MIN, deadlineMin: null },
+    what: 'time: this evening, with no hour: the deliver-by is the window end, assumed (#947), and ready is the clock',
+    text: `${SEND} to Blue Bottle Coffee this evening`, draft: { readyMin: CLOCK_MIN, deadlineMin: 2160 },
   },
 
   // Weights.
@@ -122,8 +122,9 @@ const VARIANTS: Variant[] = [
     draft: { destinationBusinessId: null }, refused: ['my apartment', '350 Fifth Avenue'],
   },
   {
-    what: 'address: a misspelt name is refused, not matched to the nearest business',
-    text: `${SEND} to Bluebottle Cafe ${WHEN}`, draft: { destinationBusinessId: null }, refused: ['Bluebottle Cafe'],
+    // #947 reverses #898 here: a slip of one or two letters is read as the one business that close.
+    what: 'address: a misspelt name is read as the one business that close (#947)',
+    text: `${SEND} to Bluebottle Cafe ${WHEN}`,
   },
   { what: 'no destination', text: `${SEND} ${WHEN}`, draft: { destinationBusinessId: null } },
 ];
@@ -277,7 +278,8 @@ describe('POST /api/v2/parse-request with no key: the demo sentence and what a p
   it('the route\'s answer is the offline parser\'s own, for every row', async () => {
     const { businesses } = store.get().scenario;
     for (const { text } of VARIANTS) {
-      expect(await parse(text), text).toStrictEqual(parseOffline(text, { businesses, nowMin: CLOCK_MIN }));
+      const { simStartMin: windowStartMin, simEndMin: windowEndMin } = store.get().scenario.settings;
+      expect(await parse(text), text).toStrictEqual(parseOffline(text, { businesses, nowMin: CLOCK_MIN, windowStartMin, windowEndMin }));
     }
   }, T);
 
@@ -322,7 +324,7 @@ describe('POST /api/v2/advise with no key: priced options for the demo sentence 
     const card = adviceCard(body, { draft, businesses: store.get().scenario.businesses });
     if (!card) throw new Error('the Options card shows nothing for the demo sentence');
     expect(card.sourceLine).toBe(ADVICE_COPY.offlineLine);
-    expect(card.sourceLine).toMatch(/^Options computed offline: /);
+    expect(card.sourceLine).toMatch(/^Priced by Relay, with no AI model\.$/);
     expect(card.sourceLine.slice(0, -1)).not.toMatch(/[.!?;]/);
     expect(wordCount(card.sourceLine)).toBeLessThanOrEqual(MAX_WORDS);
     expect(card.rows.map((row) => row.priceText)).toStrictEqual(body.options.map((o) => money(o.customerPriceCents)));
@@ -447,15 +449,13 @@ describe('every text the two routes write for a problem is one plain sentence (#
     const bodies: [unknown, string[]][] = [
       [{}, ['draft']],
       [{ draft: null }, ['draft']],
-      [{ draft: {} }, ['deadlineMin', 'destinationBusinessId', 'originBusinessId', 'readyMin']],
       [{ draft: { ...ok, originBusinessId: 'biz-nowhere' } }, ['originBusinessId']],
       [{ draft: { ...ok, destinationBusinessId: sender.id } }, ['destinationBusinessId']],
-      [{ draft: { ...ok, destinationBusinessId: null } }, ['destinationBusinessId']],
       [{ draft: { ...ok, readyMin: 10 } }, ['readyMin']],
       [{ draft: { ...ok, readyMin: 960.5 } }, ['readyMin']],
       [{ draft: { ...ok, deadlineMin: 900 } }, ['deadlineMin']],
       [{ draft: { ...ok, deadlineMin: 99999 } }, ['deadlineMin']],
-      [{ draft: { ...ok, deadlineMin: null } }, ['deadlineMin']],
+      [{ draft: { ...ok, deadlineMin: 'tomorrow' } }, ['deadlineMin']],
     ];
     const seen = new Set<string>();
     for (const [body, fields] of bodies) {
@@ -469,7 +469,22 @@ describe('every text the two routes write for a problem is one plain sentence (#
         seen.add(text);
       }
     }
-    expect(seen.size).toBeGreaterThanOrEqual(9);
+    expect(seen.size).toBeGreaterThanOrEqual(8);
+  }, T);
+
+  it('advise: a draft with a field left out is a 200 with no options and one plain sentence naming it (#947)', async () => {
+    const ok = { originBusinessId: sender.id, destinationBusinessId: recipient.id, readyMin: 960, deadlineMin: 2040 };
+    const bodies: [unknown, string][] = [
+      [{ draft: {} }, 'Choose a sender, a recipient and a ready time to see options.'],
+      [{ draft: { ...ok, destinationBusinessId: null } }, 'Choose a recipient to see options.'],
+      [{ draft: { ...ok, originBusinessId: undefined, readyMin: null } }, 'Choose a sender and a ready time to see options.'],
+    ];
+    for (const [body, note] of bodies) {
+      const res = await api.post<AdviseResponse>('/advise', body);
+      expect(res.status, JSON.stringify(body)).toBe(200);
+      expect(res.body).toStrictEqual({ options: [], source: 'offline', note });
+      expectPlain(note, JSON.stringify(body));
+    }
   }, T);
 
   it('no route printed anything: not a sentence, not a draft', () => {

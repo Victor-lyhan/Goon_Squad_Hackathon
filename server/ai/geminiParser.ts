@@ -7,8 +7,14 @@
 // - a business id that is not in the run's network becomes null, and `rejected` says so in a plain sentence
 //   (the exact name of one network business, written where its id belongs, is read as that business);
 // - a category outside `PackageCategory` becomes null;
-// - a time that is no whole minute inside the run's planning window becomes null, and so does a deadline
-//   that is not after the ready time; `readyMin` defaults to the clock's minute, like the offline parser;
+// - a ready time that is no whole minute inside the run's planning window becomes null; `readyMin` defaults to
+//   the clock's minute, like the offline parser;
+// - the deliver-by is settled by server/ai/deadline.ts (#947): after the window end (up to the end of Day 2) it
+//   becomes the end, with a `note`; none at all is the end, listed in `assumed`; before the window start or not
+//   after the ready time it is null;
+// - a business name with a slip, written where its id belongs, is the one business that close (`closestBusiness`
+//   of the offline parser); with the sentence given, a misspelt stop Gemini left open or refused is read the
+//   same way, and `note` says which business was read;
 // - `missing` is counted here from the checked draft, and the text of `rejected` is written here: Gemini
 //   only names the words of the stop it could not place.
 // An answer of the wrong shape (not an object, a field of the wrong type, no draft field at all) is no
@@ -21,19 +27,23 @@
 // `generateJson`, which sends it in the `x-goog-api-key` header. The LLM never submits anything: the
 // answer is a draft the page shows as an editable card.
 import { z } from 'zod';
-import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequest';
+import type { ParseDraft } from '../../shared/v2/parseRequest';
 import type { NetworkBusiness, PackageCategory } from '../../shared/v2/types';
 import type { FetchLike } from '../geo/googleClient';
 import { GeminiUnavailable, generateJson, type GeminiUnavailableReason } from './gemini';
 import { pauseCause, pausedMessage, type GeminiPause } from './geminiPause';
-import { NOT_A_NETWORK_BUSINESS, notNetworkSentence } from './ruleParser';
+import { settleDeadline, withNotes, type ParseAnswer } from './deadline';
+import { closestBusiness, nearMissNote, nearMissStops, NOT_A_NETWORK_BUSINESS, notNetworkSentence } from './ruleParser';
 
 export type GeminiParseContext = {
   /** `run.scenario.businesses`: the only stops a draft may name. */
   businesses: readonly Pick<NetworkBusiness, 'id' | 'name' | 'neighborhood'>[];
   /** The run clock's minute (`run.clock.timeMin`). */
   nowMin: number;
-  /** The run's planning window (`settings.simStartMin` and `settings.simEndMin`): a time outside it is dropped. */
+  /**
+   * The run's planning window (`settings.simStartMin` and `settings.simEndMin`): a ready time outside it is
+   * dropped; a deliver-by after its end becomes the end (server/ai/deadline.ts).
+   */
   windowStartMin: number;
   windowEndMin: number;
 };
@@ -101,6 +111,8 @@ export function buildParsePrompt(context: GeminiParseContext): string {
     '- originBusinessId: the id of the sender ("from X"). destinationBusinessId: the id of the recipient ("to Y").',
     '  Use only an id from the list above, copied exactly. A short form or a small spelling slip of a name is fine',
     '  when exactly one business fits. Null when the stop is not named or you are not sure. Never make up an id.',
+    '  Map a misspelt or mistyped business name (one or two letters wrong, missing, extra or swapped) to the closest',
+    '  business on the list, when exactly one listed name is that close; do not list such a stop under rejected.',
     '- rejected: the stops that are NOT network businesses (a home, a street address, a person, a company that is',
     '  not on the list), each in the words of the sentence, e.g. "my home" or "350 5th Avenue". Their id is null.',
     '  An empty list when there is no such stop.',
@@ -110,6 +122,7 @@ export function buildParsePrompt(context: GeminiParseContext): string {
     '- weightKg: the weight in kilograms as a number (500 g = 0.5, 2 lb = 0.907). Null if no weight is given.',
     '- readyMin: when the package can be picked up ("ready at 4 pm"). Null if the sentence does not say.',
     '- deadlineMin: the latest time of delivery ("by 10 a.m. tomorrow"). Null if the sentence does not say.',
+    '  Give it as the sentence says, also when it is after the end of planning below: the server handles that.',
     '',
     'Times are whole minutes since Day 1 00:00:',
     '- Day 1 HH:MM = HH * 60 + MM. Day 2 HH:MM = 1440 + HH * 60 + MM.',
@@ -172,7 +185,7 @@ function cleanText(value: string | null | undefined, max: number): string | null
  * Gemini's answer as a checked draft with `source: 'gemini'`, or null when it has the wrong shape (the caller
  * then parses offline). Pure: no network, no clock of its own. See the head of this file for what is checked.
  */
-export function draftFromGemini(answer: unknown, context: GeminiParseContext): ParseRequestResponse | null {
+export function draftFromGemini(answer: unknown, context: GeminiParseContext, text?: string): ParseAnswer | null {
   const parsed = GeminiAnswer.safeParse(answer);
   if (!parsed.success) return null;
   const given = parsed.data;
@@ -180,8 +193,10 @@ export function draftFromGemini(answer: unknown, context: GeminiParseContext): P
   if (!DRAFT_KEYS.some((key) => given[key] !== undefined)) return null;
 
   const byId = new Map(context.businesses.map((business) => [business.id, business]));
+  const notes: string[] = [];
   // The id as listed. Also the id in another case or the business's exact name, when it fits one business
-  // only: that is still a network business of the run, and not a stop to refuse.
+  // only: that is still a network business of the run, and not a stop to refuse. A name with a slip is the
+  // one business that close, and the note says which (#947).
   const sameAs = (said: string) => context.businesses.filter((b) => b.id.toLowerCase() === said || oneLine(b.name).toLowerCase() === said);
   let inventedId = false;
   const businessId = (value: string | null | undefined): string | null => {
@@ -190,11 +205,29 @@ export function draftFromGemini(answer: unknown, context: GeminiParseContext): P
     if (byId.has(id)) return id;
     const named = sameAs(id.toLowerCase());
     if (named.length === 1) return named[0].id;
+    const close = id.length <= MAX_STOP_CHARS ? closestBusiness(id, context.businesses) : null;
+    if (close !== null) {
+      notes.push(nearMissNote(id, byId.get(close)?.name ?? close));
+      return close;
+    }
     inventedId = true;
     return null;
   };
-  const originBusinessId = businessId(given.originBusinessId);
-  const destinationBusinessId = businessId(given.destinationBusinessId);
+  const stops = { origin: businessId(given.originBusinessId), destination: businessId(given.destinationBusinessId) };
+
+  // A misspelt stop of the sentence: filled when Gemini left it open, noted when Gemini read it right.
+  const readAs: string[] = [];
+  for (const miss of text === undefined ? [] : nearMissStops(text, context.businesses)) {
+    const other = stops[miss.role === 'origin' ? 'destination' : 'origin'];
+    const name = byId.get(miss.businessId)?.name ?? miss.businessId;
+    if (stops[miss.role] === null && other !== miss.businessId) stops[miss.role] = miss.businessId;
+    if (stops[miss.role] !== miss.businessId) continue;
+    readAs.push(miss.typed.toLowerCase());
+    const note = nearMissNote(miss.typed, name);
+    if (!notes.some((seen) => seen.endsWith(` as ${name}.`))) notes.push(note);
+  }
+  const originBusinessId = stops.origin;
+  const destinationBusinessId = stops.destination;
 
   const category = cleanText(given.category, 40)?.toLowerCase() ?? null;
 
@@ -204,7 +237,12 @@ export function draftFromGemini(answer: unknown, context: GeminiParseContext): P
   const minute = (value: number | null | undefined): number | null =>
     typeof value === 'number' && Number.isInteger(value) && value >= windowStartMin && value <= windowEndMin ? value : null;
   const readyMin = minute(given.readyMin) ?? clockMinute(context.nowMin);
-  const deadline = minute(given.deadlineMin);
+  // A deliver-by that is not a whole minute is no deliver-by Gemini read right: null, not assumed.
+  const saidDeadline = typeof given.deadlineMin === 'number' ? given.deadlineMin : null;
+  const settled = saidDeadline !== null && !Number.isInteger(saidDeadline)
+    ? { deadlineMin: null, assumed: false, note: null }
+    : settleDeadline(saidDeadline, readyMin, context);
+  if (settled.note) notes.push(settled.note);
 
   const draft: ParseDraft = {
     originBusinessId,
@@ -214,15 +252,15 @@ export function draftFromGemini(answer: unknown, context: GeminiParseContext): P
     description: cleanText(given.description, MAX_DESCRIPTION_CHARS),
     weightKg: kg !== null && Number.isFinite(kg) && kg > 0 ? kg : null,
     readyMin,
-    deadlineMin: deadline !== null && deadline > readyMin ? deadline : null,
+    deadlineMin: settled.deadlineMin,
   };
 
-  return {
+  return withNotes({
     draft,
     missing: DRAFT_KEYS.filter((key) => draft[key] === null),
-    rejected: rejectedSentence(given.rejected, inventedId, draft, byId),
+    rejected: rejectedSentence(given.rejected, inventedId, draft, byId, readAs),
     source: 'gemini',
-  };
+  }, notes, settled.assumed ? ['deadlineMin'] : []);
 }
 
 /**
@@ -235,11 +273,14 @@ function rejectedSentence(
   inventedId: boolean,
   draft: ParseDraft,
   byId: ReadonlyMap<string, Pick<NetworkBusiness, 'name'>>,
+  readAs: readonly string[] = [],
 ): string | null {
   if (draft.originBusinessId !== null && draft.destinationBusinessId !== null) return null;
-  // A stop the draft already holds as a business is settled, whatever the list says.
+  // A stop the draft already holds as a business is settled, whatever the list says; so is a misspelt one
+  // that was read as a business (`readAs`, in lower case).
   const settled = [draft.originBusinessId, draft.destinationBusinessId]
-    .flatMap((id) => (id === null ? [] : [id.toLowerCase(), (byId.get(id)?.name ?? '').toLowerCase()]));
+    .flatMap((id) => (id === null ? [] : [id.toLowerCase(), (byId.get(id)?.name ?? '').toLowerCase()]))
+    .concat(readAs);
   const stops: string[] = [];
   for (const raw of typeof given === 'string' ? [given] : given ?? []) {
     const stop = cleanText(raw.replace(/["“”]/g, ''), MAX_STOP_CHARS);
@@ -266,7 +307,7 @@ export type GeminiParseSettings = {
 export type GeminiParseFailure = GeminiUnavailableReason | 'invalid_answer' | 'error';
 
 export type GeminiParseOutcome =
-  | { ok: true; response: ParseRequestResponse }
+  | { ok: true; response: ParseAnswer }
   /** `message` is fixed text (plus an HTTP status or the time limit): safe to log, never the key or Gemini's text. */
   | { ok: false; reason: GeminiParseFailure; message: string };
 
@@ -328,7 +369,7 @@ async function askGemini(
       ...(settings.timeoutMs === undefined ? {} : { timeoutMs: settings.timeoutMs }),
       ...(settings.fetchImpl === undefined ? {} : { fetchImpl: settings.fetchImpl }),
     });
-    const response = draftFromGemini(answer, context);
+    const response = draftFromGemini(answer, context, text);
     return response ? { outcome: { ok: true, response }, status: null } : failed('invalid_answer', INVALID_ANSWER_MESSAGE);
   } catch (err) {
     // GeminiUnavailable's text is fixed. Anything else is dropped unread: its message could quote the answer.
