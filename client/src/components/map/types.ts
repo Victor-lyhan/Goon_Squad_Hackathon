@@ -86,6 +86,13 @@ export type MapMover = {
    * at a business (sender, relay point overnight, recipient).
    */
   carrierId?: string;
+  /**
+   * A package only, network view: why it waits at a business, from the snapshot's `shipmentStatus`
+   * (`at_hub` = `overnight` at its relay point, `delivered` = left at the recipient). The map then draws
+   * the relay diamond with "Overnight" or the delivered flag where it waits, as a journey does (#780).
+   * None = not waiting for one of those reasons (at the sender, or carried).
+   */
+  waiting?: 'overnight' | 'delivered';
 };
 
 export type LayerVisibility = {

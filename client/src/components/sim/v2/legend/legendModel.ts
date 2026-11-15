@@ -18,13 +18,14 @@ import {
   RELAY_INK,
   SYMBOL_GLYPH,
   VEHICLE_FILL,
+  WAITING_GLYPH,
   type RGBA,
 } from '../../../map/layers';
 import type { StopSymbol } from '../../../map/types';
 import type { Focus } from '../workspaceModel';
 
 export type LegendMode = 'network' | 'journey';
-export type LegendShape = 'dot' | 'ring' | 'line';
+export type LegendShape = 'dot' | 'ring' | 'line' | 'glyph';
 
 export type LegendRow = {
   key: string;
@@ -34,6 +35,8 @@ export type LegendRow = {
   color: string;
   /** Line rows: the stroke width the map uses, in px. */
   width?: number;
+  /** Glyph rows: the character the map draws (`WAITING_GLYPH`), in `color`. */
+  glyph?: string;
 };
 
 export type LegendInput = {
@@ -67,6 +70,9 @@ function networkRows({ hasSelection, focus }: LegendInput): LegendRow[] {
     dot('home', 'Home neighborhood', HOME_FILL),
     dot('vehicle', 'Carrier · letter = first name', VEHICLE_FILL),
     dot('package', 'Package · rides on its carrier, or waits at a business', PACKAGE_FILL),
+    // Issue 780: where packages wait for the night and where they were delivered, as the map draws them.
+    { key: 'overnight', label: 'Overnight at a relay point', shape: 'glyph', glyph: WAITING_GLYPH.overnight, color: cssColor(RELAY_INK) },
+    { key: 'delivered', label: 'Delivered', shape: 'glyph', glyph: WAITING_GLYPH.delivered, color: cssColor(RELAY_INK) },
     line('baseline', 'Normal commute', BASELINE, BASELINE_WIDTH),
     line('route', 'Delivery route', LEG1, LEG_WIDTH),
   ];
@@ -79,7 +85,7 @@ function networkRows({ hasSelection, focus }: LegendInput): LegendRow[] {
 }
 
 /**
- * The legend rows for what the map shows now, in a fixed order. Network mode has its six rows and adds
+ * The legend rows for what the map shows now, in a fixed order. Network mode has its eight rows and adds
  * a "Dimmed" row with a selection or a focus. Journey mode has none: JourneyLegend explains the journey
  * map (carriers, symbols, package), so MapLegend renders nothing there.
  */

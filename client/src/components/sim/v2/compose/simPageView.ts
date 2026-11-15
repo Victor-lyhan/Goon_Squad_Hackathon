@@ -210,6 +210,20 @@ export function withCarriers(
   });
 }
 
+/**
+ * Network view (#780): each package the snapshot says waits at its relay point (`at_hub`) gets
+ * `waiting: 'overnight'`, each delivered one `waiting: 'delivered'`, so the map draws the Overnight
+ * diamond or the delivered flag where it waits, as a journey does. Read from `shipmentStatus`, never computed.
+ */
+export function withWaiting(movers: MapMover[], sim: SimulatorResponse): MapMover[] {
+  const status = sim.snapshot?.shipmentStatus ?? {};
+  return movers.map((m) => {
+    if (m.kind !== 'package' || m.carrierId) return m;
+    const s = status[m.id];
+    return s === 'at_hub' ? { ...m, waiting: 'overnight' } : s === 'delivered' ? { ...m, waiting: 'delivered' } : m;
+  });
+}
+
 /** True when the pair has a usable cached route line (an entry with a decodable `encoded` of 2+ points). */
 function hasRouteLine(map: MapResponse, from: string, to: string): boolean {
   const hit = map.polylines.find((p) => p.from === from && p.to === to);
@@ -297,7 +311,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
   const network = (sel: Selection): SimMapProps => {
     const v = buildNetworkView({ map, sim, selection: sel, focus });
     return {
-      places: v.places, routes: v.routes, movers: withCarriers(v.movers, sim, map, true), selectedIds: v.selectedIds, visible: layers, stops: [],
+      places: v.places, routes: v.routes, movers: withWaiting(withCarriers(v.movers, sim, map, true), sim), selectedIds: v.selectedIds, visible: layers, stops: [],
       fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [], ...sky,
     };
   };

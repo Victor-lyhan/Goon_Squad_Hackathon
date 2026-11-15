@@ -22,6 +22,13 @@ function swatchStyle(row: LegendRow): CSSProperties {
 }
 
 function Swatch({ row }: { row: LegendRow }) {
+  if (row.shape === 'glyph') {
+    return (
+      <span className="ml__swatch-box" aria-hidden="true">
+        <span className="ml__swatch ml__swatch--glyph" style={{ color: row.color }}>{row.glyph}</span>
+      </span>
+    );
+  }
   return (
     <span className="ml__swatch-box" aria-hidden="true">
       <span className={`ml__swatch ml__swatch--${row.shape}`} style={swatchStyle(row)} />

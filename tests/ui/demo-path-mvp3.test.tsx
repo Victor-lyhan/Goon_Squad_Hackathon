@@ -318,7 +318,9 @@ describe('the 30-second demo path on the real default NYC run (docs/mvp3.md)', (
     expect(server.seeks()).toEqual(story.seeks);
     expect(journeyStatus(c)).toBe('Delivered');
     expect(stepStates(c)).toEqual(steps(c).map(() => 'Done'));
-    expect(statusLines(c)).toContain(`Journey complete: Delivered to recipient at ${story.recipient}.`);
+    // #780: the last step is the end of carrier B's commute, so the line does not say "Journey complete" yet.
+    expect(statusLines(c).some((t) => t.startsWith(`Delivered to recipient at ${story.recipient}. `) && t.endsWith(' is at work.'))).toBe(true);
+    expect(statusLines(c).some((t) => t.startsWith('Journey complete'))).toBe(false);
     const deliveredAt = server.simulator().snapshot.deliveredAtMin[story.id];
     expect(stepSymbols(c).map(([symbol]) => symbol)).toEqual(['sender', 'relay', 'swap', 'recipient']);
     expect(stepSymbols(c)[story.stepCount - 1]).toEqual(['recipient', `Delivered ${formatClock(deliveredAt)}`]);

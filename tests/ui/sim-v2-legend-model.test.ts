@@ -19,16 +19,20 @@ function assertCleanLabels(rows: LegendRow[]) {
 describe('legendRows: network mode', () => {
   it('lists every marker and line in a fixed order with all layers on', () => {
     const rows = legendRows({ mode: 'network' });
-    expect(keys(rows)).toEqual(['business', 'home', 'vehicle', 'package', 'baseline', 'route']);
+    expect(keys(rows)).toEqual(['business', 'home', 'vehicle', 'package', 'overnight', 'delivered', 'baseline', 'route']);
     expect(rows.map((r) => r.label)).toEqual([
       'Network business · every one is a relay point',
       'Home neighborhood',
       'Carrier · letter = first name',
       'Package · rides on its carrier, or waits at a business',
+      'Overnight at a relay point',
+      'Delivered',
       'Normal commute',
       'Delivery route',
     ]);
-    expect(rows.map((r) => r.shape)).toEqual(['dot', 'dot', 'dot', 'dot', 'line', 'line']);
+    expect(rows.map((r) => r.shape)).toEqual(['dot', 'dot', 'dot', 'dot', 'glyph', 'glyph', 'line', 'line']);
+    // #780: the glyphs the network map draws where packages wait overnight and where they were delivered.
+    expect(rows.filter((r) => r.shape === 'glyph').map((r) => r.glyph)).toEqual(['\u25C6', '\u2691']);
     assertCleanLabels(rows);
   });
 
@@ -37,23 +41,23 @@ describe('legendRows: network mode', () => {
     expect(new Set(keys(rows)).size).toBe(rows.length);
     for (const r of rows) {
       expect(r.key).toMatch(/^[a-z0-9]+$/);
-      expect(['dot', 'ring', 'line']).toContain(r.shape);
+      expect(['dot', 'ring', 'line', 'glyph']).toContain(r.shape);
       expect(r.color).toMatch(/^rgba\(\d{1,3}, \d{1,3}, \d{1,3}, (0|1|0?\.\d+)\)$/);
       if (r.shape === 'line') expect(r.width).toBeGreaterThan(0);
     }
   });
 
-  it('has no layer input and no "all layers hidden" state any more (#648): the six rows are always there', () => {
+  it('has no layer input and no "all layers hidden" state any more (#648): the eight rows are always there', () => {
     for (const name of ['ALL_HIDDEN_MESSAGE', 'showsHiddenMessage', 'allLayersHidden']) {
       expect(legendModel, name).not.toHaveProperty(name);
     }
-    expect(legendRows({ mode: 'network' })).toHaveLength(6);
-    expect(legendRows({ mode: 'network', focus: { kind: 'none' } })).toHaveLength(6);
+    expect(legendRows({ mode: 'network' })).toHaveLength(8);
+    expect(legendRows({ mode: 'network', focus: { kind: 'none' } })).toHaveLength(8);
   });
 
   it('a selection adds the dimmed row last', () => {
     const rows = legendRows({ mode: 'network', hasSelection: true });
-    expect(keys(rows)).toEqual(['business', 'home', 'vehicle', 'package', 'baseline', 'route', 'dimmed']);
+    expect(keys(rows)).toEqual(['business', 'home', 'vehicle', 'package', 'overnight', 'delivered', 'baseline', 'route', 'dimmed']);
     expect(rows.at(-1)!.label).toBe('Dimmed: not part of the selection');
   });
 

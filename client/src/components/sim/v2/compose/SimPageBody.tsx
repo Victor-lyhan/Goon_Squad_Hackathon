@@ -282,7 +282,7 @@ function ReadyLayout({
       )}
       {/* The one Play/Pause button (#648): the picked package's journey, or with no package the clock. */}
       <PanelSection title="Playback">
-        <PlaybackControls button={pagePlayButton(view, play)} status={stepLineHeld ? '' : playStatusText(journey, play)}
+        <PlaybackControls button={pagePlayButton(view, play)} status={stepLineHeld ? '' : playStatusText(journey, play, view.controls.clock.timeMin)}
           error={playErrorText(play, view.actionError)} resetDisabled={resetDisabledReason(view.controls.busy)}
           onToggle={handlers.togglePlay} onReset={handlers.backToStart} />
       </PanelSection>

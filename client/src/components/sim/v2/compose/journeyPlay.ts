@@ -228,23 +228,45 @@ export function overnightText(journey: JourneyResult | null, play: PlayState): s
 
 // ---------- The lines under the button ----------
 
+/** Where the delivering carrier is after the delivery, for the step line while Play still runs (#780). */
+const AFTER_DELIVERY_TEXT: Record<NonNullable<Journey['endOfCommute']> | 'unknown', { driving: string; arrived: string }> = {
+  home: { driving: 'is heading home', arrived: 'is home' },
+  work: { driving: 'is heading to work', arrived: 'is at work' },
+  unknown: { driving: 'is finishing the commute', arrived: 'has finished the commute' },
+};
+
 /**
  * The step line: which step the package is heading for, read from the timeline (the server's
  * occurred events). Its text changes only when a step changes, so a screen reader hears each step
- * once, not each seek.
+ * once, not each seek. Once every step is done it reads "Journey complete", except while Play still
+ * runs (`playing`): the carrier then drives on to the end of its commute, so the line says the package
+ * was delivered and the carrier is heading home (or to work), or is there once the polled clock
+ * (`clockMin`) reaches the leg's `finishMin` (#780).
  */
-export function stepAnnouncement(journey: Journey): string {
+export function stepAnnouncement(journey: Journey, playing = false, clockMin = -Infinity): string {
   const total = journey.steps.length;
   const current = journey.steps.find((s) => s.state === 'current');
   if (current) return `Step ${current.n} of ${total} next: ${current.label} at ${current.placeName}.`;
   const last = journey.steps[total - 1];
-  return last ? `Journey complete: ${last.label} at ${last.placeName}.` : '';
+  if (!last) return '';
+  if (playing) {
+    const carrier = journey.carriers.find((c) => c.legIndex === last.legIndex)?.name ?? 'The carrier';
+    const finishMin = journey.commutes.find((c) => c.legIndex === last.legIndex)?.finishMin;
+    const arrived = finishMin !== undefined && clockMin >= finishMin;
+    const text = AFTER_DELIVERY_TEXT[journey.endOfCommute ?? 'unknown'];
+    return `${last.label} at ${last.placeName}. ${carrier} ${arrived ? text.arrived : text.driving}.`;
+  }
+  return `Journey complete: ${last.label} at ${last.placeName}.`;
 }
 
-/** The `role="status"` line under the button. Empty when idle and after a failure (the error is an alert). */
-export function playStatusText(journey: JourneyResult | null, play: PlayState): string {
+/**
+ * The `role="status"` line under the button. Empty when idle and after a failure (the error is an alert).
+ * `clockMin`: the polled clock, so the line after the delivery can tell driving on from arrived.
+ */
+export function playStatusText(journey: JourneyResult | null, play: PlayState, clockMin = -Infinity): string {
   if (journey?.kind !== 'journey') return '';
-  if (play.status === 'running' || play.status === 'finished') return stepAnnouncement(journey);
+  if (play.status === 'running') return stepAnnouncement(journey, true, clockMin);
+  if (play.status === 'finished') return stepAnnouncement(journey);
   if (play.status === 'paused') return PAUSED_TEXT;
   return '';
 }
