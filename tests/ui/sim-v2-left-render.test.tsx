@@ -1,5 +1,7 @@
-// The playback block of the simulator's left panel (#648): one Play/Pause button and "Back to
+// The simulator's playback block (#648; on the map since #831): one Play/Pause button and "Back to
 // start", rendered from the button view. Static renders plus the click handlers.
+// #852: it shows the two buttons (a white icon and a label each) and nothing else. Why a button is
+// disabled and the step of a playing journey are still in the markup, visually hidden (controls.css).
 import { existsSync, readFileSync } from 'node:fs';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -8,7 +10,9 @@ import { PlaybackControls, type PlaybackControlsProps } from '../../client/src/c
 import { BUSY_REASON, FINISHED_REASON, type PlayButtonView } from '../../client/src/components/sim/v2/controls/controlsModel';
 
 const attr = (tag: string, name: string) => tag.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1];
-const buttons = (h: string) => [...h.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map((m) => ({ attrs: m[1], text: m[2] }));
+/** Each button: its attributes, its name (the text of its label) and its inner markup. */
+const buttons = (h: string) => [...h.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)]
+  .map((m) => ({ attrs: m[1], text: m[2].replace(/<[^>]*>/g, ''), inner: m[2] }));
 // #725: the two buttons are `aria-disabled`, never `disabled`, so a press that makes the run busy does not
 // drop keyboard focus to <body>; the check fails if the `disabled` attribute comes back.
 const isDisabled = (b: { attrs: string }) => {
@@ -69,20 +73,52 @@ describe('PlaybackControls', () => {
     }
   });
 
-  it('a disabled Play is described by its visible note', () => {
+  it('each button is a white icon hidden from screen readers and its label; the label alone is its name (#852)', () => {
+    for (const [html, names] of [[render(), ['Play', 'Back to start']], [render({ button: PAUSE }), ['Pause', 'Back to start']]] as const) {
+      const all = buttons(html);
+      expect(all.map((b) => b.text)).toEqual(names);
+      for (const b of all) {
+        expect(b.inner).toMatch(/^<svg class="ctl-icon"[^>]*aria-hidden="true"[^>]*><path d="[^"]+" fill="currentColor"><\/path><\/svg><span class="ctl-label">[^<]+<\/span>$/);
+        expect(b.attrs).not.toMatch(/aria-label|title=/); // named by the label; no tooltip while enabled
+      }
+    }
+    // Play and Pause are different drawings; "Back to start" is a third.
+    const icon = (html: string, i: number) => /<path d="([^"]+)"/.exec(buttons(html)[i].inner)![1];
+    expect(new Set([icon(render(), 0), icon(render({ button: PAUSE }), 0), icon(render(), 1)]).size).toBe(3);
+    expect(icon(render({ button: PAUSE }), 1)).toBe(icon(render(), 1));
+  });
+
+  it('shows nothing but the two buttons: every other element of the block is visually hidden or an alert (#852)', () => {
+    const html = render({ button: { label: 'Play', action: null, note: FINISHED_REASON }, status: 'Journey paused.' });
+    const rest = html.replace(/<div class="ctl-row">[\s\S]*?<\/div>/, '');
+    expect([...rest.matchAll(/<(\w+) class="([^"]*)"/g)].map((m) => `${m[1]}.${m[2]}`))
+      .toEqual(['div.ctl-block ctl-playback', 'p.ctl-note', 'p.ctl-status']);
+    const css = readFileSync('client/src/components/sim/v2/controls/controls.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const hidden = /\.ctl-note,\s*\.ctl-status\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    for (const d of ['position: absolute', 'width: 1px', 'height: 1px', 'overflow: hidden', 'clip-path: inset(50%)']) expect(hidden).toContain(d);
+    expect(hidden).not.toMatch(/display\s*:/); // never display: none, so the note still describes and the status still announces
+  });
+
+  it('a disabled Play is described by its note, which is also its tooltip', () => {
     const html = render({ button: { label: 'Play', action: null, note: FINISHED_REASON } });
     const [play, reset] = buttons(html);
     expect(isDisabled(play)).toBe(true);
     expect(isDisabled(reset)).toBe(false);
-    expect(html).toContain(FINISHED_REASON);
+    expect(html).toContain(`<p class="ctl-note" id="ctl-play-note">${FINISHED_REASON}</p>`);
     expectDescribed(html);
     expect(attr(`<x${play.attrs}>`, 'aria-describedby')).toBeTruthy();
+    expect(attr(`<x${play.attrs}>`, 'title')).toBe(FINISHED_REASON);
+    expect(attr(`<x${reset.attrs}>`, 'title')).toBeUndefined();
   });
 
-  it('busy: both buttons disabled, the shared reason is on the page once', () => {
+  /** How many note elements say `reason`. */
+  const notes = (html: string, reason: string) => html.split(`>${reason}</p>`).length - 1;
+
+  it('busy: both buttons disabled, the shared reason is one note', () => {
     const html = render({ button: { label: 'Play', action: null, note: BUSY_REASON }, resetDisabled: BUSY_REASON });
     expect(buttons(html).every(isDisabled)).toBe(true);
-    expect(html.split(BUSY_REASON)).toHaveLength(2);
+    expect(notes(html, BUSY_REASON)).toBe(1);
+    expect(buttons(html).map((b) => attr(`<x${b.attrs}>`, 'title'))).toEqual([BUSY_REASON, BUSY_REASON]);
     expectDescribed(html);
   });
 
@@ -91,7 +127,8 @@ describe('PlaybackControls', () => {
     const [pause, reset] = buttons(html);
     expect(isDisabled(pause)).toBe(false);
     expect(isDisabled(reset)).toBe(true);
-    expect(html.split(BUSY_REASON)).toHaveLength(2);
+    expect(notes(html, BUSY_REASON)).toBe(1);
+    expect(attr(`<x${reset.attrs}>`, 'title')).toBe(BUSY_REASON);
     expectDescribed(html);
   });
 
@@ -141,13 +178,28 @@ describe('controls.css', () => {
   const css = readFileSync('client/src/components/sim/v2/controls/controls.css', 'utf8');
   const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
-  it('no radius over 4px', () => {
-    const radii = [...noComments.matchAll(/border-radius\s*:\s*([^;]+);/g)].map((m) => m[1].trim());
+  it('no radius over 4px, except the round buttons of the map pill (#852)', () => {
+    const all = [...noComments.matchAll(/border-radius\s*:\s*([^;]+);/g)].map((m) => m[1].trim());
+    // Half of the buttons' 44 px height, in the `.ctl-btn` rule.
+    expect(all.filter((r) => r === '22px')).toHaveLength(1);
+    expect(/\.ctl-btn\s*\{[^}]*\}/.exec(noComments)?.[0]).toMatch(/min-height: 44px;[^}]*border-radius: 22px;/);
+    const radii = all.filter((r) => r !== '22px');
     expect(radii.length).toBeGreaterThan(0);
     for (const r of radii) {
       for (const px of r.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px[1]), r).toBeLessThanOrEqual(4);
       expect(r).not.toMatch(/%|em\b|rem\b/);
     }
+  });
+
+  it('the buttons are 44 px touch targets (#852)', () => {
+    const btn = /\.ctl-btn\s*\{([^}]*)\}/.exec(noComments)?.[1] ?? '';
+    expect(Number(/min-height:\s*(\d+)px/.exec(btn)?.[1])).toBeGreaterThanOrEqual(44);
+    // Play/Pause is as wide for "Play" as for "Pause" and never under 44 px.
+    const primary = /\.ctl-primary\s*\{([^}]*)\}/.exec(noComments)?.[1] ?? '';
+    expect(Number(/min-width:\s*(\d+)px/.exec(primary)?.[1])).toBeGreaterThanOrEqual(88);
+    // No later rule makes a button smaller.
+    expect([...noComments.matchAll(/min-height:\s*(\d+)px/g)].every((m) => Number(m[1]) >= 44)).toBe(true);
+    expect(noComments).not.toMatch(/(^|[\s;{])(max-)?height\s*:\s*(?!1px)\d/);
   });
 
   it('no box-shadow except a 1px focus ring, and no gradients', () => {
@@ -172,32 +224,17 @@ describe('controls.css', () => {
     expect(noComments).toMatch(/prefers-reduced-motion/);
   });
 
-  // #816 (headless Chrome at 1440 x 900): a playing journey's step line went between one and two lines
-  // ("Step 2 of 4 next: Drop at relay point at Etsy." / "Step 4 of 4 next: Delivered to recipient at
-  // Brooklyn Roasting Company."), so the Packages list under it jumped up and down by one line while
-  // nobody touched the page. In journey mode the line keeps two lines' height once it has text.
-  it('a journey step line with text keeps two lines of height; an empty one takes none (#816)', () => {
-    const decl = (body: string, prop: string) => body.match(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`))?.[1].trim();
-    const rules = [...noComments.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, sel, body]) => ({ sel: sel.trim(), body }));
-    // #842: the shown step line is `.ctl-line` (the `.ctl-status` live region is visually hidden).
-    const status = rules.find((r) => r.sel === '.ctl-line');
-    const lineHeight = Number(decl(status?.body ?? '', 'line-height'));
-    expect(lineHeight, '.ctl-line needs a unitless line-height').toBeGreaterThan(1);
-
-    const journey = rules.find((r) => r.sel === '.ctl-playback[data-play-action$="_journey"] .ctl-line');
-    const minHeight = decl(journey?.body ?? '', 'min-height');
-    expect(minHeight, 'journey step line min-height').toMatch(/^\d+(\.\d+)?em$/);
-    expect(parseFloat(minHeight!)).toBeGreaterThanOrEqual(2 * lineHeight - 0.001);
-    // No other step line rule sets a minimum height; idle, the shown line is not rendered at all.
-    for (const r of rules) if (r.sel !== journey!.sel && /\.ctl-(status|line)/.test(r.sel)) expect(decl(r.body, 'min-height'), r.sel).toBeUndefined();
-    expect(render()).not.toContain('ctl-line');
-
-    // The selector matches what PlaybackControls renders: the two seek-play actions end in "_journey"
-    // (`pause_journey` is also a running network Play's Pause), Play on the network and a clock pause do not.
+  // #816 kept two lines of height for a journey's step line so the Packages list under it did not jump;
+  // #852 removed the shown line, so nothing reserves height and the block is the same size in every state.
+  it('no step line is shown and none has a reserved height; the live region still gets the text (#852)', () => {
+    expect(noComments).not.toContain('.ctl-line');
+    expect(noComments).not.toMatch(/\.ctl-playback\[data-play-action/);
     for (const [action, isJourney] of [['play_journey', true], ['pause_journey', true], ['play_network', false], ['pause_clock', false]] as const) {
       const html = render({ button: { ...PLAY, action }, status: 'Step 1 of 4 next: Pickup at sender.' });
+      expect(html).not.toContain('ctl-line');
       expect(attr(html.match(/<div\b[^>]*class="ctl-block ctl-playback"[^>]*>/)![0], 'data-play-action')!.endsWith('_journey'), action).toBe(isJourney);
       expect(html).toMatch(/<p class="ctl-status" role="status">Step 1 of 4/);
+      expect(html.split('Step 1 of 4')).toHaveLength(2);
     }
   });
 

@@ -5,8 +5,8 @@
 // sim/v2/compose/ and sim/v2/page/ are not covered here (#459, #460 own them).
 import { describe, expect, it } from 'vitest';
 import {
-  ALLOWED_COLORS, COLOR_PROPS, FOCUS_SELECTORS, LOCAL_VARS, NAMED_COLORS, QA_CSS_FILES, ROUND_SELECTORS, RULES, TOKENS,
-  colorLiterals, key, read, resolveVars, splitTop, where,
+  ALLOWED_COLORS, COLOR_PROPS, FOCUS_SELECTORS, LOCAL_VARS, NAMED_COLORS, PILL_FOCUS_RING, PILL_RADII, QA_CSS_FILES,
+  ROUND_SELECTORS, RULES, TOKENS, colorLiterals, isPillRule, key, read, resolveVars, splitTop, where,
 } from './sim-v2-qa-css-rules';
 import { isMvp2Fallback } from './kit-v2-legacy-tokens';
 
@@ -17,11 +17,13 @@ describe('sim v2 + map CSS: the redesign rules', () => {
     expect(ALLOWED_COLORS.has('15,138,95')).toBe(true); // LEG2 from layers.ts
   });
 
-  it('border-radius is at most 4px; 50% only on the listed round markers and status dots', () => {
+  it('border-radius is at most 4px; 50% only on the listed round markers and status dots; the map pill buttons are round (#852)', () => {
     const bad: string[] = [];
     for (const r of RULES) {
       for (const [prop, value] of r.decls) {
         if (!prop.includes('radius')) continue;
+        // #852: the two buttons of the floating pill, half of their 44 px height.
+        if (isPillRule(r) && prop === 'border-radius' && value === PILL_RADII[r.selectors[0]]) continue;
         for (const part of resolveVars(value).split(/[\s/]+/).filter(Boolean)) {
           if (part === '50%') {
             if (!r.selectors.every((s) => ROUND_SELECTORS.includes(s))) bad.push(`${where(r)}: ${value}`);
@@ -156,8 +158,13 @@ describe('sim v2 + map CSS: keyboard focus', () => {
     expect(r, `${selector}:focus-visible in ${file}`).toBeDefined();
   });
 
-  it('the focus ring is the accent colour, 2px', () => {
+  it('the focus ring is the accent colour, 2px; on the dark map pill it is white, 2px (#852)', () => {
+    const pill = RULES.filter((x) => x.selectors.includes('.ctl-btn:focus-visible'));
+    expect(pill).toHaveLength(1);
+    expect(pill[0].selectors).toEqual(['.ctl-btn:focus-visible']);
+    expect(pill[0].decls.find(([p]) => p === 'outline')?.[1]).toBe(PILL_FOCUS_RING);
     for (const r of RULES.filter((x) => x.selectors.some((s) => s.endsWith(':focus-visible')))) {
+      if (r === pill[0]) continue;
       const outline = r.decls.find(([p]) => p === 'outline')?.[1];
       // #1D5075 is the token; legend.css and journey.css still write the MVP II fallback (#699).
       if (outline) expect(outline, where(r)).toMatch(/^2px solid var\(--accent(, #(1D5075|28618A))?\)$/);

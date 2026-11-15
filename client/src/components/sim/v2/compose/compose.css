@@ -74,11 +74,13 @@
 }
 
 /* ---------- Map: the floating Play/Pause control (#831) ---------- */
-/* Bottom center of the map, level with the legend and above Google's attribution strip. The workspace
-   fills the viewport and never scrolls, so the control is on screen whatever the panels show. One fixed
-   width, so the buttons do not move as the step line changes; it grows upward when a note or the step
-   line appears. Never wider than the map: in the narrowest map (220 px: a 900 px window with both
-   panels open) the two buttons wrap onto two rows. Flat like the legend: panel fill, hairline border. */
+/* Bottom center of the map, above Google's attribution strip. The workspace fills the viewport and never
+   scrolls, so the control is on screen whatever the panels show.
+   #852 (human feedback): no white panel. A dark translucent pill, the --text ink at 72% over a blur of
+   the map behind it, with white icons and labels (controls.css): it reads on the day map and on the
+   night map. It holds Play/Pause and "Back to start" and nothing else, so it is as wide as the two
+   buttons and never changes size while a journey plays. Never wider than the map: in the narrowest map
+   (220 px: a 900 px window with both panels open) the two buttons wrap onto two rows. */
 .spc-playbar {
   position: absolute;
   left: 50%;
@@ -87,22 +89,15 @@
   /* Above the legend and the banners, so nothing can cover Play. */
   z-index: 3;
   box-sizing: border-box;
-  width: 300px;
+  width: max-content;
   max-width: calc(100% - 2 * var(--space-3, 12px));
-  padding: var(--space-2, 8px);
-  background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
-  text-align: center;
+  padding: var(--space-1, 4px);
+  background: color-mix(in srgb, var(--text, #171C24) 72%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  /* Half of a 44 px button plus the 4 px padding: a full pill on one row, a rounded box on two. */
+  border-radius: 26px;
 }
-/* The live region is in the page while empty (controls.css; visually hidden since #842), so the rows are
-   spaced by margins, not by a grid gap: it then adds no room under the buttons. The shown step line
-   (`.ctl-line`) is only there with text. */
-.spc-playbar .ctl-block { gap: 0; }
-.spc-playbar .ctl-row { justify-content: center; }
-.spc-playbar .ctl-note,
-.spc-playbar .ctl-line,
-.spc-playbar .ctl-error { margin-top: var(--space-2, 8px); }
 
 /* ---------- Left panel: failed action ---------- */
 .spc-action-error {

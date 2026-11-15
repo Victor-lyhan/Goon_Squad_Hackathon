@@ -183,7 +183,10 @@ describe('the one Play/Pause button in the page', () => {
         expect(rightOf(html)).not.toContain('spc-playbar');
         const bar = playbarOf(html);
         expect(buttonsIn(bar).map((b) => b.name)).toEqual([playPauseIn(html).name, 'Back to start']);
-        expect(bar.split('role="status"')).toHaveLength(2); // the step line came along
+        expect(bar.split('role="status"')).toHaveLength(2); // the step announcement came along
+        // #852: the pill shows the two buttons only. No shown step line; any text is a hidden note, the live region or the alert.
+        expect(bar).not.toContain('ctl-line');
+        expect([...bar.matchAll(/<p class="([^"]+)"/g)].map((m) => m[1]).filter((c) => !['ctl-note', 'ctl-status', 'ctl-error'].includes(c))).toEqual([]);
       }
     }
   });
@@ -212,13 +215,15 @@ describe('the one Play/Pause button in the page', () => {
     expect(text(html)).not.toMatch(/\bhub\b/i);
   });
 
-  it('running: the button reads "Pause", the current step is marked, the step line is shown', () => {
+  it('running: the button reads "Pause", the current step is marked, the step is announced (not shown on the map, #852)', () => {
     const { html } = layout(journeyHook(), pkg('shp-2'), running);
     expect(playPauseIn(html).name).toBe('Pause');
     expect(buttonsIn(html).filter((x) => /^(Play|Pause|Stop)/.test(x.name))).toHaveLength(1);
     expect(html).toContain('spc-journey--playing');
     expect(html).toMatch(/aria-current="step"/);
-    expect(html).toContain('role="status">Step 3 of 4 next: Pickup at relay point at Brooklyn Roasting.</p>');
+    expect(html).toContain('<p class="ctl-status" role="status">Step 3 of 4 next: Pickup at relay point at Brooklyn Roasting.</p>');
+    // Once in the playback group, in its visually hidden live region; the journey panel shows the step.
+    expect(playbarOf(html).split('Step 3 of 4 next')).toHaveLength(2);
     expect(html).not.toContain('spc-overnight');
   });
 
@@ -247,7 +252,7 @@ describe('the one Play/Pause button in the page', () => {
     expect(text(html)).not.toContain('Overnight at');
   });
 
-  it('a failed step shows the error text from the hook under the button', () => {
+  it('a failed step shows the error text from the hook as an alert of the playback group', () => {
     const { html } = layout(journeyHook({ actionError: 'Must be between 930 and 2160' }), pkg('shp-2'), at('failed'));
     expect(playbarOf(html)).toContain('role="alert">Play stopped: Must be between 930 and 2160</p>');
   });
@@ -281,8 +286,10 @@ describe('the one Play/Pause button in the page', () => {
     const busy = layout(journeyHook({ busy: true }), null).html;
     expect(playPauseIn(busy).attrs).toMatch(/aria-disabled="true"/);
     expect(buttonsIn(playbarOf(busy)).find((b) => b.name === 'Back to start')!.attrs).toMatch(/aria-disabled="true"/);
-    expect(busy.split(BUSY_REASON)).toHaveLength(2); // the reason once on the whole page
-    expect(playbarOf(busy)).toContain(BUSY_REASON);
+    // One note on the whole page (visually hidden since #852), which describes both buttons; each has it as its tooltip.
+    expect(busy.split(`>${BUSY_REASON}</p>`)).toHaveLength(2);
+    expect(playbarOf(busy)).toContain(`>${BUSY_REASON}</p>`);
+    expect(busy.split(`title="${BUSY_REASON}"`)).toHaveLength(3);
   });
 
   it('togglePlay with a package: plays the journey when idle, pauses it when running; the server clock is not touched', () => {

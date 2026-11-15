@@ -185,7 +185,7 @@ export type SimPageLayoutProps = {
   movers?: MapMover[];
   /** The journey player's state for the package on screen; defaults to idle. */
   play?: PlayState;
-  /** `useJourneyPlay().settling`: the step line stays empty until Play's first step has landed (#725). */
+  /** `useJourneyPlay().settling`: the step announcement stays empty until Play's first step has landed (#725). */
   stepLineHeld?: boolean;
 };
 
@@ -299,7 +299,8 @@ function ReadyLayout({
       {/* The one Play/Pause button (#648): the picked package's journey, or with no package every commute
           (#790). #831: it floats at the bottom center of the map with "Back to start" next to it, so it is on
           screen whatever the panels show (scrolled, collapsed). Before the map in the page, so Tab reaches
-          it before the map's own stops. */}
+          it before the map's own stops. #852: a dark pill with the two buttons only; the step text
+          (`status`) goes to its visually hidden live region, the journey panel and the map symbols show it. */}
       <div className="spc-playbar" role="group" aria-label={PLAYBACK_LABEL}>
         <PlaybackControls button={pagePlayButton(view, play)} status={stepLineHeld ? '' : playStatusText(journey, play, view.controls.clock.timeMin)}
           error={playErrorText(play, view.actionError)} resetDisabled={resetDisabledReason(view.controls.busy)}

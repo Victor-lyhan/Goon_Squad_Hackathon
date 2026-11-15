@@ -5,8 +5,9 @@
 //    Inspector's fold at 1440 x 900. The last step now scrolls into view ('nearest') once, when the journey
 //    becomes complete, and not while keyboard focus is on another step (#725).
 // 2. In the narrowest map (220 px: a 900 px window with both panels open) the floating Play bar's step line
-//    took three or four lines, so the bar grew upward and Play/Pause moved at each step. The shown line is
-//    now cut at two lines with an ellipsis; the full text is its title and the visually hidden live region.
+//    took three or four lines, so the bar grew upward and Play/Pause moved at each step. #842 cut the shown
+//    line at two lines; #852 (human feedback) removed the shown line altogether: the bar holds the two
+//    buttons only, and the step text stays in the visually hidden live region for screen readers.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PlaybackControls } from '../../client/src/components/sim/v2/controls/PlaybackControls';
@@ -91,30 +92,17 @@ describe('the Delivered step scrolls into view when the journey ends (#842)', ()
   });
 });
 
-describe('the Play bar step line is at most two lines (#842)', () => {
+describe('the Play bar shows no step line, so Play/Pause cannot move at a step (#842, #852)', () => {
   const FILES = ['client/src/components/sim/v2/controls/controls.css', 'client/src/components/sim/v2/compose/compose.css'];
   const RULES: Rule[] = FILES.flatMap((f) => parseCss(read(f), f));
   const decls = (selector: string) =>
     new Map(RULES.filter((r) => !r.media && r.selectors.includes(selector)).flatMap((r) => r.decls));
-  const em = (v: string | undefined) => (v && /^\d+(\.\d+)?em$/.test(v) ? parseFloat(v) : NaN);
 
-  it('the shown line is clamped to two lines with an ellipsis, and its two-line reserve (#816) stays', () => {
-    const line = decls('.ctl-line');
-    expect(line.get('display')).toBe('-webkit-box');
-    expect(line.get('-webkit-box-orient')).toBe('vertical');
-    expect(line.get('-webkit-line-clamp')).toBe('2');
-    expect(line.get('line-clamp')).toBe('2');
-    expect(line.get('overflow')).toBe('hidden');
-    const lineHeight = Number(line.get('line-height'));
-    expect(lineHeight).toBeGreaterThan(1);
-    // Never taller than two lines, whatever the browser does with the clamp.
-    expect(em(line.get('max-height'))).toBeLessThanOrEqual(2 * lineHeight + 0.001);
-    // In a journey it is always exactly two lines high, so Play/Pause does not move at a step.
-    const reserve = em(decls('.ctl-playback[data-play-action$="_journey"] .ctl-line').get('min-height'));
-    expect(reserve).toBeGreaterThanOrEqual(2 * lineHeight - 0.001);
-    expect(reserve).toBe(em(line.get('max-height')));
-    // No @media rule lets it grow at some width.
-    expect(RULES.filter((r) => r.media && r.selectors.some((s) => s.includes('ctl-line')))).toEqual([]);
+  it('there is no shown step line left: no `.ctl-line` in the markup, the component or the CSS', () => {
+    expect(RULES.filter((r) => r.selectors.some((s) => s.includes('ctl-line')))).toEqual([]);
+    expect(read('client/src/components/sim/v2/controls/PlaybackControls.tsx')).not.toContain('ctl-line');
+    // Nothing keeps room for a line under the buttons either (#816's two-line reserve went with it).
+    expect(RULES.filter((r) => r.selectors.some((s) => /ctl-(status|note)/.test(s)) && r.decls.some(([p]) => p === 'min-height'))).toEqual([]);
   });
 
   it('the live region with the full text is visually hidden, never display: none', () => {
@@ -126,14 +114,15 @@ describe('the Play bar step line is at most two lines (#842)', () => {
     expect(status.has('display')).toBe(false);
   });
 
-  it('the full text stays available: the title of the shown copy and the live region for screen readers', () => {
+  it('the step text is in the page once, in the live region for screen readers, and never as a title', () => {
     const text = 'Step 4 of 4 next: Delivered to recipient at Brooklyn Roasting Company.';
     const html = renderToStaticMarkup(
       <PlaybackControls button={{ label: 'Pause', action: 'pause_journey', note: null }} status={text} onToggle={() => {}} onReset={() => {}} />,
     );
-    expect(html).toContain(`<p class="ctl-line" aria-hidden="true" title="${text}">${text}</p>`);
     expect(html).toContain(`<p class="ctl-status" role="status">${text}</p>`);
-    // Idle: no shown line, the empty live region stays in the page.
+    expect(html.split(text)).toHaveLength(2);
+    expect(html).not.toContain('title=');
+    // Idle: the empty live region stays in the page.
     const idle = renderToStaticMarkup(
       <PlaybackControls button={{ label: 'Play', action: 'play_network', note: null }} onToggle={() => {}} onReset={() => {}} />,
     );

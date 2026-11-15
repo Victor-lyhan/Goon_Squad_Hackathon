@@ -1,31 +1,37 @@
-/* Simulator playback block (#648): one Play/Pause button and "Back to start". Since #831 the page floats
-   it at the bottom center of the map (compose.css `.spc-playbar`), 300px wide or the map's width if less:
-   everything shrinks to its box, nothing scrolls sideways.
-   MVP III look (docs/mvp3.md P4, #701): token colours, hairline borders, radius 4px, no gradients,
-   no shadow except the 1px focus ring. */
+/* Simulator playback block (#648): one Play/Pause button and "Back to start". The page floats it at the
+   bottom center of the map (#831) inside a dark translucent pill (#852, compose.css `.spc-playbar`).
+   The pill shows the two buttons and nothing else: white icons and labels on the ink fill, which read on
+   the day map and on the night map alike. The pill shape and the white focus ring are the one exception
+   to the flat MVP III look of the panels (docs/mvp3.md P4, #701); colours are still tokens. */
 
 .ctl-block {
   display: grid;
-  gap: var(--space-2, 8px);
+  gap: 0;
   min-width: 0;
   max-width: 100%;
-  color: var(--text, #171C24);
+  color: var(--panel, #FFFFFF);
   font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
 }
 .ctl-block *, .ctl-block *::before, .ctl-block *::after { box-sizing: border-box; }
 
-.ctl-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); min-width: 0; }
+/* In a map narrower than the two buttons (220 px: a 900 px window with both panels open) the row wraps. */
+.ctl-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-1, 4px); min-width: 0; }
 
 /* ---------- Buttons ---------- */
+/* 44 px high: a touch target. No fill of their own, so the pill is one shape. */
 .ctl-btn {
-  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
   min-width: 0;
-  padding: var(--space-1, 4px) var(--space-2, 8px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  padding: 0 var(--space-4, 16px);
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  color: var(--panel, #FFFFFF);
   font: inherit;
   font-size: var(--text-sm, 13px);
   line-height: 1.2;
@@ -33,32 +39,23 @@
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.ctl-btn:hover:not([aria-disabled="true"]) { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
-/* #725: the buttons are aria-disabled (never disabled, which drops keyboard focus), so they are styled by it. */
-.ctl-btn[aria-disabled="true"] { color: var(--muted, #5B6472); background: var(--bg, #F7F7F4); cursor: not-allowed; }
-/* The one Play/Pause button: the largest control of the panel. Primary: white on the accent (about
-   8.6:1), a darker fill on hover like the UI kit's primary button, never a white one. */
+.ctl-icon { flex: none; display: block; }
+.ctl-btn:hover:not([aria-disabled="true"]) { background: color-mix(in srgb, var(--panel, #FFFFFF) 14%, transparent); }
+/* #725: the buttons are aria-disabled (never disabled, which drops keyboard focus), so they are styled by it.
+   Dimmed, and still at least 3:1 on the pill over a white map. */
+.ctl-btn[aria-disabled="true"] { color: color-mix(in srgb, var(--panel, #FFFFFF) 60%, transparent); cursor: not-allowed; }
+/* The one Play/Pause button: bold, and as wide for "Play" as for "Pause", so "Back to start" does not
+   move when the label changes. */
 .ctl-primary {
-  flex: 1 1 auto;
   min-width: 96px;
-  min-height: 36px;
-  background: var(--accent, #1D5075);
-  border-color: var(--accent, #1D5075);
-  color: var(--panel, #FFFFFF);
   font-weight: 600;
 }
-.ctl-primary:hover:not([aria-disabled="true"]) {
-  background: var(--accent-dark, #173E5B);
-  border-color: var(--accent-dark, #173E5B);
-  color: var(--panel, #FFFFFF);
-}
-.ctl-primary[aria-disabled="true"] { border-color: var(--border, #E3E3DE); }
 
-/* ---------- Notes, the step line, a refused step ---------- */
-.ctl-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-/* The status line (the live region) stays in the page when empty (never display: none), so its next text
-   is announced. #842: it is visually hidden and holds the full text for screen readers; `.ctl-line` above
-   it is the copy that is shown (aria-hidden, with the full text as its title). */
+/* ---------- For screen readers: why a button is disabled, and the step of a playing journey ---------- */
+/* #852: neither is shown on the map. A note is the `aria-describedby` of its button (and its title); the
+   status line is the live region, which stays in the page when empty (never display: none), so its next
+   text is announced. */
+.ctl-note,
 .ctl-status {
   position: absolute;
   width: 1px;
@@ -71,38 +68,29 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-/* #842: the shown step line is never more than two lines. In the narrowest map (220 px: a 900 px window
-   with both panels open) a step line took three or four lines, so the bar grew upward and Play/Pause
-   moved at each step; now a longer line is cut with an ellipsis. */
-.ctl-line {
-  margin: 0;
-  font-size: var(--text-sm, 13px);
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  max-height: 2.9em;
-}
-/* #816 (headless Chrome at 1440 x 900): a journey's step line goes between one and two lines as it plays
-   ("Step 2 of 4 next: Drop at relay point at Etsy." / "Step 4 of 4 next: Delivered to recipient at
-   Brooklyn Roasting Company."), which moved the Packages list up and down under it while nobody touched
-   the page. Once it has text it keeps two lines' height, and with the two-line cap above (#842) it is
-   exactly two lines at any map width. It applies while the button plays or pauses a seek play:
-   a picked package's journey, and also a running network Play, whose Pause is `pause_journey` too
-   (playButtonView), so "Playing every carrier's commute." keeps a second, empty line. Empty (idle) the
-   shown line is not rendered and takes no room. */
-.ctl-playback[data-play-action$="_journey"] .ctl-line { min-height: 2.9em; }
-.ctl-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); overflow-wrap: anywhere; }
 
-/* ---------- Keyboard focus: 2px outline plus a 1px ring ---------- */
-/* The white ring keeps the accent outline apart from the Play button's accent fill. */
+/* ---------- A refused step: the one text that is shown, above the pill, only while Play has failed ---------- */
+.ctl-error {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--space-2, 8px));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  border-radius: var(--radius, 4px);
+  background: color-mix(in srgb, var(--text, #171C24) 88%, transparent);
+  color: var(--panel, #FFFFFF);
+  font-size: var(--text-xs, 12px);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Keyboard focus: a 2px white ring inside the button, on the ink of the pill ---------- */
 .ctl-btn:focus-visible {
-  outline: 2px solid var(--accent, #1D5075);
-  outline-offset: 1px;
-  box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
+  outline: 2px solid var(--panel, #FFFFFF);
+  outline-offset: -2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

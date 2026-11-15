@@ -112,6 +112,18 @@ export const COLOR_PROPS = /(^|-)(color|background|border|outline|fill|stroke|sh
 /** Round markers and status dots: the only selectors that may use a 50% radius. */
 export const ROUND_SELECTORS = ['.ml__swatch--dot', '.ml__swatch--ring', '.ml__swatch--numbered'];
 
+/**
+ * #852 (human feedback): the floating Play/Pause control on the map is a dark translucent pill, not a
+ * flat panel: `.spc-playbar` (compose.css) is the pill, `.ctl-btn` (controls.css) its two buttons. They
+ * are the only selectors that may have a radius above the token, the pill is the only one that may blur
+ * what is behind it, and the buttons' focus ring is white (on the ink of the pill), not the accent.
+ */
+export const PILL_SELECTORS = ['.spc-playbar', '.ctl-btn'];
+export const PILL_RADII: Record<string, string> = { '.spc-playbar': '26px', '.ctl-btn': '22px' };
+export const PILL_BLUR = 'blur(8px)';
+export const PILL_FOCUS_RING = '2px solid var(--panel, #FFFFFF)';
+export const isPillRule = (r: Rule) => r.media === null && r.selectors.length === 1 && PILL_SELECTORS.includes(r.selectors[0]);
+
 export const resolveVars = (value: string) =>
   value.replace(/var\((--[\w-]+)\s*(?:,\s*([^)]*))?\)/g, (_, name: string, fb?: string) => TOKENS.get(name) ?? fb ?? '');
 

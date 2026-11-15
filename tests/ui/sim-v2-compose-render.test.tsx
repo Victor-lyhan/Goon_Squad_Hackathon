@@ -682,15 +682,19 @@ describe('compose.css and new files', () => {
   const css = readFileSync(resolve(__dirname, '../../client/src/components/sim/v2/compose/compose.css'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, ''); // rules only, not the comments
 
-  it('no radius over 4px, no box-shadow, no gradient', () => {
+  it('no radius over 4px except the floating map pill (#852), no box-shadow, no gradient', () => {
     expect(css).not.toMatch(/box-shadow/);
     expect(css).not.toMatch(/gradient/i);
+    const round: string[] = [];
     for (const m of css.matchAll(/border-radius:\s*([^;]+);/g)) {
       const value = m[1].trim();
       const px = [...value.matchAll(/(\d+(?:\.\d+)?)px/g)].map((x) => Number(x[1]));
-      expect(px.every((n) => n <= 4), value).toBe(true);
       expect(value).toMatch(/^(var\(--radius(-lg)?(, \d+px)?\)|\d+px|0)$/);
+      if (!px.every((n) => n <= 4)) round.push(value);
     }
+    // #852: the Play/Pause pill is the one round shape, and it is the `.spc-playbar` rule's.
+    expect(round).toEqual(['26px']);
+    expect(/\.spc-playbar\s*\{[^}]*\}/.exec(css)?.[0]).toContain('border-radius: 26px;');
   });
 
   it('the new source files are not ignored by git', () => {

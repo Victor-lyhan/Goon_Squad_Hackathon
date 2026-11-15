@@ -6,6 +6,9 @@
 //   3. IBM Plex Mono (--font-mono) for times, distances, IDs, minutes and prices, Inter (--font-sans)
 //      for everything else, checked on the selectors and on the elements that render the numbers;
 //   4. the Play/Pause button and the Overnight card stay legible, and the focus ring is visible.
+// #852 (human feedback) makes one exception to rule 2: the floating Play/Pause control on the map is a
+// dark translucent pill (round, with a blur of the map behind it) whose buttons have a white focus ring.
+// Its colours are still tokens. The exception is listed below, declaration by declaration.
 // Not read here: sim/v2/legend/legend.css and sim/v2/journey/journey.css (the journey timeline's
 // times), which #699 restyles together with its legend change.
 import { existsSync, readFileSync } from 'node:fs';
@@ -235,8 +238,15 @@ describe('Simulator CSS, MVP III look (#701)', () => {
   });
 
   describe('2. flat: hairline shadows only, radius at most 6 px', () => {
-    it('no box-shadow beyond a 1 px ring, no text-shadow, filter or backdrop; no radius above 6 px', () => {
-      expect(shapeProblems(parsed)).toEqual([]);
+    it('no box-shadow beyond a 1 px ring, no text-shadow, filter or backdrop; no radius above 6 px; the map pill is the one exception (#852)', () => {
+      expect(shapeProblems(parsed)).toEqual([
+        'compose/compose.css: .spc-playbar { backdrop-filter: blur(8px) }: backdrop-filter',
+        'compose/compose.css: .spc-playbar { border-radius: 26px }: radius above 6 px',
+        'controls/controls.css: .ctl-btn { border-radius: 22px }: radius above 6 px',
+      ]);
+      // The prefixed copy of the blur (Safari before 18) is the same value on the same rule.
+      const prefixed = [...decls()].filter(({ decl }) => decl.prop === '-webkit-backdrop-filter').map(({ file, rule, decl }) => at(file, rule, decl));
+      expect(prefixed).toEqual(['compose/compose.css: .spc-playbar { -webkit-backdrop-filter: blur(8px) }']);
       for (const name of ['--radius', '--radius-lg']) {
         expect(tokens.get(name), name).toMatch(/^\d+px$/);
         expect(Number.parseFloat(tokens.get(name)!), name).toBeLessThanOrEqual(MAX_RADIUS_PX);
@@ -260,12 +270,16 @@ describe('Simulator CSS, MVP III look (#701)', () => {
       expect(problems('.a { box-shadow: none; border-radius: 0; }')).toBe('');
     });
 
-    it('the only shadow is the focus ring of the playback buttons; every radius is 0 or the --radius token', () => {
+    it('there is no shadow at all; every radius is 0 or the --radius token, except the map pill and its buttons (#852)', () => {
       const shadows = [...decls()].filter(({ decl }) => decl.prop === 'box-shadow').map(({ file, rule, decl }) => at(file, rule, decl));
-      expect(shadows).toEqual(['controls/controls.css: .ctl-btn:focus-visible { box-shadow: 0 0 0 1px var(--panel, #FFFFFF) }']);
+      expect(shadows).toEqual([]);
       const radii = [...decls()].filter(({ decl }) => decl.prop.includes('radius'));
       expect(radii.length).toBeGreaterThan(20);
-      for (const { file, rule, decl } of radii) expect(decl.value, at(file, rule, decl)).toMatch(/^(0|var\(--radius, 4px\))$/);
+      const round = radii.filter(({ decl }) => !/^(0|var\(--radius, 4px\))$/.test(decl.value)).map(({ file, rule, decl }) => at(file, rule, decl));
+      expect(round).toEqual([
+        'compose/compose.css: .spc-playbar { border-radius: 26px }',
+        'controls/controls.css: .ctl-btn { border-radius: 22px }',
+      ]);
     });
   });
 
@@ -392,44 +406,48 @@ describe('Simulator CSS, MVP III look (#701)', () => {
     const CTL = 'controls/controls.css';
     const SPC = 'compose/compose.css';
 
-    it('Play/Pause is the primary button: white text on #1D5075, read from the tokens', () => {
-      expect(valueOf(CTL, '.ctl-primary', 'background')).toBe('var(--accent, #1D5075)');
-      expect(valueOf(CTL, '.ctl-primary', 'border-color')).toBe('var(--accent, #1D5075)');
-      expect(valueOf(CTL, '.ctl-primary', 'color')).toBe('var(--panel, #FFFFFF)');
-      expect(colourOf(CTL, '.ctl-primary', 'background')).toBe('#1D5075');
-      expect(colourOf(CTL, '.ctl-primary', 'color')).toBe('#FFFFFF');
-      expect(contrast('#FFFFFF', '#1D5075')).toBeGreaterThanOrEqual(7);
+    // #852: Play/Pause and "Back to start" float on the map in a dark translucent pill. The contrast of
+    // the pill over a white and over a black map is worked out in sim-v2-playbar-css.test.ts; here: the
+    // colours are the tokens.
+    it('Play/Pause is white on the ink pill, read from the tokens: no accent block, no white panel', () => {
+      expect(valueOf(SPC, '.spc-playbar', 'background')).toBe('color-mix(in srgb, var(--text, #171C24) 72%, transparent)');
+      expect(valueOf(CTL, '.ctl-btn', 'color')).toBe('var(--panel, #FFFFFF)');
+      expect(valueOf(CTL, '.ctl-btn', 'background')).toBe('transparent');
+      expect(colourOf(CTL, '.ctl-btn', 'color')).toBe('#FFFFFF');
+      expect(valueOf(CTL, '.ctl-primary', 'background')).toBeUndefined();
+      expect(valueOf(CTL, '.ctl-primary', 'color')).toBeUndefined();
+      expect(valueOf(CTL, '.ctl-primary', 'font-weight')).toBe('600');
+      // White on the ink itself (the pill over a dark map); over a white map see sim-v2-playbar-css.test.ts.
+      expect(contrast('#FFFFFF', tokens.get('--text')!)).toBeGreaterThanOrEqual(7);
     });
 
-    it('it stays white on a dark fill on hover, and reads as disabled when it is', () => {
+    it('it stays white on hover, and reads as disabled when it is', () => {
       // #725: the buttons are aria-disabled, so the states are keyed on that attribute, not on :disabled.
-      const hover = '.ctl-primary:hover:not([aria-disabled="true"])';
-      const off = '[aria-disabled="true"]';
-      expect(colourOf(CTL, hover, 'color')).toBe('#FFFFFF');
-      expect(contrast(colourOf(CTL, hover, 'color'), colourOf(CTL, hover, 'background'))).toBeGreaterThanOrEqual(7);
-      expect(colourOf(CTL, hover, 'border-color')).toBe(colourOf(CTL, hover, 'background'));
-      // The primary rules come after the plain button's, so they win at equal specificity.
+      const hover = '.ctl-btn:hover:not([aria-disabled="true"])';
+      const off = '.ctl-btn[aria-disabled="true"]';
+      expect(valueOf(CTL, hover, 'background')).toBe('color-mix(in srgb, var(--panel, #FFFFFF) 14%, transparent)');
+      expect(valueOf(CTL, hover, 'color')).toBeUndefined();
+      // Disabled: the same white, dimmed; no hover fill (the hover rule excludes it).
+      expect(valueOf(CTL, off, 'color')).toBe('color-mix(in srgb, var(--panel, #FFFFFF) 60%, transparent)');
+      expect(valueOf(CTL, off, 'cursor')).toBe('not-allowed');
       const order = parsed.get(CTL)!.flatMap(selectorsOf);
-      expect(order.indexOf(hover)).toBeGreaterThan(order.indexOf('.ctl-btn:hover:not([aria-disabled="true"])'));
-      expect(order.indexOf(`.ctl-primary${off}`)).toBeGreaterThan(order.indexOf('.ctl-primary'));
-      // Disabled: muted text on the page background, at least 4.5:1, and no accent border left.
-      expect(contrast(colourOf(CTL, `.ctl-btn${off}`, 'color'), colourOf(CTL, `.ctl-btn${off}`, 'background'))).toBeGreaterThanOrEqual(4.5);
-      expect(tokenOf(valueOf(CTL, `.ctl-primary${off}`, 'border-color'))).toBe('--border');
+      expect(order.indexOf(off)).toBeGreaterThan(order.indexOf('.ctl-btn'));
     });
 
-    it('its focus ring is visible: a 2 px accent outline kept off the accent fill by a 1 px white ring', () => {
-      expect(valueOf(CTL, '.ctl-btn:focus-visible', 'outline')).toBe('2px solid var(--accent, #1D5075)');
-      expect(Number.parseFloat(valueOf(CTL, '.ctl-btn:focus-visible', 'outline-offset') ?? '')).toBeGreaterThanOrEqual(1);
-      expect(valueOf(CTL, '.ctl-btn:focus-visible', 'box-shadow')).toBe('0 0 0 1px var(--panel, #FFFFFF)');
-      // The outline against the panel the buttons sit on.
-      expect(contrast('#1D5075', tokens.get('--panel')!)).toBeGreaterThanOrEqual(3);
+    it('its focus ring is visible: a 2 px white outline inside the button, on the ink of the pill', () => {
+      expect(valueOf(CTL, '.ctl-btn:focus-visible', 'outline')).toBe('2px solid var(--panel, #FFFFFF)');
+      expect(Number.parseFloat(valueOf(CTL, '.ctl-btn:focus-visible', 'outline-offset') ?? '')).toBeLessThan(0);
+      expect(valueOf(CTL, '.ctl-btn:focus-visible', 'box-shadow')).toBeUndefined();
+      expect(contrast('#FFFFFF', tokens.get('--text')!)).toBeGreaterThanOrEqual(3);
     });
 
-    it('every focus style in the files is the 2 px accent outline, and none is removed', () => {
+    it('every other focus style in the files is the 2 px accent outline, and none is removed', () => {
       const focus = [...parsed].flatMap(([file, rules]) => rules.filter((r) => /:focus-visible/.test(r.selector)).map((rule) => ({ file, rule })));
       expect(focus.length).toBeGreaterThanOrEqual(6);
       for (const { file, rule } of focus) {
-        expect(rule.decls.find((d) => d.prop === 'outline')?.value, `${file} ${rule.selector}`).toBe('2px solid var(--accent, #1D5075)');
+        const pill = file === CTL && rule.selector.trim() === '.ctl-btn:focus-visible';
+        expect(rule.decls.find((d) => d.prop === 'outline')?.value, `${file} ${rule.selector}`)
+          .toBe(pill ? '2px solid var(--panel, #FFFFFF)' : '2px solid var(--accent, #1D5075)');
       }
       for (const { file, rule, decl } of decls()) {
         if (decl.prop === 'outline') expect(decl.value, at(file, rule, decl)).not.toMatch(/^(none|0)$/);
