@@ -190,21 +190,23 @@
   gap: var(--space-1);
   min-width: 0;
 }
-/* One line per step (#832): what happens, "Next" on the step ahead, and the time at the right. */
+/* A step (#832, issue 908): what happens as one sentence, which has the row to itself (it takes one or
+   two lines in the 360 px panel), and under it the time, with "Next" after it on the step ahead. */
 .jt-step__head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0 var(--space-2);
 }
-.jt-step__label {
-  flex: 1 1 auto;
+.jt-step__sentence {
+  flex: 1 0 100%;
   font-weight: 600;
 }
-.jt-step--upcoming .jt-step__label {
+.jt-step--upcoming .jt-step__sentence {
   color: var(--muted);
 }
 .jt-step__time {
+  order: 1;
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -227,6 +229,7 @@
   color: var(--muted);
 }
 .jt-step__state {
+  order: 2;
   color: var(--muted);
   font-size: var(--text-xs);
 }
@@ -254,6 +257,44 @@
 .jt-step--upcoming .jt-step__short,
 .jt-step--upcoming .jt-step__place {
   color: var(--muted);
+}
+
+/* The end of the journey (issue 908): one line under the last step, in line with the steps' text. The
+   paragraph is laid out as a step's button is (the same padding, border and gap, and an empty box as wide
+   as the symbol column), so its text starts where the sentences do. The package arrived, and the next
+   step: the name of the Play bar's button, and the link to the study page in the accent with an underline. */
+.jt__end {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-1) var(--space-4) var(--space-2);
+  border-left: 2px solid transparent;
+}
+.jt__end::before {
+  content: '';
+  flex: 0 0 24px;
+}
+.jt__end-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* The button's name, set as the button's label is: 600, the heaviest loaded Inter (#737). */
+.jt__end-name {
+  font-weight: 600;
+}
+.jt__end-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.jt__end-link:hover {
+  color: var(--accent-dark);
+}
+.jt__end-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
 
 /* ---------- Legend ----------
