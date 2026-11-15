@@ -14,16 +14,36 @@ export type EmployeeWorkspaceProps = {
   /** When provided, replaces the commute summary (e.g. the commute form). */
   editor?: ReactNode;
   onEditCommute?: () => void;
+  /**
+   * false when the page around the workspace renders <NewJobAnnouncer> itself (#735), so the region
+   * stays in place while a job view replaces the workspace. Default true: the workspace has the region.
+   */
+  announce?: boolean;
 };
 
+/**
+ * The one hidden live region for new jobs (#633). Always rendered, so it is in place before a message
+ * arrives. Each message is its own element and the region is not atomic: a second new job is read
+ * alone, and a message that leaves (tag cleared, run changed) is not read again.
+ */
+export function NewJobAnnouncer({ dashboard, newJobIds }: Pick<EmployeeWorkspaceProps, 'dashboard' | 'newJobIds'>) {
+  const announcements = newJobAnnouncements(dashboard, newJobIds);
+  return (
+    <div className="ew-sr ew-announce" role="status" aria-live="polite" aria-atomic="false">
+      {announcements.map((a) => <p key={a.id}>{a.message}</p>)}
+    </div>
+  );
+}
+
 /** MVP II Employee workspace (docs/mvp2-ui-redesign.md §2). Renders props through the pure model. */
-export function EmployeeWorkspace({ dashboard, businesses, newJobIds, editor, onEditCommute }: EmployeeWorkspaceProps) {
+export function EmployeeWorkspace({
+  dashboard, businesses, newJobIds, editor, onEditCommute, announce = true,
+}: EmployeeWorkspaceProps) {
   const summary = commuteSummary(dashboard, businesses);
   const assigned = deliveryRows(dashboard.assigned, businesses, summary.homeNeighborhood);
   const completed = deliveryRows(dashboard.completed, businesses, summary.homeNeighborhood);
   const money = earnings(dashboard);
   const locked = dashboard.phase === 'locked';
-  const announcements = newJobAnnouncements(dashboard, newJobIds);
 
   return (
     <div className="ew">
@@ -64,12 +84,7 @@ export function EmployeeWorkspace({ dashboard, businesses, newJobIds, editor, on
         emptyText="No completed deliveries yet."
       />
 
-      {/* The one hidden live region for new jobs (#633). Always rendered, so it is in place before a
-          message arrives. Each message is its own element and the region is not atomic: a second new
-          job is read alone, and a message that leaves (tag cleared, run changed) is not read again. */}
-      <div className="ew-sr ew-announce" role="status" aria-live="polite" aria-atomic="false">
-        {announcements.map((a) => <p key={a.id}>{a.message}</p>)}
-      </div>
+      {announce && <NewJobAnnouncer dashboard={dashboard} newJobIds={newJobIds} />}
     </div>
   );
 }

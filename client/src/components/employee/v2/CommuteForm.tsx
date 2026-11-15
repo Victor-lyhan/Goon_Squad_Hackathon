@@ -33,6 +33,11 @@ export type CommuteFormProps = {
   phase: Phase;
   homeControl?: (args: HomeControlArgs) => ReactNode;
   onSave: (req: PutCommuteRequest) => Promise<CommuteResponse>;
+  /**
+   * false when the page around the form announces the save itself (#735): the message below the buttons
+   * is then plain text, so a screen reader hears each result once. Default true: the form's own live region.
+   */
+  announce?: boolean;
   /** Starting draft and save state, for static renders of each state. */
   initialDraft?: Draft;
   initialSaveState?: SaveState;
@@ -47,7 +52,7 @@ type FormState = {
 };
 
 export function CommuteForm({
-  employee, home, businesses, phase, homeControl, onSave, initialDraft, initialSaveState,
+  employee, home, businesses, phase, homeControl, onSave, announce = true, initialDraft, initialSaveState,
 }: CommuteFormProps) {
   const [form, setForm] = useState<FormState>(() => ({
     draft: initialDraft ?? draftFromSaved(employee, home),
@@ -84,6 +89,7 @@ export function CommuteForm({
   // first invalid field (#550), so a keyboard user learns which one is wrong.
   const canPress = !locked && !saving && dirty;
   const formRef = useRef<HTMLFormElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
   const message = saveMessage(save, phase);
 
   const update = (patch: Partial<Draft>) => {
@@ -104,6 +110,10 @@ export function CommuteForm({
       focusFirstInvalid(validation.errors);
       return;
     }
+    // The fields are disabled while the save is pending, and a disabled control drops focus to <body>
+    // (#735). Enter in a field therefore hands focus to Save first, which stays focusable (see below).
+    const active = formRef.current?.ownerDocument.activeElement;
+    if (active && active !== submitRef.current && formRef.current?.contains(active)) submitRef.current?.focus();
     dispatch({ type: 'start' });
     try {
       const res = await onSave(validation.request);
@@ -278,7 +288,15 @@ export function CommuteForm({
       </div>
 
       <div className="cf-actions">
-        <button type="submit" className="cf-btn cf-btn-primary" disabled={!canPress}>
+        {/* While saving the button is aria-disabled, not disabled (#735): it keeps the focus it had when
+            it was pressed, so after a failed save the next Enter tries again. submit() ignores a press. */}
+        <button
+          type="submit"
+          className="cf-btn cf-btn-primary"
+          ref={submitRef}
+          disabled={!canPress && !saving}
+          aria-disabled={saving || undefined}
+        >
           {saving ? 'Saving…' : 'Save commute'}
         </button>
         <button type="button" className="cf-btn" disabled={locked || saving || !dirty} onClick={discard}>
@@ -288,8 +306,8 @@ export function CommuteForm({
 
       <div
         className={`cf-message${message ? ` cf-message-${message.role}` : ''}`}
-        role={message?.role ?? 'status'}
-        aria-live={message?.role === 'alert' ? 'assertive' : 'polite'}
+        role={announce ? message?.role ?? 'status' : undefined}
+        aria-live={announce ? (message?.role === 'alert' ? 'assertive' : 'polite') : undefined}
       >
         {message?.text ?? ''}
       </div>

@@ -154,15 +154,17 @@
   color: var(--panel, #FFFFFF);
 }
 
-.cf-btn:hover:not(:disabled) {
+.cf-btn:hover:not(:disabled):not([aria-disabled='true']) {
   border-color: var(--accent-dark, #173E5B);
 }
 
-.cf-btn-primary:hover:not(:disabled) {
+.cf-btn-primary:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--accent-dark, #173E5B);
 }
 
+/* Save is aria-disabled while a save is pending (#735: it keeps focus), and looks disabled. */
 .cf-btn:disabled,
+.cf-btn[aria-disabled='true'],
 .cf select:disabled,
 .cf input:disabled {
   opacity: 0.55;
@@ -175,6 +177,23 @@
   outline: none;
   border-color: var(--accent, #1D5075);
   box-shadow: 0 0 0 1px var(--accent, #1D5075);
+}
+
+/* A checkbox is filled with the accent, so a 1px accent ring around it cannot be seen (#735): it gets
+   the outline of the page's buttons and links instead. */
+.cf-check input:focus-visible {
+  outline: 2px solid var(--accent, #1D5075);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* The time field's picker button is a tab stop of its own in Chrome, with a ring in the system blue
+   (#735). A page cannot select "the picker button has focus"; it is the one state in which the field
+   holds the focus without having it itself, so that is what gives the button the page's ring. */
+.cf input[type='time']:focus-within:not(:focus)::-webkit-calendar-picker-indicator {
+  outline: 2px solid var(--accent, #1D5075);
+  outline-offset: 2px;
+  border-radius: var(--radius, 4px);
 }
 
 .cf-message:empty {

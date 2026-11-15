@@ -11,7 +11,7 @@ import type { SearchFn } from '../addressSearchModel';
 import { CommuteForm, type HomeControlArgs } from '../CommuteForm';
 import type { Draft } from '../commuteFormModel';
 import { CommuteSummary } from '../CommuteSummary';
-import { EmployeeWorkspace } from '../EmployeeWorkspace';
+import { EmployeeWorkspace, NewJobAnnouncer } from '../EmployeeWorkspace';
 import { commuteSummary } from '../employeeWorkspaceModel';
 import { JobDetailV2, JobV2Missing, JobV2Other } from '../JobDetailV2';
 import { RECONNECTING_TEXT, RUN_CHANGED_NOTE, type EmployeeWorkspaceState } from '../live/employeeWorkspaceState';
@@ -50,6 +50,10 @@ function focusStatic(el: HTMLElement | null | undefined) {
   el.focus();
 }
 
+/** A control the browser has switched off: disabled itself, or inside a disabled fieldset. */
+const isSwitchedOff = (el: Element) =>
+  (el as HTMLButtonElement).disabled === true || el.closest('fieldset[disabled]') !== null;
+
 export function EmployeePageView({
   state, jobId, saveCommute, refetchNow, markSeen, onCloseJob, search, employeeHref, routePreview,
   initialEditing = false, initialOutcome = null, initialDraft,
@@ -73,14 +77,28 @@ export function EmployeePageView({
 
   useEffect(() => { if (jobId) markSeen(jobId); }, [jobId, markSeen]);
 
-  // Focus after the editor or a job closes (#550). The element to focus only exists after the re-render,
-  // so the close handlers set a flag and a layout effect moves focus once the DOM is in place.
-  // The shell has the only main landmark (#584), so this root is a div.
+  // Focus after the editor opens (#735), and after the editor or a job closes (#550). The element to
+  // focus only exists after the re-render, so the handlers set a flag and a layout effect moves focus
+  // once the DOM is in place. The shell has the only main landmark (#584), so this root is a div.
   const rootRef = useRef<HTMLDivElement>(null);
+  const focusEditor = useRef(false);
   const focusEdit = useRef(false);
   const lastJob = useRef(jobId);
   useLayoutEffect(() => {
     const root = rootRef.current;
+    if (editing && root) {
+      const heading = root.querySelector<HTMLElement>('#ep-editor-heading');
+      // "Edit commute" was replaced by the editor: its heading takes the focus, so the next Tab is the
+      // editor's first control and Esc closes it at once.
+      if (focusEditor.current) heading?.focus();
+      // A control that is switched off while it has focus (the server refuses the save because the run
+      // is locked, or a poll brings the lock) would drop focus to <body>: the heading takes it.
+      const active = root.ownerDocument.activeElement;
+      if (active && active !== heading && root.querySelector('.ep-editor')?.contains(active) && isSwitchedOff(active)) {
+        heading?.focus();
+      }
+    }
+    focusEditor.current = false;
     if (focusEdit.current && !editing) {
       focusEdit.current = false;
       root?.querySelector<HTMLButtonElement>('.ew-commute .ew-btn')?.focus(); // CommuteSummary's Edit commute
@@ -189,7 +207,7 @@ export function EmployeePageView({
   const commuteBlock = editing ? (
     <section className="ep-editor" aria-labelledby="ep-editor-heading" onKeyDown={onEditorKeyDown}>
       <div className="ep-editor-head">
-        <h2 id="ep-editor-heading">Edit commute</h2>
+        <h2 id="ep-editor-heading" tabIndex={-1}>Edit commute</h2>
         <button
           type="button"
           className="ep-btn"
@@ -199,8 +217,9 @@ export function EmployeePageView({
           Close
         </button>
       </div>
+      {/* No role here or on the form's message after a save (#735): the page's live region says them. */}
       {pageNotice && (
-        <p className={`ep-notice${pageNotice.role === 'alert' ? ' ep-problem' : ''}`} role={pageNotice.role}>
+        <p className={`ep-notice${pageNotice.role === 'alert' ? ' ep-problem' : ''}`}>
           {pageNotice.text}
         </p>
       )}
@@ -213,6 +232,9 @@ export function EmployeePageView({
           phase={dashboard.phase}
           homeControl={homeControl}
           onSave={onSave}
+          // A save is said by the page's live region; with no save in play the form's own region still
+          // says its one other message (the run was locked while the editor was open).
+          announce={!outcome}
           initialDraft={initialDraft}
         />
       </div>
@@ -220,7 +242,7 @@ export function EmployeePageView({
   ) : (
     <CommuteSummary
       model={commuteSummary(dashboard, businesses)}
-      onEdit={() => { setEditing(true); setOutcome(null); }}
+      onEdit={() => { focusEditor.current = true; setEditing(true); setOutcome(null); }}
       editDisabled={locked}
     />
   );
@@ -241,7 +263,7 @@ export function EmployeePageView({
           </button>
         </p>
       )}
-      {savedNotice && <p className="ep-notice ep-success" role="status">{savedNotice.text}</p>}
+      {savedNotice && <p className="ep-notice ep-success">{savedNotice.text}</p>}
     </div>
   );
 
@@ -251,6 +273,7 @@ export function EmployeePageView({
       businesses={businesses}
       newJobIds={state.newJobIds}
       editor={<>{commuteBlock}{routePreview}</>}
+      announce={false}
     />
   );
 
@@ -287,6 +310,13 @@ export function EmployeePageView({
       {notices}
       {jobScreen && <h1 className="ep-name">{dashboard.employee.name}</h1>}
       {body}
+      {/* The page's two hidden polite live regions (#735). They are here on every screen of a loaded
+          workspace, so each is in place before its text arrives and neither is put into the page a second
+          time when a job view opens or closes. The first says the state of a commute save ("Saving",
+          "Commute saved.", or why it failed) once: the visible notices carry no role of their own, and a
+          poll that changes nothing leaves the text node alone. The second says each new delivery (#633). */}
+      <div className="ew-sr ep-announce" role="status" aria-live="polite" aria-atomic="true">{notice?.text ?? ''}</div>
+      <NewJobAnnouncer dashboard={dashboard} newJobIds={state.newJobIds} />
     </div>
   );
 }

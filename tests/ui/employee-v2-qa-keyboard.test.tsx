@@ -178,15 +178,27 @@ describe('announcements (#478)', () => {
     expect(textOf(msg)).toBe('Fix the fields below.');
   });
 
-  it('the save result is a status and a 503 is an alert', () => {
+  it("the save result and a 503 of the save are said by the page's one polite region (#735)", () => {
+    // The visible notice has no role of its own, so the text is announced once, by the region.
+    const live = (root: El, text: string) => all(root, (e) => (e.attrs.role === 'status' || e.attrs.role === 'alert'
+      || e.attrs['aria-live'] !== undefined) && textOf(e).includes(text));
     const saved = page(ready(), { initialOutcome: { kind: 'saved', matched: 1 } });
     const ok = all(saved, (e) => textOf(e).startsWith('Commute saved') && e.tag === 'p')[0];
-    expect(ok.attrs.role).toBe('status');
+    expect(ok.attrs.role).toBeUndefined();
+    const said = live(saved, 'Commute saved');
+    expect(said).toHaveLength(1);
+    expect(said[0].attrs).toMatchObject({ role: 'status', 'aria-live': 'polite' });
+    expect((said[0].attrs.class ?? '').split(' ')).toContain('ep-announce');
 
     const e503 = outcomeFromError(new ApiRequestError(503, 'x', undefined, 'http', 'travel_data_missing'));
     const editing = page(ready(), { initialEditing: true, initialOutcome: e503 });
-    const alert = all(editing, (e) => e.attrs.role === 'alert' && textOf(e).includes(TRAVEL_DATA_MISSING_TEXT));
-    expect(alert.length).toBeGreaterThan(0);
+    const error = live(editing, TRAVEL_DATA_MISSING_TEXT);
+    expect(error).toHaveLength(1);
+    expect(error[0].attrs).toMatchObject({ role: 'status', 'aria-live': 'polite' });
+    // It is still on screen in the editor, as text.
+    const shown = all(editing, (e) => e.tag === 'p' && (e.attrs.class ?? '').includes('ep-problem') && textOf(e).includes(TRAVEL_DATA_MISSING_TEXT));
+    expect(shown).toHaveLength(1);
+    expect(shown[0].attrs.role).toBeUndefined();
 
     const unavailable = page({ ...initialWorkspaceState, view: 'unavailable', unavailable: { code: 'travel_data_missing', message: TRAVEL_DATA_MISSING_TEXT } });
     const box = all(unavailable, (e) => e.attrs.role === 'alert')[0];
