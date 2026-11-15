@@ -162,7 +162,7 @@ describe('AddressSearch.css', () => {
   });
 
   it('reads tokens with fallbacks and has a 390 px rule with 40 px+ touch targets', () => {
-    expect(css).toContain('var(--accent, #1D5075)');
+    expect(css).toContain('var(--paper-text, #14171F)'); // issue 957: the night-shift tokens, with their fallback
     expect(css).toContain('var(--radius, 4px)');
     expect(css).toMatch(/@media \(max-width: 480px\)/); // #882: phone rules from 480 px down, so 390 px has them
     expect(css).toMatch(/min-height: 4\dpx/);

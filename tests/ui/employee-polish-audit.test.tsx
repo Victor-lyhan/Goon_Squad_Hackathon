@@ -288,13 +288,17 @@ describe('#882 words: the simulator\'s status words, no jargon, numbers in mono'
     expect(STOP_ACTION.hub_pickup).toContain('relay point');
   });
 
-  it('every time, distance, duration and amount of money is set in IBM Plex Mono', () => {
-    // The selectors this folder's CSS sets in the mono family, read from the CSS itself.
-    const mono = ALL_RULES
-      .filter((r) => r.decls.some((d) => (d.prop === 'font-family' || d.prop === 'font') && d.value.includes('--font-mono')))
+  // Issue 957: IBM Plex Mono is for times and prices only (a distance is in the body font), and the page's
+  // big numbers (the next job's clocks and reward, the earnings) are Archivo.
+  it('every time, duration and amount of money is set in IBM Plex Mono, or in Archivo when it is a big number', () => {
+    // The selectors this folder's CSS sets in the mono and the display family, read from the CSS itself.
+    const setIn = (token: string) => ALL_RULES
+      .filter((r) => r.decls.some((d) => (d.prop === 'font-family' || d.prop === 'font') && d.value.includes(token)))
       .flatMap(selectors);
+    const mono = [...setIn('--font-mono'), ...setIn('--font-display')];
     expect(mono).toEqual(expect.arrayContaining(['.ew-mono', '.job-v2__time', '.job-v2__trip', '.job-v2__number dd']));
-    const NUMBER = /\d{1,2}:\d{2}\s?(AM|PM)|\$\d|\b\d+(\.\d+)?\s?(km|min|m)\b/;
+    expect(mono).toEqual(expect.arrayContaining(['.ew-pass-time', '.ew-pass-reward', '.ew-earnings dd']));
+    const NUMBER = /\d{1,2}:\d{2}\s?(AM|PM)|\$\d|\b\d+(\.\d+)?\s?min\b/;
     const inMono = (e: El | null): boolean => !!e && (mono.some((s) => matchesSelector(e, s)) || inMono(e.parent));
     let seen = 0;
     for (const [name, html] of screens) {
@@ -373,13 +377,20 @@ describe('#882 the job route is a checklist', () => {
   it('a row is at least 44 px tall and one column of text at 390 px; done is never the colour alone', () => {
     const css = cssOf('JobDetailV2.css');
     expect(base(css, '.job-v2__stop', 'min-height')).toBe('44px');
-    expect(base(css, '.job-v2__stop', 'grid-template-columns')).toBe('18px 136px minmax(0, 1fr)');
-    expect(at390(css, '.job-v2__stop', 'grid-template-columns')).toBe('18px minmax(0, 1fr)');
+    // Issue 957: the row is a station of the route line: the time, the mark, then the words.
+    expect(base(css, '.job-v2__stop', 'grid-template-columns')).toBe('132px 20px minmax(0, 1fr)');
+    expect(at390(css, '.job-v2__stop', 'grid-template-columns')).toBe('20px minmax(0, 1fr)');
     expect(at390(css, '.job-v2__stop-body', 'grid-column')).toBe('2');
-    expect(base(css, '.job-v2__check', 'width')).toBe('18px');
-    expect(base(css, ".job-v2__stop[data-done='true'] .job-v2__check", 'background')).toBe('var(--ok, #2F6B4F)');
-    // The old timeline rule down the left side went with the boxes.
+    expect(base(css, '.job-v2__check', 'width')).toBe('20px');
+    // Done fills the mark with ink (and the tick is paper); the action's words keep their colour.
+    expect(base(css, ".job-v2__stop[data-done='true'] .job-v2__check", 'background')).toBe('var(--paper-text, #14171F)');
+    expect(css.some((r) => r.selector.includes("[data-done='true'] .job-v2__action"))).toBe(false);
+    // The line runs through the marks (a rule per row), from the first mark to the last, not down the list's side.
     expect(base(css, '.job-v2__route', 'border-left')).toBeUndefined();
+    expect(base(css, '.job-v2__stop::before', 'left')).toBe('157px'); // 132 + 16 + half of the 20 px mark, less 1
+    expect(at390(css, '.job-v2__stop::before', 'left')).toBe('9px');
+    expect(base(css, '.job-v2__stop:first-child::before', 'top')).toBe('22px');
+    expect(base(css, '.job-v2__stop:last-child::before', 'height')).toBe('22px');
   });
 });
 
@@ -429,7 +440,8 @@ describe('#882 44 px touch targets on a phone', () => {
 describe('#882 keyboard and screen reader', () => {
   it('a row\'s two links are named after its package and still start with the words on screen', () => {
     const root = parseHtml(page(ready()));
-    const rows = all(root, (e) => e.attrs.class === 'ew-row');
+    // The first assigned row is the boarding pass ("ew-row ew-pass"); it has the same two links.
+    const rows = all(root, (e) => (e.attrs.class ?? '').split(/\s+/).includes('ew-row'));
     expect(rows.length).toBe(dashboard.assigned.length + dashboard.completed.length);
     const names: string[] = [];
     for (const row of rows) {
@@ -465,7 +477,7 @@ describe('#882 keyboard and screen reader', () => {
     for (const prop of ['min-height', 'border', 'color', 'font-weight', 'background']) {
       expect(base(pageCss, '.ep-btn', prop), prop).toBe(base(work, '.ew-btn', prop));
     }
-    expect(base(pageCss, '.ep-btn', 'color')).toBe('var(--accent, #1D5075)');
+    expect(base(pageCss, '.ep-btn', 'color')).toBe('var(--paper-text, #14171F)'); // issue 957: an ink outline
     expect(base(pageCss, '.ep-btn', 'min-height')).toBe('36px');
     // The link-style button inside a note stays a text link.
     expect(base(pageCss, '.ep-btn-link', 'font-weight')).toBe('400');
@@ -482,11 +494,14 @@ describe('#882 keyboard and screen reader', () => {
     expect(base(cssOf('AddressSearch.css'), '.addr-search', 'max-width')).toBe('560px');
   });
 
-  it('the job title\'s focus ring is around the title, and the numbers box has one bottom line', () => {
+  it('the job title\'s focus ring is around the title, and the numbers are four facts with no box', () => {
     const css = cssOf('JobDetailV2.css');
     expect(base(css, '.job-v2__title', 'align-self')).toBe('flex-start');
     expect(base(css, '.job-v2__title', 'max-width')).toBe('100%');
-    expect(base(css, '.job-v2__number', 'margin-bottom')).toBe('-1px');
-    expect(base(css, '.job-v2__numbers', 'overflow')).toBe('hidden');
+    // Issue 957: no boxes around the numbers any more, so there is no doubled bottom line to pull up.
+    for (const s of ['.job-v2__numbers', '.job-v2__number']) {
+      for (const prop of ['border', 'border-bottom']) expect(base(css, s, prop), `${s} ${prop}`).toBeUndefined();
+    }
+    expect(base(css, '.job-v2__numbers', 'grid-template-columns')).toBe('repeat(4, minmax(0, 1fr))');
   });
 });

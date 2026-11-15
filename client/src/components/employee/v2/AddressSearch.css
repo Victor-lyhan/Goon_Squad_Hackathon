@@ -1,6 +1,7 @@
-/* Home address search (#331), MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius,
-   no shadow except the 1px focus ring. Tokens are read as var(--name, fallback); every fallback is
-   the value in client/src/styles/tokens.css. No time, distance or reward here, so no mono. */
+/* Home address search (#331) in the "night-shift transit ops" look (issue 957): a white field on paper
+   with a border dark enough to see, ink outline buttons, no shadow. Colours are read as
+   var(--name, fallback); every fallback is the value in client/src/styles/tokens.css. No time or price
+   here, so no mono. */
 
 .addr-search {
   position: relative;
@@ -8,7 +9,7 @@
   flex-direction: column;
   gap: var(--space-2, 8px);
   max-width: 560px;
-  color: var(--text, #171C24);
+  color: var(--paper-text, #14171F);
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
   font-size: var(--text-md, 14px);
   line-height: 1.45;
@@ -16,7 +17,7 @@
 
 .addr-search__label {
   font-weight: 600;
-  color: var(--text, #171C24);
+  color: var(--paper-text, #14171F);
 }
 
 .addr-search__field {
@@ -29,23 +30,22 @@
   min-width: 0;
   min-height: 40px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--paper-muted, #5A5F6B);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  color: var(--paper-text, #14171F);
   font: inherit;
 }
 
 .addr-search__input:focus-visible,
 .addr-search__btn:focus-visible {
-  outline: none;
-  border-color: var(--accent, #1D5075);
-  box-shadow: 0 0 0 1px var(--accent, #1D5075);
+  outline: 2px solid var(--paper-text, #14171F);
+  outline-offset: 2px;
 }
 
 .addr-search__input[readonly] {
-  background: var(--accent-soft, #E8EEF1);
-  color: var(--muted, #5B6472);
+  background: var(--paper, #F4F2EC);
+  color: var(--paper-muted, #5A5F6B);
   cursor: not-allowed;
 }
 
@@ -53,7 +53,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--paper-muted, #5A5F6B);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   max-height: 280px;
@@ -70,7 +70,7 @@
   justify-content: center;
   min-height: 40px;
   padding: var(--space-1, 4px) var(--space-3, 12px);
-  border-top: 1px solid var(--border, #E3E3DE);
+  border-top: 1px solid var(--paper-line, #DCD8CE);
   cursor: pointer;
 }
 
@@ -80,16 +80,16 @@
 
 .addr-search__option:hover,
 .addr-search__option--active {
-  background: var(--accent-soft, #E8EEF1);
+  background: var(--paper, #F4F2EC);
 }
 
 .addr-search__option--active {
-  border-left: 2px solid var(--accent, #1D5075);
-  padding-left: calc(var(--space-3, 12px) - 2px);
+  border-left: 4px solid var(--paper-text, #14171F);
+  padding-left: calc(var(--space-3, 12px) - 4px);
 }
 
 .addr-search__option-hood {
-  color: var(--muted, #5B6472);
+  color: var(--paper-muted, #5A5F6B);
   font-size: var(--text-xs, 12px);
 }
 
@@ -98,7 +98,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2, 8px);
-  color: var(--muted, #5B6472);
+  color: var(--paper-muted, #5A5F6B);
   min-height: 1em;
 }
 
@@ -121,22 +121,23 @@
 .addr-search__btn {
   min-height: 40px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--accent, #1D5075);
+  border: 1px solid var(--paper-text, #14171F);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--accent, #1D5075);
+  background: none;
+  color: var(--paper-text, #14171F);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
 .addr-search__btn:hover:not(:disabled) {
-  background: var(--accent-soft, #E8EEF1);
+  background: var(--paper-text, #14171F);
+  color: var(--on-ink, #F4F2EC);
 }
 
 .addr-search__btn:disabled {
-  border-color: var(--border, #E3E3DE);
-  color: var(--muted, #5B6472);
+  border-color: var(--paper-line, #DCD8CE);
+  color: var(--paper-muted, #5A5F6B);
   cursor: not-allowed;
 }
 
@@ -148,8 +149,8 @@ fieldset:disabled .addr-search__list {
 }
 
 fieldset:disabled .addr-search__input {
-  background: var(--accent-soft, #E8EEF1);
-  color: var(--muted, #5B6472);
+  background: var(--paper, #F4F2EC);
+  color: var(--paper-muted, #5A5F6B);
   cursor: not-allowed;
 }
 

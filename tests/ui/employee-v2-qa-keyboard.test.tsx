@@ -58,22 +58,29 @@ function walkTabs(root: El): string[] {
 }
 
 describe('keyboard walk (#478)', () => {
-  it('workspace: Edit commute, then each delivery row (View job, Watch in simulator)', () => {
+  // Issue 957: the assigned list (the next job's pass first) is above the commute, so Tab reaches it first.
+  it('workspace: the assigned rows (View job, Watch in simulator), Edit commute, then the completed rows', () => {
     const root = page({ ...ready(), newJobIds: [dashboard.assigned[0].job.id] });
     const names = walkTabs(root);
-    expect(names[0]).toBe('Edit commute');
     // #882: a row's two links are named after its package, so two rows do not both read "View job".
-    const labels = [...dashboard.assigned, ...dashboard.completed].map((v) => v.shipment.label);
-    expect(names.slice(1)).toEqual(labels.flatMap((l) => [`View job: ${l}`, `Watch in simulator: ${l}`]));
-    // Every delivery row is reachable: each has both links.
-    for (const row of all(root, (e) => e.attrs.class === 'ew-row')) {
+    const links = (views: typeof dashboard.assigned) => views.flatMap((v) => [`View job: ${v.shipment.label}`, `Watch in simulator: ${v.shipment.label}`]);
+    expect(names).toEqual([...links(dashboard.assigned), 'Edit commute', ...links(dashboard.completed)]);
+    // Every delivery row is reachable, the boarding pass included: each has both links.
+    const rows = all(root, (e) => (e.attrs.class ?? '').split(/\s+/).includes('ew-row'));
+    expect(rows).toHaveLength(dashboard.assigned.length + dashboard.completed.length);
+    expect(rows[0].attrs.class).toBe('ew-row ew-pass');
+    for (const row of rows) {
       expect(tabOrder(row).map((e) => textOf(e))).toEqual(['View job', 'Watch in simulator']);
     }
   });
 
   it('commute editor: Close, workplace, address, departure times, availability, detour limit, Save and Discard', () => {
     const dirty = { ...draftFromSaved(dashboard.employee, dashboard.home), maxExtraMin: 20 };
-    const names = walkTabs(page(ready(), { initialEditing: true, initialDraft: dirty }));
+    const all13 = walkTabs(page(ready(), { initialEditing: true, initialDraft: dirty }));
+    // The assigned rows come before the editor (issue 957), two links each.
+    const before = dashboard.assigned.length * 2;
+    expect(all13.slice(0, 2)).toEqual([`View job: ${dashboard.assigned[0].shipment.label}`, `Watch in simulator: ${dashboard.assigned[0].shipment.label}`]);
+    const names = all13.slice(before);
     expect(names.slice(0, 11)).toEqual([
       'Close',
       'Workplace',
@@ -87,8 +94,8 @@ describe('keyboard walk (#478)', () => {
       'Save commute',
       'Discard changes',
     ]);
-    // The delivery rows follow the editor.
-    const first = dashboard.assigned[0].shipment.label;
+    // The completed rows follow the editor.
+    const first = dashboard.completed[0].shipment.label;
     expect(names.slice(11, 13)).toEqual([`View job: ${first}`, `Watch in simulator: ${first}`]);
   });
 
@@ -227,25 +234,24 @@ describe('page order at 390 px (#478)', () => {
   const headings = (root: El) => all(root, (e) => e.tag === 'h1' || e.tag === 'h2').map(textOf);
   const sections = (root: El) => all(root, (e) => e.tag === 'section' || e.attrs['data-qa'] === 'route');
 
-  it('the saved commute is the first section, above the route preview and deliveries', () => {
+  // Issue 957 changed the order #478 set: the next job is the page's one bold element, so the band with the
+  // earnings and the assigned list comes first; the commute follows with the route preview right under it.
+  it('the earnings and the assigned list come first, then the saved commute with the route preview under it', () => {
     const root = page(
       { ...ready(), newJobIds: [dashboard.assigned[0].job.id] },
       { routePreview: <div data-qa="route">ROUTE</div>, initialOutcome: { kind: 'saved', matched: 0 } },
     );
-    const first = sections(root)[0];
-    expect(first.attrs['aria-labelledby']).toBe('ew-commute-heading');
-    expect(sections(root)[1].attrs['data-qa']).toBe('route');
-    const h = headings(root);
-    expect(h[0]).toBe('Maya Chen');
-    expect(h[1]).toBe('Saved commute');
-    expect(h.indexOf('Saved commute')).toBeLessThan(h.indexOf('Assigned deliveries'));
+    expect(sections(root).map((e) => e.attrs['aria-labelledby'] ?? e.attrs['data-qa'])).toEqual([
+      'ew-earnings-heading', 'ew-assigned-heading', 'ew-commute-heading', 'route', 'ew-completed-heading',
+    ]);
+    expect(headings(root)).toEqual(['Maya Chen', 'Earnings', 'Assigned deliveries', 'Saved commute', 'Completed deliveries']);
   });
 
-  it('the commute editor takes the same first place while editing', () => {
+  it('the commute editor takes the commute\'s place while editing', () => {
     const root = page(ready(), { initialEditing: true, routePreview: <div data-qa="route">ROUTE</div> });
-    expect(sections(root)[0].attrs['aria-labelledby']).toBe('ep-editor-heading');
-    const h = headings(root);
-    expect(h.slice(0, 2)).toEqual(['Maya Chen', 'Edit commute']);
-    expect(h.indexOf('Edit commute')).toBeLessThan(h.indexOf('Assigned deliveries'));
+    expect(sections(root).map((e) => e.attrs['aria-labelledby'] ?? e.attrs['data-qa'])).toEqual([
+      'ew-earnings-heading', 'ew-assigned-heading', 'ep-editor-heading', 'route', 'ew-completed-heading',
+    ]);
+    expect(headings(root)).toEqual(['Maya Chen', 'Earnings', 'Assigned deliveries', 'Edit commute', 'Completed deliveries']);
   });
 });

@@ -134,7 +134,7 @@ export function EmployeePageView({
     return (
       <div className="ep">
         <section className="ep-state" role="status">
-          <h1>{NOT_FOUND_TITLE}</h1>
+          <h1 className="ep-title">{NOT_FOUND_TITLE}</h1>
           <p>{screen.fallbackEmployeeId ? NOT_FOUND_TEXT : NO_EMPLOYEES_TEXT}</p>
           <p className="ep-links">
             {screen.fallbackEmployeeId && (
@@ -150,7 +150,7 @@ export function EmployeePageView({
     return (
       <div className="ep">
         <section className="ep-state ep-problem" role="alert">
-          <h1>Travel data unavailable</h1>
+          <h1 className="ep-title">Travel data unavailable</h1>
           <p>{screen.text}</p>
           <button type="button" className="ep-btn" onClick={() => { void refetchNow(); }}>Retry</button>
         </section>
@@ -161,7 +161,7 @@ export function EmployeePageView({
     return (
       <div className="ep">
         <section className="ep-state ep-problem" role="alert">
-          <h1>{ERROR_TITLE}</h1>
+          <h1 className="ep-title">{ERROR_TITLE}</h1>
           <p>{screen.text}</p>
           <button type="button" className="ep-btn" onClick={() => { void refetchNow(); }}>Retry</button>
         </section>

@@ -1,6 +1,7 @@
-// #478: visual QA rules for every stylesheet of the Employee workspace; since #685 against docs/mvp3.md P4
-// (radius at most 6 px, no shadows or gradients, tokens only, works at 390 px). The MVP III rules themselves
-// (fallback = token value, hairline ring, mono for times, distances and rewards) are in employee-v2-mvp3-css.test.ts.
+// #478: visual QA rules for every stylesheet of the Employee workspace (radius at most 6 px, no shadows or
+// gradients, tokens only, works at 390 px). Since issue 957 the colours are the "night-shift transit ops"
+// tokens of tokens.css (#955), and a station dot may be round. The rules of that look (fallback = token
+// value, where the orange may go, Archivo and mono) are in employee-v2-night-shift-css.test.ts.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseCss, readTokens, v2CssFiles, type CssRule } from './employee-v2-qa-helpers';
@@ -30,10 +31,10 @@ describe('employee v2 CSS QA (#478)', () => {
     ]));
   });
 
-  it('border-radius is at most 6 px', () => {
+  it('border-radius is at most 6 px, or 50% for a dot', () => {
     const bad: string[] = [];
     for (const [file, rules] of parsed) for (const r of rules) for (const d of r.decls) {
-      if (!d.prop.includes('radius')) continue;
+      if (!d.prop.includes('radius') || d.value === '50%') continue;
       const value = d.value.replace(VAR_RE, (_, name: string, fb?: string) => {
         if (!['--radius', '--radius-lg'].includes(name)) bad.push(`${where(file, r, d)} (not a radius token)`);
         return fb ?? '';
@@ -69,7 +70,7 @@ describe('employee v2 CSS QA (#478)', () => {
     expect(bad).toEqual([]);
   });
 
-  // Since this module's restyle pass (#685) no fallback may be an MVP II value any more.
+  // No fallback may be another value than the token's.
   it('every var() is a design token, and a colour fallback equals that token', () => {
     const bad: string[] = [];
     for (const [file, rules] of parsed) for (const r of rules) for (const d of r.decls) {

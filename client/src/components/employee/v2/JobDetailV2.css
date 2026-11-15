@@ -1,112 +1,142 @@
-/* Job detail (#387), MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius, no
-   shadows, no pills. Tokens with fallbacks; every fallback is the value in client/src/styles/tokens.css.
-   The trip line, the stop times and the numbers are set in mono. Fits 390 px with no horizontal scroll.
-   #882: the route is a checklist (a tick box per row, rows at least 44 px tall), the line above the
-   title is sentence case, and the phone rules start at 480 px so a 412 or 430 px phone gets them too. */
+/* Job detail (#387) in the "night-shift transit ops" look (issue 957): on paper, no card. The route is
+   a transit line read top to bottom: each row is a station on it, with its time to the left and what to
+   do there to the right. Colours are read as var(--name, fallback); every fallback is the value in client/src/styles/tokens.css. The trip line, the stop times and the numbers are mono; the reward and the
+   headings are Archivo. Fits 390 px with no horizontal scroll.
+   #882: the route is a checklist (a tick per row, rows at least 44 px tall), the line above the title is
+   sentence case, and the phone rules start at 480 px so a 412 or 430 px phone gets them too. */
 .job-v2 {
   /* As wide as the page column, so its right edge lines up with the route map under it (#714). */
   box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0;
-  display: flex; flex-direction: column; gap: var(--space-4, 16px);
-  padding: var(--space-4, 16px);
-  background: var(--panel, #FFFFFF); color: var(--text, #171C24);
-  border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px);
+  display: flex; flex-direction: column; gap: var(--space-8, 32px);
+  color: var(--paper-text, #14171F);
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: var(--text-md, 14px); line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .job-v2 *, .job-v2 *::before, .job-v2 *::after { box-sizing: border-box; }
 .job-v2__head { display: flex; flex-direction: column; gap: var(--space-1, 4px); }
 /* Sentence case as written, no capitals and no tracking (#882): it is a sentence, not a label. */
-.job-v2__kind { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.job-v2__kind { margin: 0; font-size: var(--text-sm, 13px); color: var(--paper-muted, #5A5F6B); }
 /* As wide as its words, so the focus ring it gets when the view opens sits around the title only (#882). */
-.job-v2__title { margin: 0; align-self: flex-start; max-width: 100%; font-size: var(--text-lg, 18px); line-height: 1.25; }
-.job-v2__title:focus { outline: none; }
-.job-v2__title:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-/* "Evening commute, leaves Day 1, 5:15 PM": the line is there for its time, so it is mono as a whole. */
-.job-v2__trip { margin: 0; font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; color: var(--muted, #5B6472); }
-.job-v2__status {
-  margin: var(--space-2, 8px) 0 0; padding: var(--space-2, 8px) var(--space-3, 12px);
-  display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); align-items: baseline;
-  border: 1px solid var(--accent, #1D5075); background: var(--accent-soft, #E8EEF1);
-  border-radius: var(--radius, 4px); font-size: var(--text-sm, 13px);
+.job-v2__title {
+  margin: 0; align-self: flex-start; max-width: 100%;
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 36px; font-weight: 800; font-stretch: 78%; line-height: 1.05;
 }
-.job-v2__status[data-status='completed'] { border-color: var(--ok, #2F6B4F); background: var(--panel, #FFFFFF); }
+.job-v2__title:focus { outline: none; }
+.job-v2__title:focus-visible { outline: 2px solid var(--paper-text, #14171F); outline-offset: 2px; }
+/* "Evening commute, leaves Day 1, 5:15 PM": the line is there for its time, so it is mono as a whole. */
+.job-v2__trip { margin: 0; font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; color: var(--paper-muted, #5A5F6B); }
+.job-v2__status {
+  margin: var(--space-3, 12px) 0 0; padding: var(--space-3, 12px) var(--space-4, 16px);
+  display: flex; flex-wrap: wrap; gap: var(--space-1, 4px) var(--space-2, 8px); align-items: baseline;
+  border: 1px solid var(--paper-line, #DCD8CE); border-left: 4px solid var(--paper-text, #14171F);
+  border-radius: var(--radius, 4px);
+}
+.job-v2__status[data-status='completed'] { border-left-color: var(--ok, #2F6B4F); }
 .job-v2__status-label { font-weight: 600; }
-.job-v2__status-note { color: var(--muted, #5B6472); }
+.job-v2__status-note { color: var(--paper-muted, #5A5F6B); }
 
-.job-v2__section { display: flex; flex-direction: column; gap: var(--space-2, 8px); }
-/* 600 like every other heading: Inter is loaded up to 600, an h3's default 700 is not (#714). */
-.job-v2__h3 { margin: 0; font-size: var(--text-md, 14px); font-weight: 600; }
+.job-v2__section { display: flex; flex-direction: column; gap: var(--space-4, 16px); }
+/* A route-line divider, like the workspace's sections: the hairline is the line, the dot the station.
+   600 like every other heading: no 700 face is loaded (#714). */
+.job-v2__h3 {
+  position: relative; margin: 0; padding-bottom: var(--space-3, 12px);
+  border-bottom: 1px solid var(--paper-line, #DCD8CE);
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 18px; font-weight: 600; font-stretch: 112%; line-height: 1.2;
+}
+.job-v2__h3::after {
+  content: ""; position: absolute; left: 0; bottom: -4px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--paper-text, #14171F);
+}
 
-.job-v2__route { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border, #E3E3DE); }
-/* A checklist row (#882): tick box, time, then what to do and where. The time column holds
-   "Day 2, 10:05 AM" in mono on one line (#583). A row is never shorter than a 44 px touch target. */
+.job-v2__route { list-style: none; margin: 0; padding: 0; }
+/* A station of the line (#882: still a checklist row): the time, the station mark, then what to do and
+   where. The time column holds "Day 2, 10:05 AM" in mono on one line (#583). A row is never shorter than
+   a 44 px touch target. The mark is first in the markup and second on screen. */
 .job-v2__stop {
   position: relative;
-  display: grid; grid-template-columns: 18px 136px minmax(0, 1fr); gap: 2px var(--space-3, 12px);
+  display: grid; grid-template-columns: 132px 20px minmax(0, 1fr); gap: 2px var(--space-4, 16px);
   align-items: start; min-height: 44px;
   padding: var(--space-3, 12px) 0;
-  border-bottom: 1px solid var(--border, #E3E3DE);
 }
-.job-v2__stop:last-child { border-bottom: 0; padding-bottom: 0; min-height: 32px; }
-/* The box: empty with a muted hairline, filled with the "ok" green and a white tick once done. The
-   state is never the colour alone: the row also says "(done)", or "Not done yet" to a screen reader. */
+/* The line itself, through the middle of the marks: from the first mark to the last. */
+.job-v2__stop::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 157px; width: 2px;
+  background: var(--paper-text, #14171F);
+}
+.job-v2__stop:first-child::before { top: 22px; }
+.job-v2__stop:last-child::before { bottom: auto; height: 22px; }
+.job-v2__stop:last-child { padding-bottom: 0; min-height: 32px; }
+/* The mark: an open station while the row is not done, filled with a paper tick once it is. The state
+   is never the fill alone: the row also says "(done)", or "Not done yet" to a screen reader. */
 .job-v2__check {
+  position: relative; grid-column: 2; grid-row: 1;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px;
-  border: 1px solid var(--muted, #5B6472); border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF); color: var(--panel, #FFFFFF);
+  width: 20px; height: 20px;
+  border: 2px solid var(--paper-text, #14171F); border-radius: 50%;
+  background: var(--paper, #F4F2EC); color: var(--on-ink, #F4F2EC);
 }
-.job-v2__stop[data-done='true'] .job-v2__check { border-color: var(--ok, #2F6B4F); background: var(--ok, #2F6B4F); }
-.job-v2__stop[data-done='true'] .job-v2__action { color: var(--ok, #2F6B4F); }
+.job-v2__stop[data-done='true'] .job-v2__check { background: var(--paper-text, #14171F); }
 /* Text for screen readers only ("Not done yet"). */
 .job-v2__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.job-v2__time { font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.job-v2__stop-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.job-v2__action { font-weight: 600; font-size: var(--text-sm, 13px); }
-.job-v2__place { font-size: var(--text-sm, 13px); }
-.job-v2__address, .job-v2__instructions { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.job-v2__instructions { color: var(--text, #171C24); }
+.job-v2__time { grid-column: 1; grid-row: 1; text-align: right; font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.job-v2__stop-body { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.job-v2__action { font-weight: 600; }
+.job-v2__address, .job-v2__instructions { font-size: var(--text-sm, 13px); color: var(--paper-muted, #5A5F6B); }
+.job-v2__instructions { color: var(--paper-text, #14171F); }
 
 .job-v2__relay {
-  margin: 0; padding: var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px);
-  background: var(--accent-soft, #E8EEF1); font-size: var(--text-sm, 13px);
+  margin: 0; padding: var(--space-3, 12px) var(--space-4, 16px);
+  border: 1px solid var(--paper-line, #DCD8CE); border-left: 4px solid var(--paper-text, #14171F);
+  border-radius: var(--radius, 4px);
 }
 
-/* The last row's own bottom line would sit on the box's border as a 2 px line (#882): every cell is pulled
-   up by its 1 px line and the box clips the one that falls outside. */
-.job-v2__numbers { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px); }
-.job-v2__number { display: flex; justify-content: space-between; gap: var(--space-2, 8px); margin-bottom: -1px; padding: var(--space-2, 8px) var(--space-3, 12px); border-bottom: 1px solid var(--border, #E3E3DE); }
-.job-v2__number dt { color: var(--muted, #5B6472); font-size: var(--text-sm, 13px); }
-.job-v2__number dd { margin: 0; font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; text-align: right; }
-/* The reward leads "What it adds" (#551). IBM Plex Mono is loaded at 400 and 500 only (styles/fonts.css). */
-.job-v2__number[data-number="reward"] dt { color: inherit; font-weight: 600; }
-.job-v2__number[data-number="reward"] dd { font-weight: 500; }
+/* "What it adds": four facts in a row, the label over the value. */
+.job-v2__numbers { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4, 16px) var(--space-6, 24px); align-items: start; }
+.job-v2__number { display: flex; flex-direction: column; gap: 2px; }
+.job-v2__number dt { color: var(--paper-muted, #5A5F6B); font-size: var(--text-xs, 12px); }
+.job-v2__number dd { margin: 0; font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-md, 14px); font-variant-numeric: tabular-nums; }
+/* The reward leads "What it adds" (#551): one of the page's big numbers, so Archivo. */
+.job-v2__number[data-number="reward"] dd {
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 36px; font-weight: 800; font-stretch: 78%; line-height: 1;
+}
+/* A distance is neither a time nor a price: the body font, with figures of one width. */
+.job-v2__number[data-number="extra-distance"] dd { font-family: var(--font-sans, "Inter", system-ui, sans-serif); }
 
 .job-v2__text { margin: 0; }
-.job-v2__actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+.job-v2__actions { display: flex; flex-wrap: wrap; gap: var(--space-3, 12px); }
 .job-v2__link, .job-v2__button {
-  /* 36 px like Edit commute and Close (issue 941); 44 px on a phone, below. */
-  display: inline-flex; align-items: center; justify-content: center; min-height: 36px;
-  padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--accent, #1D5075); border-radius: var(--radius, 4px);
-  font: inherit; font-size: var(--text-sm, 13px); font-weight: 600; text-decoration: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid var(--paper-text, #14171F); border-radius: var(--radius, 4px);
+  font: inherit; font-weight: 600; text-decoration: none; cursor: pointer;
 }
-.job-v2__link { background: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
-.job-v2__button { background: var(--panel, #FFFFFF); color: var(--accent, #1D5075); }
+/* The screen's one orange action (the package's), set like the Business page's main action; ink words: 6.7:1. */
+.job-v2__link {
+  border-color: var(--signal, #FF6A1A); background: var(--signal, #FF6A1A); color: var(--ink, #0B0F17);
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif); font-size: 16px; font-weight: 700; font-stretch: 112%;
+}
+.job-v2__link:hover { border-color: var(--signal-hover, #FF8748); background: var(--signal-hover, #FF8748); }
+.job-v2__button { background: none; color: var(--paper-text, #14171F); }
+.job-v2__button:hover { background: var(--paper-text, #14171F); color: var(--on-ink, #F4F2EC); }
 .job-v2__link:focus-visible, .job-v2__button:focus-visible {
-  outline: 2px solid var(--accent-dark, #173E5B); outline-offset: 2px;
-  box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
+  outline: 2px solid var(--paper-text, #14171F); outline-offset: 2px;
 }
 
 @media (max-width: 480px) {
-  /* The card sits inside the page's padding, so it keeps all four borders (#714). */
-  .job-v2 { padding: var(--space-3, 12px); }
-  /* Top to bottom: the box and the time on one line, then the action, the place and the address. */
-  .job-v2__stop { grid-template-columns: 18px minmax(0, 1fr); }
-  .job-v2__stop-body { grid-column: 2; }
-  .job-v2__numbers { grid-template-columns: minmax(0, 1fr); }
-  .job-v2__link, .job-v2__button { flex: 1 1 100%; min-height: 44px; }
+  .job-v2 { gap: var(--space-6, 24px); }
+  .job-v2__title { font-size: 30px; }
+  /* Top to bottom: the mark and the time on one line, then the action, the place and the address. */
+  .job-v2__stop { grid-template-columns: 20px minmax(0, 1fr); }
+  .job-v2__stop::before { left: 9px; }
+  .job-v2__check { grid-column: 1; }
+  .job-v2__time { grid-column: 2; text-align: left; line-height: 20px; }
+  .job-v2__stop-body { grid-column: 2; grid-row: 2; }
+  .job-v2__numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .job-v2__link, .job-v2__button { flex: 1 1 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .job-v2, .job-v2 *, .job-v2 *::before, .job-v2 *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

@@ -37,7 +37,10 @@ export function NewJobAnnouncer({ dashboard, newJobIds }: Pick<EmployeeWorkspace
   );
 }
 
-/** MVP II Employee workspace (docs/mvp2-ui-redesign.md §2). Renders props through the pure model. */
+/**
+ * The Employee workspace. Renders props through the pure model. Order (issue 957): the band with the name,
+ * the earnings and the next job; the other assigned jobs; the commute; the completed jobs.
+ */
 export function EmployeeWorkspace({
   dashboard, businesses, newJobIds, editor, onEditCommute, announce = true,
 }: EmployeeWorkspaceProps) {
@@ -49,17 +52,31 @@ export function EmployeeWorkspace({
 
   return (
     <div className="ew">
-      <header className="ew-header">
-        <h1>{dashboard.employee.name}</h1>
-        <p className="ew-muted">
-          {summary.workplaceName}
-          {summary.workplaceNeighborhood && ` · ${summary.workplaceNeighborhood}`}
-        </p>
-      </header>
-
-      {locked && <p className="ew-locked" role="status">{LOCKED_TEXT}</p>}
-
-      {editor ?? <CommuteSummary model={summary} onEdit={onEditCommute} editDisabled={locked} />}
+      {/* The ink band (issue 957): who this is and what they earn, then the assigned list, whose first
+          row is the next job's boarding pass. The band ends under the pass; the rest is on paper. */}
+      <div className="ew-top">
+        <header className="ew-header">
+          <h1 className="ew-name">{dashboard.employee.name}</h1>
+          <p className="ew-muted">
+            {summary.workplaceName}
+            {summary.workplaceNeighborhood && `, ${summary.workplaceNeighborhood}`}
+          </p>
+        </header>
+        {/* The heading names the region for a screen reader; the two labels say it on screen. */}
+        <section className="ew-money" aria-labelledby="ew-earnings-heading">
+          <h2 id="ew-earnings-heading" className="ew-sr">Earnings</h2>
+          <dl className="ew-earnings">
+            <div>
+              <dt>Earned</dt>
+              <dd>{money.earned}</dd>
+            </div>
+            <div>
+              <dt>Projected</dt>
+              <dd>{money.projected}</dd>
+            </div>
+          </dl>
+        </section>
+      </div>
 
       <DeliveryList
         id="ew-assigned"
@@ -67,23 +84,13 @@ export function EmployeeWorkspace({
         rows={assigned}
         newJobIds={newJobIds}
         empty={assignedEmpty(summary)}
+        lead
       />
 
-      <section className="ew-section" aria-labelledby="ew-earnings-heading">
-        <div className="ew-section-head">
-          <h2 id="ew-earnings-heading">Earnings</h2>
-        </div>
-        <dl className="ew-earnings">
-          <div>
-            <dt>Earned</dt>
-            <dd className="ew-mono">{money.earned}</dd>
-          </div>
-          <div>
-            <dt>Projected</dt>
-            <dd className="ew-mono">{money.projected}</dd>
-          </div>
-        </dl>
-      </section>
+      {/* Right above the commute it is about: the line says why Edit commute is switched off. */}
+      {locked && <p className="ew-locked" role="status">{LOCKED_TEXT}</p>}
+
+      {editor ?? <CommuteSummary model={summary} onEdit={onEditCommute} editDisabled={locked} />}
 
       <DeliveryList
         id="ew-completed"

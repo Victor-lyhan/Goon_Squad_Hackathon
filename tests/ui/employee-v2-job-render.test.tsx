@@ -213,8 +213,9 @@ describe('JobDetailV2.css', () => {
   it('has a 390 px rule', () => {
     expect(css).toMatch(/@media\s*\(max-width:\s*480px\)/); // #882: phone rules from 480 px down, so 390 px has them
   });
-  it('uses no radius over 4px', () => {
+  it('uses no radius over 4px; only a station of the route line is round (issue 957)', () => {
     for (const m of css.matchAll(/border-radius:\s*([^;]+);/g)) {
+      if (m[1].trim() === '50%') continue;
       for (const px of m[1].matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px[1])).toBeLessThanOrEqual(4);
       expect(m[1]).not.toMatch(/%|999|rem|em\b/);
     }

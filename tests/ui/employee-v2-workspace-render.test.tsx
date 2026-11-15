@@ -23,20 +23,28 @@ describe('EmployeeWorkspace static render', () => {
   );
   const t = text(html);
 
-  it('renders header, commute, assigned deliveries, earnings, completed, in that order', () => {
-    const order = ['Maya Chen', 'Saved commute', 'Assigned deliveries', 'Earnings', 'Completed deliveries']
+  // Issue 957: the band comes first (name, earnings, then the assigned list with the next job), the commute
+  // and the completed list after it.
+  it('renders header, earnings, assigned deliveries, commute, completed, in that order', () => {
+    const order = ['Maya Chen', 'Earnings', 'Assigned deliveries', 'Saved commute', 'Completed deliveries']
       .map((s) => t.indexOf(s));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(t.indexOf('Acme Studio')).toBeLessThan(t.indexOf('Saved commute'));
+    expect(t.indexOf('Acme Studio')).toBeLessThan(t.indexOf('Earnings'));
   });
 
-  it('shows both trips with mono times, route words and the detour limit', () => {
-    expect(t).toContain('Evening Acme Studio → to Astoria');
-    expect(t).toContain('Morning Astoria → to Acme Studio');
+  it('shows both trips as a route strip with mono times, route words and the detour limit', () => {
+    // A strip reads from the place the trip leaves to the place it arrives at; " to " is for a screen reader.
+    expect(t).toContain('Evening Departs 5:30 PM 34 min 8.4 km Acme Studio to Astoria');
+    expect(t).toContain('Morning Departs 8:30 AM 36 min 8.7 km Astoria to Acme Studio');
+    // The workplace is the filled station and home the open one, in both directions.
+    expect(html).toContain('<span class="ew-station is-work">Acme Studio</span><span class="ew-sr"> to </span><span class="ew-station is-home">Astoria</span>');
+    expect(html).toContain('<span class="ew-station is-home">Astoria</span><span class="ew-sr"> to </span><span class="ew-station is-work">Acme Studio</span>');
+    expect(html).not.toContain('→');
     expect(html).toContain('<span class="ew-mono">Departs 5:30 PM</span>');
     expect(html).toContain('<span class="ew-mono">34 min</span>');
-    expect(html).toContain('<span class="ew-mono">8.4 km</span>');
+    // A distance is neither a time nor a price, so it is not mono (issue 957).
+    expect(html).toContain('<span class="ew-trip-distance">8.4 km</span>');
     expect(t).toContain('Up to 15 min extra per trip');
     expect(html).toMatch(/<button type="button" class="ew-btn">Edit commute<\/button>/);
   });
@@ -98,7 +106,9 @@ describe('EmployeeWorkspace states', () => {
     );
     expect(html).toContain('data-testid="editor"');
     expect(html).not.toContain('Saved commute');
-    expect(html.indexOf('EDITOR')).toBeLessThan(html.indexOf('Assigned deliveries'));
+    // In the commute's place: after the assigned list, before the completed one.
+    expect(html.indexOf('EDITOR')).toBeGreaterThan(html.indexOf('Assigned deliveries'));
+    expect(html.indexOf('EDITOR')).toBeLessThan(html.indexOf('Completed deliveries'));
     expectClean(html);
   });
 
@@ -117,7 +127,8 @@ describe('EmployeeWorkspace states', () => {
     const html = renderToStaticMarkup(
       <EmployeeWorkspace dashboard={{ ...dashboard, assigned: [{ ...directView, plan }, relayView] }} businesses={businesses} />,
     );
-    const row = (id: string) => html.match(new RegExp(`<li class="ew-row" data-job-id="${id}">.*?</li>`))![0];
+    // The first assigned row is the boarding pass (class "ew-row ew-pass"); the others are plain rows.
+    const row = (id: string) => html.match(new RegExp(`<li class="ew-row[^"]*" data-job-id="${id}"[^>]*>.*?</li>`))![0];
     expect(row(directView.job.id)).toContain('<dt>Extra time</dt><dd class="ew-mono">3 min shorter</dd>');
     expect(row(relayView.job.id)).toContain('<dt>Extra time</dt><dd class="ew-mono">+4 min</dd>');
     expect(html).not.toContain('+-');
@@ -135,12 +146,18 @@ describe('EmployeeWorkspace states', () => {
 describe('EmployeeWorkspace.css', () => {
   const css = readFileSync('client/src/components/employee/v2/EmployeeWorkspace.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
-  it('has a 390 px rule', () => expect(css).toMatch(/@media \(max-width: 390px\)/));
+  it('has phone rules that a 390 px screen gets', () => {
+    expect(css).toMatch(/@media \(max-width: 480px\)/);
+    expect(css).toMatch(/@media \(max-width: 600px\)/); // the pass puts its stub under the ticket
+  });
 
-  it('no radius over 4px', () => {
-    for (const m of css.matchAll(/border-radius:\s*([^;]+);/g)) {
-      for (const px of m[1].matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px[1])).toBeLessThanOrEqual(4);
-      expect(m[1]).not.toMatch(/%|999|rem|em/);
+  it('no radius over 6px; only a station dot or a notch is round', () => {
+    const radii = [...css.matchAll(/border-radius:\s*([^;]+);/g)].map((m) => m[1].trim());
+    expect(radii.length).toBeGreaterThan(5);
+    for (const r of radii) {
+      if (r === '50%') continue;
+      for (const px of r.matchAll(/(\d+(?:\.\d+)?)px/g)) expect(Number(px[1])).toBeLessThanOrEqual(6);
+      expect(r).not.toMatch(/%|999|rem|em/);
     }
   });
 
