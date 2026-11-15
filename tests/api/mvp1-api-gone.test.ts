@@ -207,7 +207,8 @@ describe('no MVP 1 run', () => {
   it('server/index.ts loads nothing of server/api/ outside v2/, and the MVP 1 route files it registered are gone', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'server/index.ts'), 'utf8');
     const imported = [...source.matchAll(/from '(\.\/[^']+)'/g)].map((m) => m[1]).sort();
-    expect(imported).toStrictEqual(['./api/v2/bootRun', './api/v2/bootstrap', './api/v2/router', './geo/env', './geo/googleClient']);
+    // './ai/env' (#785): the Gemini key and model names for POST /api/v2/parse-request, read like './geo/env'.
+    expect(imported).toStrictEqual(['./ai/env', './api/v2/bootRun', './api/v2/bootstrap', './api/v2/router', './geo/env', './geo/googleClient']);
     expect(source).not.toMatch(/createStore|startClockTicker|createInitialRun/);
 
     for (const gone of ['businesses', 'commute', 'employees', 'map', 'planning', 'portals', 'scenario', 'shipments', 'simulator', 'ticker']) {

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createV2Router, V2_DEPS_NOT_LOADED, type V2Deps } from './api/v2/router';
 import { createV2Runtime } from './api/v2/bootstrap';
 import { DEFAULT_V2_STATE_PATH, NYC_FIXTURES_DIR } from './api/v2/bootRun';
+import { geminiKey, geminiModel } from './ai/env';
 import { DEFAULT_ENV_PATH, loadDotEnv, serverKey } from './geo/env';
 import type { FetchLike } from './geo/googleClient';
 
@@ -244,7 +245,10 @@ export function startServer(opts: StartServerOptions): RelayServer {
   // MVP II: fixtures/nyc/ (travel cache + NYC files) -> the v2 run in the state file -> /api/v2.
   // The key is read from the environment (.env at the repo root) and is never logged.
   const key = serverKey(env);
-  const v2 = createV2Runtime({ fixturesDir: opts.fixturesDir, statePath, key, fetch: opts.fetch });
+  // The Gemini key and model for POST /api/v2/parse-request (docs/mvp4.md F1), from the same environment.
+  // Without the key every sentence is parsed offline. No start line: the card says "Parsed by Gemini" or "Parsed offline".
+  const gemini = { apiKey: geminiKey(env), model: geminiModel(env) };
+  const v2 = createV2Runtime({ fixturesDir: opts.fixturesDir, statePath, key, fetch: opts.fetch, gemini });
   if (v2.status === 'ready') v2.startTicker();
   for (const line of v2StartLines(v2)) log(line);
   log(clientStartLine(opts.clientDist));
