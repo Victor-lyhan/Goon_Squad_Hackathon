@@ -23,7 +23,7 @@ describe('compose.css + page.css: the redesign rules', () => {
     expect(TOKENS.get('--radius')).toBeDefined();
   });
 
-  it('every border-radius is 2 to 4px (square corners, never 0 or round), except the floating map pill (#852)', () => {
+  it('every border-radius is 2 to 4px (square corners, never 0 or round), except the pills that float on the map (#852, #864)', () => {
     const bad: string[] = [];
     let seen = 0;
     let pill = 0;
@@ -31,7 +31,7 @@ describe('compose.css + page.css: the redesign rules', () => {
       for (const [prop, value] of r.decls) {
         if (!prop.includes('radius')) continue;
         seen += 1;
-        // #852: the Play/Pause pill, half of a 44 px button plus its 4 px padding.
+        // #852: the Play/Pause pill, half of a 44 px button plus its 4 px padding. #864: the banners and the overnight card.
         if (isPillRule(r) && prop === 'border-radius' && value === PILL_RADII[r.selectors[0]]) { pill += 1; continue; }
         for (const part of resolveVars(value).split(/[\s/]+/).filter(Boolean)) {
           const px = Number(/^(\d*\.?\d+)px$/.exec(part)?.[1] ?? NaN);
@@ -40,21 +40,21 @@ describe('compose.css + page.css: the redesign rules', () => {
       }
     }
     expect(seen).toBeGreaterThan(1);
-    expect(pill).toBe(1);
+    expect(pill).toBe(3);
     expect(bad).toEqual([]);
   });
 
-  it('no gradients, no filters; the one backdrop is the blur behind the floating map pill (#852)', () => {
+  it('no gradients, no filters; the one backdrop is the blur behind the pills that float on the map (#852, #864)', () => {
     for (const f of FILES) {
       const css = read(f).replace(/\/\*[\s\S]*?\*\//g, '');
       expect(css, f).not.toMatch(/gradient\(/i);
       expect(css, f).not.toMatch(/(^|[\s;{])filter\s*:/);
     }
     const backdrops = RULES.flatMap((r) => r.decls.filter(([p]) => p.endsWith('backdrop-filter')).map(([p, v]) => `${where(r)}: ${p}: ${v}`));
-    expect(backdrops).toEqual([
-      `${COMPOSE} .spc-playbar: -webkit-backdrop-filter: ${PILL_BLUR}`,
-      `${COMPOSE} .spc-playbar: backdrop-filter: ${PILL_BLUR}`,
-    ]);
+    expect(backdrops).toEqual(['.spc-banner', '.spc-playbar', '.spc-overnight'].flatMap((selector) => [
+      `${COMPOSE} ${selector}: -webkit-backdrop-filter: ${PILL_BLUR}`,
+      `${COMPOSE} ${selector}: backdrop-filter: ${PILL_BLUR}`,
+    ]));
   });
 
   it('no shadows except a focus ring on :focus-visible', () => {

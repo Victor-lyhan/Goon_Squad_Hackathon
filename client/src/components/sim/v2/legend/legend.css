@@ -1,16 +1,21 @@
 /* Map legend for the simulator's network view (docs/mvp2-ui-redesign.md §1, docs/mvp3.md P4).
-   Radius var(--radius) (4px), 1px hairline border, panel background, no shadow, no gradient. Colors
-   only through tokens (tokens.css) here; swatch colors are set inline from the map layer constants. At most 240px wide so it never
-   covers much of the map. The page positions it in the map corner. */
+   Issue 864 (QUESTIONS 22:25): the legend is a control on the map, so it has the look of the Play pill
+   (compose.css `.spc-playbar`): the --text ink at 72% over a blur of the map, white text, no white panel,
+   no border, no shadow, no gradient. Closed it is a pill; open it is a rounded box. Colors only through
+   tokens (tokens.css) here; swatch colors are set inline from the map layer constants. At most 240px
+   wide so it never covers much of the map. The page positions it in the map corner. */
 
 .ml {
   box-sizing: border-box;
   width: max-content;
   max-width: 240px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  color: var(--text);
+  /* The room of the hairline border it had, so the legend is as large as before. */
+  padding: 1px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 72%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--panel);
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   line-height: 1.4;
@@ -24,7 +29,8 @@
   width: 100%;
   padding: var(--space-1) var(--space-2);
   border: 0;
-  border-radius: 0;
+  /* Round like the pill it sits in, so its hover fill and focus ring stay inside the corners. */
+  border-radius: 13px;
   background: transparent;
   color: inherit;
   font-family: var(--font-mono);
@@ -35,19 +41,16 @@
   cursor: pointer;
 }
 .ml__toggle:hover {
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--panel) 14%, transparent);
 }
+/* A white ring inside the toggle, on the ink of the pill (as on the Play buttons). */
 .ml__toggle:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--panel);
   outline-offset: -2px;
-}
-.ml__chevron {
-  color: var(--muted);
 }
 
 .ml__body {
-  padding: var(--space-1) var(--space-2) var(--space-2);
-  border-top: 1px solid var(--border);
+  padding: calc(var(--space-1) + 1px) var(--space-2) var(--space-2);
 }
 .ml__body[hidden] {
   display: none;
@@ -69,9 +72,10 @@
 .ml__label {
   min-width: 0;
 }
+/* Softer than the other labels, and still above 4.5:1 on the pill over a white map. */
 .ml__row--dimmed .ml__label,
 .ml__row--baseline .ml__label {
-  color: var(--muted);
+  color: color-mix(in srgb, var(--panel) 80%, transparent);
 }
 
 /* Swatches: a fixed 20x14 box so labels line up whatever the shape. */
@@ -104,4 +108,20 @@
 }
 .ml__swatch--line {
   width: 20px;
+}
+
+/* The ink and navy swatches would vanish on the dark pill. The map draws its markers and glyphs with a
+   white outline (layers.ts `OUTLINE`), and so do the swatches: a 1px white line around each shape (it
+   takes no room, so nothing moves), and around a glyph as four 1px shadows with no blur. */
+.ml__swatch--dot,
+.ml__swatch--ring,
+.ml__swatch--line {
+  outline: 1px solid var(--panel);
+}
+.ml__swatch--glyph {
+  text-shadow: 1px 0 0 var(--panel), -1px 0 0 var(--panel), 0 1px 0 var(--panel), 0 -1px 0 var(--panel);
+}
+/* The "Dimmed" sample is faint on the map, so its outline is faint too. */
+.ml__row--dimmed .ml__swatch {
+  outline-color: color-mix(in srgb, var(--panel) 40%, transparent);
 }

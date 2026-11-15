@@ -1,7 +1,8 @@
 /* NYC map (Google basemap + deck.gl). MVP III look (docs/mvp3.md P4, #701): colours only through
    tokens (a fallback is the token's value in client/src/styles/tokens.css); the load overlay is the
-   --bg token at 85%. Hairline borders, radius 4px, no shadows, no gradients. The colours drawn on the
-   map itself are in layers.ts, not here. */
+   --bg token at 85%. Hairline borders, radius 4px, no shadows, no gradients; the day/night badge, a
+   control on the map, is the one dark translucent pill (#864). The colours drawn on the map itself are
+   in layers.ts, not here. */
 .map-v2 {
   position: relative;
   width: 100%;
@@ -121,13 +122,18 @@
 }
 
 /* Day and night (simulator only, #649). Only the basemap gets dark (the Google style); this colours
-   the area behind the tiles and the badge. The badge is ink on white by day and white on ink at
-   night (both far above 4.5:1). It takes no clicks, so the map under it still pans. The switch is
-   instant: no transition or animation here, so there is nothing to turn off under reduced motion. */
+   the area behind the tiles and the badge. The badge takes no clicks, so the map under it still pans.
+   The switch is instant: no transition or animation here, so there is nothing to turn off under reduced
+   motion. */
 .map-v2--night {
   background: var(--text, #171C24);
 }
 
+/* #864 (QUESTIONS 22:25): the badge is a map control, so it has the look of the simulator's Play pill
+   (compose.css `.spc-playbar`) by day and at night alike: the --text ink at 72% over a blur of the map,
+   white icon and time (at least 6.7:1 whatever the map shows), no white panel, no border. The sun or
+   the moon says which it is. One line, so the 14px radius makes it a full pill; the padding is 1px more
+   than the tokens (the room of the hairline border it had), so it is as large as before. */
 .map-v2__daynight {
   position: absolute;
   top: var(--space-3, 12px);
@@ -136,11 +142,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: var(--space-1, 4px) var(--space-2, 8px);
-  background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
-  color: var(--text, #171C24);
+  padding: calc(var(--space-1, 4px) + 1px) calc(var(--space-2, 8px) + 1px);
+  background: color-mix(in srgb, var(--text, #171C24) 72%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-radius: 14px;
+  color: var(--panel, #FFFFFF);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-xs, 12px);
@@ -148,12 +155,6 @@
   line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
-}
-
-.map-v2__daynight--night {
-  background: var(--text, #171C24);
-  border-color: var(--muted, #5B6472);
-  color: var(--panel, #FFFFFF);
 }
 
 .map-v2__daynight-icon {

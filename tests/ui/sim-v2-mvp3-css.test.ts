@@ -8,7 +8,9 @@
 //   4. the Play/Pause button and the Overnight card stay legible, and the focus ring is visible.
 // #852 (human feedback) makes one exception to rule 2: the floating Play/Pause control on the map is a
 // dark translucent pill (round, with a blur of the map behind it) whose buttons have a white focus ring.
-// Its colours are still tokens. The exception is listed below, declaration by declaration.
+// Its colours are still tokens. #864 (QUESTIONS 22:25) gives the other controls on the map the same look:
+// the banners and the overnight card (compose.css) and the day/night badge (map.css). The exceptions are
+// listed below, declaration by declaration.
 // Not read here: sim/v2/legend/legend.css and sim/v2/journey/journey.css (the journey timeline's
 // times), which #699 restyles together with its legend change.
 import { existsSync, readFileSync } from 'node:fs';
@@ -238,15 +240,26 @@ describe('Simulator CSS, MVP III look (#701)', () => {
   });
 
   describe('2. flat: hairline shadows only, radius at most 6 px', () => {
-    it('no box-shadow beyond a 1 px ring, no text-shadow, filter or backdrop; no radius above 6 px; the map pill is the one exception (#852)', () => {
+    it('no box-shadow beyond a 1 px ring, no text-shadow, filter or backdrop; no radius above 6 px; the pills on the map are the one exception (#852, #864)', () => {
       expect(shapeProblems(parsed)).toEqual([
+        'compose/compose.css: .spc-banner { backdrop-filter: blur(8px) }: backdrop-filter',
+        'compose/compose.css: .spc-banner { border-radius: 14px }: radius above 6 px',
         'compose/compose.css: .spc-playbar { backdrop-filter: blur(8px) }: backdrop-filter',
         'compose/compose.css: .spc-playbar { border-radius: 26px }: radius above 6 px',
+        'compose/compose.css: .spc-overnight { backdrop-filter: blur(8px) }: backdrop-filter',
+        'compose/compose.css: .spc-overnight { border-radius: 24px }: radius above 6 px',
         'controls/controls.css: .ctl-btn { border-radius: 22px }: radius above 6 px',
+        'map/map.css: .map-v2__daynight { backdrop-filter: blur(8px) }: backdrop-filter',
+        'map/map.css: .map-v2__daynight { border-radius: 14px }: radius above 6 px',
       ]);
       // The prefixed copy of the blur (Safari before 18) is the same value on the same rule.
       const prefixed = [...decls()].filter(({ decl }) => decl.prop === '-webkit-backdrop-filter').map(({ file, rule, decl }) => at(file, rule, decl));
-      expect(prefixed).toEqual(['compose/compose.css: .spc-playbar { -webkit-backdrop-filter: blur(8px) }']);
+      expect(prefixed).toEqual([
+        'compose/compose.css: .spc-banner { -webkit-backdrop-filter: blur(8px) }',
+        'compose/compose.css: .spc-playbar { -webkit-backdrop-filter: blur(8px) }',
+        'compose/compose.css: .spc-overnight { -webkit-backdrop-filter: blur(8px) }',
+        'map/map.css: .map-v2__daynight { -webkit-backdrop-filter: blur(8px) }',
+      ]);
       for (const name of ['--radius', '--radius-lg']) {
         expect(tokens.get(name), name).toMatch(/^\d+px$/);
         expect(Number.parseFloat(tokens.get(name)!), name).toBeLessThanOrEqual(MAX_RADIUS_PX);
@@ -270,15 +283,18 @@ describe('Simulator CSS, MVP III look (#701)', () => {
       expect(problems('.a { box-shadow: none; border-radius: 0; }')).toBe('');
     });
 
-    it('there is no shadow at all; every radius is 0 or the --radius token, except the map pill and its buttons (#852)', () => {
+    it('there is no shadow at all; every radius is 0 or the --radius token, except the pills on the map and the Play buttons (#852, #864)', () => {
       const shadows = [...decls()].filter(({ decl }) => decl.prop === 'box-shadow').map(({ file, rule, decl }) => at(file, rule, decl));
       expect(shadows).toEqual([]);
       const radii = [...decls()].filter(({ decl }) => decl.prop.includes('radius'));
       expect(radii.length).toBeGreaterThan(20);
       const round = radii.filter(({ decl }) => !/^(0|var\(--radius, 4px\))$/.test(decl.value)).map(({ file, rule, decl }) => at(file, rule, decl));
       expect(round).toEqual([
+        'compose/compose.css: .spc-banner { border-radius: 14px }',
         'compose/compose.css: .spc-playbar { border-radius: 26px }',
+        'compose/compose.css: .spc-overnight { border-radius: 24px }',
         'controls/controls.css: .ctl-btn { border-radius: 22px }',
+        'map/map.css: .map-v2__daynight { border-radius: 14px }',
       ]);
     });
   });
@@ -454,20 +470,27 @@ describe('Simulator CSS, MVP III look (#701)', () => {
       }
     });
 
-    it('the Overnight card is white on ink, read from the tokens', () => {
-      expect(valueOf(SPC, '.spc-overnight', 'background')).toBe('var(--text, #171C24)');
+    // #864: the card and the badge are the same pill as Play. Their contrast over a white and over a black
+    // map is worked out in sim-v2-map-controls-css.test.ts; here: the colours are the tokens.
+    it('the Overnight card is white on the ink pill, read from the tokens', () => {
+      expect(valueOf(SPC, '.spc-overnight', 'background')).toBe(valueOf(SPC, '.spc-playbar', 'background'));
       expect(valueOf(SPC, '.spc-overnight', 'color')).toBe('var(--panel, #FFFFFF)');
-      expect(contrast(colourOf(SPC, '.spc-overnight', 'color'), colourOf(SPC, '.spc-overnight', 'background'))).toBeGreaterThanOrEqual(7);
+      expect(valueOf(SPC, '.spc-overnight', 'border')).toBeUndefined();
+      expect(contrast(colourOf(SPC, '.spc-overnight', 'color'), tokens.get('--text')!)).toBeGreaterThanOrEqual(7);
       // Large and bold, so it reads in the second it is up; the moon takes the text colour.
       expect(valueOf(SPC, '.spc-overnight', 'font-size')).toBe('var(--text-lg, 18px)');
       expect(valueOf(SPC, '.spc-overnight', 'font-weight')).toBe('600');
       expect(readFileSync(`${SIM}/compose/OvernightCard.tsx`, 'utf8')).toContain('fill="currentColor"');
     });
 
-    it('the day/night badge is ink on white by day and white on ink at night', () => {
+    it('the day/night badge is white on the ink pill by day and at night alike', () => {
       const M = 'map/map.css';
-      expect(contrast(colourOf(M, '.map-v2__daynight', 'color'), colourOf(M, '.map-v2__daynight', 'background'))).toBeGreaterThanOrEqual(7);
-      expect(contrast(colourOf(M, '.map-v2__daynight--night', 'color'), colourOf(M, '.map-v2__daynight--night', 'background'))).toBeGreaterThanOrEqual(7);
+      expect(valueOf(M, '.map-v2__daynight', 'background')).toBe(valueOf(SPC, '.spc-playbar', 'background'));
+      expect(valueOf(M, '.map-v2__daynight', 'color')).toBe('var(--panel, #FFFFFF)');
+      expect(valueOf(M, '.map-v2__daynight', 'border')).toBeUndefined();
+      expect(contrast(colourOf(M, '.map-v2__daynight', 'color'), tokens.get('--text')!)).toBeGreaterThanOrEqual(7);
+      // No rule of its own for the night: one look for both (the icon says which it is).
+      expect(parsed.get(M)!.filter((r) => /daynight--(day|night)/.test(r.selector))).toEqual([]);
     });
   });
 });
