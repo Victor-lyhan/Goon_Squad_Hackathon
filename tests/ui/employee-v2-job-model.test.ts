@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DISTANCE_UNAVAILABLE, NO_EXTRA_DISTANCE, TIME_UNAVAILABLE, extraDistanceText, extraTimeText, jobDetail, momentText,
-  UNKNOWN_PLACE,
+  DISTANCE_UNAVAILABLE, NO_EXTRA_DISTANCE, STATUS_NOTE_LEFT, TIME_UNAVAILABLE, extraDistanceText, extraTimeText, jobDetail,
+  momentText, UNKNOWN_PLACE,
 } from '../../client/src/components/employee/v2/jobDetailV2Model';
 import { businesses, eveningDirect, morningDirect, relayLeg1, relayLeg2, STATUSES } from './employeeV2JobSample';
 
@@ -126,8 +126,9 @@ describe('jobDetail (v2 model)', () => {
       }
     });
 
-    it('only the stop rows read the count: the start and end rows keep the job status', () => {
-      // Whatever the count says, "Leave work" and "Arrive home" follow the status, as before.
+    it('only the stop rows read the count: without `departed` the start and end rows keep the job status', () => {
+      // Whatever the count says, "Leave work" and "Arrive home" follow the status, as before (the start row
+      // reads `departed` when the answer has it, #791 below).
       expect(jobDetail({ ...eveningDirect('assigned'), stopsDone: 2 }, businesses, 'Astoria').route.map((r) => r.done))
         .toEqual([false, true, true, false]);
       expect(jobDetail({ ...eveningDirect('completed'), stopsDone: 1 }, businesses, 'Astoria').route.map((r) => r.done))
@@ -157,6 +158,91 @@ describe('jobDetail (v2 model)', () => {
           const odd = { ...relayLeg1(status), stopsDone: bad as unknown as number };
           expect(jobDetail(odd, businesses, 'Astoria').route.map((r) => r.done)).toEqual(old[status]);
         }
+      }
+    });
+  });
+
+  // #791: the server says when the commute has left (`departed`); the start row no longer waits for the pickup.
+  describe('the start row follows the API\'s departed (#791)', () => {
+    const LEGS = [eveningDirect, morningDirect, relayLeg1, relayLeg2];
+    const done = (job: ReturnType<typeof eveningDirect>) => jobDetail(job, businesses, 'Astoria').route.map((r) => r.done);
+    const doneOf = (job: ReturnType<typeof eveningDirect>) =>
+      jobDetail(job, businesses, 'Astoria').route.map((r) => [r.action, r.done]);
+
+    it('the commute left and no stop is handled yet: "Leave work" / "Leave home" is done while the job is still assigned', () => {
+      // What the server sends between the departure and the end of the first stop.
+      for (const make of LEGS) {
+        expect(done({ ...make('assigned'), stopsDone: 0, departed: true })).toEqual([true, false, false, false]);
+      }
+      expect(doneOf({ ...eveningDirect('assigned'), stopsDone: 0, departed: true })).toEqual([
+        ['Leave work', true], ['Collect the package', false], ['Hand over the package', false], ['Arrive home', false],
+      ]);
+      expect(doneOf({ ...relayLeg2('assigned'), stopsDone: 0, departed: true })).toEqual([
+        ['Leave home', true], ['Collect it from the relay point', false], ['Hand over the package', false], ['Arrive at work', false],
+      ]);
+    });
+
+    it('before the departure the start row is not done', () => {
+      for (const make of LEGS) {
+        expect(done({ ...make('assigned'), stopsDone: 0, departed: false })).toEqual([false, false, false, false]);
+      }
+    });
+
+    it('what the server sends later in the day: departed stays true', () => {
+      for (const make of LEGS) {
+        expect(done({ ...make('in_progress'), stopsDone: 1, departed: true })).toEqual([true, true, false, false]);
+        expect(done({ ...make('completed'), stopsDone: 2, departed: true })).toEqual([true, true, true, true]);
+      }
+    });
+
+    it('the flag decides the start row whatever the status says, and only the start row', () => {
+      for (const status of STATUSES) {
+        const old = jobDetail(relayLeg1(status), businesses, 'Astoria').route;
+        for (const departed of [true, false]) {
+          const route = jobDetail({ ...relayLeg1(status), departed }, businesses, 'Astoria').route;
+          expect(route[0].done).toBe(departed);
+          // Everything else on the page is as without the flag: the other marks, the times, places and actions.
+          expect(route.slice(1)).toEqual(old.slice(1));
+          expect({ ...route[0], done: old[0].done }).toEqual(old[0]);
+        }
+      }
+      // The stop rows still read `stopsDone` and the end row the status.
+      expect(done({ ...eveningDirect('in_progress'), stopsDone: 2, departed: false })).toEqual([false, true, true, false]);
+      expect(done({ ...eveningDirect('completed'), stopsDone: 1, departed: true })).toEqual([true, true, false, true]);
+    });
+
+    it('without departed (an older answer or sample) the old rule holds; a value that is no boolean counts as missing', () => {
+      const old = { assigned: false, in_progress: true, completed: true };
+      for (const status of STATUSES) {
+        for (const make of LEGS) {
+          const job = make(status);
+          expect('departed' in job).toBe(false);
+          expect(jobDetail(job, businesses, 'Astoria').route[0].done).toBe(old[status]);
+          for (const bad of [undefined, null, 0, 1, 'true', 'false', Number.NaN, {}]) {
+            const odd = { ...make(status), stopsDone: 0, departed: bad as unknown as boolean };
+            expect(jobDetail(odd, businesses, 'Astoria').route[0].done).toBe(old[status]);
+          }
+        }
+      }
+    });
+
+    it('the status note says the commute has left only when the API says so and the job is still assigned', () => {
+      const note = (job: ReturnType<typeof eveningDirect>) => jobDetail(job, businesses, 'Astoria').statusNote;
+      const before = 'Not started yet. It starts when your commute leaves.';
+      expect(STATUS_NOTE_LEFT).toBe('Your commute has left. The package is not collected yet.');
+      for (const make of LEGS) {
+        expect(note(make('assigned'))).toBe(before);
+        expect(note({ ...make('assigned'), departed: false })).toBe(before);
+        expect(note({ ...make('assigned'), departed: true })).toBe(STATUS_NOTE_LEFT);
+        // A value that is not `true` never changes the words.
+        for (const bad of [null, 1, 'true']) expect(note({ ...make('assigned'), departed: bad as unknown as boolean })).toBe(before);
+        // The other statuses keep their own note, and the label is always the API's status.
+        for (const departed of [true, false]) {
+          expect(note({ ...make('in_progress'), departed })).toBe('On your commute now.');
+          expect(note({ ...make('completed'), departed })).toBe('Done. Thanks for carrying it.');
+        }
+        const left = jobDetail({ ...make('assigned'), departed: true }, businesses, 'Astoria');
+        expect([left.status, left.statusLabel]).toEqual(['assigned', 'Assigned']);
       }
     });
   });

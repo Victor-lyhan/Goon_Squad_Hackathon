@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { JobDetailV2, JobV2Missing, JobV2Other } from '../../client/src/components/employee/v2/JobDetailV2';
 import {
-  JOB_MISSING_TEXT, JOB_MISSING_TITLE, JOB_OTHER_TEXT, JOB_OTHER_TITLE,
+  JOB_MISSING_TEXT, JOB_MISSING_TITLE, JOB_OTHER_TEXT, JOB_OTHER_TITLE, STATUS_NOTE_LEFT,
 } from '../../client/src/components/employee/v2/jobDetailV2Model';
 import { businesses, eveningDirect, morningDirect, relayLeg1, relayLeg2, STATUSES } from './employeeV2JobSample';
 
@@ -70,6 +70,41 @@ describe('JobDetailV2 render', () => {
     const done = render({ ...eveningDirect('completed'), stopsDone: 2 });
     expect(marks(done)).toEqual(['start true', 'pickup true', 'delivery true', 'end true']);
     // An answer without the count keeps the old marks.
+    expect(marks(render(eveningDirect('in_progress')))).toEqual(['start true', 'pickup true', 'delivery false', 'end false']);
+  });
+
+  // #791: "(done)" on the start row comes from the API's `departed`, not from the job status.
+  it('marks "Leave work (done)" / "Leave home (done)" once the server says the commute has left', () => {
+    const marks = (html: string) => [...html.matchAll(/data-kind="([^"]+)" data-done="([^"]+)"/g)].map((m) => `${m[1]} ${m[2]}`);
+    // Before the departure.
+    const waiting = render({ ...eveningDirect('assigned'), stopsDone: 0, departed: false });
+    expect(text(waiting)).toContain('Leave work');
+    expect(text(waiting)).not.toContain('(done)');
+    expect(marks(waiting)).toEqual(['start false', 'pickup false', 'delivery false', 'end false']);
+    expect(text(waiting)).toContain('Not started yet. It starts when your commute leaves.');
+    // The commute left, the package is not collected yet: the job is still "Assigned".
+    const left = render({ ...eveningDirect('assigned'), stopsDone: 0, departed: true });
+    expect(text(left)).toContain('Leave work (done)');
+    expect(text(left)).not.toContain('Collect the package (done)');
+    expect(text(left).match(/\(done\)/g)).toHaveLength(1);
+    expect(marks(left)).toEqual(['start true', 'pickup false', 'delivery false', 'end false']);
+    expect(left).toMatch(/data-status="assigned"/);
+    expect(text(left)).toContain('Assigned');
+    expect(text(left)).toContain(STATUS_NOTE_LEFT);
+    expect(text(left)).not.toContain('Not started yet');
+    expectClean(left);
+    // A morning leg starts at home.
+    const morning = render({ ...relayLeg2('assigned'), stopsDone: 0, departed: true }, 'Park Slope');
+    expect(text(morning)).toContain('Leave home (done)');
+    expect(marks(morning)).toEqual(['start true', 'hub_pickup false', 'delivery false', 'end false']);
+    expectClean(morning);
+    // Later in the day the row stays done; the stop and end rows are as before.
+    expect(marks(render({ ...eveningDirect('in_progress'), stopsDone: 1, departed: true })))
+      .toEqual(['start true', 'pickup true', 'delivery false', 'end false']);
+    expect(marks(render({ ...eveningDirect('completed'), stopsDone: 2, departed: true })))
+      .toEqual(['start true', 'pickup true', 'delivery true', 'end true']);
+    // An answer without the flag keeps the old marks: the start row waits for the status.
+    expect(marks(render({ ...eveningDirect('assigned'), stopsDone: 0 }))).toEqual(['start false', 'pickup false', 'delivery false', 'end false']);
     expect(marks(render(eveningDirect('in_progress')))).toEqual(['start true', 'pickup true', 'delivery false', 'end false']);
   });
 

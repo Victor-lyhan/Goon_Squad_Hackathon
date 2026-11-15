@@ -110,8 +110,9 @@ describe('v2 businessDashboard', () => {
 
 describe('v2 employeeDashboard', () => {
   // `stopsDone` (#781): how many of the leg's two stops are handled at the snapshot's minute.
-  const anaDirect = { job: directJob, status: 'completed', shipment: shp2, plan: directPlan, stopsDone: 2 };
-  const anaRelay = { job: relayJob1, status: 'assigned', shipment: shp1, plan: relayPlan, stopsDone: 0 };
+  // `departed` (#791): the snapshot's minute is at or past the departure of the job's trip (Ana: evening 1080, morning 1900).
+  const anaDirect = { job: directJob, status: 'completed', shipment: shp2, plan: directPlan, stopsDone: 2, departed: true };
+  const anaRelay = { job: relayJob1, status: 'assigned', shipment: shp1, plan: relayPlan, stopsDone: 0, departed: false };
 
   it('Ana (two jobs): home, trips, assigned vs completed, earned vs projected', () => {
     expect(employeeDashboard(run, snapshotEvening, 'emp-2')).toStrictEqual({
@@ -129,7 +130,7 @@ describe('v2 employeeDashboard', () => {
     expect(employeeDashboard(run, snapshotEvening, 'emp-1')).toStrictEqual({
       employee: sam, home: homeSam, trips: [samEve, samMorn],
       assigned: [],
-      completed: [{ job: relayJob0, status: 'completed', shipment: shp1, plan: relayPlan, stopsDone: 2 }],
+      completed: [{ job: relayJob0, status: 'completed', shipment: shp1, plan: relayPlan, stopsDone: 2, departed: true }],
       earnedCents: 300, projectedCents: 300,
       notifications: [noteSamJob],
       phase: 'locked', version: 12,
@@ -147,7 +148,7 @@ describe('v2 employeeDashboard', () => {
   it('before playback every job is assigned, ordered by pickup time; projected stays the sum of rewards', () => {
     const start = employeeDashboard(run, snapshotStart, 'emp-2')!;
     // run.jobs lists the morning leg first; the evening pickup (1080) must still come before the morning one (1928).
-    expect(start.assigned).toStrictEqual([{ ...anaDirect, status: 'assigned', stopsDone: 0 }, anaRelay]);
+    expect(start.assigned).toStrictEqual([{ ...anaDirect, status: 'assigned', stopsDone: 0, departed: false }, anaRelay]);
     expect(start.completed).toEqual([]);
     expect(start.earnedCents).toBe(0);
     expect(start.projectedCents).toBe(600);
@@ -156,7 +157,7 @@ describe('v2 employeeDashboard', () => {
   it('at the end earned equals projected', () => {
     const end = employeeDashboard(run, snapshotEnd, 'emp-2')!;
     expect(end.assigned).toEqual([]);
-    expect(end.completed).toStrictEqual([anaDirect, { ...anaRelay, status: 'completed', stopsDone: 2 }]);
+    expect(end.completed).toStrictEqual([anaDirect, { ...anaRelay, status: 'completed', stopsDone: 2, departed: true }]);
     expect(end.earnedCents).toBe(600);
     expect(end.projectedCents).toBe(600);
   });
@@ -190,13 +191,13 @@ describe('v2 commuteResponse', () => {
 describe('v2 jobResponse', () => {
   it('matches the expected object: job view plus its trip', () => {
     expect(jobResponse(run, snapshotEvening, 'plan-shp-1-L1')).toStrictEqual({
-      job: relayJob1, status: 'assigned', shipment: shp1, plan: relayPlan, stopsDone: 0, trip: anaMorn,
+      job: relayJob1, status: 'assigned', shipment: shp1, plan: relayPlan, stopsDone: 0, departed: false, trip: anaMorn,
     });
     expect(jobResponse(run, snapshotEvening, 'plan-shp-2-L0')).toStrictEqual({
-      job: directJob, status: 'completed', shipment: shp2, plan: directPlan, stopsDone: 2, trip: anaEve,
+      job: directJob, status: 'completed', shipment: shp2, plan: directPlan, stopsDone: 2, departed: true, trip: anaEve,
     });
     expect(jobResponse(run, snapshotStart, 'plan-shp-1-L0')).toStrictEqual({
-      job: relayJob0, status: 'assigned', shipment: shp1, plan: relayPlan, stopsDone: 0, trip: samEve,
+      job: relayJob0, status: 'assigned', shipment: shp1, plan: relayPlan, stopsDone: 0, departed: false, trip: samEve,
     });
   });
 
@@ -218,6 +219,40 @@ describe('v2 jobResponse', () => {
     };
     const at = (timeMin: number) => jobResponse(bare, { ...snapshotEvening, timeMin }, 'plan-shp-2-L0')!.stopsDone;
     expect([1081, 1082, 1107, 1108].map(at)).toStrictEqual([0, 1, 1, 2]);
+  });
+
+  // #791. Ana's evening trip leaves at 1080, her morning trip at 1900; Sam's evening trip at 1050.
+  it('departed is true from the departure minute of the job\'s trip on, whatever the status', () => {
+    const at = (jobId: string) => (timeMin: number) => jobResponse(run, { ...snapshotEvening, timeMin }, jobId)!.departed;
+    expect([930, 1079, 1080, 1081, 1108, 2160].map(at('plan-shp-2-L0'))).toStrictEqual([false, false, true, true, true, true]);
+    expect([1110, 1440, 1899, 1900, 1901, 2160].map(at('plan-shp-1-L1'))).toStrictEqual([false, false, false, true, true, true]);
+    expect([1049, 1050, 1051].map(at('plan-shp-1-L0'))).toStrictEqual([false, true, true]);
+    // The flag reads the clock's minute, not the stored status: `snapshotEvening` says "completed" throughout.
+    expect(jobResponse(run, { ...snapshotEvening, timeMin: 1079 }, 'plan-shp-2-L0')).toMatchObject({ status: 'completed', departed: false });
+    // The dashboard row and the job view come from one builder.
+    const row = (timeMin: number) => {
+      const dashboard = employeeDashboard(run, { ...snapshotEvening, timeMin }, 'emp-2')!;
+      return Object.fromEntries([...dashboard.assigned, ...dashboard.completed].map((v) => [v.job.id, v.departed]));
+    };
+    expect(row(1079)).toStrictEqual({ 'plan-shp-2-L0': false, 'plan-shp-1-L1': false });
+    expect(row(1080)).toStrictEqual({ 'plan-shp-2-L0': true, 'plan-shp-1-L1': false });
+    expect(row(1900)).toStrictEqual({ 'plan-shp-2-L0': true, 'plan-shp-1-L1': true });
+  });
+
+  it('departed of a dashboard row whose trip is gone: true once the carrier is at the first stop', () => {
+    // Ana's morning trip is missing (GET /jobs/:id answers 404 for it); the row is still in her dashboard.
+    const noTrip: Run = { ...run, trips: run.trips.filter((t) => t.id !== anaMorn.id) };
+    const row = (timeMin: number) => {
+      const dashboard = employeeDashboard(noTrip, { ...snapshotEvening, timeMin }, 'emp-2')!;
+      return [...dashboard.assigned, ...dashboard.completed].find((v) => v.job.id === 'plan-shp-1-L1')!.departed;
+    };
+    // She is at the relay point at 1928.
+    expect([1900, 1927, 1928, 1929].map(row)).toStrictEqual([false, false, true, true]);
+    // A leg that lists no stops: the job's own pickup.
+    const bare: Run = { ...noTrip, assignments: { ...run.assignments, plans: [{ ...relayPlan, legs: relayPlan.legs.map((l) => ({ ...l, stops: [] })) }, directPlan] } };
+    const bareRow = (timeMin: number) => employeeDashboard(bare, { ...snapshotEvening, timeMin }, 'emp-2')!
+      .assigned.find((v) => v.job.id === 'plan-shp-1-L1')!.departed;
+    expect([1927, 1928].map(bareRow)).toStrictEqual([false, true]);
   });
 
   it('gives null when the job points at a plan or trip that no longer exists', () => {

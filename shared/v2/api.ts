@@ -61,6 +61,8 @@ export type EmployeeJobView = {
   // `serviceEndMin` is at or before the simulation minute (#781). The page marks stop `i` done when
   // `i < stopsDone`. The server always sends it; optional in the type only for samples written before it existed.
   stopsDone?: number;
+  // True once the job's commute has left: the simulation minute is at or past its trip's `departureMin` (#791). Optional like `stopsDone`.
+  departed?: boolean;
 };
 export type EmployeeDashboard = {
   employee: Employee; home: Home; trips: Trip[];
