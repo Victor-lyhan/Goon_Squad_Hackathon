@@ -112,7 +112,7 @@ describe('the button on the page', () => {
   it('is the first link of the page, before Business and Employee', () => {
     const h = page(summaryOf(storySimulator));
     const classes = [...h.matchAll(/<a [^>]*class="([^"]*)"/g)].map((m) => m[1]);
-    expect(classes).toEqual(['watch-button', 'workspace-entry', 'workspace-entry']);
+    expect(classes).toEqual(['watch-button', 'workspace-entry', 'workspace-entry', 'landing-more-link']);
   });
 });
 

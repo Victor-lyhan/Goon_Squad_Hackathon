@@ -116,10 +116,11 @@ describe('the four main paths show the MVP II pages on the real NYC run', () => 
     const s = await renderApp('/');
     await s.until(() => s.main().querySelectorAll('a[href^="/business/"]').length > 0, '/ links');
     const hrefs = [...s.main().querySelectorAll('a[href]')].map((a) => a.getAttribute('href')!);
-    // the homepage has three links: "Watch a package" (with ?package=<id>&play=1, #652), Business, Employee.
-    // The Guided demo link is gone with the page (#623, #652).
-    expect(hrefs.length).toBeGreaterThanOrEqual(3);
-    for (const h of hrefs) expect(h).toMatch(/^\/(simulator(\?package=[^/&]+&play=1)?|business\/[^/]+|employee\/[^/]+)$/);
+    // the homepage has four links: "Watch a package" (with ?package=<id>&play=1, #652), Business, Employee and
+    // "The numbers" to the static study page (#796). The Guided demo link is gone with the page (#623, #652).
+    expect(hrefs.length).toBeGreaterThanOrEqual(4);
+    expect(hrefs.filter((h) => h === '/study.html')).toHaveLength(1);
+    for (const h of hrefs) expect(h).toMatch(/^\/(simulator(\?package=[^/&]+&play=1)?|business\/[^/]+|employee\/[^/]+|study\.html)$/);
   }, T);
 
   it('the selector stores the chosen business; a stored ID not in the NYC lists falls back to the first', async () => {
