@@ -15,6 +15,7 @@ import { DEFAULT_V2_STATE_PATH } from '../../server/api/v2/bootRun';
 import { TRAVEL_NOT_LOADED_MESSAGE } from '../../server/api/v2/errors';
 import type { BusinessesResponse, SimulatorResponse } from '../../shared/v2/api';
 import { noNetwork, T, tempRepo, type CacheKind, type TempRepo } from './v2-bootstrap-helper';
+import { ownOrigin } from './own-origin-helper';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -66,7 +67,7 @@ async function boot(cache: CacheKind = 'sample'): Promise<Started> {
     server.once('listening', () => resolve());
     server.once('error', reject);
   });
-  one.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  one.origin = await ownOrigin(server); // not 127.0.0.1:<port>: another program may answer there (own-origin-helper.ts)
   return one;
 }
 
@@ -139,7 +140,7 @@ describe('the MVP 1 paths on the running server', () => {
     const dist = path.join(repo.root, 'client', 'dist');
     fs.mkdirSync(dist, { recursive: true });
     fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html><html><body>relay-shell</body></html>');
-    const server = createApp({ clientDist: dist }).listen(0);
+    const server = createApp({ clientDist: dist }).listen(0, '127.0.0.1');
     try {
       await new Promise((resolve) => server.once('listening', resolve));
       const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

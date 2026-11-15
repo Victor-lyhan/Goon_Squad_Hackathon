@@ -18,6 +18,7 @@ import {
 import { DEFAULT_V2_STATE_PATH } from '../../server/api/v2/bootRun';
 import { TRAVEL_NOT_LOADED_MESSAGE } from '../../server/api/v2/errors';
 import { FAKE_KEY, noNetwork, T, tempRepo, type CacheKind, type TempRepo } from './v2-bootstrap-helper';
+import { ownOrigin } from './own-origin-helper';
 
 const V2_READY_LINE = 'Relay MVP II API ready at /api/v2 (NYC travel cache loaded)';
 const SHELL = '<!doctype html><html><body><div id="root">relay-shell</div></body></html>';
@@ -111,7 +112,7 @@ async function boot(opts: BootOptions = {}): Promise<Started> {
     one.server.once('error', reject);
   });
   one.port = (one.server.address() as AddressInfo).port;
-  one.origin = `http://127.0.0.1:${one.port}`;
+  one.origin = await ownOrigin(one.server); // not 127.0.0.1:<port>: another program may answer there (own-origin-helper.ts)
   return one;
 }
 
@@ -135,7 +136,8 @@ describe('PORT', () => {
     expect(one.port).toBe(port);
     expect(one.lines.at(-1)).toBe(listeningLine(port));
     expect(one.env.PORT).toBe(String(port)); // loaded into the environment it was given
-    expect((await fetch(`http://127.0.0.1:${port}/api/health`)).status).toBe(200);
+    expect(new URL(one.origin).port).toBe(String(port));
+    expect((await fetch(`${one.origin}/api/health`)).status).toBe(200);
   }, T);
 
   it('a PORT in the environment wins over the one in .env', async () => {

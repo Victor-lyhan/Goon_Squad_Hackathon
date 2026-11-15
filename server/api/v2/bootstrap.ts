@@ -46,7 +46,8 @@ export type V2RuntimeOptions = {
    * Gemini for POST /parse-request (docs/mvp4.md F1): `geminiKey(env)` and `geminiModel(env)` of
    * server/ai/env.ts. Left out, or with a null or blank key: every sentence is parsed offline and nothing is
    * sent. `fetch` defaults to the `fetch` above; `log` (default `console.warn`) gets one fixed line per
-   * request that fell back although a key is set, never the key or Gemini's text.
+   * request that fell back although a key is set, never the key or Gemini's text. `info` (default: none) gets
+   * one fixed line per request that did not fall back: Gemini's draft with the model and the time, or "no key".
    */
   gemini?: {
     apiKey: string | null | undefined;
@@ -54,6 +55,7 @@ export type V2RuntimeOptions = {
     timeoutMs?: number;
     fetch?: FetchLike;
     log?: (line: string) => void;
+    info?: (line: string) => void;
   };
 };
 
@@ -156,6 +158,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         fetchImpl: gemini.fetch ?? options.fetch,
       },
       log: gemini?.log ?? ((line) => console.warn(line)),
+      info: gemini?.info,
     });
     router.get('/geocode', getGeocode({
       key: () => (key === '' ? null : key),

@@ -94,8 +94,23 @@ const inside = (target: unknown, selector: string): boolean => {
  * The press to compare the next one with: a pointer press on the submit button, the one press whose answer
  * moves the form. Null for a key press or a scripted click (`detail` 0) and for a press anywhere else.
  */
-export function pressOf(e: PressEvent): Press | null {
-  return e.detail >= 1 && inside(e.target, 'button[type="submit"]') ? { time: e.timeStamp, x: e.clientX, y: e.clientY } : null;
+export function pressOf(e: PressEvent, selector = 'button[type="submit"]'): Press | null {
+  return e.detail >= 1 && inside(e.target, selector) ? { time: e.timeStamp, x: e.clientX, y: e.clientY } : null;
+}
+
+/**
+ * True for the second press of a double press on a button that is no longer there (#807): "Read my request"
+ * and "Fill in the form instead" turn the text box into this form, so the second press lands on whatever
+ * the form has at that place. In Chrome that was the Recipient list, which opened over the card, or plain
+ * text, which took the focus away from the first "Check this" field. `previous` is the press on the button
+ * that went away (`pressOf(e, 'button')`); an echo is a pointer press on anything at the same place
+ * (REPEAT_PRESS_PX) within REPEAT_PRESS_MS of it. A later press there is the user's own and is never dropped.
+ */
+export function isEchoPress(e: Pick<PressEvent, 'detail' | 'timeStamp' | 'clientX' | 'clientY'>, previous: Press | null): boolean {
+  if (previous === null || e.detail < 1) return false;
+  const near = Math.abs(e.clientX - previous.x) <= REPEAT_PRESS_PX && Math.abs(e.clientY - previous.y) <= REPEAT_PRESS_PX;
+  const after = e.timeStamp - previous.time;
+  return near && after >= 0 && after < REPEAT_PRESS_MS;
 }
 
 /**
@@ -129,6 +144,12 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   const [clientErrors, setClientErrors] = useState<FieldErrors>({});
   const [submitState, dispatch] = useReducer(submitReducer, origin.id, (id: string) => initialSubmitState(newClientRequestId(id)));
   const busy = useRef(false);
+  /**
+   * The control inside the form that had the focus when the request left (#807). The fields and the button
+   * are disabled while it is on its way, and a browser drops the focus of a disabled control: in Chrome it
+   * went to the page body, so after the answer a keyboard user started again from the top of the page.
+   */
+  const sentFrom = useRef<HTMLElement | null>(null);
   const form = useRef<HTMLFormElement>(null);
   const fields = useRef<Partial<Record<DraftField, HTMLElement | null>>>({});
   const timeWindow = props.window ?? DEFAULT_WINDOW;
@@ -177,6 +198,8 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
     }
     busy.current = true;
     const sent = draft;
+    const active = document.activeElement;
+    sentFrom.current = active instanceof HTMLElement && form.current?.contains(active) ? active : null;
     dispatch({ type: retryId ? 'retry' : 'submit' });
     try {
       // A retry is the same delivery (never a second POST /shipments); only a new request gets a new ID.
@@ -200,11 +223,22 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
 
   const status = submitState.status;
   // Every answer is a new status object, so the same answer twice (a second no-match) is shown twice.
-  useEffect(() => { revealAnswer(form.current, status.kind); }, [status]);
+  useEffect(() => {
+    revealAnswer(form.current, status.kind);
+    if (!ANSWERS.includes(status.kind)) return;
+    // The focus goes back to where it was, unless the user has put it somewhere else in the meantime.
+    // Without scrolling: revealAnswer has just brought the answer on screen.
+    const from = sentFrom.current;
+    sentFrom.current = null;
+    const active = document.activeElement;
+    if (from?.isConnected && (active === null || active === document.body)) from.focus({ preventScroll: true });
+  }, [status]);
   // A prefilled form opens on the first field the request left out. Once, on mount: never on a poll's re-render.
+  // Without scrolling (#807): at 390 px the browser moved that field to the middle of the screen, and the top
+  // of the card ("Parsed offline", the sentence, the notes about the sender or a refused stop) was scrolled away.
   useEffect(() => {
     const first = firstNeedsInput(props.needsInput ?? []);
-    if (first) fields.current[first]?.focus();
+    if (first) fields.current[first]?.focus({ preventScroll: true });
   }, []);
   const errors: FieldErrors = { ...(status.kind === 'error' ? status.fieldErrors : {}), ...clientErrors };
 

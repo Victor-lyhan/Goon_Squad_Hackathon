@@ -4,6 +4,7 @@
 // Rules of the page:
 // - Pure and deterministic: the same results give the same text. No timestamp, no random id, no clock.
 // - One file, no network: inline CSS, charts as inline SVG, no script, no web font (system sans fallback).
+//   The tab icon is an empty data: URL, so the browser does not ask the server for /favicon.ico either.
 // - It shows numbers, it does not make them: totals and headline values are read from the results. The only
 //   arithmetic here is presentation (a run's saving per matched package, the match rate of a group of runs,
 //   a median, chart geometry), done from the exact totals with the helpers of units.ts.
@@ -95,10 +96,24 @@ export function assumptionValueParts(assumption: Assumption): { figure: string; 
 }
 
 // ---------- SVG pieces ----------
-// Every chart is drawn in a 360-unit-wide box and scales with its column, so the text stays close to its
-// CSS size at 390 px (one column) and at 1280 px (three columns).
+// Every chart is drawn in a box CHART_WIDTH units wide and fills its card. A card is never laid out narrower
+// than the box plus its own padding and border (CARD_MIN_WIDTH, used by the grid in the CSS below), so a chart
+// is only ever scaled up and its text is never smaller than CHART_TEXT_PX: 13.9 px at a 390 px viewport (one
+// column), 13.6 px at 1440 px (three columns). Only a viewport narrower than CARD_MIN_WIDTH plus the page
+// padding (346 px) scales a chart down. Measured in headless Chrome for #808.
 
-const W = 360;
+/** The width of every chart's viewBox, in SVG units. */
+export const CHART_WIDTH = 280;
+/** The font size of chart text, in SVG units: CSS px when the chart is drawn at its own width. */
+export const CHART_TEXT_PX = 12;
+const CARD_PADDING_X = 16;
+const CARD_BORDER = 1;
+/** The narrowest card that still shows a chart at full size. */
+export const CARD_MIN_WIDTH = CHART_WIDTH + 2 * (CARD_PADDING_X + CARD_BORDER);
+/** A chart in a wide card stops growing here, so its text stays near the size of the text around it. */
+const CHART_MAX_WIDTH = Math.round(CHART_WIDTH * 1.4);
+
+const W = CHART_WIDTH;
 const BAR_RADIUS = 4;
 
 /** A coordinate: at most 2 decimals, never "-0". */
@@ -124,8 +139,8 @@ function svg(id: string, height: number, label: string, body: string): string {
 
 /** Relay next to the courier for one per-package measure: two bars from one baseline, the value at each tip. */
 function pairChart(id: string, what: string, relay: number | null, courier: number | null, format: (value: number | null) => string): string {
-  const labelWidth = 60;
-  const valueWidth = 70;
+  const labelWidth = 56;
+  const valueWidth = 64;
   const barHeight = 20;
   const span = W - labelWidth - valueWidth;
   const top = Math.max(relay ?? 0, courier ?? 0);
@@ -185,11 +200,14 @@ type Distribution = {
 
 /** How many runs fall in each range of a per-run value: one series, so one color and no legend. */
 function histogram(d: Distribution): string {
-  const height = 176;
+  // The "runs" axis title sits above the top count label and the bin labels sit below the "0" count label,
+  // each with clear space between them (they touched at 390 px before #808).
+  const height = 192;
   const left = 30;
-  const right = 20;
-  const topY = 18;
-  const baseY = 138;
+  const right = 24;
+  const topY = 28;
+  const baseY = 148;
+  const xLabelY = baseY + 20;
   const plotWidth = W - left - right;
   if (d.values.length === 0) {
     return svg(d.id, 40, `Runs by ${d.what}: no run matched a package`, `<text class="tm" x="0" y="24">No run matched a package.</text>`);
@@ -228,11 +246,11 @@ function histogram(d: Distribution): string {
     const x = left + index * slot;
     edges += `<line class="grid" x1="${px(x)}" x2="${px(x)}" y1="${baseY}" y2="${baseY + 4}"/>`;
     if (index % labelEvery === 0) {
-      edges += `<text class="tm num" x="${px(x)}" y="${baseY + 17}" text-anchor="middle">${d.tick(edge(index), decimals)}</text>`;
+      edges += `<text class="tm num" x="${px(x)}" y="${xLabelY}" text-anchor="middle">${d.tick(edge(index), decimals)}</text>`;
     }
   }
   const axisTitle = `<text class="tm" x="${px(left + plotWidth / 2)}" y="${height - 6}" text-anchor="middle">${escapeHtml(d.what)}</text>`
-    + `<text class="tm" x="0" y="10">runs</text>`;
+    + `<text class="tm" x="0" y="12">runs</text>`;
   const sorted = [...d.values].sort((a, b) => a - b);
   const label = `Runs by ${d.what}: ${d.values.length} runs, from ${d.format(sorted[0]!)} to ${d.format(sorted[sorted.length - 1]!)}`;
   return svg(d.id, height, label, grid + bars + edges + axisTitle);
@@ -251,7 +269,7 @@ function distributionSummary(d: Distribution): string {
 
 /** A rate per named row against the same whole (0 to 100%): a bar on a lighter track, the figure at the end. */
 function rateRows(id: string, what: string, rows: Array<{ name: string; fraction: number | null }>): string {
-  const labelWidth = 104;
+  const labelWidth = 98;
   const valueWidth = 50;
   const barHeight = 14;
   const rowHeight = 26;
@@ -371,18 +389,18 @@ p{margin:0 0 12px}
 .intro{color:${COLOR.muted};max-width:760px}
 .how{max-width:760px}
 .num,code{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));column-gap:12px;row-gap:0;margin:12px 0 0}
 .tile,.card{background:${COLOR.panel};border:1px solid ${COLOR.line};border-radius:6px}
-.tile{padding:14px 16px}
+.tile{display:grid;grid-row:span 3;grid-template-rows:subgrid;row-gap:0;margin-top:12px;padding:14px 16px}
 .tile p{margin:0}
-.tile-label{font-size:13px;color:${COLOR.muted}}
+.tile-label{font-size:13px;color:${COLOR.muted};align-self:end}
 .tile-value{font-size:26px;line-height:1.25;font-weight:600;margin:2px 0 4px}
 .tile-detail{font-size:13px;color:${COLOR.muted}}
-.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}
-.card{margin:0;padding:14px 16px 12px;min-width:0}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,${CARD_MIN_WIDTH}px),1fr));gap:12px;margin-top:12px}
+.card{margin:0;padding:14px ${CARD_PADDING_X}px 12px;border-width:${CARD_BORDER}px;min-width:0}
 figcaption{font-size:14px;font-weight:600;margin-bottom:10px}
-svg{display:block;width:100%;height:auto;max-width:460px}
-svg text{font-size:12px}
+svg{display:block;width:100%;height:auto;max-width:${CHART_MAX_WIDTH}px}
+svg text{font-size:${CHART_TEXT_PX}px}
 .t{fill:${COLOR.ink}}
 .tm{fill:${COLOR.muted}}
 .t-on{fill:#FFFFFF;font-weight:600}
@@ -412,7 +430,7 @@ tbody th{font-weight:600}
 .runs{font-size:13px;font-variant-numeric:tabular-nums}
 .runs th,.runs td{padding:6px 10px;white-space:nowrap}
 .runs td{text-align:right;font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.runs thead th{text-align:right}
+.runs thead th{text-align:right;white-space:normal;vertical-align:bottom}
 .runs thead th:first-child{text-align:left}
 details{margin-top:12px}
 summary{cursor:pointer;font-weight:600;color:${COLOR.relay};padding:6px 0}
@@ -533,6 +551,7 @@ export function renderStudyPage(results: StudyResults): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Relay compared with a standard next-day B2B courier on cost, added miles, CO₂ and delivery time, with every assumption listed.">
 <meta name="theme-color" content="${COLOR.relay}">
+<link rel="icon" href="data:,">
 <title>Relay vs. a next-day courier: the numbers</title>
 <style>${CSS}</style>
 </head>
@@ -611,7 +630,7 @@ ${assumptionRows(assumptions)}
 <summary>Show the ${count(runs.length)} simulated ${runs.length === 1 ? 'run' : 'runs'} as a table</summary>
 <div class="scroll">
 <table class="runs">
-<thead><tr><th scope="col">Run</th><th scope="col">Employees</th><th scope="col">Packages</th><th scope="col">Detour limit</th><th scope="col">Matched</th><th scope="col">Match rate</th><th scope="col">Cost saved / pkg</th><th scope="col">Relay added mi / pkg</th><th scope="col">Courier mi / pkg</th><th scope="col">Relay CO₂ / pkg</th><th scope="col">Courier CO₂ / pkg</th><th scope="col">Early</th><th scope="col">On time</th><th scope="col">Late</th></tr></thead>
+<thead><tr><th scope="col">Run</th><th scope="col">Employees</th><th scope="col">Packages</th><th scope="col">Detour limit</th><th scope="col">Matched</th><th scope="col">Match rate</th><th scope="col">Cost saved /&nbsp;pkg</th><th scope="col">Relay added mi /&nbsp;pkg</th><th scope="col">Courier mi /&nbsp;pkg</th><th scope="col">Relay CO₂ /&nbsp;pkg</th><th scope="col">Courier CO₂ /&nbsp;pkg</th><th scope="col">Early</th><th scope="col">On time</th><th scope="col">Late</th></tr></thead>
 <tbody>
 ${runRows(runs)}
 </tbody>

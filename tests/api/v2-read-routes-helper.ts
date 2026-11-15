@@ -82,7 +82,7 @@ export async function startReadApi(opts: {
     clientDist: dist,
     v2: { travel: deps.travel, store: deps.store, extraRoutes: (router) => registerReadRoutes(router, deps) },
   });
-  const server: Server = app.listen(0);
+  const server: Server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;
 

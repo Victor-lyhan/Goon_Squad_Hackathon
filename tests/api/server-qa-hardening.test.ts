@@ -17,6 +17,7 @@ import {
 import { DEFAULT_V2_STATE_PATH, sourcePathFor } from '../../server/api/v2/bootRun';
 import type { SimulatorResponse } from '../../shared/v2/api';
 import { FAKE_KEY, noNetwork, T, tempRepo, type CacheKind, type TempRepo } from './v2-bootstrap-helper';
+import { ownOrigin } from './own-origin-helper';
 
 const INDEX = '<!doctype html><html><head><title>Relay</title></head><body><div id="root">relay-shell</div></body></html>';
 /** Made-up built files, named like Vite's output. The font bytes are not real fonts: only the serving is tested. */
@@ -86,7 +87,7 @@ async function boot(opts: BootOptions = {}): Promise<Started> {
     server.once('listening', () => resolve());
     server.once('error', reject);
   });
-  one.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  one.origin = await ownOrigin(server); // not 127.0.0.1:<port>: another program may answer there (own-origin-helper.ts)
   return one;
 }
 
@@ -365,7 +366,7 @@ describe('HEAD', () => {
   it('while /api/v2 is not loaded every method on /api/v2 is the JSON 503, /api/x the 404, and pages still answer', async () => {
     const repo = tempRepo('empty');
     repos.push(repo);
-    const server = createApp({ clientDist: writeDist(repo) }).listen(0);
+    const server = createApp({ clientDist: writeDist(repo) }).listen(0, '127.0.0.1');
     try {
       await new Promise((resolve) => server.once('listening', resolve));
       const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

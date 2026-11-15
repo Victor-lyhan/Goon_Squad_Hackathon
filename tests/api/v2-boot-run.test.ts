@@ -36,7 +36,7 @@ function notLoaded(result: V2Boot): string {
 async function request(deps: V2Deps, url: string): Promise<{ status: number; body: unknown }> {
   const app = express();
   app.use('/api/v2', createV2Router(deps));
-  const server = app.listen(0);
+  const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   try {
     const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2${url}`);
