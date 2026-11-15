@@ -31,8 +31,8 @@ let onHungRequest: (() => void) | undefined;
 const hungRequestArrives = () => new Promise<void>((resolve) => { onHungRequest = resolve; });
 
 beforeAll(async () => {
-  server = createApp().listen(0);
-  hung = http.createServer(() => { onHungRequest?.(); /* never answers */ }).listen(0);
+  server = createApp().listen(0, '127.0.0.1');
+  hung = http.createServer(() => { onHungRequest?.(); /* never answers */ }).listen(0, '127.0.0.1');
   await Promise.all([server, hung].map((s) => new Promise((r) => s.once('listening', r))));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   hungBase = `http://127.0.0.1:${(hung.address() as AddressInfo).port}`;

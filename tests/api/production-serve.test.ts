@@ -17,7 +17,7 @@ let base = '';
 let tmp = '';
 
 async function start(clientDist: string) {
-  server = createApp({ clientDist }).listen(0);
+  server = createApp({ clientDist }).listen(0, '127.0.0.1');
   await new Promise((r) => server!.once('listening', r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }

@@ -79,7 +79,7 @@ export async function startControlServer(
       extraRoutes: (router) => registerControlRoutes(router, { store: wrapStore(store), snapshotAt }),
     },
   });
-  const server: Server = app.listen(0);
+  const server: Server = app.listen(0, '127.0.0.1');
   await new Promise((r) => server.once('listening', r));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 

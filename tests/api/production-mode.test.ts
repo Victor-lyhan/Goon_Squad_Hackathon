@@ -14,6 +14,7 @@ import { CLIENT_SERVED_LINE, createApp, startServer, type RelayServer } from '..
 import { DEFAULT_V2_STATE_PATH } from '../../server/api/v2/bootRun';
 import type { SimulatorResponse } from '../../shared/v2/api';
 import { noNetwork, T, tempRepo, type TempRepo } from './v2-bootstrap-helper';
+import { ownOrigin } from './own-origin-helper';
 
 const INDEX = '<!doctype html><html><head><title>Relay</title></head><body><div id="root">relay-shell</div></body></html>';
 /** Made-up built files, named like Vite's output. The font bytes are not real fonts: only the serving is tested. */
@@ -79,7 +80,7 @@ async function boot(repo?: TempRepo): Promise<Started> {
     server.once('listening', () => resolve());
     server.once('error', reject);
   });
-  one.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  one.origin = await ownOrigin(server); // not 127.0.0.1:<port>: another program may answer there (own-origin-helper.ts)
   return one;
 }
 
@@ -138,7 +139,7 @@ describe('unknown API paths with a built client', () => {
   it('while /api/v2 is not loaded an unknown /api/v2 path is JSON too (the 503), and /api/x stays the 404', async () => {
     const repo = tempRepo('empty');
     repos.push(repo);
-    const server = createApp({ clientDist: writeDist(repo) }).listen(0);
+    const server = createApp({ clientDist: writeDist(repo) }).listen(0, '127.0.0.1');
     try {
       await new Promise((resolve) => server.once('listening', resolve));
       const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
