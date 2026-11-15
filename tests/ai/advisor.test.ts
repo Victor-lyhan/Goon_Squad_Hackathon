@@ -11,7 +11,7 @@ import {
 } from '../../server/ai/advisor';
 import { GEMINI_MODELS_URL } from '../../server/ai/gemini';
 import type { FetchInitLike, FetchLike } from '../../server/geo/googleClient';
-import type { DeliveryPlan } from '../../shared/v2/types';
+import type { DeliveryPlan, Leg } from '../../shared/v2/types';
 
 const KEY = 'AQ.FAKE_advisor-key-41c9';
 const MODEL = 'gemini-2.5-flash';
@@ -19,7 +19,7 @@ const MODEL = 'gemini-2.5-flash';
 const leg = (tripId: string, employeeId: string, extraMin: number) =>
   ({ tripId, employeeId, placeIds: [], stops: [], finishMin: 0, extraMin, extraDistanceM: 1609.344, rewardCents: 300 });
 
-const plan = (kind: 'direct' | 'relay', deliveryMin: number, customerPriceCents: number, legs: ReturnType<typeof leg>[], relayBusinessId?: string) =>
+const plan = (kind: 'direct' | 'relay', deliveryMin: number, customerPriceCents: number, legs: Leg[], relayBusinessId?: string) =>
   ({
     id: 'pln-x', shipmentId: 'shp-advice', kind, deliveryMin, customerPriceCents, platformContributionCents: 0, legs,
     ...(relayBusinessId ? { relayBusinessId } : {}),

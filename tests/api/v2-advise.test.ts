@@ -150,16 +150,20 @@ describe('POST /api/v2/advise without a Gemini key', () => {
     const { store, travel, sent } = await start();
     const before = remember(store);
     const run = store.get();
-    // shp-1 of the sample run: 14 free candidates as typed, direct and relay.
+    // shp-1 of the sample run: 14 free candidates as typed, in the matcher's order: p1 and p2 direct at $7.00
+    // (arriving 1988 and 1898), p3-p14 relay at $10.50 (p10 arrives first of all, at 1896).
     const draft = draftOf(run, 'shp-1');
 
     const body = await adviseOk(draft);
 
     expect(body.source).toBe('offline');
     expect(body.note).toBeUndefined();
+    // Fastest: p10 (1896). Cheapest: p2, the earlier of the two $7.00 plans. Balanced: p1, 0 + 92/97 = 0.95,
+    // under every remaining relay (1 + something).
     expect(body.options.map((o) => [o.id, o.tags, o.kind])).toStrictEqual([
-      ['p4', ['fastest'], 'relay'], ['p1', ['cheapest'], 'direct'], ['p2', ['balanced'], 'direct'],
+      ['p10', ['fastest'], 'relay'], ['p2', ['cheapest'], 'direct'], ['p1', ['balanced'], 'direct'],
     ]);
+    expect(body.options.map((o) => [o.deliveryMin, o.customerPriceCents])).toStrictEqual([[1896, 1050], [1898, 700], [1988, 700]]);
     // The fastest arrives first of every candidate, the cheapest costs least of every candidate.
     const { candidates } = candidateSet(advisorEngine(run, travel, draft));
     expect(candidates).toHaveLength(14);
