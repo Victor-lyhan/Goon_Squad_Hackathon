@@ -32,6 +32,45 @@ export const SENDER: Pt = LINE_A[0]!;
 export const RELAY_POINT: Pt = LINE_A[LINE_A.length - 1]!;
 export const RECIPIENT: Pt = LINE_B[LINE_B.length - 1]!;
 
+/**
+ * Network businesses, as small glowing dots on the land (#939): made-up places, like the lines. Each is
+ * well clear of the route, so a dot never reads as a stop on it.
+ */
+export const NETWORK_NODES: readonly Pt[] = [
+  [296, 470], [318, 392], [345, 300], [385, 288], [400, 112], [432, 142],
+  [560, 342], [604, 262], [644, 338], [586, 430], [500, 412], [452, 474], [540, 502], [682, 440], [700, 292],
+  [580, 110], [662, 92],
+];
+
+/** How far point `p` is from the nearest segment of `points`. */
+export function distanceToLine(p: Pt, points: readonly Pt[]): number {
+  let best = Infinity;
+  for (let i = 1; i < points.length; i++) {
+    const [ax, ay] = points[i - 1]!;
+    const [bx, by] = points[i]!;
+    const len2 = (bx - ax) ** 2 + (by - ay) ** 2;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - ax) * (bx - ax) + (p[1] - ay) * (by - ay)) / len2));
+    best = Math.min(best, Math.hypot(p[0] - (ax + t * (bx - ax)), p[1] - (ay + t * (by - ay))));
+  }
+  return best;
+}
+
+/**
+ * A street grid for one pattern tile: `cols` x `rows` cells of `cellW` x `cellH`. The lines sit half a cell
+ * in from the tile's edges, so none is cut by the edge. `fine` is every street, `major` the one avenue and
+ * the one cross street per tile that are drawn a little brighter.
+ */
+export function streetGrid(cellW: number, cellH: number, cols: number, rows: number): { width: number; height: number; fine: string; major: string } {
+  const width = cellW * cols;
+  const height = cellH * rows;
+  const across = (r: number) => `M0 ${cellH * (r + 0.5)}H${width}`;
+  const down = (c: number) => `M${cellW * (c + 0.5)} 0V${height}`;
+  let fine = '';
+  for (let r = 1; r < rows; r++) fine += across(r);
+  for (let c = 1; c < cols; c++) fine += down(c);
+  return { width, height, fine, major: across(0) + down(0) };
+}
+
 /** An SVG path through the points, straight segments: "M300 420L340 420…". */
 export function pathD(points: readonly Pt[]): string {
   return `M${points.map(([x, y]) => `${x} ${y}`).join('L')}`;

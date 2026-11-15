@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react';
 
 import {
-  HERO_MAP_PLACEMENT, HERO_VIEWBOX, LINE_A, LINE_B, PACKAGE_ROUTE, RECIPIENT, RELAY_POINT, RELAY_SPLIT_PERCENT, SENDER,
-  pathD, segmentMidpoint, type Pt,
+  HERO_MAP_PLACEMENT, HERO_VIEWBOX, LINE_A, LINE_B, NETWORK_NODES, PACKAGE_ROUTE, RECIPIENT, RELAY_POINT,
+  RELAY_SPLIT_PERCENT, SENDER, pathD, segmentMidpoint, streetGrid, type Pt,
 } from './landingHeroModel';
 
 /** What the drawing shows, for a screen reader (the drawing itself is one image). */
@@ -28,6 +28,16 @@ const CENTRAL_PARK = 'M417.9 166.6L397.3 159L366.1 243.4L386.7 251Z';
 const BOROUGH_LINE = 'M440 350L560 392L810 470';
 
 const at = ([x, y]: Pt) => `translate(${x} ${y})`;
+
+// Street grids: avenues along Manhattan's axis, another angle on each side of the river. One avenue and
+// one cross street in each tile are drawn brighter (#939).
+const GRIDS = [
+  { id: 'relay-hero-grid-m', rotate: 20.3, ...streetGrid(16, 9, 4, 5) },
+  { id: 'relay-hero-grid-li', rotate: -12, ...streetGrid(22, 14, 4, 5) },
+  { id: 'relay-hero-grid-bx', rotate: 38, ...streetGrid(20, 13, 4, 5) },
+];
+/** The soft trail behind the package: dots on the package's route, each a little later and smaller. */
+const TRAIL = [{ r: 7, lag: 0.09 }, { r: 5.5, lag: 0.18 }, { r: 4, lag: 0.27 }];
 
 function Badge({ point, letter, line }: { point: Pt; letter: string; line: 'a' | 'b' }) {
   return (
@@ -57,8 +67,9 @@ function LegendKey({ item }: { item: 'a' | 'b' | 'relay' | 'package' }) {
 /**
  * The hero's map (#833): a stylized dark NYC drawn here in SVG, with no map service, no tiles and no request.
  * Two commute lines in the carrier colors, the orange package riding the first, changing hands at the relay
- * point's diamond and riding the second, in a loop. The motion is CSS (landing.css): without it, and under
- * prefers-reduced-motion, the package rests at the recipient, which is the last frame. The box has no frame:
+ * point's diamond and riding the second to a delivered flag, in a loop; each line draws on as its commuter
+ * sets off (#939). The motion is CSS (landing.css): without it, and under prefers-reduced-motion, both lines
+ * are drawn, the flag is up and the package rests at the recipient, which is the last frame. The box has no frame:
  * it is the hero's whole right half, or the band under the text on a phone, and the drawing fills it (#869).
  */
 export default function LandingHeroMap() {
@@ -74,15 +85,15 @@ export default function LandingHeroMap() {
         preserveAspectRatio="xMidYMid slice" role="img" aria-label={HERO_MAP_LABEL} focusable="false"
       >
         <defs>
-          {/* Street grids: avenues along Manhattan's axis, another angle on each side of the river. */}
-          <pattern id="relay-hero-grid-m" width="16" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(20.3)">
-            <path className="hero-street" d="M0 0H16M0 0V9" />
-          </pattern>
-          <pattern id="relay-hero-grid-li" width="22" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(-12)">
-            <path className="hero-street" d="M0 0H22M0 0V14" />
-          </pattern>
-          <pattern id="relay-hero-grid-bx" width="20" height="13" patternUnits="userSpaceOnUse" patternTransform="rotate(38)">
-            <path className="hero-street" d="M0 0H20M0 0V13" />
+          {GRIDS.map((grid) => (
+            <pattern key={grid.id} id={grid.id} width={grid.width} height={grid.height} patternUnits="userSpaceOnUse" patternTransform={`rotate(${grid.rotate})`}>
+              <path className="hero-street" d={grid.fine} />
+              <path className="hero-avenue" d={grid.major} />
+            </pattern>
+          ))}
+          {/* Faint scan lines over water and land alike: the map reads as an operations screen. */}
+          <pattern id="relay-hero-scan" width="8" height="5" patternUnits="userSpaceOnUse">
+            <path className="hero-scan" d="M0 2.5H8" />
           </pattern>
         </defs>
 
@@ -100,16 +111,41 @@ export default function LandingHeroMap() {
         <path className="hero-park" d={CENTRAL_PARK} />
         <path className="hero-borough-line" d={BOROUGH_LINE} />
 
-        {/* The two commutes: a dark casing under each line keeps it clear of the street grid. */}
+        <rect className="hero-scan-layer" x="0" y="0" width="900" height="700" fill="url(#relay-hero-scan)" />
+
+        {/* Network businesses: a small dot with a halo in a carrier color, pulsing slowly, each on its own beat. */}
+        {NETWORK_NODES.map((point, i) => (
+          <g key={i} transform={at(point)}>
+            <circle className={`hero-node-halo hero-node-halo-${i % 2 === 0 ? 'a' : 'b'}`} r="8" style={{ animationDelay: `${-((i * 1.3) % 5).toFixed(1)}s` }} />
+            <circle className="hero-node" r="2" />
+          </g>
+        ))}
+
+        {/* The two commutes. A dark casing keeps each clear of the street grid and a dim track shows where it
+            runs; the bright line and its glow (a wider, fainter stroke, no filter) draw on over the track. */}
         <path className="hero-line-casing" d={pathD(LINE_A)} />
         <path className="hero-line-casing" d={pathD(LINE_B)} />
-        <path className="hero-line hero-line-a" d={pathD(LINE_A)} />
-        <path className="hero-line hero-line-b" d={pathD(LINE_B)} />
+        <path className="hero-track hero-line-a" d={pathD(LINE_A)} />
+        <path className="hero-track hero-line-b" d={pathD(LINE_B)} />
+        <g className="hero-live">
+          <path className="hero-glow hero-draw-a hero-line-a" d={pathD(LINE_A)} pathLength={1} />
+          <path className="hero-glow hero-draw-b hero-line-b" d={pathD(LINE_B)} pathLength={1} />
+          <path className="hero-line hero-draw-a hero-line-a" d={pathD(LINE_A)} pathLength={1} />
+          <path className="hero-line hero-draw-b hero-line-b" d={pathD(LINE_B)} pathLength={1} />
+        </g>
         <Badge point={segmentMidpoint(LINE_A, 1)} letter="A" line="a" />
         <Badge point={segmentMidpoint(LINE_B, 0)} letter="B" line="b" />
 
         <circle className="hero-stop" r="6" transform={at(SENDER)} />
         <circle className="hero-stop" r="6" transform={at(RECIPIENT)} />
+
+        {/* Delivered: a flag goes up at the recipient when the package arrives. */}
+        <g transform={at(RECIPIENT)}>
+          <g className="hero-flag">
+            <path className="hero-flag-pole" d="M0 0V-27" />
+            <path className="hero-flag-cloth" d="M0 -27L15 -21.5L0 -16Z" />
+          </g>
+        </g>
 
         {/* The relay point: a diamond, as on the simulator's map. The ring grows once at each handoff. */}
         <g transform={`${at(RELAY_POINT)} rotate(45)`}>
@@ -117,9 +153,19 @@ export default function LandingHeroMap() {
           <rect className="hero-relay" x="-9" y="-9" width="18" height="18" />
         </g>
 
-        {/* The package. The transform is its resting place (the recipient) where CSS motion paths are missing. */}
+        {/* The package's glow and trail, then the package. The transform is the resting place (the recipient)
+            where CSS motion paths are missing; at rest the trail is under the package. */}
+        <g className="hero-trail">
+          <circle className="hero-package-ride" r="15" transform={at(RECIPIENT)} style={packageStyle} />
+          {TRAIL.map(({ r, lag }) => (
+            <circle
+              key={lag} className="hero-package-ride" r={r} transform={at(RECIPIENT)}
+              style={{ ...packageStyle, '--trail-lag': `${lag}s` } as CSSProperties}
+            />
+          ))}
+        </g>
         <rect
-          className="hero-package" x="-9" y="-9" width="18" height="18" rx="3"
+          className="hero-package hero-package-ride" x="-9" y="-9" width="18" height="18" rx="3"
           transform={at(RECIPIENT)} style={packageStyle}
         />
         </g>
