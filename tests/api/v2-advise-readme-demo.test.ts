@@ -33,6 +33,12 @@ const demo: Record<string, string> = Object.fromEntries(
     return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
   }),
 );
+// #877: the README's sentences about these answers. A numbered step of the 2-minute demo, and the example
+// with two options under "Options for a request".
+const demoStart = readme.indexOf('\n## 2-minute demo\n');
+const demoSection = demoStart === -1 ? '' : readme.slice(demoStart, readme.indexOf('\n## ', demoStart + 1));
+const step = (n: number) => demoSection.split('\n').find((line) => line.startsWith(`${n}. `)) ?? '';
+const optionsExample = readme.split('\n').find((line) => line.startsWith('An example with two options')) ?? '';
 
 const net = recordFetch();
 type Demo = { api: NycApi; fixturesDir: string; store: Store<RunV2>; travel: TravelProvider; senderId: string };
@@ -114,6 +120,18 @@ describe('POST /api/v2/advise on the README demo sentence, offline: the prices a
     expect(money(asTyped.customerPriceCents)).toBe(demo.price);
     expect(asTyped).toMatchObject({ kind: 'relay', customerPriceCents: 950 });
     expect(body).toStrictEqual(adviseOffline(advisorEngine(run.store.get(), run.travel, draft)));
+    // #877, README step 2: for this sentence the card has ONE option, the request as typed. "Ready 2 h earlier"
+    // is no cheaper and arrives no earlier, and "deliver-by at ready + 18 h" is the request itself.
+    expect(readme).toContain(`\n${DEMO_SENTENCE}\n`);
+    expect(body.options).toHaveLength(1);
+    expect(step(2)).toContain(`for this sentence it has one option, "${asTyped.label}" at ${money(asTyped.customerPriceCents)},`);
+    // README step 3: why the price is what it is, written from the run's own settings and the block's times.
+    const withoutDiscount = 2 * settings.legRewardCents + settings.hubCostCents + settings.platformFeeCents;
+    expect(step(3)).toContain(
+      `The price is a relay's ${money(withoutDiscount)} less the ${money(settings.flexDiscountCents)} flexibility discount: the sentence leaves exactly `
+      + `${settings.flexWindowMin / 60} hours between ready (${demo.ready}) and deliver-by (${demo.deliver_by}), `
+      + 'the shortest window that counts as flexible ([Pricing](#pricing)).',
+    );
     expect(await run.api.savedRun()).toBeNull();   // parse and advise wrote no state file
 
     // Sent as it is, the delivery gets the plan and the price the advisor showed.
@@ -146,6 +164,14 @@ describe('POST /api/v2/advise on the README demo sentence, offline: the prices a
     expect(later[0].option.carrierNames).toStrictEqual(asTyped.option.carrierNames);
     expect(asTyped.option.customerPriceCents - later[0].option.customerPriceCents).toBe(settings.flexDiscountCents);
     expect([asTyped.option.customerPriceCents, later[0].option.customerPriceCents]).toStrictEqual([1050, 950]);
+    // #877, README "Options for a request": its example with two options quotes this answer, labels and prices.
+    expect(body.options).toHaveLength(2);
+    expect(optionsExample).toContain(
+      `the demo sentence with "by 9 a.m." in place of "by 10 a.m." leaves ${(draft.deadlineMin - draft.readyMin) / 60} hours, `
+      + `so "${asTyped.option.label}" costs ${money(asTyped.option.customerPriceCents)}, `
+      + `and the card adds "${later[0].option.label}" at ${money(later[0].option.customerPriceCents)}, marked "Cheapest".`,
+    );
+    expect(optionsExample).toContain('`tests/api/v2-advise-readme-demo.test.ts` sends both sentences');
   }, T);
 
   it('on a run whose settings say 19 h, the demo request has no discount as typed and the flexible option is ready + 19 h', async () => {

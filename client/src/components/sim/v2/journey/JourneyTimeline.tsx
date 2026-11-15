@@ -10,14 +10,20 @@
 // route. Colours come only from map/layers.ts.
 // #832: one line per step (what happens, and when, in IBM Plex Mono). The carrier lines and each step's
 // short label, place, carrier and extra minutes are under the header's one "Details" toggle, closed at first.
+// Issue 908: a step's line is a plain sentence ("Samira picks up the package at Blue Bottle Coffee.") with
+// its time under it, and once the snapshot says the package is delivered the last step ends with one line:
+// the package arrived, and what to do next ("Back to start" on the map, or the link "See the numbers").
 import { useEffect, useId, useRef, useState } from 'react';
 import { formatCents, formatMin } from '../../../../ui/format';
 import { RELAY_INK, toneLabelColor } from '../../../map/layers';
 import type { RouteTone, StopSymbol } from '../../../map/types';
+import { RESET_LABEL } from '../controls/controlsModel';
 import { DetailsToggle } from '../Details';
 import { formatExtraMin } from '../inspector/inspectorModel';
 import { SHIPMENT_STATUS_TEXT } from '../packages/statusText';
-import type { Journey, JourneyCarrier, JourneyResult, JourneyStep, StepState } from './journeyModel';
+import {
+  NUMBERS_HREF, NUMBERS_LABEL, type Journey, type JourneyCarrier, type JourneyResult, type JourneyStep, type StepState,
+} from './journeyModel';
 import './journey.css';
 
 export type JourneyTimelineProps = {
@@ -41,6 +47,26 @@ export type JourneyTimelineViewProps = JourneyTimelineProps & {
 };
 
 const STATE_TEXT: Record<StepState, string> = { done: 'Done', current: 'Next', upcoming: 'Upcoming' };
+
+/** The first words of the journey's end line (issue 908). */
+export const ARRIVED_TEXT = 'The package arrived.';
+
+/**
+ * The end of the journey in one line: the package arrived, and the next step. "Back to start" is the
+ * button of that name in the Play bar on the map (named, not repeated: the timeline has no clock action
+ * but a step's seek); "See the numbers" is a plain link to the study page, as on the homepage. Not a live
+ * region: the Play bar's hidden step line already announces the delivery (#725).
+ */
+function EndLine() {
+  return (
+    <p className="jt__end">
+      <span className="jt__end-text">
+        {ARRIVED_TEXT} <span className="jt__end-name">{RESET_LABEL}</span> to watch it again, or{' '}
+        <a className="jt__end-link" href={NUMBERS_HREF}>{NUMBERS_LABEL}</a>.
+      </span>
+    </p>
+  );
+}
 
 function extraText(min: number): string {
   return typeof min === 'number' && Number.isFinite(min) ? `${formatExtraMin(min)} extra` : 'Extra time unavailable';
@@ -159,6 +185,8 @@ type StepProps = {
   detailsOpen: boolean;
   /** The last step of a journey that has just ended: scroll it into view (#842). */
   showEnd?: boolean;
+  /** The last step of a delivered package: it ends with the end line, so #842's scroll shows that line too. */
+  arrived?: boolean;
 };
 
 function stepRef(step: JourneyStep, showEnd: boolean | undefined) {
@@ -166,7 +194,7 @@ function stepRef(step: JourneyStep, showEnd: boolean | undefined) {
   return showEnd ? showEndStep : undefined;
 }
 
-function Step({ step, next, onSeek, detailsOpen, showEnd }: StepProps) {
+function Step({ step, next, onSeek, detailsOpen, showEnd, arrived }: StepProps) {
   const tone: RouteTone = step.legIndex === 0 ? 'leg1' : 'leg2';
   // The rail to the next step is the carrier's colour while the same carrier has the package (the thick
   // line on the map); between legs (overnight at the relay point) it stays a thin grey rail.
@@ -187,10 +215,15 @@ function Step({ step, next, onSeek, detailsOpen, showEnd }: StepProps) {
         </span>
         <span className="jt-step__body">
           <span className="jt-step__head">
-            <span className="jt-step__label">
+            {/* Issue 908: the line on screen is the sentence. The stop's short name stays in the button's
+                name, visually hidden, so a screen reader hears the words the Play bar's step line uses
+                ("Step 2 of 4 next: Drop at relay point at Etsy.") and then the sentence. */}
+            <span className="jt-step__label jt-sr">
               <span className="jt-sr">Step {step.n}: </span>
               {step.label}
             </span>
+            <span className="jt-sr">: </span>
+            <span className="jt-step__sentence">{step.sentence}</span>
             {/* "Next" marks the step the package is heading for; the other two states are read, not shown. */}
             <span className={`jt-step__state${step.state === 'current' ? '' : ' jt-sr'}`}>{STATE_TEXT[step.state]}</span>
             <span className="jt-step__time">{timeText(step.timeMin)}</span>
@@ -214,6 +247,7 @@ function Step({ step, next, onSeek, detailsOpen, showEnd }: StepProps) {
           style={carried ? { background: toneLabelColor(tone) } : undefined}
         />
       )}
+      {arrived && <EndLine />}
     </li>
   );
 }
@@ -292,7 +326,8 @@ export function JourneyTimelineView({ journey, onSeek, detailsOpen, onToggleDeta
       <ol id={stepsId} className="jt__steps">
         {journey.steps.map((s, i) => (
           <Step key={s.n} step={s} next={journey.steps[i + 1]} onSeek={onSeek} detailsOpen={detailsOpen}
-            showEnd={justEnded && i === journey.steps.length - 1} />
+            showEnd={justEnded && i === journey.steps.length - 1}
+            arrived={journey.status === 'delivered' && i === journey.steps.length - 1} />
         ))}
       </ol>
     </section>

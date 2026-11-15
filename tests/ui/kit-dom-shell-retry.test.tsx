@@ -109,18 +109,23 @@ describe('the header after a failed first load (#636)', () => {
 });
 
 describe('the 404 page after a failed first load (#636)', () => {
-  it('its Business and Employee entries become links 3 s after the API is up', async () => {
+  // Since #886 the 404 page has no workspace links of its own and loads no list: the header's links are the
+  // ones that recover, and each list is asked for by the header alone.
+  it('the header links recover 3 s after the API is up; the page itself asks for nothing', async () => {
     const api = lateApi(unreachable);
     const s = await renderShell('/no-such-page');
-    expect(greyed(s.main())).toEqual(['Business workspace', 'Employee workspace']);
+    expect(greyed(s.header())).toEqual(['Business', 'Employee']);
+    expect(greyed(s.main())).toEqual([]);
+    expect(textOf(s.main().querySelector('h1')!)).toBe('Page not found');
 
     api.state.up = true;
     await wait(DIRECTORY_RETRY_MS);
-    expect(greyed(s.main())).toEqual([]);
-    expect(link(s.main(), 'Business workspace').getAttribute('href')).toBe('/business/biz-01');
-    expect(link(s.main(), 'Employee workspace').getAttribute('href')).toBe('/employee/emp-01');
-    // The header's two loaders and the page's two loaders: each list asked twice by each.
-    expect(api.count('/api/v2/employees')).toBe(4);
-    expect(api.count('/api/v2/businesses')).toBe(4);
+    expect(greyed(s.header())).toEqual([]);
+    expect(link(s.header(), 'Business').getAttribute('href')).toBe('/business/biz-01');
+    expect(link(s.header(), 'Employee').getAttribute('href')).toBe('/employee/emp-01');
+    expect([...s.main().querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/']);
+    // Only the header's two loaders: each list asked twice.
+    expect(api.count('/api/v2/employees')).toBe(2);
+    expect(api.count('/api/v2/businesses')).toBe(2);
   }, T);
 });

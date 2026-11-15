@@ -3,7 +3,7 @@
 import type { EmployeeDashboard, EmployeeJobView } from '../../../../../shared/v2/api';
 import type { JobStatus, NetworkBusiness, Stop, Trip } from '../../../../../shared/v2/types';
 import { formatCents, formatClock, formatDuration } from '../../../ui/format';
-import { extraTimeText, momentText, simulatorHref } from './jobDetailV2Model';
+import { extraTimeText, momentText, relayPointName, simulatorHref } from './jobDetailV2Model';
 
 export const UNKNOWN_PLACE = 'Unknown place';
 
@@ -51,7 +51,7 @@ export type DeliveryRow = {
   extraMin: string;
   /** "$8.00". */
   reward: string;
-  /** "Direct", "Relay leg 1 of 2", "Relay leg 2 of 2". */
+  /** "Direct", "Relay: you take it to Joe's Coffee", "Relay: you take it from Joe's Coffee" (#916). */
   legKind: string;
   /** "Evening commute to Astoria" / "Morning commute from Astoria". */
   commute: string;
@@ -128,8 +128,10 @@ export function deliveryRows(
   };
   const nbh = homeNeighborhood || 'home';
   return views.map(({ job, status, shipment, plan }) => {
-    const legs = plan.legs.length;
     const isRelay = plan.kind === 'relay';
+    // #916: who carries the package where, in the job view's words: the first carrier takes it to the
+    // relay point, the second takes it from there.
+    const relayLine = `Relay: you take it ${job.legIndex === 0 ? 'to' : 'from'} ${relayPointName(plan.relayBusinessId, businesses)}`;
     const morning = job.tripId.endsWith('-morn');
     const pickupTime = momentText(job.pickup.serviceStartMin);
     const pickupPlace = stopPlace(job.pickup);
@@ -145,7 +147,7 @@ export function deliveryRows(
       pickupTime, pickupPlace, dropoffTime, dropoffPlace,
       extraMin: extraTimeText(plan.legs[job.legIndex]?.extraMin),
       reward: formatCents(job.rewardCents),
-      legKind: isRelay ? `Relay leg ${job.legIndex + 1} of ${legs}` : 'Direct',
+      legKind: isRelay ? relayLine : 'Direct',
       commute: morning ? `Morning commute from ${nbh}` : `Evening commute to ${nbh}`,
       jobHref: `/employee/${encodeURIComponent(job.employeeId)}?job=${encodeURIComponent(job.id)}`,
       simulatorHref: simulatorHref(job.shipmentId),

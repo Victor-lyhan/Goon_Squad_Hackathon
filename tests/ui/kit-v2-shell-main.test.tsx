@@ -96,7 +96,7 @@ describe('header on /simulator', () => {
     const html = render('/simulator', v2Down);
     expect(header(html)).toContain('class="shell-wordmark"');
     expect(nav(html)).toContain('href="/simulator"');
-    expect(nav(html)).toMatch(/nav-pending" aria-disabled="true">Employee</);
+    expect(nav(html)).toMatch(/nav-pending" role="link" aria-disabled="true">Employee</);
     expect(header(html)).not.toContain('<select');
   });
 });
@@ -128,7 +128,7 @@ describe('header on /employee/:id', () => {
   it('while loading, the Employee link waits', () => {
     const html = render('/employee/emp-01', { status: 'loading' });
     expect(header(html)).toContain('Loading accounts');
-    expect(nav(html)).toMatch(/nav-pending" aria-disabled="true">Employee</);
+    expect(nav(html)).toMatch(/nav-pending" role="link" aria-disabled="true">Employee</);
   });
 });
 
@@ -151,11 +151,11 @@ describe('header on /business/:id', () => {
     ['error', { status: 'error', message: 'boom' } as V2BusinessDirectory],
   ])('while the business list is %s, Business stays not available', (_, biz) => {
     const n = nav(render('/simulator', v2Ready, biz));
-    expect(n).toMatch(/<span class="shell-nav-link nav-pending" aria-disabled="true">Business<\/span>/);
+    expect(n).toMatch(/<span class="shell-nav-link nav-pending" role="link" aria-disabled="true">Business<\/span>/);
     expect(n).toContain('href="/employee/emp-01"');
   });
   it('an empty business list keeps Business not available', () => {
-    expect(nav(render('/simulator', v2Ready, { status: 'ready', businesses: [] }))).toMatch(/nav-pending" aria-disabled="true">Business</);
+    expect(nav(render('/simulator', v2Ready, { status: 'ready', businesses: [] }))).toMatch(/nav-pending" role="link" aria-disabled="true">Business</);
   });
 });
 

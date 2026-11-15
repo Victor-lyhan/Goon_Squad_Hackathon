@@ -45,11 +45,16 @@ export const ADVICE_COPY = {
    * so the line says that too.
    */
   loadingLine: 'Pricing your request and a few other times. This takes up to 10 seconds; you can send the request as it is meanwhile.',
-  byModel: 'Planned by Gemini, checked by the engine',
-  offline: 'Options computed offline',
-  /** The card's one line about who made the options (#880): the label as a sentence, and for an offline answer what that means. */
-  byModelLine: 'Planned by Gemini, checked by the engine.',
-  offlineLine: 'Options computed offline: priced by Relay’s matching engine, with no AI model.',
+  /**
+   * Who made the options (#919: plain words, so no "engine" and no "offline"). Relay prices every option
+   * either way; the model only chooses which times to try. The keys keep the names of the contract's two
+   * `source` values; `offline` is for every source but 'gemini'.
+   */
+  byModel: 'Planned by Gemini, priced by Relay',
+  offline: 'Priced by Relay, no AI model',
+  /** The card's one line about who made the options (#880): the label as a sentence. */
+  byModelLine: 'Planned by Gemini, priced by Relay.',
+  offlineLine: 'Priced by Relay, with no AI model.',
   cheapest: 'Cheapest',
   chosen: 'In the form',
   choose: 'Choose this option',
@@ -68,7 +73,7 @@ export const ADVICE_COPY = {
   noneNext: 'You can change the times in the form below, or send the request as it is.',
 } as const;
 
-/** The label names the model only when the server says the model planned the options; anything else is "offline". */
+/** The label names the model only when the server says the model planned the options; anything else is Relay alone. */
 export function adviceSourceLabel(source: unknown): string {
   return source === 'gemini' ? ADVICE_COPY.byModel : ADVICE_COPY.offline;
 }
@@ -125,7 +130,7 @@ export type AdviceRow = {
 
 export type AdviceCard = {
   sourceLabel: string;
-  /** The one line the card shows about who made the options: an offline answer says so in plain words. */
+  /** The one line the card shows about who made the options, in plain words. */
   sourceLine: string;
   /** The server's sentence, when it sent one. */
   note: string | null;

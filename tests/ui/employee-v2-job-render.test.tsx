@@ -152,11 +152,11 @@ describe('JobDetailV2 render', () => {
 
   it('relay legs show the relay sentence and relay-point actions', () => {
     const t1 = text(render(relayLeg1()));
-    expect(t1).toContain('Relay leg 1 of 2: drop at the relay point');
+    expect(t1).toContain('Relay: you take it to River Cafe Roasters; another carrier takes it from there');
     expect(t1).toContain('Leave it at the relay point for the morning carrier');
     expect(t1).toContain('You leave the package at River Cafe Roasters');
     const t2 = text(render(relayLeg2(), 'Park Slope'));
-    expect(t2).toContain('Relay leg 2 of 2: collect from the relay point');
+    expect(t2).toContain('Relay: another carrier brings it to River Cafe Roasters; you take it from there');
     expect(t2).toContain('Collect it from the relay point');
     expect(t2).toContain('Home · Park Slope');
     expect(t2).toContain('Another carrier brought the package from LIC Bakery to River Cafe Roasters');

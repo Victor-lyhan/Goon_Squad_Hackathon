@@ -385,6 +385,9 @@ const PAGE_WORDS: [label: string, file: string][] = [
   ['Fill in the form instead', 'client/src/components/business/v2/requestTextModel.ts'],
   // #815: the demo types the request as a sentence; this button of the text box reads it into the form.
   ['Read my request', 'client/src/components/business/v2/requestTextModel.ts'],
+  // #877: after Read my request the page shows the Options card (#863), each option with this button.
+  ['Options', 'client/src/components/business/v2/adviceModel.ts'],
+  ['Choose this option', 'client/src/components/business/v2/adviceModel.ts'],
   ['Find a delivery match', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
   ['Delivery arranged', 'client/src/components/business/v2/deliveryDetailsModel.ts'],
   ['View delivery', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
@@ -396,6 +399,8 @@ const PAGE_WORDS: [label: string, file: string][] = [
   ['Play', 'client/src/components/sim/v2/controls/controlsModel.ts'],
   ['Pause', 'client/src/components/sim/v2/controls/controlsModel.ts'],
   ['Back to start', 'client/src/components/sim/v2/controls/controlsModel.ts'],
+  // #877: the end of the journey is read in the simulator's right panel (the Play bar shows no text, #852).
+  ['Inspector', 'client/src/components/sim/v2/SimWorkspace.tsx'],
   ['Delivered', 'client/src/components/business/v2/shipmentsTableModel.ts'],
   ['Earnings', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
   ['Earned', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],

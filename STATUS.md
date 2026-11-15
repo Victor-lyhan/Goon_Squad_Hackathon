@@ -1,50 +1,49 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14, 23:35 (Sat), planner pass 108_
+_Last update: 2026-11-15, 00:15 (Sun), planner pass 112 (final pass: 00:15 cutoff reached)_
 
-## Current milestone: all milestones done; humans' polish backlog (QUESTIONS 23:01) until 04:30, code freeze 05:00. Rollback tag: `demo-3`.
-MVP IV and the approved post-freeze additions are on main. 23 polish issues are open (#877–#909 minus merged #879, #883, #884); every worker except victor-7 has a `ready` issue, and victor-7 has #893 in progress plus PR #902's fix round.
+## Current milestone: all milestones done. **Polishing ended at midnight (humans, 23:50): no new issues.** The 00:15 cutoff has passed: what is still open stays open; the planner halts. Code freeze 05:00. Rollback tag: `demo-3`.
 
 ## HUMAN TO-DO
-1. **Open `/simulator` with the browser key**, or press **Watch a package** on `/`. Markers, routes and the dark pills over the real map are unseen by agents. Write what looks wrong in QUESTIONS.md.
-2. **The demo price is $9.50** (PR #866; the README sentence's 18 h window gets the $1 flexibility discount). Scenario exports made before PR #866 are refused on import.
-3. **Look at the homepage (PR #873, audited in PR #897) and the 64 px header (PR #875)**, ideally in Safari (mask + `offset-path`).
-4. **F1/advisor: put `GEMINI_API_KEY`** in `.env`, run `npx tsx scripts/gemini-check.ts "<sentence>"`. Without a key the advisor answers offline; after one Gemini failure both Parse and Options go offline for 2 minutes (PR #896).
-5. **Before the real demo, reset the run** (stop server, delete `data/state-v2.json`, start). **Demo machine:** `npm run build` in the checkout with `.env`.
-6. **GitHub Actions still not running (billing).** Reviewers run `bash scripts/test.sh` locally.
-7. `docs/relay-spec.md:334` still prices a delivery at $10.00 (human-owned doc).
-8. Will the demo machine have `GOOGLE_MAPS_SERVER_KEY`? (#899 reports whether the Employee step needs it.)
+1. **CI on main is red four runs in a row**: #919 (PR #930), #900 (PR #932), the 00:04 planner commit (Markdown only) and #881 (PR #914). #921 (PR #937) and #908 (PR #936) were still running at 00:15. #895 (PR #929) was the last green run. A docs-only commit failing points to a real test failure on main (or billing again). The planner still could not open the logs or run git/tests (they need approval in this run). **First thing: run `bash scripts/test.sh` on main**, and if it's red, roll back to `demo-3` or fix it before the demo. If only latency/timeout tests fail, rerun with the Mac idle (worker load makes them flaky).
+2. **Open `/simulator` with the browser key**, or press **Watch a package** on `/`. No agent has seen the markers, routes or dark pills on the real map. The 30-second path (PR #936) and Play-twice rehearsal (PR #934) were checked in headless Chrome only.
+3. **Run the demo check (PR #931)** on the demo machine: it says in plain lines whether keys, travel data, saved run and build are ready. **Before the real demo, reset the run** (stop the server, delete `data/state-v2.json`, start it again) and run `npm run build` in the checkout with `.env`.
+4. **F1/advisor: put `GEMINI_API_KEY`** in `.env`, then run `npx tsx scripts/gemini-check.ts "<sentence>"`. Without a key, Parse and Options answer offline (PR #925).
+5. **The demo price is $9.50** (PR #866). Scenario exports made before PR #866 are refused on import.
+6. **Look at the homepage and the 64 px header** (PR #933), ideally in Safari (mask + `offset-path`).
+7. Will the demo machine have `GOOGLE_MAPS_SERVER_KEY`? #899 (never started) would have checked whether the Employee step needs it. Without it, address search answers 503.
+8. **Left open at the cutoff**: #923 (server restarts mid-demo, victor-8, in progress), #890 (map placeholders, victor-3, in progress), #899 (address-search errors, victor-3, ready). If a PR for #923 or #890 shows up after 00:15, decide whether to merge it before the 05:00 freeze; it is not needed for the demo.
+9. `docs/relay-spec.md:334` still prices a delivery at $10.00 (human-owned doc).
 
 ## Main health
-- CI red = billing (DECISIONS pass 61): runs of #879, #883 and the 23:27 planner commit. Last local run (PR #897 review): 411 files / 7341 tests pass, build OK. No fix issue.
+- Latest runs: #921 (PR #937) and #908 (PR #936) **in progress**; #881 (PR #914) **failure**; planner 00:04 **failure**; #900 (PR #932) **failure**; #919 (PR #930) **failure**; #895 (PR #929) success. No fix issue (humans' stop); see to-do 1.
 
 ## Stuck
 - Nothing labeled `stuck`.
 
-## Queued this pass: 3
-- #907 victor-2: simulator page frame (`SimWorkspace.*`, `FocusSelector`, `PanelSection`, `page/page.css`) at 900–1440 px, keyboard.
-- #908 victor-10: 30-second path, simulator half (homepage files, sim `journey/` + `packages/`).
-- #909 victor-8: `client/src/api/` network / timeout / bad-reply messages in plain words.
+## Queued this pass: 0 (humans' 23:50 stop)
 
-## In progress / in review / ready
-- PRs: #905 (#887 study page) and #904 (#880 Business 30-second path) need review; #903 (#877 README) and #902 (#878 demo re-walk) need fixes.
-- In progress: #881 Business list + details (victor-5), #882 Employee audit (victor-6), #885 lazy-load / perf (victor-9), #888 `/api/v2` error copy (victor-1), #889 sim map controls a11y (victor-2), #890 map placeholders (victor-3), #893 jargon guard (victor-7), #894 sim page states (victor-8), #895 focus ring / reduced motion (victor-10).
-- Ready: #886 UI kit states (victor-9), #891 Play twice in Chrome (victor-4), #892 Business frame (victor-6), #898 offline Parse variants (victor-1), #899 address-search errors (victor-3), #900 Business live poller (victor-5), #907, #908, #909.
+## In progress (stays open after 00:15)
+- #923 restart the server twice mid-demo (victor-8), #890 map placeholders (victor-3). Ready, not started: #899 (victor-3). No open PRs.
 
-## Merged since pass 107 (23:30)
-- PR #901 (#883): simulator side panels (packages, inspector, journey, run summary, compare) audit, plain empty states, keyboard.
+## Merged since pass 111 (00:09)
+- #937 (#921) simulator live updates pause in a hidden tab, back off, stop on leave.
+- #936 (#908) 30-second path, simulator half: homepage, Watch a package, journey plays to the end.
+- #935 (#916) Employee page copy in plain words.
+- #934 (#891) Play the simulator twice in headless Chrome.
+- #914 (#881) Business deliveries list and details polish.
+
+## Merged in pass 108-111 window
+- #933 (#918), #932 (#900), #931 (#922), #930 (#919), #929 (#895), #928 (#909), #927 (#892), #926 (#886), #925 (#898), #924 (#917), #920 (#907), #915 (#894), #913 (#893), #912 (#889), #911 (#885), #910 (#882), #906 (#888), #905 (#887), #904 (#880), #903 (#877), #902 (#878).
 
 ## Next up
-- Copy fixes from #893's offender table, by module, once it merges.
-- Fixes for faults #878 (demo re-walk), #885 (perf) and #891 (replay twice) list outside their own files.
-- Header (markup in `App.tsx`) 390 px / keyboard audit after #885 frees `App.tsx`.
-- `.watch-button` 20 px font onto a token after #895 frees `tokens.css`, low priority.
-- Stop queuing at 04:30.
+- Nothing. The planner has halted; humans take over in the morning.
 
 ## Known bugs / gaps / risks
-- Real Gemini API never tested (to-do 4). Homepage animation and mask checked in headless Chrome only.
-- PR #870: a parsed form focuses its first field, which may sit below the fold at 390 px (#878 and #880 check).
-- Address search with no server key answers 503; whether the Employee demo step needs it is checked by #899.
-- Random city at end of day is 158.6 KB, over the 150 KB poll budget; unreachable from any page (pass 82).
+- CI red on main since PR #930 (to-do 1); cause not seen.
+- Real Gemini API never tested (to-do 4). Homepage animation, mask and the simulator 30-second path checked in headless Chrome only.
+- PR #870: a parsed form focuses its first field, which may sit below the fold at 390 px.
+- Address search with no server key answers 503 (#899 not done).
+- Random city at end of day is 158.6 KB, over the 150 KB poll budget; no page reaches it (pass 82).
 - Carrier package badge can drift a pixel or two between zoom events (PR #775 note).
 - `PORT` does not work with `npm run dev`; `npm run study` needs tsx (devDependency).

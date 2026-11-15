@@ -494,7 +494,7 @@ describe('a request without an HTTP answer (#719)', () => {
     expect(statusForError(new ApiRequestError(0, ''))).toEqual(expected);
     // Even if such an error carried field errors, none is shown: the server never saw the request.
     expect(statusForError({ status: 0, message: 'Load failed', fieldErrors: { label: 'x' } })).toEqual(expected);
-    expect(RESULT_COPY.noAnswer).toBe('The server did not answer. Your request is still in the form. Try again.');
+    expect(RESULT_COPY.noAnswer).toBe('Relay did not answer. Your request is still in the form. Try again.');
     expect(RESULT_COPY.noAnswer).not.toMatch(/fetch/i);
   });
 

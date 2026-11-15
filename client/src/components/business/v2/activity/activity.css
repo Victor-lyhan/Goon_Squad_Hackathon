@@ -3,20 +3,32 @@
    client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
    Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
    IDs, weights and prices; Inter (--font-sans) for everything else.
-   No cards. Fluid widths only: works at 390 px. */
+   No cards and no row fills. Fluid widths only: works at 390 px. */
 
 .ba-header {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1, 4px);
-  padding: var(--space-3, 12px) 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3, 12px) var(--space-6, 24px);
+  padding: var(--space-3, 12px) 0 var(--space-4, 16px);
   border-bottom: 1px solid var(--border, #E3E3DE);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   color: var(--text, #171C24);
   min-width: 0;
 }
-.ba-header__who { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px); min-width: 0; }
-.ba-header__name { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; overflow-wrap: anywhere; }
+/* One hierarchy (#892): the name is the only strong text. The lines under it are quiet and in reading order:
+   where the business is, whether deliveries can be added now, what "relay point" means here. The totals sit
+   beside this block when the row has room and wrap under it when it has not (no breakpoint needed). */
+.ba-header__main {
+  flex: 1 1 320px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+  min-width: 0;
+}
+.ba-header__who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2, 8px); min-width: 0; }
+.ba-header__name { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
 .ba-header__id,
 .ba-totals__value,
 .ba-note__time,
@@ -27,17 +39,20 @@
 }
 .ba-header__id { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .ba-header__place,
-.ba-header__meta {
+.ba-header__phase,
+.ba-header__role {
   margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1, 4px) var(--space-3, 12px);
   font-size: var(--text-sm, 13px);
   color: var(--muted, #5B6472);
+  overflow-wrap: anywhere;
 }
-.ba-header__role { color: var(--text, #171C24); font-weight: 600; }
-.ba-header__phase { display: inline-flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+.ba-header__place { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3, 12px); }
+/* What the reader can do now is the one line under the name in ink. The label and its sentence are one
+   run of text, so on a narrow screen the sentence starts beside the label and wraps under it. */
+.ba-header__phase-text { color: var(--text, #171C24); }
 .ba-header__phase-label {
+  display: inline-block;
+  margin-right: var(--space-2, 8px);
   padding: 0 var(--space-1, 4px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
@@ -47,26 +62,29 @@
 }
 
 .ba-totals {
+  flex: 0 1 auto;
   display: flex;
   flex-wrap: wrap;
-  margin: var(--space-2, 8px) 0 0;
-  border-top: 1px solid var(--border, #E3E3DE);
+  gap: var(--space-1, 4px) 0;
+  margin: 0;
+  min-width: 0;
 }
 .ba-totals__item {
   display: flex;
   align-items: baseline;
   gap: var(--space-1, 4px);
-  padding: var(--space-2, 8px) var(--space-3, 12px) 0 0;
+  padding-right: var(--space-3, 12px);
   margin-right: var(--space-3, 12px);
   border-right: 1px solid var(--border, #E3E3DE);
 }
-.ba-totals__item:last-child { border-right: 0; margin-right: 0; }
+.ba-totals__item:last-child { padding-right: 0; border-right: 0; margin-right: 0; }
 /* The totals stay at 500 (#714). IBM Plex Mono is loaded at 400, 500 and 600 (styles/fonts.css, #737), so no
    weight here is a synthetic bold. */
 .ba-totals__value { order: -1; margin: 0; font-size: var(--text-md, 14px); font-weight: 500; color: var(--text, #171C24); }
 .ba-totals__label { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 
 .ba-notes {
+  position: relative;
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   color: var(--text, #171C24);
   min-width: 0;
@@ -81,16 +99,31 @@
 .ba-notes__count { margin-left: var(--space-1, 4px); font-weight: 400; color: var(--muted, #5B6472); }
 .ba-notes__empty { margin: 0; padding: var(--space-3, 12px) 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
 .ba-notes__list { list-style: none; margin: 0; padding: 0; }
+/* Read out, not shown: the polite live region for a notification that arrives (#892). It is in the page from
+   the first render, so only its text changes. */
+.ba-notes__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
+/* A row is one column whose left edge is the heading's: the sentence, then a quiet line with the package's
+   ready time (when it is known) and the action. No fill: "New" and the tag are the marks. */
 .ba-note { border-bottom: 1px solid var(--border, #E3E3DE); }
-.ba-note--new { background: var(--accent-soft, #E8EEF1); }
 .ba-note__btn,
 .ba-note__static {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-1, 4px) var(--space-3, 12px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
   width: 100%;
-  padding: var(--space-2, 8px);
+  padding: var(--space-2, 8px) 0;
   font: inherit;
   font-size: var(--text-sm, 13px);
   text-align: left;
@@ -100,9 +133,8 @@
   border-radius: 0;
 }
 .ba-note__btn { cursor: pointer; }
-.ba-note__btn:hover { background: var(--accent-soft, #E8EEF1); }
-.ba-note__btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
-.ba-note__time { color: var(--muted, #5B6472); white-space: nowrap; }
+.ba-note__btn:hover .ba-note__action { text-decoration: underline; }
+.ba-note__btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; border-radius: var(--radius, 4px); }
 .ba-note__text { min-width: 0; overflow-wrap: anywhere; }
 .ba-note__new,
 .ba-note__tag {
@@ -113,13 +145,24 @@
   font-size: var(--text-xs, 12px);
   font-weight: 600;
 }
-.ba-note__new { color: var(--panel, #FFFFFF); background: var(--accent, #1D5075); }
+.ba-note__new { color: var(--panel, #FFFFFF); background: var(--accent, #1D5075); border: 1px solid var(--accent, #1D5075); }
 .ba-note__tag { color: var(--warn, #8A5A00); border: 1px solid var(--warn, #8A5A00); }
-.ba-note__open { grid-column: 2; font-size: var(--text-xs, 12px); color: var(--accent-dark, #173E5B); }
+.ba-note__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-3, 12px);
+  min-width: 0;
+  font-size: var(--text-xs, 12px);
+  color: var(--muted, #5B6472);
+}
+.ba-note__action { color: var(--accent-dark, #173E5B); font-weight: 500; }
+.ba-note__open { font-weight: 400; color: var(--muted, #5B6472); }
 
 .ba-notes__more {
+  min-height: 36px;
   margin-top: var(--space-2, 8px);
-  padding: var(--space-1, 4px) var(--space-2, 8px);
+  padding: 0 var(--space-3, 12px);
   font: inherit;
   font-size: var(--text-sm, 13px);
   color: var(--accent-dark, #173E5B);
@@ -128,13 +171,13 @@
   border-radius: var(--radius, 4px);
   cursor: pointer;
 }
-.ba-notes__more:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 0; }
+.ba-notes__more:hover { border-color: var(--muted, #5B6472); }
+.ba-notes__more:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 
 @media (max-width: 390px) {
   .ba-totals__item { padding-right: var(--space-2, 8px); margin-right: var(--space-2, 8px); }
-  .ba-note__btn,
-  .ba-note__static { grid-template-columns: minmax(0, 1fr); }
-  .ba-note__open { grid-column: 1; }
+  /* A finger-sized target, full width like the page's other buttons at this width. */
+  .ba-notes__more { width: 100%; min-height: 44px; }
 }
 
 /* Reduced motion (#497): nothing in this file animates or transitions, now or later. */

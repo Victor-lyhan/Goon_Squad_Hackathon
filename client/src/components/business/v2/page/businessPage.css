@@ -81,7 +81,10 @@
 .bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); text-decoration: underline; }
 
 /* One column: the open delivery comes first, then the table, then the notifications.
-   Up to 1160 px the 440 px details column would leave the table under about 640 px, so the page stacks. */
+   Up to 1160 px the 440 px details column would leave the table under about 640 px, so the page stacks.
+   The page asks the browser about this same width (STACKED_MAX_WIDTH_PX in businessPageModel.ts) and then
+   renders the open delivery before the table, so Tab follows this order too (#892). `order: -1` stays for
+   a browser that cannot be asked. */
 @media (max-width: 1160px) {
   .bp-layout, .bp-layout--open { display: flex; flex-direction: column; }
   .bp-side { display: contents; }
@@ -92,7 +95,7 @@
   .bp { padding: var(--space-2, 8px); }
   .bp-state, .bp-missing { padding: var(--space-3, 12px); }
   .bp-layout { gap: var(--space-3, 12px); }
-  .bp-links .bp-btn { width: 100%; min-height: 44px; }
+  .bp-links .bp-btn, .bp-state > .bp-btn { width: 100%; min-height: 44px; }
 }
 
 /* Reduced motion (#497): nothing in this file animates or transitions, now or later. */

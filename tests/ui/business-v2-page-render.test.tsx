@@ -130,7 +130,7 @@ describe('workspace', () => {
 
   it('an empty business shows the empty table with New delivery', () => {
     const h = render(ready({ ...DASHBOARD, outgoing: [], incoming: [], notifications: [] }));
-    expect(text(h)).toContain('No shipments yet');
+    expect(text(h)).toContain('No deliveries yet');
   });
 });
 
@@ -261,7 +261,8 @@ describe('relay point, locked run and the single <main>', () => {
     expect(t).not.toContain('This delivery is not in the current city');
     expect(h).toMatch(/<button[^>]*>Back to deliveries<\/button>/);
     expect(h).not.toContain('class="bd-panel"');
-    expect(h).toMatch(/<span class="ba-note__time">—<\/span>/);
+    // The package's time is not known yet: the row shows no time and no dash (#892).
+    expect(h).not.toContain('ba-note__time');
     const failed = businessWorkspaceReducer(atlas(), { type: 'heldFailed', shipmentId: 'shp-8' });
     expect(text(render(failed, { shipmentId: 'shp-8' }))).toContain('The delivery could not be loaded. Trying again');
   });

@@ -7,7 +7,9 @@
 // Above that card, the Options card (#863): the server's priced variants of the request (POST /api/v2/advise).
 // Choosing one sets the form's ready and deliver-by times; it is hidden when the call fails or has no option.
 // The shell has the only <main> (#581, DECISIONS pass 60), so the page's root is a <div>.
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import {
+  useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode,
+} from 'react';
 import type { ShipmentResponse } from '../../../../../../shared/v2/api';
 import type { ParseRequestResponse } from '../../../../../../shared/v2/parseRequest';
 import type { CreateShipmentRequest } from '../../../../../../shared/v2/schemas';
@@ -27,7 +29,7 @@ import { ShipmentsToolbar } from '../ShipmentsToolbar';
 import { NO_FILTERS, nextSort } from '../shipmentsTableModel';
 import {
   DELIVERY_FAILED_TEXT, DELIVERY_LOADING_TITLE, DELIVERY_MISSING_TEXT, DELIVERY_MISSING_TITLE, ERROR_TITLE,
-  INITIAL_TABLE, LOADING_TEXT, NOT_FOUND_TEXT, NOT_FOUND_TITLE, NO_BUSINESSES_TEXT, UNAVAILABLE_TITLE,
+  INITIAL_TABLE, LOADING_TEXT, NOT_FOUND_TEXT, NOT_FOUND_TITLE, NO_BUSINESSES_TEXT, STACKED_QUERY, UNAVAILABLE_TITLE,
   heldHereText, isHeldHere, matchErrorText, newDeliveryClosedText, pageScreen, simulatorHref, tableModel,
   type TableState,
 } from './businessPageModel';
@@ -79,6 +81,27 @@ function formHolds(draft: NewDeliveryDraft): FormHolds {
     recipientId: draft.recipientId,
     times: { readyTime: draft.readyTime, deadlineDay: draft.deadlineDay, deadlineTime: draft.deadlineTime },
   };
+}
+
+/** The browser's answer for the one-column width, or null where there is none to ask (tests, old browsers). */
+function stackedMedia(): MediaQueryList | null {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(STACKED_QUERY) : null;
+}
+
+function watchStacked(onChange: () => void): () => void {
+  const media = stackedMedia();
+  if (!media || typeof media.addEventListener !== 'function') return () => {};
+  media.addEventListener('change', onChange);
+  return () => media.removeEventListener('change', onChange);
+}
+
+/**
+ * True while the page is one column (businessPage.css, the same width). The stylesheet shows the open
+ * delivery above the table there, so the page puts it before the table in the document too: Tab and a
+ * screen reader then meet the parts in the order the eye does (#892). Two columns where it cannot be asked.
+ */
+function useStacked(): boolean {
+  return useSyncExternalStore(watchStacked, () => stackedMedia()?.matches ?? false, () => false);
 }
 
 export function BusinessPageView({
@@ -140,6 +163,7 @@ export function BusinessPageView({
     }
   }, [newView]);
 
+  const stacked = useStacked();
   const screen = pageScreen(state, shipmentId);
   const { dashboard, businesses, employees } = state;
   // Recomputed only when the hook hands over a new dashboard (a same-version poll keeps the object).
@@ -294,6 +318,8 @@ export function BusinessPageView({
         )}
       </div>
       <div className={side ? 'bp-layout bp-layout--open' : 'bp-layout'}>
+        {/* One column: the open delivery is the first thing shown, so it is the first thing in the document. */}
+        {stacked && side && <div className="bp-details">{side}</div>}
         <section className="bp-main" aria-label="Deliveries">
           <ShipmentsToolbar
             key={toolbarKey}
@@ -371,8 +397,9 @@ export function BusinessPageView({
             onClearFilters={clearFilters}
           />
         </section>
-        <aside className="bp-side" aria-label="Delivery details and notifications">
-          {side && <div className="bp-details">{side}</div>}
+        {/* In one column the aside holds the notifications only, and their own heading names them. */}
+        <aside className="bp-side" aria-label={stacked ? undefined : 'Delivery details and notifications'}>
+          {!stacked && side && <div className="bp-details">{side}</div>}
           <NotificationsPanel
             dashboard={d}
             businesses={businesses}

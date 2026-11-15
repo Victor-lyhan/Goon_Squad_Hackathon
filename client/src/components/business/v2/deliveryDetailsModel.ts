@@ -11,6 +11,8 @@ import { formatCents, formatDuration, formatKg, formatMin } from '../../../ui/fo
 
 export const UNKNOWN_PLACE = 'Unknown place';
 export const DASH = '—';
+/** A package without a name: the list's and the simulator's words for it. */
+export const UNTITLED_PACKAGE = 'Untitled package';
 
 export type StepState = 'done' | 'current' | 'upcoming';
 export type DetailStep = { key: ShipmentProgress; label: string; state: StepState };
@@ -19,6 +21,7 @@ export type PartyText = { name: string; neighborhood: string | null };
 
 export type DetailsHeader = {
   label: string;
+  /** The row's key and the heading's DOM id. A raw ID: the panel never shows it (#881). */
   shipmentId: string;
   /** `relay` = the viewer neither sends nor receives it but is the plan's relay point (#581). */
   direction: 'outgoing' | 'incoming' | 'relay';
@@ -191,7 +194,7 @@ export function deliveryDetails(view: ShipmentView, lookups: DetailsLookups): De
     && view.plan?.relayBusinessId === lookups.viewerBusinessId;
   return {
     header: {
-      label: nonEmpty(s.label) ?? 'Package',
+      label: nonEmpty(s.label) ?? UNTITLED_PACKAGE,
       shipmentId: s.id,
       direction: outgoing ? 'outgoing' : relay ? 'relay' : 'incoming',
       directionLabel: outgoing ? 'Outgoing' : relay ? 'Relay point' : 'Incoming',

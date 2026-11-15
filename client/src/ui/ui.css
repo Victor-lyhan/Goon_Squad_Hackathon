@@ -13,7 +13,8 @@
 .ui-btn--ghost:hover:not(:disabled){background:var(--accent-soft)}
 .ui-btn:disabled,.ui-btn:disabled:hover{background:var(--bg);border-color:var(--border);border-style:dashed;color:var(--muted);cursor:not-allowed}
 .ui-btn--ghost:disabled{background:transparent}
-.ui-spinner{display:inline-block;width:1em;height:1em;border:2px solid currentColor;border-right-color:transparent;border-radius:var(--radius);animation:ui-spin .8s linear infinite;vertical-align:-.15em}
+/* The spinner: a ring with one open side that turns. At the 6px radius cap (docs/mvp3.md P4) a 13-14px box reads as a ring. */
+.ui-spinner{display:inline-block;box-sizing:border-box;width:1em;height:1em;border:2px solid currentColor;border-right-color:transparent;border-radius:var(--radius-lg);animation:ui-spin .8s linear infinite;vertical-align:-.15em}
 @keyframes ui-spin{to{transform:rotate(360deg)}}
 @keyframes ui-fade{from{opacity:0}}
 .ui-btn{transition:background-color .15s,border-color .15s}
@@ -22,7 +23,23 @@
 .ui-spinner{animation:none;border-style:dotted;border-right-color:currentColor;opacity:.7}
 }
 .ui-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.ui-connection-banner{position:sticky;top:0;z-index:70;box-sizing:border-box;width:100%;padding:var(--space-2) var(--space-4);background:var(--warn);color:var(--panel);text-align:center;font-weight:600;overflow-wrap:anywhere;animation:ui-fade .2s ease-out}
+/* Page-level states (404, page crash; #886): one heading, one sentence, one action, in the flat panel the
+   pages use for their own states. As wide as the 960px page column and centered, so it stands in the same
+   place on the full-width simulator route. The problem variant has a red hairline (borders in this file are
+   1px) and two classes on purpose: shell.css still has an older .error-fallback rule and is loaded after
+   this file. */
+.ui-state{box-sizing:border-box;max-width:928px;margin:0 auto;padding:var(--space-4);background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-sans);overflow-wrap:anywhere}
+.ui-state.ui-state--problem{padding:var(--space-4);border:1px solid var(--danger)}
+.ui-state__title{margin:0 0 var(--space-2);font-size:var(--text-lg);font-weight:600;line-height:1.2;letter-spacing:0;color:var(--text)}
+.ui-state__text{margin:0 0 var(--space-4);font-size:var(--text-md);line-height:1.5;color:var(--muted)}
+/* A link with the button's look (the 404 page's one action). */
+a.ui-btn{text-decoration:none}
+/* Connection note (#886). Fixed at the bottom right of the window: it moves nothing when it comes and goes
+   and never covers the header, on a page of any height. .ui-connection is the live region around it; it is
+   always in the page and has no box of its own. Brown while retrying, green once connected again; the words
+   say which, not the colour alone. */
+.ui-connection-banner{position:fixed;right:var(--space-4);bottom:var(--space-4);z-index:70;box-sizing:border-box;max-width:calc(100% - var(--space-8));margin:0;padding:var(--space-2) var(--space-4);border-radius:var(--radius);background:var(--warn);color:var(--panel);font-family:var(--font-sans);font-size:var(--text-md);font-weight:600;line-height:1.4;overflow-wrap:anywhere;animation:ui-fade .2s ease-out}
+.ui-connection-banner--back{background:var(--ok)}
 @media (prefers-reduced-motion:reduce){
 .ui-connection-banner{animation:none}
 }

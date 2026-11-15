@@ -26,7 +26,7 @@ import type { NetworkBusiness, PackageCategory } from '../../shared/v2/types';
 import type { FetchLike } from '../geo/googleClient';
 import { GeminiUnavailable, generateJson, type GeminiUnavailableReason } from './gemini';
 import { pauseCause, pausedMessage, type GeminiPause } from './geminiPause';
-import { NOT_A_NETWORK_BUSINESS } from './ruleParser';
+import { NOT_A_NETWORK_BUSINESS, notNetworkSentence } from './ruleParser';
 
 export type GeminiParseContext = {
   /** `run.scenario.businesses`: the only stops a draft may name. */
@@ -248,8 +248,7 @@ function rejectedSentence(
   }
   const [first, second] = stops;
   if (first === undefined) return inventedId ? NOT_A_NETWORK_BUSINESS : null;
-  if (second === undefined) return `${NOT_A_NETWORK_BUSINESS} "${first}" is not one of them.`;
-  return `${NOT_A_NETWORK_BUSINESS} "${first}" and "${second}" are not among them.`;
+  return notNetworkSentence(first, second);
 }
 
 export type GeminiParseSettings = {

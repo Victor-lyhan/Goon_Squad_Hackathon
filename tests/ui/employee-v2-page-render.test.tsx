@@ -59,7 +59,7 @@ describe('hook states', () => {
 
   it("unavailable shows the state's text", () => {
     const h = render({ ...initialWorkspaceState, view: 'unavailable', unavailable: { code: 'travel_data_missing', message: TRAVEL_DATA_MISSING_TEXT } });
-    expect(text(h)).toContain('NYC travel data is not loaded on this server yet.');
+    expect(text(h)).toContain('Travel times for New York are not loaded yet. Try again in a moment.');
     expectClean(h);
   });
 
@@ -198,7 +198,7 @@ describe('commute editor', () => {
     expect(text(render(ready(), { initialEditing: true, initialOutcome: e503 }))).toContain(TRAVEL_DATA_MISSING_TEXT);
     const timeout = outcomeFromError(new ApiRequestError(0, 'timed out', undefined, 'timeout'));
     const th = render(ready(), { initialEditing: true, initialOutcome: timeout });
-    expect(text(th)).toContain('20 seconds');
+    expect(text(th)).toContain('Saving took too long.');
     expect(th).toContain('aria-label="Commute"');
     const bad = render(ready(), { initialEditing: true, initialOutcome: { kind: 'invalid', message: 'Bad time' } });
     expect(bad).toContain('class="ep-form"');

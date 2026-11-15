@@ -16,9 +16,9 @@ export const JOB_MISSING_TEXT = 'It was re-matched or the run changed. Your curr
 export const JOB_OTHER_TITLE = 'This delivery is assigned to another carrier';
 export const JOB_OTHER_TEXT = 'Your current deliveries are on your page.';
 // The job's request failed before any answer arrived (#882). The page asks again every second, so the
-// text says so and offers the way back; it never shows the HTTP client's own error.
+// text says so and offers the way back; it never shows the HTTP client's own error. #916: no "server".
 export const JOB_FAILED_TITLE = 'This delivery could not be loaded';
-export const JOB_FAILED_TEXT = 'The request to the Relay server failed. Trying again every second.';
+export const JOB_FAILED_TEXT = 'Relay is trying again every second. You can also go back to your deliveries.';
 
 // The route is a checklist (#882): each row has a tick box drawn by CSS, and its state in words for
 // people who do not see the box. A done row keeps " (done)" after its action (#781); a row that is not
@@ -115,12 +115,26 @@ export function resolvePlace(
 const businessName = (id: string | undefined, businesses: NetworkBusiness[]) =>
   (id && businesses.find((b) => b.id === id)?.name) || UNKNOWN_PLACE;
 
-/** "Direct delivery" or which relay leg this job is. */
-export function legKindLabel(job: JobResponse): string {
+/** A relay point whose business is not in the list is "the relay point", never "Unknown place" mid-sentence. */
+export const RELAY_POINT_FALLBACK = 'the relay point';
+
+/** The relay business's name for a sentence; "the relay point" when the plan names none or it does not resolve. */
+export function relayPointName(relayBusinessId: string | undefined, businesses: NetworkBusiness[]): string {
+  return (relayBusinessId && businesses.find((b) => b.id === relayBusinessId)?.name) || RELAY_POINT_FALLBACK;
+}
+
+/**
+ * "Direct delivery", or who carries a relayed package where (#916): the first carrier takes it to the relay
+ * point, the second takes it from there. The words are the journey timeline's (carriers, the relay point by
+ * its name; DECISIONS pass 67), never a part number. The other carrier has no name here: the job answer
+ * holds only this carrier.
+ */
+export function legKindLabel(job: JobResponse, businesses: NetworkBusiness[] = []): string {
   if (job.plan.kind !== 'relay') return 'Direct delivery';
+  const relay = relayPointName(job.plan.relayBusinessId, businesses);
   return job.job.legIndex === 0
-    ? 'Relay leg 1 of 2: drop at the relay point'
-    : 'Relay leg 2 of 2: collect from the relay point';
+    ? `Relay: you take it to ${relay}; another carrier takes it from there`
+    : `Relay: another carrier brings it to ${relay}; you take it from there`;
 }
 
 /** "Evening commute, leaves Day 1, 5:15 PM" from the API trip: this job's departure, so it carries its day. */
@@ -236,7 +250,7 @@ export function jobDetail(job: JobResponse, businesses: NetworkBusiness[], homeN
   const leg = job.plan.legs[job.job.legIndex];
   return {
     title: job.shipment.label,
-    legKind: legKindLabel(job),
+    legKind: legKindLabel(job, businesses),
     trip: tripLine(job),
     status: job.status,
     statusLabel: STATUS_LABEL[job.status] ?? 'Assigned',

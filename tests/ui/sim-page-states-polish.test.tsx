@@ -5,8 +5,8 @@
 //   - a stale link (a package the run does not have): "That package isn't in this run." and a way back;
 //   - below 900 px: one sentence and a link to `/`, and nothing is fetched.
 // The first group mounts the real page (`SimulatorV2`, the real data hook and poller) over a fake
-// `fetch`, so "one poll per second after an error" and "no poll after unmount" are counted on the
-// requests the page really sends. The map runs in its no-key state; nothing is loaded from Google.
+// `fetch`, so "the poll backs off while the server is away" (#921) and "no poll after unmount" are
+// counted on the requests the page really sends. The map runs in its no-key state; nothing is loaded from Google.
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
@@ -145,7 +145,7 @@ describe('first load, before the first poll has an answer', () => {
 // ---------- Server unreachable or erroring ----------
 
 describe('the server cannot be reached, or answers with an error', () => {
-  it('first load: one sentence and "Retry now" in the frame; one poll per second, before and after a press', async () => {
+  it('first load: one sentence and "Retry now" in the frame; the poll backs off, before and after a press', async () => {
     net.mode = 'down';
     const { container: c } = mountLivePage();
     await settle();
@@ -157,35 +157,37 @@ describe('the server cannot be reached, or answers with an error', () => {
     expect(leftBody(c).querySelector('.sps-rows')).not.toBeNull();
     expect(c.querySelector('[role="status"]')).toBeNull(); // the loading line is gone
 
-    // Polling does not double after an error: t = 0, then one request per second.
+    // Polling backs off while the server is away (#921): t = 0, 1, 3 s (then 7, 15, 25 s…), never doubled.
     expect(simCalls()).toHaveLength(1);
-    await advance(5 * SIM_POLL_MS);
-    expect(simCalls()).toHaveLength(6);
+    await advance(5 * SIM_POLL_MS); // t = 5 s
+    expect(simCalls()).toHaveLength(3);
+    expect(textOf(mapArea(c).querySelector('[role="alert"] p')!)).toBe("Can't reach the Relay server. Retrying…");
 
-    // "Retry now" polls at once (one request), and the rhythm stays one per second.
+    // "Retry now" polls at once (one request); it fails too, so the back-off goes on (next at 5 + 8 = 13 s).
     click(button(c, RETRY_NOW_TEXT));
     await settle();
-    expect(simCalls()).toHaveLength(7);
-    await advance(5 * SIM_POLL_MS);
-    expect(simCalls()).toHaveLength(12);
+    expect(simCalls()).toHaveLength(4);
+    await advance(5 * SIM_POLL_MS); // t = 10 s
+    expect(simCalls()).toHaveLength(4);
     expect(net.calls.every((call) => call.url === SIM_URL)).toBe(true); // no map request without a run
 
-    // A server that answers 500: another sentence, and never the server's own error text.
+    // A server that answers 500: another sentence, and never the server's own error text. An answer of
+    // any kind ends the back-off: the next poll is 1 s later.
     net.mode = 'http500';
-    await advance(SIM_POLL_MS);
+    await advance(3 * SIM_POLL_MS); // t = 13 s
+    expect(simCalls()).toHaveLength(5);
     expect(textOf(mapArea(c).querySelector('[role="alert"] p')!)).toBe('The Relay server returned an error. Retrying…');
     expect(textOf(c)).not.toMatch(/boom|stack trace|Request failed/);
-    expect(simCalls()).toHaveLength(13);
 
     // The server is back: the page fills in by itself.
     net.mode = 'ok';
     await advance(SIM_POLL_MS);
     expect(c.querySelector('[role="alert"]')).toBeNull();
     expect(packageLabels(c).length).toBeGreaterThan(0);
-    expect(simCalls()).toHaveLength(14);
+    expect(simCalls()).toHaveLength(6);
   }, T);
 
-  it('after data was shown: one sentence over the map, the last good data still visible, one poll per second', async () => {
+  it('after data was shown: one sentence over the map, the last good data still visible, the poll backs off', async () => {
     net.mode = 'ok';
     const { container: c } = mountLivePage();
     await settle();
@@ -203,12 +205,14 @@ describe('the server cannot be reached, or answers with an error', () => {
     expect(c.querySelector('.spc-map')).not.toBeNull();
     expect(c.querySelector('.sps-rows')).toBeNull(); // not back to the placeholders
 
-    await advance(4 * SIM_POLL_MS);
-    expect(simCalls()).toHaveLength(before + 5);
+    // Failed at 1 s, so the next polls are at 2 and 4 s, then 8 s (#921).
+    await advance(4 * SIM_POLL_MS); // t = 5 s
+    expect(simCalls()).toHaveLength(before + 3);
     expect(banner(c)).toEqual([CONNECTION_LOST_MESSAGE]);
 
     net.mode = 'http500';
-    await advance(SIM_POLL_MS);
+    await advance(3 * SIM_POLL_MS); // t = 8 s
+    expect(simCalls()).toHaveLength(before + 4);
     expect(banner(c)).toEqual(['The Relay server returned an error. Retrying…']);
     expect(packageLabels(c)).toEqual(labels);
     expect(textOf(c)).not.toMatch(/boom|stack trace/);
@@ -217,7 +221,7 @@ describe('the server cannot be reached, or answers with an error', () => {
     await advance(SIM_POLL_MS);
     expect(banner(c)).toEqual([]);
     expect(packageLabels(c)).toEqual(labels);
-    expect(simCalls()).toHaveLength(before + 7);
+    expect(simCalls()).toHaveLength(before + 5);
   }, T);
 
   it('polling stops on unmount: the open request is aborted and nothing is sent afterwards', async () => {
@@ -231,15 +235,15 @@ describe('the server cannot be reached, or answers with an error', () => {
     await advance(10 * SIM_POLL_MS);
     expect(net.calls).toHaveLength(1);
 
-    // Unmounted while the server is down (the page was retrying every second).
+    // Unmounted while the server is down (the page was backing off: t = 0, 1, 3 s, next at 7 s).
     net.mode = 'down';
     net.calls = [];
     const failing = mountLivePage();
-    await advance(3 * SIM_POLL_MS);
-    expect(simCalls()).toHaveLength(4);
+    await advance(4 * SIM_POLL_MS);
+    expect(simCalls()).toHaveLength(3);
     failing.unmount();
-    await advance(10 * SIM_POLL_MS);
-    expect(net.calls).toHaveLength(4);
+    await advance(30 * SIM_POLL_MS);
+    expect(net.calls).toHaveLength(3);
 
     // Unmounted with data on screen (the map's slow refresh timer is cleared too: 30 s pass in silence).
     net.mode = 'ok';
@@ -255,37 +259,42 @@ describe('the server cannot be reached, or answers with an error', () => {
 });
 
 describe('the poller alone (no React)', () => {
-  it('a failing server gets one request per second and never two at once; stop() ends it', async () => {
+  it('an unreachable server gets a backing-off poll (1, 2, 4, 8, then 10 s) and never two at once; stop() ends it', async () => {
     let calls = 0;
+    const startedAt: number[] = [];
     let open = 0;
     let maxOpen = 0;
     const failing = (ms: number) => (o?: RequestOptions) => new Promise<never>((_, reject) => {
-      calls += 1; open += 1; maxOpen = Math.max(maxOpen, open);
+      calls += 1; open += 1; maxOpen = Math.max(maxOpen, open); startedAt.push(Date.now());
       const t = setTimeout(() => { open -= 1; reject(networkError()); }, ms);
       o?.signal?.addEventListener('abort', () => { clearTimeout(t); open -= 1; reject(networkError()); }, { once: true });
     });
     const actions: SimDataAction[] = [];
     const poller = createSimPoller({ getSimulator: failing(50), getMap: async () => mapOf('run-a') }, (a) => actions.push(a));
+    const t0 = Date.now();
     poller.start();
-    await vi.advanceTimersByTimeAsync(9990);
-    expect(calls).toBe(10); // t = 0 .. 9 s
+    await vi.advanceTimersByTimeAsync(40_000);
+    // Each request fails after 50 ms; the wait after it doubles from 1 s and stops at 10 s.
+    expect(startedAt.map((t) => t - t0)).toEqual([0, 1050, 3100, 7150, 15_200, 25_250, 35_300]);
     expect(actions.every((a) => a.type === 'pollFailed')).toBe(true);
-    expect(actions).toHaveLength(10);
+    expect(actions).toHaveLength(7);
 
     // Retry pressed twice in a row during an open request: the open one is dropped, never doubled.
-    await vi.advanceTimersByTimeAsync(20); // t = 10.01 s: the tick's request is open
+    await vi.advanceTimersByTimeAsync(5370); // t = 45.37 s: the back-off poll (45.35 s) is open
+    expect(calls).toBe(8);
     void poller.refetchNow();
     void poller.refetchNow();
-    await vi.advanceTimersByTimeAsync(970); // just before the next tick
     expect(maxOpen).toBe(1);
-    expect(calls).toBe(13); // the tick's, plus one per press
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(calls).toBe(18); // back to one per second
+    expect(calls).toBe(10); // the timer's, plus one per press
+    await vi.advanceTimersByTimeAsync(9000); // the second press failed at 45.42 s: next poll at 55.42 s
+    expect(calls).toBe(10);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(calls).toBe(11);
 
     poller.stop();
     const seen = actions.length;
-    await vi.advanceTimersByTimeAsync(10_000);
-    expect(calls).toBe(18);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(calls).toBe(11);
     expect(actions).toHaveLength(seen);
     expect(open).toBe(0);
   });

@@ -2,6 +2,8 @@
 // /business/:id after the cutover: it only ever changes the query string (`?shipment=`), never the path.
 // The open delivery's route map (#549) loads GET /api/v2/map once per run and when that delivery's plan
 // is new to the loaded map, never on the poll (DECISIONS pass 52).
+// The deliveries list's loading / error state (#881) is read from the hook state here and reaches the list
+// through a context, like the New delivery services: the page view between them passes nothing through.
 import { useCallback, useMemo } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useBusinessWorkspace } from '../../components/business/v2/live/useBusinessWorkspace';
@@ -10,6 +12,7 @@ import { BusinessPageView } from '../../components/business/v2/page/BusinessPage
 import { pageScreen, siblingBusinessPath, withShipment } from '../../components/business/v2/page/businessPageModel';
 import { DeliveryRouteSlot } from '../../components/business/v2/route/DeliveryRoutePreview';
 import { useDeliveryMap } from '../../components/business/v2/route/useDeliveryMap';
+import { ShipmentsListLoadContext, useShipmentsListLoad } from '../../components/business/v2/ShipmentsTable';
 
 export default function BusinessV2() {
   const { id = '' } = useParams();
@@ -32,21 +35,27 @@ export default function BusinessV2() {
     () => ({ employees: ws.employees, matchShipment: ws.matchShipment }), [ws.employees, ws.matchShipment],
   );
 
+  // Deliveries without their business names are still loading, for a few seconds at most; a failed update
+  // keeps the rows and offers a retry.
+  const listLoad = useShipmentsListLoad(ws, ws.refetchNow);
+
   return (
     <NewDeliveryServicesContext.Provider value={formServices}>
-      <BusinessPageView
-        key={id}
-        state={ws}
-        shipmentId={shipmentId}
-        createShipment={ws.createShipment}
-        matchShipment={ws.matchShipment}
-        refetchNow={ws.refetchNow}
-        dismissRunChanged={ws.dismissRunChanged}
-        onOpenShipment={onOpenShipment}
-        onCloseShipment={onCloseShipment}
-        businessHref={businessHref}
-        deliveryRoute={openView ? <DeliveryRouteSlot slot={routeMap.slot} view={openView} onRetry={routeMap.retry} /> : null}
-      />
+      <ShipmentsListLoadContext.Provider value={listLoad}>
+        <BusinessPageView
+          key={id}
+          state={ws}
+          shipmentId={shipmentId}
+          createShipment={ws.createShipment}
+          matchShipment={ws.matchShipment}
+          refetchNow={ws.refetchNow}
+          dismissRunChanged={ws.dismissRunChanged}
+          onOpenShipment={onOpenShipment}
+          onCloseShipment={onCloseShipment}
+          businessHref={businessHref}
+          deliveryRoute={openView ? <DeliveryRouteSlot slot={routeMap.slot} view={openView} onRetry={routeMap.retry} /> : null}
+        />
+      </ShipmentsListLoadContext.Provider>
     </NewDeliveryServicesContext.Provider>
   );
 }

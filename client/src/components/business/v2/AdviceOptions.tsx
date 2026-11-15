@@ -68,7 +68,7 @@ export function AdviceOptions(p: AdviceOptionsProps) {
     <section className="nd-options" aria-labelledby={`${base}-title`} aria-busy={loading || undefined}>
       <h2 className="nd-options__title" id={`${base}-title`}>{ADVICE_COPY.title}</h2>
       {/* One line, polite, and in the page before its text changes: what the card is waiting for, then who
-          made the options (an offline answer says so in plain words), or the one sentence about a call
+          made the options (in plain words, #919), or the one sentence about a call
           that failed or found nothing. */}
       <p className="nd-options__status" role="status">
         {loading ? ADVICE_COPY.loadingLine : card ? card.sourceLine : problem}

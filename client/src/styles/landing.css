@@ -128,6 +128,27 @@
   border-radius: var(--radius-lg, 6px);
 }
 
+/* One quiet line under the button (#908). A wide window does not show it: the hero stays the title, the
+   button and the two entries (#853). It has no margin of its own, so an empty line takes no room. */
+.watch-note {
+  margin: 0;
+  max-width: 320px;
+  font-size: var(--text-sm, 13px);
+  line-height: 1.45;
+  color: var(--hero-faded, #A8ABB2);
+}
+.watch-note-narrow { display: none; }
+.watch-note-narrow,
+.watch-note-wait:not(:empty) { margin-top: var(--space-2, 8px); }
+/* After a press that came before the run was loaded: only "Opening the simulator…". */
+.watch-note-wait:not(:empty) { display: block; }
+/* The simulator's own breakpoint (sim page.css): below it the simulator shows only its notice, so the
+   line says so here, before the press. */
+@media (max-width: 899.98px) {
+  .watch-note-narrow { display: block; }
+  .watch-note.is-waiting .watch-note-narrow { display: none; }
+}
+
 /* Business and Employee: two smaller entries under the button, the whole surface is the link. They are
    one under the other and as wide as the button at projector widths: side by side they do not fit the
    hero's left half, and each entry's line of text stays on one row (#714, #869). They are one quiet
@@ -342,6 +363,7 @@ a.workspace-entry:focus-visible {
   .landing-hero-inner { padding-top: var(--space-6, 24px); padding-bottom: var(--space-6, 24px); }
   .landing-hero-copy { align-items: stretch; }
   .watch-button { display: flex; min-height: 64px; font-size: var(--text-lg, 18px); }
+  .watch-note { max-width: none; }
   .workspaces { max-width: none; }
   .numbers-button { display: flex; }
 }

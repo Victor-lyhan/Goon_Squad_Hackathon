@@ -7,13 +7,16 @@ import path from 'node:path';
 import {
   NETWORK_FINISHED_TEXT, NETWORK_PLAYING_TEXT, PAUSED_TEXT, PLAY_IDLE, playButtonView, stepAnnouncement,
 } from '../../client/src/components/sim/v2/compose/journeyPlay';
+import { ADVICE_COPY, MAX_OPTIONS, adviceCard, adviceSourceLabel } from '../../client/src/components/business/v2/adviceModel';
 import { FINISHED_REASON } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { DEFAULT_GRID, gridRuns } from '../../scripts/study/grid';
 import { DEFAULT_STUDY_CSV, DEFAULT_STUDY_OUT, DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
+import { ADVISE_TIMEOUT_MS, MAX_OPTIONS as SERVER_MAX_OPTIONS, MAX_TOOL_CALLS, OFFLINE_EARLIER_MIN } from '../../server/ai/advisor';
 import { DEFAULT_GEMINI_MODEL, GEMINI_KEY_NAME, GEMINI_MODEL_NAME, geminiKey } from '../../server/ai/env';
 import { DEFAULT_GEMINI_TIMEOUT_MS, GeminiUnavailable } from '../../server/ai/gemini';
 import { INVALID_ANSWER_MESSAGE } from '../../server/ai/geminiParser';
 import { fallbackLogLine, geminiLogLine, NO_KEY_LOG_LINE } from '../../server/api/v2/parseRequestRoutes';
+import { DEFAULT_SETTINGS } from '../../server/domain/pricing';
 import { ParseRequestBody } from '../../shared/v2/parseRequest';
 
 const root = path.resolve(__dirname, '../..');
@@ -121,9 +124,105 @@ describe('README: Requests in plain English (Gemini)', () => {
   });
 });
 
-// #850: the README after the MVP IV UI batch (#831 Play bar on the map, #832 one-line panels with Details,
-// #842 the two-line step line). Each quoted line is built by the page's own code or read from its source,
-// so a reworded page fails here.
+// #877: the advisor (#862 the route, #863 the Options card). The labels, the limits and the marks are read from
+// the code; what the card shows for the demo sentence on the real run is proven in v2-advise-readme-demo.test.ts.
+describe('README: Options for a request (the Options card and POST /api/v2/advise)', () => {
+  const HEADING = '### Options for a request';
+  const gemini = sectionOf('## Requests in plain English (Gemini)');
+  const section = gemini.includes(`\n${HEADING}\n`) ? gemini.slice(gemini.indexOf(`\n${HEADING}\n`)) : '';
+  const demo = sectionOf('## 2-minute demo');
+  const step2 = demo.split('\n').find((line) => line.startsWith('2. **Business**')) ?? '';
+  /** One row of the table of cases: the `source` cell says which. */
+  const rows = section.split('\n').filter((line) => line.startsWith('| ') && /\| `(offline|gemini)` \|/.test(line));
+
+  it('exists inside the Gemini section, and the links to it point at its heading', () => {
+    expect(section).not.toBe('');
+    expect(anchorOf(HEADING)).toBe('options-for-a-request');
+    expect(readme.split(`(#${anchorOf(HEADING)})`).length - 1).toBeGreaterThanOrEqual(2);
+    expect(section).toContain('`POST /api/v2/advise`');
+    expect(read('server/api/v2/adviseRoutes.ts')).toContain("router.post('/advise'");
+    expect(section).toMatch(/It only reads the run: it stores nothing and sends no delivery\./);
+  });
+
+  it('gives the three cases with their source and the label the card shows', () => {
+    expect(rows).toHaveLength(3);
+    const [noKey, answered, failed] = rows;
+    expect([adviceSourceLabel('offline'), adviceSourceLabel('gemini')]).toEqual([ADVICE_COPY.offline, ADVICE_COPY.byModel]);
+    expect(noKey.startsWith('| No `GEMINI_API_KEY` |')).toBe(true);
+    expect(noKey.endsWith(`| \`offline\` | "${ADVICE_COPY.offline}" |`)).toBe(true);
+    expect(answered.endsWith(`| \`gemini\` | "${ADVICE_COPY.byModel}" |`)).toBe(true);
+    expect(failed.endsWith(`| \`offline\` | "${ADVICE_COPY.offline}" |`)).toBe(true);
+    // The limits are the advisor's own: Gemini's time for the whole answer and its number of tries.
+    expect(answered).toContain(`Gemini answers within ${ADVISE_TIMEOUT_MS / 1000} s`);
+    expect(answered).toContain(`at most ${MAX_TOOL_CALLS} tries`);
+    // The three offline variants: as typed, ready earlier, deliver-by out to the flexibility window.
+    expect(noKey).toContain(`ready ${OFFLINE_EARLIER_MIN / 60} hours earlier (never before the simulated time)`);
+    expect(noKey).toContain(`deliver-by moved to ${DEFAULT_SETTINGS.flexWindowMin / 60} hours after ready, where the flexibility discount starts`);
+    expect(read('server/ai/advisor.ts')).toContain('{ deadlineMin: Math.max(draft.deadlineMin, draft.readyMin + engine.flexWindowMin) }');
+  });
+
+  it('names the marks and the button of the card as the page has them, and says up to three options', () => {
+    expect([MAX_OPTIONS, SERVER_MAX_OPTIONS]).toEqual([3, 3]);
+    expect(section).toContain(`the Business page shows an **${ADVICE_COPY.title}** card above the draft: up to three ways to send the request`);
+    expect(section).toContain(`the option whose times the form holds is marked "${ADVICE_COPY.chosen}", and the lowest price is marked "${ADVICE_COPY.cheapest}" when the prices differ`);
+    expect(section).toContain(`**${ADVICE_COPY.choose}** puts that option's ready and deliver-by times in the form and sends nothing`);
+    expect(section).toMatch(/If the call fails or finds no option, the card is not shown and the form works as before\./);
+    // "when the prices differ" is the card's rule: one option, or options at one price, have no mark.
+    const draft = { originBusinessId: 'a', destinationBusinessId: 'b', label: null, category: null, description: null, weightKg: null, readyMin: 960, deadlineMin: 1980 };
+    const option = (customerPriceCents: number, changes = {}) => ({ label: 'x', summary: '', kind: 'relay', customerPriceCents, deliveryMin: 1972, changes });
+    const cheapest = (prices: number[]) => adviceCard(
+      { source: 'offline', options: prices.map((cents, i) => option(cents, i === 0 ? {} : { deadlineMin: 1980 + 60 * i })) }, { draft, businesses: [] },
+    )?.rows.map((row) => row.cheapest);
+    expect(cheapest([1050, 950])).toEqual([false, true]);
+    expect(cheapest([950])).toEqual([false]);
+    expect(cheapest([950, 950])).toEqual([false, false]);
+    // The card is drawn above the parsed note and the form (BusinessPageView), and not at all without an answer.
+    const page = read('client/src/components/business/v2/page/BusinessPageView.tsx');
+    expect(page.indexOf('<AdviceOptions')).toBeGreaterThan(0);
+    expect(page.indexOf('<AdviceOptions')).toBeLessThan(page.indexOf('<ParsedRequestNote'));
+    expect(page.indexOf('<ParsedRequestNote')).toBeLessThan(page.indexOf('<NewDeliveryForm'));
+    expect(adviceCard({ source: 'offline', options: [] }, { draft, businesses: [] })).toBeNull();
+  });
+
+  it('the 2-minute demo names the card after Read my request and before Find a delivery match, with this sentence\'s one option', () => {
+    const at = (text: string) => step2.indexOf(text);
+    expect(at('choose **Read my request**')).toBeGreaterThan(0);
+    expect(at(`Above the card, the **${ADVICE_COPY.title}** card`)).toBeGreaterThan(at('choose **Read my request**'));
+    expect(at('Then choose **Find a delivery match**')).toBeGreaterThan(at(`Above the card, the **${ADVICE_COPY.title}** card`));
+    const price = /^price: (.+)$/m.exec(demo)?.[1] ?? 'no price in the block';
+    expect(step2).toContain(
+      `for this sentence it has one option, "As requested" at ${price}, marked "${ADVICE_COPY.chosen}", `
+      + `and without a Gemini key its label reads "${ADVICE_COPY.offline}".`,
+    );
+    expect(step2).toContain(
+      `The card lists up to three options, marks the lowest price "${ADVICE_COPY.cheapest}" when they differ, and each **${ADVICE_COPY.choose}** button `
+      + 'only sets the ready and deliver-by times in the form ([Options for a request](#options-for-a-request)).',
+    );
+    // "As requested" is the server's name for the request as typed (advisor.ts `defaultLabel`).
+    expect(read('server/ai/advisor.ts')).toContain("return parts.length === 0 ? 'As requested'");
+  });
+
+  it('says what goes to Gemini for the options, and that every price is the engine\'s', () => {
+    const sent = gemini.split('\n').find((line) => line.startsWith('- With the key set, each sentence goes to Google')) ?? '';
+    expect(sent).toContain('So does each request the **Options** card asks about: the names of its two businesses, its two times and the simulated time');
+    expect(sent).toMatch(/Without the key nothing is sent\.$/);
+    // The user turn the advisor sends (advisor.ts `buildAdvisorRequest`): the two names, the two times, the clock.
+    const advisor = read('server/ai/advisor.ts');
+    for (const part of ['`From ${name(draft.originBusinessId)} to ${name(draft.destinationBusinessId)}.`', 'Ready at ${draft.readyMin}', 'Deliver by ${draft.deadlineMin}', 'The simulation clock is at ${engine.clockMin}']) {
+      expect(advisor).toContain(part);
+    }
+    expect(section).toMatch(/The matching engine computes every option\./);
+    expect(advisor).toContain('customerPriceCents: plan.customerPriceCents,');
+    expect(sectionOf('## Pricing')).toContain('Every price in the app (the match result, the **Options** card, the delivery details,');
+    const out = sectionOf('## Assumptions and out of scope').split('\n').find((line) => line.startsWith('- Out of scope:')) ?? '';
+    expect(out).toContain('an LLM never sends a request, never matches one and never sets a price');
+  });
+});
+
+// #850: the README after the MVP IV UI batch (#831 Play bar on the map, #832 one-line panels with Details).
+// #877: and after the post-freeze batch: the Play bar is a dark pill with the two buttons and no text (#852),
+// a journey moves only the carrier handling the package (#851). Each quoted line is built by the page's own
+// code or read from its source, so a reworded page fails here.
 describe('README: the simulator Play bar and panels after the UI batch', () => {
   const state = sectionOf('## State file and reset');
   const watch = sectionOf('## 30-second demo');
@@ -141,36 +240,83 @@ describe('README: the simulator Play bar and panels after the UI batch', () => {
     for (const rule of ['position: absolute', 'left: 50%', 'bottom: 32px', 'transform: translateX(-50%)']) expect(bar).toContain(rule);
     expect(read('client/src/components/sim/v2/compose/SimPageBody.tsx')).toMatch(/<div className="spc-map">\s*(\{\/\*[\s\S]*?\*\/\}\s*)?<div className="spc-playbar"/);
     const play = state.split('\n').find((line) => line.startsWith('In the Simulator, **Play** with no package picked')) ?? '';
-    expect(play).toMatch(/\*\*Play\*\* and \*\*Back to start\*\* sit in one small bar at the bottom center of the map, the Play bar/);
-    expect(watch).toMatch(/The controls are in the Play bar, a small bar at the bottom center of the map\./);
-    expect(demo.split('\n').find((line) => line.startsWith('5. **Simulator**')) ?? '').toMatch(/The controls are at the bottom center of the map:/);
+    expect(play).toMatch(/\*\*Play\*\* and \*\*Back to start\*\* sit in one small bar at the bottom center of the map, the Play bar: a dark translucent pill that shows the two buttons and no other text/);
+    expect(watch).toMatch(/The controls are in the Play bar, a small bar at the bottom center of the map\. It is a dark translucent pill with two buttons, each an icon with its label, and no other text\./);
+    expect(demo.split('\n').find((line) => line.startsWith('5. **Simulator**')) ?? '').toMatch(/The controls are at the bottom center of the map: a dark translucent pill in which \*\*Pause\*\* stops the journey where it is/);
+    // #852: "a dark translucent pill" is the bar's own CSS: the ink at 72% over a blur, fully rounded.
+    for (const rule of ['background: color-mix(in srgb, var(--text, #171C24) 72%, transparent)', 'backdrop-filter: blur(8px)', 'border-radius: 26px']) {
+      expect(bar).toContain(rule);
+    }
   });
 
-  it('quotes the Play bar lines of network Play as the page prints them', () => {
+  it('says the Play bar shows the two buttons and no other text, which is what PlaybackControls draws (#852)', () => {
+    const controls = read('client/src/components/sim/v2/controls/PlaybackControls.tsx');
+    // Two buttons, each an icon with its label: Play or Pause, and Back to start.
+    expect(controls.match(/<button type="button"/g)).toHaveLength(2);
+    expect(controls.match(/<span className="ctl-label">/g)).toHaveLength(2);
+    expect(controls).toContain('<Icon d={button.label === PAUSE_LABEL ? PAUSE_ICON : PLAY_ICON} />');
+    expect(controls).toContain('<Icon d={RESET_ICON} />');
+    // The step line under the buttons is gone, and the two texts left are for screen readers only.
+    expect(controls).not.toContain('ctl-line');
+    const css = read('client/src/components/sim/v2/controls/controls.css');
+    expect(css).not.toContain('.ctl-line');
+    const hidden = /\.ctl-note,\s*\.ctl-status \{[^}]*\}/.exec(css)?.[0] ?? '';
+    for (const rule of ['position: absolute', 'width: 1px', 'height: 1px', 'clip: rect(0 0 0 0)']) expect(hidden).toContain(rule);
+    // So no sentence of the README has a line under the buttons, a step line, or the old two-line rule.
+    for (const gone of [/under the (two )?buttons/, /step line/, /never takes more than two lines/, /the bar then says/]) {
+      expect(readme, String(gone)).not.toMatch(gone);
+    }
+  });
+
+  it('quotes the texts of network Play as the page has them: the button while it plays, the tooltip at the end', () => {
     const play = state.split('\n').find((line) => line.startsWith('In the Simulator, **Play** with no package picked')) ?? '';
     for (const text of [NETWORK_PLAYING_TEXT, FINISHED_REASON, NETWORK_FINISHED_TEXT]) expect(play, text).toContain(`"${text}"`);
     expect(play.indexOf(`"${NETWORK_PLAYING_TEXT}"`)).toBeLessThan(play.indexOf(`"${FINISHED_REASON}"`));
+    // While it plays the one button reads Pause, and the sentence is the live region's.
+    const playing = playButtonView({ packagePicked: false, journey: null, play: { status: 'running', overnight: false, shipmentId: null, runId: 'run' }, clock: { playing: false, timeMin: 1000 }, busy: false, simEndMin: 2160 });
+    expect(playing.label).toBe('Pause');
+    expect(play).toContain(`While it plays, the first button reads **Pause** (a screen reader hears "${NETWORK_PLAYING_TEXT}").`);
     // At the end of the run the button has nothing left to play: it is disabled, with FINISHED_REASON as its note.
     const atEnd = playButtonView({ packagePicked: false, journey: null, play: PLAY_IDLE, clock: { playing: false, timeMin: 2160 }, busy: false, simEndMin: 2160 });
     expect(atEnd).toEqual({ label: 'Play', action: null, note: FINISHED_REASON });
-    expect(play).toMatch(/\*\*Play\*\* is greyed out/);
+    // #852: the note is the button's tooltip (`title`) and its hidden description, no longer a line of the bar.
+    expect(read('client/src/components/sim/v2/controls/PlaybackControls.tsx')).toContain('title={button.note ?? undefined}');
+    expect(play).toContain(`At the end **Play** is greyed out, and hovering over it says why: "${FINISHED_REASON}" (a screen reader hears that and "${NETWORK_FINISHED_TEXT}").`);
   });
 
-  it('quotes the step line of a journey: a step, paused, and the end, for both demos', () => {
+  it('says what shows a journey\'s step now: the Inspector for the eye, the step texts for a screen reader', () => {
     expect(stepAnnouncement(journey(1, 'Brooklyn Roasting Company'))).toBe('Step 2 of 4 next: Drop at relay point at Etsy.');
-    expect(watch).toContain('"Step 2 of 4 next: Drop at relay point at Etsy."');
-    expect(watch).toContain(`"${PAUSED_TEXT}"`);
-    expect(watch).toContain(`step line reads "${stepAnnouncement(journey(4, 'Brooklyn Roasting Company'))}"`);
-    // The 2-minute demo's journey ends at the recipient of its request block.
-    const recipient = /^recipient: (.+)$/m.exec(demo)?.[1] ?? 'no recipient in the block';
-    const end = stepAnnouncement(journey(4, recipient));
-    expect(end).toBe(`Journey complete: Delivered to recipient at ${recipient}.`);
-    expect(demo.split('\n').find((line) => line.startsWith('5. **Simulator**')) ?? '').toContain(`the line under the buttons then reads "${end}"`);
-    // #852 (PR #859) removed the visible step line (`.ctl-line`) from the Play bar, so its markup is no longer
-    // asserted here. The README sentences about that line are left for the README follow-up (STATUS, pass 99).
-    expect(watch).toMatch(/never takes more than two lines/);
-    // The sentence from before #831, when the buttons were in the left panel, is gone.
-    expect(readme).not.toContain(`The line under the buttons then reads "${FINISHED_REASON}"`);
+    const end30 = stepAnnouncement(journey(4, 'Brooklyn Roasting Company'));
+    expect(watch).toContain(
+      `- A screen reader still hears each step once, for example "Step 2 of 4 next: Drop at relay point at Etsy.", then "${PAUSED_TEXT}" after **Pause** and "${end30}" at the end.`,
+    );
+    // What a person sees is in the right panel: the step marked "Next", and the status "Delivered" at the end.
+    const timeline = read('client/src/components/sim/v2/journey/JourneyTimeline.tsx');
+    expect(timeline).toContain("current: 'Next'");
+    expect(timeline).toContain('<span className="jt__status-label">Status</span> <strong>{journey.statusLabel}</strong>');
+    expect(read('client/src/components/sim/v2/journey/journeyModel.ts')).toContain("delivered: 'Delivered',");
+    expect(watch).toContain(
+      '- The Play bar says nothing about the journey; the **Inspector** panel does. It marks the step the package is heading for as "Next" (printed in capitals), '
+      + 'and when the journey has ended its status reads "Delivered" with the time. **Play** then plays the journey again from the start.',
+    );
+    // The 2-minute demo ends on what the page shows, not on a sentence only a screen reader gets.
+    const step5 = demo.split('\n').find((line) => line.startsWith('5. **Simulator**')) ?? '';
+    expect(step5).toContain('Let it play to the end before step 6: the first button then reads **Play** again, and the status in the **Inspector** panel on the right reads "Delivered".');
+    expect(demo).not.toContain('Journey complete');
+  });
+
+  it('says a journey moves only the carrier handling the package: A in the evening, B in the morning (#851)', () => {
+    const line = watch.split('\n').find((text) => text.startsWith('Each carrier is a large marker')) ?? '';
+    expect(line).toContain(
+      'Only the carrier handling the package moves on the map: carrier A during the evening commute, until home, and carrier B during the morning commute, '
+      + 'from home to work. Neither is drawn during the other\'s commute, and no other vehicle is drawn.',
+    );
+    // The journey model keeps a vehicle only inside the commute window in which its carrier has the package
+    // (tests/ui/sim-v2-journey-handling.test.ts plays it on the real run).
+    const model = read('client/src/components/sim/v2/journey/journeyModel.ts');
+    expect(model).toContain('.filter((w) => snapshotMin >= w.startMin && snapshotMin <= w.endMin)');
+    expect(model).toContain('if (!c || !handling.has(m.employeeId)');
+    expect(fs.existsSync(path.join(root, 'tests/ui/sim-v2-journey-handling.test.ts'))).toBe(true);
   });
 
   it('names the right panel and its Details button as the page does, with the four step labels', () => {

@@ -26,13 +26,13 @@ const answer = (draft: Partial<ParseDraft> = {}, over: Partial<ParseRequestRespo
 };
 
 describe('the source label', () => {
-  it('"Parsed by Gemini" for gemini, "Parsed offline" for offline', () => {
-    expect(sourceLabel('gemini')).toBe('Parsed by Gemini');
-    expect(sourceLabel('offline')).toBe('Parsed offline');
+  it('"Read by Gemini" for gemini, "Read by Relay’s rules" for offline', () => {
+    expect(sourceLabel('gemini')).toBe('Read by Gemini');
+    expect(sourceLabel('offline')).toBe('Read by Relay’s rules');
   });
 
   it('never claims Gemini for a source it does not know', () => {
-    for (const s of [undefined, null, '', 'GEMINI', 'openai', 7]) expect(sourceLabel(s)).toBe('Parsed offline');
+    for (const s of [undefined, null, '', 'GEMINI', 'openai', 7]) expect(sourceLabel(s)).toBe('Read by Relay’s rules');
   });
 });
 
@@ -78,7 +78,7 @@ describe('parsedRequest: what the page shows for an answer', () => {
         description: 'Signed contract', readyTime: '16:00', deadlineDay: 2, deadlineTime: '10:00',
       },
       needsInput: [],
-      sourceLabel: 'Parsed by Gemini',
+      sourceLabel: 'Read by Gemini',
       sourceLine: null, // only an offline answer gets the plain line (#880)
       senderNote: null,
       rejected: null,
@@ -88,8 +88,8 @@ describe('parsedRequest: what the page shows for an answer', () => {
 
   it('an offline draft with missing fields: they keep the form\'s defaults and are listed in screen order', () => {
     const p = parsedRequest(answer({ originBusinessId: null, label: null, description: null, weightKg: null }, { source: 'offline' }), CONTEXT, SENTENCE);
-    expect(p.sourceLabel).toBe('Parsed offline');
-    expect(p.sourceLine).toBe('Read by Relay’s built-in rules, with no AI model.');
+    expect(p.sourceLabel).toBe('Read by Relay’s rules');
+    expect(p.sourceLine).toBe('No AI model was used.');
     expect(p.needsInput).toEqual(['label', 'weightKg', 'description']);
     expect(p.draft).toMatchObject({ recipientId: BAKERY.id, label: '', weightKg: emptyDraft().weightKg, description: '' });
     expect(p.senderNote).toBeNull(); // no sender in the sentence: it is the signed-in business, nothing to say

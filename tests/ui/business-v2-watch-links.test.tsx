@@ -157,7 +157,8 @@ describe('the planning note', () => {
     expect(headerModel(DASHBOARD).phaseText).toBe(SENTENCE);
     const html = renderToStaticMarkup(<BusinessHeader dashboard={DASHBOARD} />);
     expect(html).toContain(`<span class="ba-header__phase-text">${SENTENCE}</span>`);
-    expect(html).toContain(`title="${SENTENCE}"`);
+    // The sentence is on the page once: no tooltip repeats it (#892).
+    expect(html).not.toContain('title=');
     expect(html).not.toMatch(/edited/i);
   });
 
@@ -167,6 +168,7 @@ describe('the planning note', () => {
     expect(planning).not.toMatch(/added and edited/i);
     const locked = page(ready({ ...DASHBOARD, phase: 'locked' }), null);
     expect(locked).not.toContain(SENTENCE);
-    expect(locked).toContain('The simulation is running; deliveries are read-only.');
+    expect(locked).toContain('The simulation is running, so deliveries cannot be added or changed.');
+    expect(locked).not.toMatch(/read-only/i);
   });
 });

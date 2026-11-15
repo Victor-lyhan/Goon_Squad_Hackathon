@@ -30,7 +30,7 @@ describe('DeliveryDetails render', () => {
     expect(html).toMatch(/<h2 id="bd-title-shp-7"[^>]*tabindex="-1"[^>]*>Sample boxes<\/h2>/);
     const t = text(html);
     expect(t).toContain('Outgoing');
-    expect(t).toContain('shp-7');
+    expect(t).not.toContain('shp-7'); // the raw ID is not shown (#881); it is only the heading's DOM id
     expect(t).toContain('Delivery arranged');
     expect(t).toContain('Direct');
     expect(t).toContain('Day 1, 6:30 PM');

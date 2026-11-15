@@ -36,7 +36,7 @@ describe('buildRows', () => {
   it('unmatched outgoing carries its reason, no plan, no ETA, no price', () => {
     const r = byId('shp-3');
     expect(r).toMatchObject({
-      status: 'unmatched', statusLabel: 'Unmatched', planKind: null, planLabel: '—',
+      status: 'unmatched', statusLabel: 'Unmatched', planKind: null, planLabel: 'No match',
       etaMin: null, deliveredAtMin: null, deliveryText: '—', priceCents: null, priceText: '—',
       unmatchedReason: 'No commute passes both businesses before the deadline.',
     });
