@@ -32,7 +32,8 @@ export type RouteRow = {
   /**
    * A stop is done per the API's `stopsDone` count (#781); without it, per the job status (first stop once
    * in progress, all once completed). The start row is done per the API's `departed` (#791); without it,
-   * once the job is no longer assigned. The end row follows the job status.
+   * once the job is no longer assigned. The end row is done per the API's `arrived` (#836); without it, once
+   * the job is completed.
    */
   done: boolean;
 };
@@ -146,7 +147,7 @@ function stopDone(status: JobStatus, index: number, stopsDone: number | undefine
 export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeNeighborhood: string): RouteRow[] {
   const leg = job.plan.legs[job.job.legIndex];
   const stops = leg?.stops?.length ? leg.stops : [job.job.pickup, job.job.dropoff];
-  const { shipment, trip, status, stopsDone, departed } = job;
+  const { shipment, trip, status, stopsDone, departed, arrived } = job;
   const start = resolvePlace(trip.originPlaceId, businesses, homeNeighborhood);
   const end = resolvePlace(trip.destinationPlaceId, businesses, homeNeighborhood);
   const lastStop = stops[stops.length - 1];
@@ -174,7 +175,10 @@ export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeN
     key: 'end', kind: 'end', time: momentText(finishMin),
     place: end.name, address: end.address,
     action: trip.direction === 'evening' ? 'Arrive home' : 'Arrive at work',
-    instructions: '', done: status === 'completed',
+    // The server says when the commute has arrived (`arrived`, #836): a job is "completed" when its last stop
+    // is handled, and the carrier may still be driving. An answer without it (an older sample) keeps the old
+    // rule: arrived once the job is completed.
+    instructions: '', done: typeof arrived === 'boolean' ? arrived : status === 'completed',
   });
   return rows;
 }

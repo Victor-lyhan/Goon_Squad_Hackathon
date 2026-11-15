@@ -1,8 +1,9 @@
 // Issue #823: the "(done)" ticks of the Employee job view (`?job=`) while a delivery moves, on the real default
 // NYC run. The check in headless Chrome (1440 and 390 px, the demo carriers' pages, the run sought through
 // every step of both legs) found the start and stop rows right at every step, and one fault: the end row
-// ("Arrive home") is ticked when the last stop is handled, before the carrier is home. That fault is a gap in
-// the contract (no field says the commute has arrived), so it is the `it.fails` test at the end, not a fix.
+// ("Arrive home") was ticked when the last stop is handled, before the carrier is home. That fault was a gap in
+// the contract (no field said the commute has arrived). #836 added `EmployeeJobView.arrived`, which the end
+// row now reads: the last test, an `it.fails` until then.
 //
 // Every job of the run is rendered at each minute where one of its ticks may change: one minute before its
 // trip leaves, at the departure, at each stop's start of handling, one minute before and at its end of
@@ -149,14 +150,19 @@ describe('Employee job view on the real NYC run: the ticks at every step of ever
     expect(later.length).toBeGreaterThan(0);
   }, T);
 
-  // NEEDS CONTRACT (#823, seen in headless Chrome on the demo's evening carrier): the end row is ticked from
-  // the job status ("completed" = the last stop is handled), so "Arrive home" reads "(done)" while the carrier
-  // is still driving home: from the drop's end to the leg's `finishMin`, the time the row itself shows. The
-  // page has no minute and may not work one out (AGENTS hard rules), and no field says the commute has
-  // arrived. The fix is one more optional field next to `departed` (for example `arrived`: the simulation
-  // minute is at or past the leg's `finishMin`), filled in server/api/v2/views.ts and read by `routeRows`.
-  // When that lands this test passes: remove `.fails`.
-  it.fails('NEEDS CONTRACT: the end row is not ticked before the leg\'s finish minute', () => {
+  // #823 saw, in headless Chrome on the demo's evening carrier, the end row ticked from the job status
+  // ("completed" = the last stop is handled): "Arrive home" read "(done)" while the carrier was still driving
+  // home, from the drop's end to the leg's `finishMin`, the time the row itself shows. The page has no minute
+  // and may not work one out (AGENTS hard rules). #836: the server says it in `arrived` (the simulation
+  // minute is at or past the leg's `finishMin`, server/api/v2/views.ts) and `routeRows` reads it.
+  it('the end row is not ticked before the leg\'s finish minute, and is the API\'s arrived at every step', () => {
+    for (const s of seen) {
+      const arrived = s.timeMin >= legOf(s.job).finishMin;
+      expect(s.job.arrived, `${s.where}: the API's arrived`).toBe(arrived);
+      expect(s.rows[s.rows.length - 1].done, `${s.where}: end row`).toBe(arrived);
+    }
+    // The case the old rule got wrong was really rendered: the job is completed, the carrier not there yet.
+    expect(seen.filter((s) => s.job.status === 'completed' && s.timeMin < legOf(s.job).finishMin).length).toBeGreaterThan(0);
     const early = seen
       .filter((s) => s.timeMin < legOf(s.job).finishMin && s.rows[s.rows.length - 1].done)
       .map((s) => `${s.where}: "${s.rows[s.rows.length - 1].text}" (finish ${legOf(s.job).finishMin})`);
