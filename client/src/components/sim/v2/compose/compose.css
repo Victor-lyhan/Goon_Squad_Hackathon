@@ -1,7 +1,8 @@
 /* Simulator page (#426, #460): page states, the map banners, the map legend's corner and the
    right-panel message blocks. The inspector, package panel, legend and comparison bring their own CSS.
    MVP III look (docs/mvp3.md P4, #701): token colours as var(--name, fallback), hairline borders,
-   radius 4px, flat fills, no shadows, no gradients. */
+   radius 4px, flat fills, no shadows, no gradients. The one exception is what floats on the map (#852,
+   #864): the Play control, the banners and the overnight card are dark translucent pills. */
 
 /* ---------- Loading, unavailable (503) and error: the whole workspace area ---------- */
 .spc-state {
@@ -41,6 +42,11 @@
 
 /* ---------- Map slot ---------- */
 .spc-map { position: relative; width: 100%; height: 100%; }
+/* #864 (QUESTIONS 22:25, DECISIONS pass 100): every control on the map has the look of the Play pill
+   below (`.spc-playbar`): the --text ink at 72% over a blur of the map, white text, no white panel and
+   no border. The same values are written out on each rule (here, legend.css `.ml`, map.css
+   `.map-v2__daynight`). A banner is one line, so its 14px radius makes it a full pill. Its padding is
+   1px more than the tokens: the room of the hairline border it had, so its size did not change. */
 .spc-banner {
   position: absolute;
   top: var(--space-3, 12px);
@@ -48,15 +54,17 @@
   transform: translateX(-50%);
   z-index: 2;
   margin: 0;
-  padding: var(--space-1, 4px) var(--space-3, 12px);
-  background: var(--panel, #FFFFFF);
-  border: 1px solid var(--warn, #8A5A00);
-  border-radius: var(--radius, 4px);
-  color: var(--text, #171C24);
+  padding: calc(var(--space-1, 4px) + 1px) calc(var(--space-3, 12px) + 1px);
+  background: color-mix(in srgb, var(--text, #171C24) 72%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-radius: 14px;
+  color: var(--panel, #FFFFFF);
   font-size: var(--text-xs, 12px);
   white-space: nowrap;
 }
-.spc-banner--quiet { border-color: var(--border, #E3E3DE); color: var(--muted, #5B6472); }
+/* The map-pending note: the same pill, its text a little softer (still above 4.5:1 over a white map). */
+.spc-banner--quiet { color: color-mix(in srgb, var(--panel, #FFFFFF) 80%, transparent); }
 .spc-banner + .spc-banner { top: calc(var(--space-3, 12px) + 32px); }
 
 /* The legend sits in the top-left corner, under the map's day/night badge (12px + its 27px + a gap).
@@ -126,9 +134,12 @@
 .spc-journey__foot { padding: 0 var(--space-4, 16px) var(--space-3, 12px); }
 
 /* ---------- Map: the overnight card of a relay journey (#648) ---------- */
-/* In place of the night: centered over the map for about 1 s, dark like the night it stands for.
-   White on ink (the --panel and --text tokens), about 17:1. Its text is "Overnight at <relay point>",
-   a name and no time, so it stays in the UI font. */
+/* In place of the night: centered over the map for about 1 s. #864: the same dark translucent pill as
+   the Play control (the --text ink at 72% over a blur of the map, white text and moon, no border); white
+   on it is at least 6.7:1 whatever the map shows. Half of its one-line height as the radius: a full pill
+   on one row, a rounded box when the name wraps in a narrow map. The padding is 1px more than the tokens
+   (the room of the border it had). Its text is "Overnight at <relay point>", a name and no time, so it
+   stays in the UI font. */
 .spc-overnight {
   position: absolute;
   top: 50%;
@@ -140,10 +151,11 @@
   gap: var(--space-2, 8px);
   max-width: calc(100% - 48px);
   margin: 0;
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  background: var(--text, #171C24);
-  border: 1px solid var(--text, #171C24);
-  border-radius: var(--radius, 4px);
+  padding: calc(var(--space-3, 12px) + 1px) calc(var(--space-4, 16px) + 1px);
+  background: color-mix(in srgb, var(--text, #171C24) 72%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-radius: 24px;
   color: var(--panel, #FFFFFF);
   font-size: var(--text-lg, 18px);
   font-weight: 600;

@@ -166,9 +166,9 @@ describe('README: the simulator Play bar and panels after the UI batch', () => {
     const end = stepAnnouncement(journey(4, recipient));
     expect(end).toBe(`Journey complete: Delivered to recipient at ${recipient}.`);
     expect(demo.split('\n').find((line) => line.startsWith('5. **Simulator**')) ?? '').toContain(`the line under the buttons then reads "${end}"`);
-    // #842: the shown line is capped at two lines and its whole text is its title (hover).
-    expect(read('client/src/components/sim/v2/controls/controls.css')).toMatch(/\.ctl-line \{[^}]*line-clamp: 2;/);
-    expect(read('client/src/components/sim/v2/controls/PlaybackControls.tsx')).toContain('<p className="ctl-line" aria-hidden="true" title={status}>{status}</p>');
+    // #842 capped the shown line at two lines. #852 (PR #859) then removed the shown line (`.ctl-line`), so
+    // the page source is no longer read here; the README sentence stays until the README follow-up
+    // (DECISIONS pass 99 and 100).
     expect(watch).toMatch(/never takes more than two lines/);
     // The sentence from before #831, when the buttons were in the left panel, is gone.
     expect(readme).not.toContain(`The line under the buttons then reads "${FINISHED_REASON}"`);

@@ -214,14 +214,16 @@ describe('map.css: the badge and the night map area', () => {
     expect(decl('.map-v2__daynight', 'font-family')).toMatch(/^var\(--font-mono, 'IBM Plex Mono'/);
   });
 
-  it('the badge text meets 4.5:1 on both backgrounds', () => {
-    const day = contrast(color('.map-v2__daynight', 'color'), color('.map-v2__daynight', 'background'));
-    const night = contrast(color('.map-v2__daynight--night', 'color'), color('.map-v2__daynight--night', 'background'));
-    expect(day).toBeGreaterThanOrEqual(4.5);
-    expect(night).toBeGreaterThanOrEqual(4.5);
-    // The night badge is the dark one.
-    expect(luminance(color('.map-v2__daynight--night', 'background'))).toBeLessThan(0.05);
-    expect(luminance(color('.map-v2__daynight', 'background'))).toBeGreaterThan(0.8);
+  // #864: the badge is a control on the map, so it is the dark translucent pill of Play by day and at
+  // night alike (no white panel). Its contrast over a white and over a black map is worked out in
+  // sim-v2-map-controls-css.test.ts.
+  it('the badge is one dark pill with white text, by day and at night', () => {
+    expect(decl('.map-v2__daynight', 'background')).toBe('color-mix(in srgb, var(--text, #171C24) 72%, transparent)');
+    expect(decl('.map-v2__daynight', 'color')).toBe('var(--panel, #FFFFFF)');
+    // White on the ink itself (the pill over a dark map).
+    expect(contrast(color('.map-v2__daynight', 'color'), resolveVars('var(--text)'))).toBeGreaterThanOrEqual(4.5);
+    // No second look for the night: the moon says it is night.
+    expect(mapRules.filter((r) => r.selectors.some((s) => /daynight--(day|night)/.test(s)))).toEqual([]);
   });
 
   it('the area behind the night tiles is dark, so tiles do not load over a light flash', () => {

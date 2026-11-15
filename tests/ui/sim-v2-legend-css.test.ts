@@ -1,5 +1,6 @@
-// Style rules for the map legend (docs/mvp2-ui-redesign.md §1): square corners, no shadow, no
-// gradient, tokens only, and narrow enough (≤ 240px) that it does not cover the map.
+// Style rules for the map legend (docs/mvp2-ui-redesign.md §1): no shadow, no gradient, tokens only,
+// and narrow enough (≤ 240px) that it does not cover the map. #864: it is a control on the map, so it
+// is a dark translucent pill like Play (sim-v2-map-controls-css.test.ts has the look and the contrast).
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -19,21 +20,24 @@ describe('legend.css', () => {
     expect(tsx).not.toMatch(/boxShadow|gradient/);
   });
 
-  it('corner radius is at most var(--radius); only the round marker swatches use 50%', () => {
+  it('the legend and its toggle are round like the Play pill (#864); only the round marker swatches use 50%', () => {
+    const radii: Array<[string, string]> = [];
     for (const [selector, body] of rules) {
       for (const m of body.matchAll(/border-radius:\s*([^;]+);/g)) {
         const v = m[1].trim();
         if (v === '50%') expect(selector).toMatch(/^\.ml__swatch--(dot|ring|numbered)$/);
-        else expect(['0', 'var(--radius)']).toContain(v);
+        else radii.push([selector, v]);
       }
     }
-    expect(block('.ml')).toMatch(/border-radius:\s*var\(--radius\);/);
+    // The toggle is 1px inside the legend (its padding), so its radius is 1px less.
+    expect(radii).toEqual([['.ml', '14px'], ['.ml__toggle', '13px']]);
   });
 
-  it('the legend box: 1px border, panel background, IBM Plex through the tokens, at most 240px wide', () => {
+  it('the legend box: no border, the dark pill fill, the fonts through the tokens, at most 240px wide', () => {
     const ml = block('.ml');
-    expect(ml).toMatch(/border:\s*1px solid var\(--border\);/);
-    expect(ml).toMatch(/background:\s*var\(--panel\);/);
+    expect(noComments).not.toMatch(/border(-\w+)?:\s*1px/);
+    expect(ml).toMatch(/background:\s*color-mix\(in srgb, var\(--text\) 72%, transparent\);/);
+    expect(ml).toMatch(/color:\s*var\(--panel\);/);
     expect(ml).toMatch(/font-family:\s*var\(--font-sans\);/);
     const max = ml.match(/max-width:\s*(\d+)px;/);
     expect(max).not.toBeNull();

@@ -114,12 +114,24 @@ export const ROUND_SELECTORS = ['.ml__swatch--dot', '.ml__swatch--ring', '.ml__s
 
 /**
  * #852 (human feedback): the floating Play/Pause control on the map is a dark translucent pill, not a
- * flat panel: `.spc-playbar` (compose.css) is the pill, `.ctl-btn` (controls.css) its two buttons. They
- * are the only selectors that may have a radius above the token, the pill is the only one that may blur
- * what is behind it, and the buttons' focus ring is white (on the ink of the pill), not the accent.
+ * flat panel: `.spc-playbar` (compose.css) is the pill, `.ctl-btn` (controls.css) its two buttons.
+ * #864 (QUESTIONS 22:25): every control on the map has that look: the banners and the overnight card
+ * (compose.css), the legend and its toggle (legend.css) and the day/night badge (map.css).
+ * They are the only selectors that may have a radius above the token and the only ones that may blur
+ * what is behind them, and the focus ring of their buttons is white (on the ink of the pill), not the accent.
  */
-export const PILL_SELECTORS = ['.spc-playbar', '.ctl-btn'];
-export const PILL_RADII: Record<string, string> = { '.spc-playbar': '26px', '.ctl-btn': '22px' };
+export const PILL_RADII: Record<string, string> = {
+  '.spc-playbar': '26px',
+  '.ctl-btn': '22px',
+  '.spc-banner': '14px',
+  '.spc-overnight': '24px',
+  '.ml': '14px',
+  '.ml__toggle': '13px',
+  '.map-v2__daynight': '14px',
+};
+export const PILL_SELECTORS = Object.keys(PILL_RADII);
+/** The pill's fill: the --text ink at 72%. legend.css writes its tokens without a fallback (sim-v2-legend-css.test.ts). */
+export const PILL_BACKGROUND = 'color-mix(in srgb, var(--text, #171C24) 72%, transparent)';
 export const PILL_BLUR = 'blur(8px)';
 export const PILL_FOCUS_RING = '2px solid var(--panel, #FFFFFF)';
 export const isPillRule = (r: Rule) => r.media === null && r.selectors.length === 1 && PILL_SELECTORS.includes(r.selectors[0]);
