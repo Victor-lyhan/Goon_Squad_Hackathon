@@ -33,11 +33,11 @@
   --ns-ink-line: #2A303D;
   --ns-ink-field: #141925;
   --ns-alert-on-ink: #FF9B8A;
-  /* Archivo comes with the homepage (#955: @fontsource-variable/archivo, loaded once in the client entry).
-     Until then, and wherever it fails to load, the text is Inter at 600, a loaded face. Archivo is drawn
-     heavier through its weight axis (font-variation-settings), which a static font ignores, so no bold is
-     ever faked (#737). */
-  --ns-display: 'Archivo Variable', 'Inter', system-ui, sans-serif;
+  /* The heading face is the app's: --font-display of tokens.css (#955: Archivo, @fontsource-variable/archivo,
+     loaded once in the client entry), so the header, the homepage and this page change together. Wherever
+     Archivo fails to load, the text is Inter at 600, a loaded face. Archivo is drawn heavier through its
+     weight axis (font-variation-settings), which a static font ignores, so no bold is ever faked (#737). */
+  --ns-display: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
   --ns-size-title: 20px; /* a section's heading */
   --ns-size-sentence: 26px; /* the sentence being typed */
   --ns-size-figure: 32px; /* an option's price, the sentence box's title */

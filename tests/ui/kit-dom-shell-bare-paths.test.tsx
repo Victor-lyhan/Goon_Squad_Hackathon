@@ -211,8 +211,9 @@ describe('no page says the environment (#833 the homepage, #854 every page)', ()
     expect(s.header().querySelector('.shell-env')).toBeNull();
     expect(textOf(s.header().querySelector('.shell-tools')!)).toBe('');
     expect(s.container.querySelector('footer, .landing-footer, .op-summary')).toBeNull();
-    // The page ends with "How it works".
-    expect(s.main().querySelector('.landing')!.lastElementChild!.className).toBe('landing-how');
+    // The page ends with the study's figure and its "See the numbers" button (#955), after "How it works".
+    const sections = [...s.main().querySelector('.landing')!.children].map((el) => el.className);
+    expect(sections).toEqual(['landing-hero', 'landing-how', 'landing-numbers']);
   }, T);
 
   it.each(['/simulator', '/nowhere'])('%s: the top right of the header is empty', async (path) => {

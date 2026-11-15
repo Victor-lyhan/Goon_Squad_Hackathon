@@ -130,35 +130,43 @@ describe('README after the cutover', () => {
   });
 
   // #877: the homepage after #869 (the hero fills the window under the header, the drawn map is its right
-  // half, Business and Employee are stacked under Watch a package). Each claim is read from the page's CSS and JSX.
+  // half) and after #955 (the title in very large type with one sentence, the orange button, "How it works" as
+  // stations on a route line, then the study's figure). Each claim is read from the page's CSS and JSX.
   it('describes the homepage as it is: a hero that fills the screen under the header, text on the left, the drawn map on the right', () => {
     const row = sectionOf('## Setup and run').split('\n').find((line) => line.startsWith('| `/` |')) ?? '';
     expect(row).toContain('Homepage: a dark hero that fills the screen under the header.');
     expect(row).toContain(
-      'Its left half has the title, the **Watch a package** button (it opens the simulator on an example package and plays it) and, '
-      + 'stacked under the button, the **Business** and **Employee** entries.',
+      'Its left side has the title in very large type, one sentence, the orange **Watch a package** button '
+      + '(it opens the simulator on an example package and plays it) and, under the button, the **Business** and **Employee** entries.',
     );
     expect(row).toContain('Its right half is a drawn map of New York on which a package is relayed in a loop (an illustration, not a run; no map key needed).');
-    expect(row).toContain('Scroll down for **How it works** in three lines with the **See the numbers** button to `/study.html`.');
+    expect(row).toContain('Scroll down for **How it works** as three stations on a route line, then one large figure from the study with the **See the numbers** button to `/study.html`.');
     expect(row).toContain('In a narrow or upright window the map lies under the text.');
 
     const css = read('client/src/styles/landing.css');
     const rule = (selector: string) => new RegExp(`\\n\\${selector} \\{[^}]*\\}`).exec(css)?.[0] ?? '';
     // "fills the screen under the header": the window's height less the header's, which the shell sets.
     // The fallback is the header's own height (#879); the 100vh line is for a browser without dvh.
-    expect(rule('.landing-hero')).toContain('min-height: calc(100vh - var(--app-header-h, 64px));');
-    expect(rule('.landing-hero')).toContain('min-height: calc(100dvh - var(--app-header-h, 64px));');
-    expect(read('client/src/ui/shell.css')).toContain(':root { --app-header-h: 64px; }');
-    // "dark", and two halves: the text column and the map.
-    expect(rule('.landing-hero')).toContain('background: var(--hero-ground, #171C24);');
+    expect(rule('.landing-hero')).toContain('min-height: calc(100vh - var(--app-header-h, 72px));');
+    expect(rule('.landing-hero')).toContain('min-height: calc(100dvh - var(--app-header-h, 72px));');
+    expect(read('client/src/ui/shell.css')).toContain(':root { --app-header-h: 72px; }');
+    // "dark", and two halves: the text column (which starts in the left one) and the map.
+    expect(rule('.landing-hero')).toContain('background: var(--hero-ground, #0B0F17);');
     expect(rule('.landing-hero')).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);');
     expect(rule('.landing-hero-map')).toContain('grid-column: 2;');
-    // "stacked": the two entries are one column, and the button comes before them in the text column.
-    expect(rule('.workspaces')).toContain('grid-template-columns: minmax(0, 1fr);');
+    // "very large type": Archivo up to 116 px. "orange": the package's colour. "under the button": the
+    // text is one column, and the button comes before the entries in it.
+    expect(rule('.landing-hero h1')).toContain('font-size: clamp(40px, 8vw, 116px);');
+    expect(rule('.watch-button')).toContain('background: var(--hero-package, #FF6A1A);');
     expect(rule('.landing-hero-copy')).toContain('flex-direction: column;');
+    // "three stations on a route line", "one large figure".
+    expect(rule('.landing-steps')).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
+    expect(css).toContain('.landing-steps li::before {');
+    expect(rule('.landing-figure')).toContain('font-size: clamp(120px, 17vw, 232px);');
     const page = read('client/src/pages/Landing.tsx');
-    const order = ['<LandingTitle />', '<WatchButton to=', '<WorkspaceEntries paths=', '<LandingHeroMap />', '<HowItWorks />'].map((jsx) => page.indexOf(jsx));
-    expect(order.every((index) => index > 0), 'the five parts of the page').toBe(true);
+    const order = ['<LandingTitle />', '{LANDING_SUBLINE}</p>', '<WatchButton to=', '<WorkspaceEntries paths=', '<LandingHeroMap />', '<HowItWorks />', '<Numbers />']
+      .map((jsx) => page.lastIndexOf(jsx));
+    expect(order.every((index) => index > 0), 'the seven parts of the page').toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     // "In a narrow or upright window the map lies under the text": the second row of a one-column hero.
     const narrow = css.slice(css.indexOf('@media (max-width: 820px), (max-aspect-ratio: 6/5) {'));
@@ -166,16 +174,17 @@ describe('README after the cutover', () => {
     expect(narrow).toContain('.landing-hero-map { --hero-fade: to bottom; grid-column: 1; grid-row: 2; }');
   });
 
-  // #877: the header after #854 (no line of text at its top right) and #868 (a 64 px bar, the links centered).
-  it('describes the header as it is: a 64 px bar with the logo, the three links and, on account pages only, the Demo account selector', () => {
-    const line = sectionOf('## Setup and run').split('\n').find((text) => text.startsWith('The header is one bar on every page')) ?? '';
+  // #877: the header after #854 (no line of text at its top right), #868 (the links centered) and #955 (a dark 72 px bar).
+  it('describes the header as it is: a dark 72 px bar with the logo, the three links and, on account pages only, the Demo account selector', () => {
+    const line = sectionOf('## Setup and run').split('\n').find((text) => text.startsWith('The header is one dark bar on every page')) ?? '';
     expect(line).toBe(
-      'The header is one bar on every page, 64 px high in a desktop window: the Relay logo at the left (it opens the homepage), '
+      'The header is one dark bar on every page, 72 px high in a desktop window: the Relay logo at the left (it opens the homepage), '
       + 'the **Business**, **Employee** and **Simulator** links in the middle and, on the Business and Employee pages only, '
       + 'the **Demo account** selector at the right. It shows nothing else.',
     );
     const shell = read('client/src/ui/shell.css');
-    expect(/:root \{ --app-header-h: (\d+)px; \}/.exec(shell)?.[1]).toBe('64');
+    expect(/:root \{ --app-header-h: (\d+)px; \}/.exec(shell)?.[1]).toBe('72');
+    expect(shell).toContain('background: var(--ink, #0B0F17); color: var(--on-ink, #F4F2EC);'); // "dark"
     // Left, middle, right: the three columns of the header's grid, in the order App.tsx draws them.
     expect(shell).toContain('grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);');
     const app = read('client/src/App.tsx');

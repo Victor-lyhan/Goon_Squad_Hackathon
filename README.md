@@ -36,13 +36,13 @@ The main paths:
 
 | Path | Page |
 | --- | --- |
-| `/` | Homepage: a dark hero that fills the screen under the header. Its left half has the title, the **Watch a package** button (it opens the simulator on an example package and plays it) and, stacked under the button, the **Business** and **Employee** entries. Its right half is a drawn map of New York on which a package is relayed in a loop (an illustration, not a run; no map key needed). Scroll down for **How it works** in three lines with the **See the numbers** button to `/study.html`. In a narrow or upright window the map lies under the text. |
+| `/` | Homepage: a dark hero that fills the screen under the header. Its left side has the title in very large type, one sentence, the orange **Watch a package** button (it opens the simulator on an example package and plays it) and, under the button, the **Business** and **Employee** entries. Its right half is a drawn map of New York on which a package is relayed in a loop (an illustration, not a run; no map key needed). Scroll down for **How it works** as three stations on a route line, then one large figure from the study with the **See the numbers** button to `/study.html`. In a narrow or upright window the map lies under the text. |
 | `/business/<id>` | Business workspace, for example `/business/biz-brooklyn-roasting`: the **Shipments** table, **New delivery**, delivery details. |
 | `/employee/<id>` | Employee workspace, for example `/employee/emp-7`: the saved commute, assigned deliveries, earnings. |
 | `/simulator` | Simulator: the whole network, the package list, playback, and the journey of one package. |
 | `/study.html` | The numbers: Relay against a standard next-day courier, on one page of its own ([The numbers](#the-numbers-relay-vs-traditional-delivery)). |
 
-The header is one bar on every page, 64 px high in a desktop window: the Relay logo at the left (it opens the homepage), the **Business**, **Employee** and **Simulator** links in the middle and, on the Business and Employee pages only, the **Demo account** selector at the right. It shows nothing else.
+The header is one dark bar on every page, 72 px high in a desktop window: the Relay logo at the left (it opens the homepage), the **Business**, **Employee** and **Simulator** links in the middle and, on the Business and Employee pages only, the **Demo account** selector at the right. It shows nothing else.
 
 You never have to type an ID: the header's **Business** and **Employee** links open the chosen demo account (the first business and the first employee of the run until you choose one), and the **Demo account** selector switches to any other ([Demo accounts](#demo-accounts)). `/business` and `/employee` with no ID go to that same account.
 
@@ -150,7 +150,7 @@ Press **Back to start** in the Simulator before step 2 if a journey or **Play** 
 5. **Simulator**: on the new delivery, "Envelope", choose **Watch in simulator** (or **View journey** in the Business delivery details). Both open `/simulator?package=<shipment ID>&play=1`, and the journey starts playing by itself; it takes about 16 seconds. Elena Rossi leaves work, which is the sender: the package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (an "Overnight at Etsy" card stands in for the wait), and is delivered to Blue Bottle Coffee in the morning, on Reese Green's commute to work. The controls are at the bottom center of the map: a dark translucent pill in which **Pause** stops the journey where it is, **Play** goes on from there, and **Back to start** rewinds. Let it play to the end before step 6: the first button then reads **Play** again, and the status in the **Inspector** panel on the right reads "Delivered".
 6. The same run is in every workspace: once the journey has played to the end, the delivery reads **Delivered** for the sender (`/business/biz-brooklyn-roasting`) and for the recipient (`/business/biz-blue-bottle-wall`), and **Earnings** on the pages of Elena Rossi and Reese Green (choose each as the **Demo account**) show the reward as **Earned**. Elena Rossi's amount also counts her leg of "Navy Yard grinder burrs", which is delivered by the same minute.
 
-To end on the figures, open `/` and choose **See the numbers**, under **How it works**: it opens `/study.html`, Relay against a standard next-day courier ([The numbers](#the-numbers-relay-vs-traditional-delivery)).
+To end on the figures, open `/` and choose **See the numbers**, at the end of the page under **How it works** and the study's large figure: it opens `/study.html`, Relay against a standard next-day courier ([The numbers](#the-numbers-relay-vs-traditional-delivery)).
 
 Message: Relay turns existing commutes into a coordinated delivery network. This prototype calculates the matches on real NYC travel times and simulates the complete delivery cycle.
 

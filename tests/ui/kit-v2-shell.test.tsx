@@ -149,20 +149,34 @@ describe('shell CSS', () => {
     }
   });
   it('uses tokens with fallbacks', () => {
-    expect(css).toContain('var(--border, #E3E3DE)');
-    expect(css).toContain('var(--accent, #1D5075)');
+    // #955: the bar is ink, so its ground, text and hairline are the ink tokens, each with its value as the fallback.
+    const tokens = readFileSync('client/src/styles/tokens.css', 'utf8');
+    for (const [name, hex] of [['--ink', '#0B0F17'], ['--on-ink', '#F4F2EC'], ['--on-ink-muted', '#A3A9B5'], ['--ink-line', '#262D3A']]) {
+      expect(css).toContain(`var(${name}, ${hex})`);
+      expect(tokens).toContain(`${name}: ${hex};`);
+    }
+    expect(value('.shell-header', 'background')).toBe('var(--ink, #0B0F17)');
+    expect(value('.shell-header', 'color')).toBe('var(--on-ink, #F4F2EC)');
+    expect(value('.shell-header', 'border-bottom')).toBe('1px solid var(--ink-line, #262D3A)');
+    // The light page colours are gone from the header's own rules (the skip link and the page states keep theirs).
+    const header = shellRules.filter((r) => /shell-(header|wordmark|logo|nav|tools)|demo-account|nav-pending/.test(r.selector));
+    expect(header.length).toBeGreaterThan(20);
+    for (const r of header) {
+      for (const d of r.decls) expect(d.value, `${r.selector} { ${d.prop} }`).not.toMatch(/--(panel|bg|border|text|muted|accent|accent-dark|danger)(?![\w-])/);
+    }
     expect(css).toContain("var(--font-sans, 'Inter', 'Geist', system-ui");
     // No MVP II value is left as a fallback (#651).
     expect(css).not.toMatch(/#151B26|#F7F8FA|#D7DDE5|#28618A|#1F4E70|IBM Plex Sans|var\(--radius, 2px\)/i);
   });
-  it('the logo is 28 px beside the word, centered in the bar by its link (#784, #868)', () => {
+  it('the logo is 32 px beside the word (28 px on a phone), centered in the bar by its link (#784, #868, #955)', () => {
     const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(noComments).toMatch(/\.shell-logo \{[^}]*width: 28px; height: 28px/);
+    expect([value('.shell-logo', 'width'), value('.shell-logo', 'height')]).toEqual(['32px', '32px']);
+    expect([value('.shell-logo', 'width', 600), value('.shell-logo', 'height', 600)]).toEqual(['28px', '28px']);
     expect(noComments).toMatch(/\.shell-logo \{[^}]*flex: none/); // never squeezed at 390 px
     const wordmark = /\.shell-wordmark \{([^}]*)\}/.exec(noComments)![1];
     expect(wordmark).toMatch(/display: inline-flex; align-items: center; gap: var\(--space-2, 8px\)/);
     expect(wordmark).toMatch(/padding: 0;/);
-    // The logo stays at the left end of the bar; the link is a 44 px target, lower than the 64 px bar.
+    // The logo stays at the left end of the bar; the link is a 44 px target, lower than the 72 px bar.
     expect(value('.shell-wordmark', 'justify-self')).toBe('start');
     expect(value('.shell-wordmark', 'min-height')).toBe('44px');
     expect(value('.shell-header', 'align-items')).toBe('center');
@@ -196,7 +210,8 @@ describe('taller header with centered, stronger links (#868)', () => {
     expect(h).toBeGreaterThanOrEqual(64);
     expect(h).toBeLessThanOrEqual(72);
     // The first grid row is the bar: its height less the 1 px hairline under it. No vertical padding adds to it.
-    expect(value('.shell-header', 'grid-template-rows')).toBe('minmax(calc(var(--app-header-h, 64px) - 1px), auto)');
+    expect(h).toBe(72); // #955: the taller ink bar
+    expect(value('.shell-header', 'grid-template-rows')).toBe(`minmax(calc(var(--app-header-h, ${h}px) - 1px), auto)`);
     expect(value('.shell-header', 'padding')).toBe('0 var(--shell-pad)');
     expect(value('.shell-header', 'border-bottom')).toMatch(/^1px solid /);
     expect(value('.shell-header', 'min-height')).toBeUndefined();
@@ -204,6 +219,8 @@ describe('taller header with centered, stronger links (#868)', () => {
     for (const file of ['client/src/components/sim/v2/SimWorkspace.css', 'client/src/components/sim/v2/compose/compose.css']) {
       expect(readFileSync(file, 'utf8'), file).toMatch(/position: fixed;\s*top: var\(--app-header-h, \d+px\);/);
     }
+    // The workspace's fallback is the bar's own height, so it is right even before shell.css is read (#883).
+    expect(readFileSync('client/src/components/sim/v2/SimWorkspace.css', 'utf8')).toContain(`top: var(--app-header-h, ${h}px);`);
     // One definition, and no narrow rule changes it: the simulator is only shown from 900 px up, where
     // the header is one row on every page without a selector.
     expect(css.match(/--app-header-h:/g)).toHaveLength(1);
@@ -221,14 +238,22 @@ describe('taller header with centered, stronger links (#868)', () => {
     expect(app.indexOf('className="shell-nav"')).toBeLessThan(app.indexOf('className="shell-tools"'));
   });
 
-  it('link text is 15 to 16 px at weight 500 to 600, a weight Inter is loaded at, with room between the links', () => {
+  it('link text is 15 to 16 px at weight 500 to 600, in Archivo\'s wide cut (#955), with room between the links', () => {
     const size = px(value('.shell-nav-link', 'font-size'));
     expect(size).toBeGreaterThanOrEqual(15);
     expect(size).toBeLessThanOrEqual(16);
     const weight = Number(value('.shell-nav-link', 'font-weight'));
     expect(weight).toBeGreaterThanOrEqual(500);
     expect(weight).toBeLessThanOrEqual(600);
-    expect(readFileSync('client/src/styles/fonts.css', 'utf8')).toContain(`@fontsource/inter/latin-${weight}.css`);
+    // The links and the name are the display face, a little wide because they are small; a phone gets the
+    // normal width, so the three links stay on one row at 390 px. The selector and its notes stay Inter.
+    const DISPLAY = "var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif)";
+    for (const sel of ['.shell-nav-link', '.shell-wordmark']) {
+      expect(value(sel, 'font-family'), sel).toBe(DISPLAY);
+      expect(value(sel, 'font-stretch'), sel).toBe('112%');
+      expect(value(sel, 'font-stretch', 600), sel).toBe('100%');
+    }
+    expect(value('.shell-wordmark', 'font-weight')).toBe('700');
     expect(value('.shell-header', 'font-family')).toMatch(/^var\(--font-sans, 'Inter'/);
     // 16 px on each side of a word and 8 px between two links: 40 px from word to word.
     expect(value('.shell-nav-link', 'padding')).toBe('0 var(--space-4, 16px)');
@@ -241,28 +266,44 @@ describe('taller header with centered, stronger links (#868)', () => {
     expect(value('.shell-nav-link', 'min-height')).toBe('44px');
     expect(value('.shell-nav-link', 'display')).toBe('inline-flex');
     expect(value('.shell-nav-link', 'align-items')).toBe('center');
-    // The same border above and below, so the bar under the active link does not push the word up.
-    expect(value('.shell-nav-link', 'border-width')).toBe('2px 0');
+    // No border: the open page's line is drawn over the link (::after), so it does not push the word up.
+    expect(value('.shell-nav-link', 'border-width')).toBeUndefined();
+    expect(value('.shell-nav-link', 'position')).toBe('relative');
     // On a phone the three links share the row, so each is wider than its word.
     expect(value('.shell-nav-link', 'flex', 600)).toBe('1 1 auto');
     // The selector is 44 px high where it has its own row (a touch width).
     expect(value('.shell-header .demo-account select', 'min-height', 900)).toBe('44px');
   });
 
-  it('the active link is shown by colour and a bar, not by a heavier weight that would move the links', () => {
+  it('the active link is shown by colour and a route line, not by a heavier weight that would move the links', () => {
     const active = ".shell-nav a.shell-nav-link[aria-current='page']";
-    expect(value(active, 'color')).toBe('var(--accent-dark, #173E5B)');
-    expect(value(active, 'border-bottom-color')).toBe('var(--accent, #1D5075)');
+    expect(value(active, 'color')).toBe('var(--on-ink, #F4F2EC)');
     expect(value(active, 'font-weight')).toBeUndefined();
-    expect(value('.shell-nav-link', 'color')).toBe('var(--muted, #5B6472)');
-    expect(value('.shell-nav a.shell-nav-link:hover', 'color')).toBe('var(--text, #171C24)');
+    expect(value('.shell-nav-link', 'color')).toBe('var(--on-ink-muted, #A3A9B5)');
+    expect(value('.shell-nav a.shell-nav-link:hover', 'color')).toBe('var(--on-ink, #F4F2EC)');
+    // #955: a 2 px line under the word, as wide as the word (inside the link's padding), starting at a
+    // ring: the open page is a station on a route line. Both are absolutely placed, so they take no room.
+    for (const mark of [`${active}::after`, `${active}::before`]) {
+      expect(value(mark, 'content'), mark).toBe("''");
+      expect(value(mark, 'position'), mark).toBe('absolute');
+      expect(value(mark, 'left'), mark).toBe('var(--space-4, 16px)');
+      expect(value(mark, 'left', 600), mark).toBe('var(--space-1, 4px)'); // the phone's smaller padding
+    }
+    expect(value(`${active}::after`, 'right')).toBe('var(--space-4, 16px)');
+    expect(value(`${active}::after`, 'border-top')).toBe('2px solid currentColor');
+    // The ring's middle is on the line: 10 px high from 11 px, the 2 px line from 15 px.
+    expect([value(`${active}::before`, 'bottom'), value(`${active}::before`, 'height'), value(`${active}::after`, 'bottom')]).toEqual(['11px', '10px', '15px']);
+    expect(value(`${active}::before`, 'background')).toBe('var(--ink, #0B0F17)'); // the line does not show through it
   });
 
   it('an unavailable link has the box of a link, so the group does not move when the lists arrive', () => {
     const pending = '.shell-header .nav-pending';
-    for (const prop of ['padding', 'border-width']) expect(value(pending, prop), prop).toBe(value('.shell-nav-link', prop));
-    // Not only faded: a dashed bar where the active link has a solid one.
-    expect(value(pending, 'border-bottom-style')).toBe('dashed');
+    expect(value(pending, 'padding')).toBe(value('.shell-nav-link', 'padding'));
+    expect(value(pending, 'border')).toBe('0');
+    // Not only faded: a dashed line where the open page has a solid one, and no ring.
+    expect(value(`${pending}::after`, 'border-top')).toBe('2px solid currentColor');
+    expect(value(`${pending}::after`, 'border-top-style')).toBe('dashed');
+    expect(value(`${pending}::before`, 'content')).toBeUndefined();
     expect(value(pending, 'cursor')).toBe('not-allowed');
     // The narrow rule changes both paddings together.
     const both = shellRules.find((r) => r.media.some((m) => m.includes('600px')) && r.decls.some((d) => d.prop === 'padding'))!;
@@ -275,7 +316,7 @@ describe('taller header with centered, stronger links (#868)', () => {
   });
 
   it('the row of the selector starts with a hairline as wide as the header', () => {
-    expect(value('.shell-tools', 'border-top', 900)).toBe('1px solid var(--border, #E3E3DE)');
+    expect(value('.shell-tools', 'border-top', 900)).toBe('1px solid var(--ink-line, #262D3A)');
     expect(value('.shell-tools', 'margin', 900)).toBe('0 calc(-1 * var(--shell-pad))');
     expect(value('.shell-tools', 'padding', 900)).toBe('var(--space-2, 8px) var(--shell-pad)');
     expect(value('.shell-tools', 'max-width', 900)).toBe('none');

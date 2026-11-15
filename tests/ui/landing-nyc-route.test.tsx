@@ -36,7 +36,7 @@ describe('/', () => {
     const body = main(html);
     expect(body).toContain('class="landing landing-nyc"');
     expect(body).not.toContain('Page not found');
-    expect(body.replace(/<[^>]+>/g, '')).not.toMatch(/packages matched|19|24/);
+    expect(body.replace(/<[^>]+>/g, '')).not.toMatch(/packages matched|\b19\b|\b24\b/); // "3,024 simulations" is the study's, not the run's
     expect(body).toContain(`href="/business/${firstBiz}"`);
     expect(body).toContain(`href="/employee/${firstEmp}"`);
     expect(body).toContain('href="/simulator"'); // the sample run has no plans: the button opens the plain simulator

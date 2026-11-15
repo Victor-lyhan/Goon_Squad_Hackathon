@@ -181,6 +181,7 @@ body:has(.nd) { overflow-x: clip; }
   border-color: var(--ns-signal, #FF6A1A);
   color: var(--ns-ink, #0B0F17);
   font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-weight: 600; /* the weight .nd-btn already has, stated where the face is set */
   font-variation-settings: 'wght' 700;
 }
 .nd-btn--primary:hover { background: var(--ns-signal-deep, #E85A0C); border-color: var(--ns-signal-deep, #E85A0C); }

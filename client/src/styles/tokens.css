@@ -43,5 +43,27 @@
   --text-lg: 18px;
   --text-xl: 28px;
 
+  /* "Night-shift transit ops" (#955, the humans' bold redesign; it overrides docs/mvp3.md P4 where the two
+     differ). The header on every page and the homepage use these; the Business and Employee pages follow
+     in #956 and #957 with the same values. Two grounds: deep ink (the header, the hero) and warm paper (the
+     work surfaces). One signal colour, the package's orange, for the primary action and the package only.
+     The two carriers keep a blue and a green. */
+  --ink: #0B0F17;
+  --ink-line: #262D3A; /* hairline on ink */
+  --on-ink: #F4F2EC; /* text on ink: the paper itself */
+  --on-ink-muted: #A3A9B5;
+  --danger-on-ink: #FF9B8E; /* an error line on ink, where --danger is too dark to read */
+  --paper: #F4F2EC;
+  --paper-text: #14171F;
+  --paper-muted: #5A5F6B;
+  --paper-line: #DCD8CE; /* hairline on paper */
+  --signal: #FF6A1A;
+  --signal-hover: #FF8748; /* --signal at 80% over white: the primary action under the pointer */
+  --carrier-a: #3D8BFF;
+  --carrier-b: #22C08A;
+  /* Archivo for headings and big numbers: condensed and heavy when it is large, wide when it is small.
+     The face is loaded once, in client/src/main.tsx (weights 100 to 900, widths 62% to 125%). */
+  --font-display: "Archivo Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
   color-scheme: light;
 }

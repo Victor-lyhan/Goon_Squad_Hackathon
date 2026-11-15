@@ -1,4 +1,5 @@
-/* App shell: the header (docs/mvp3.md P4: flat, hairline border, no shadow). Tokens come from client/src/styles; fallbacks keep it right on their own. */
+/* App shell: the header, a deep ink bar on every page (#955, "night-shift transit ops": flat, one hairline,
+   no shadow). Tokens come from client/src/styles; fallbacks keep it right on their own. */
 .skip-link {
   position: absolute; left: var(--space-2, 8px); top: -4rem; z-index: 100;
   background: var(--panel, #FFFFFF); color: var(--text, #171C24);
@@ -10,9 +11,10 @@
    the page cannot cut it off (#724). */
 .app-main:focus-visible { outline-offset: -2px; }
 
-/* The bar is 64 px high, its hairline included (#868). The simulator workspace is fixed right under it
-   and reads this height (sim/v2: top: var(--app-header-h)). */
-:root { --app-header-h: 64px; }
+/* The bar is 72 px high, its hairline included (#955; 64 px before). The simulator workspace is fixed
+   right under it and reads this height (sim/v2: top: var(--app-header-h)), and the homepage's hero fills
+   the window less this height. */
+:root { --app-header-h: 72px; }
 
 /* Logo | links | tools. The two side columns are equally wide, so the links sit in the middle of the bar
    whatever stands at its right. The first row is the bar; only the Demo account selector of a narrow
@@ -20,49 +22,60 @@
 .shell-header {
   --shell-pad: var(--space-6, 24px);
   display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  grid-template-rows: minmax(calc(var(--app-header-h, 64px) - 1px), auto);
+  grid-template-rows: minmax(calc(var(--app-header-h, 72px) - 1px), auto);
   align-items: center; column-gap: var(--space-4, 16px);
   width: 100%; padding: 0 var(--shell-pad);
-  background: var(--panel, #FFFFFF); color: var(--text, #171C24);
-  border-bottom: 1px solid var(--border, #E3E3DE);
+  background: var(--ink, #0B0F17); color: var(--on-ink, #F4F2EC);
+  border-bottom: 1px solid var(--ink-line, #262D3A);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif);
   font-size: var(--text-sm, 13px); line-height: 1.4;
 }
 .shell-header > * { min-width: 0; }
 
+/* The name and the links are set in Archivo's wide cut: small type on a sign is wide, large type is
+   condensed (the homepage's title). */
 .shell-wordmark {
   display: inline-flex; align-items: center; gap: var(--space-2, 8px); justify-self: start;
   min-height: 44px;
-  font-weight: 600; font-size: 16px; letter-spacing: .02em; text-decoration: none;
-  color: var(--text, #171C24); padding: 0;
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-weight: 700; font-stretch: 112%; font-size: 20px; letter-spacing: -.01em; text-decoration: none;
+  color: var(--on-ink, #F4F2EC); padding: 0;
 }
 /* The Relay logo (client/public/brand, #784), centered in the bar by the link around it. */
-.shell-logo { display: block; flex: none; width: 28px; height: 28px; }
+.shell-logo { display: block; flex: none; width: 32px; height: 32px; }
 
-/* The links are as high as the bar, so the active one's bar lies on the header's bottom hairline. */
+/* The links are as high as the bar. */
 .shell-nav { display: flex; align-self: stretch; gap: var(--space-2, 8px); }
 .shell-nav-link {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   min-height: 44px; padding: 0 var(--space-4, 16px);
-  /* The same width above and below keeps the word in the middle of the bar. No radius: the active
-     item's underline is a straight bar (#714). */
-  border: solid transparent; border-width: 2px 0;
-  color: var(--muted, #5B6472); text-decoration: none; white-space: nowrap;
-  font-size: 15px; font-weight: 600;
+  color: var(--on-ink-muted, #A3A9B5); text-decoration: none; white-space: nowrap;
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 15px; font-weight: 600; font-stretch: 112%;
 }
-.shell-nav a.shell-nav-link:hover { color: var(--text, #171C24); background: var(--bg, #F7F7F4); }
-/* Colour and bar only: the weight is the same as the other links', so opening a page moves no link. */
+.shell-nav a.shell-nav-link:hover { color: var(--on-ink, #F4F2EC); }
+/* The open page is a station on a route line: a 2 px line under the word that starts at a small ring.
+   Colour and line only: the weight is the same as the other links', so opening a page moves no link. */
 .shell-nav a.shell-nav-link.active,
-.shell-nav a.shell-nav-link[aria-current='page'] {
-  color: var(--accent-dark, #173E5B); border-bottom-color: var(--accent, #1D5075);
+.shell-nav a.shell-nav-link[aria-current='page'] { color: var(--on-ink, #F4F2EC); }
+.shell-nav a.shell-nav-link[aria-current='page']::after,
+.shell-header .nav-pending::after {
+  content: ''; position: absolute; left: var(--space-4, 16px); right: var(--space-4, 16px); bottom: 15px;
+  border-top: 2px solid currentColor;
+}
+.shell-nav a.shell-nav-link[aria-current='page']::before {
+  content: ''; position: absolute; left: var(--space-4, 16px); bottom: 11px; z-index: 1;
+  box-sizing: border-box; width: 10px; height: 10px; border: 2px solid currentColor; border-radius: var(--radius-lg, 6px);
+  background: var(--ink, #0B0F17);
 }
 /* Not available (no account in the city, or the lists still load): the box of a link, so the links do
-   not move when it becomes one; faded, and a dashed bar where the active link has a solid one. */
+   not move when it becomes one; faded, and a dashed line where the open page has a solid one. */
 .shell-header .nav-pending {
   opacity: .5; cursor: not-allowed; padding: 0 var(--space-4, 16px);
-  border: solid transparent; border-width: 2px 0; border-radius: 0;
-  border-bottom-style: dashed; border-bottom-color: var(--muted, #5B6472);
+  border: 0; border-radius: 0;
 }
+.shell-header .nav-pending::after { border-top-style: dashed; }
 
 .shell-tools {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-3, 12px);
@@ -79,26 +92,30 @@
 }
 .shell-header .demo-account {
   display: inline-flex; align-items: center; gap: var(--space-2, 8px); min-width: 0; max-width: 100%;
-  font-size: var(--text-sm, 13px); color: var(--muted, #5B6472);
+  font-size: var(--text-sm, 13px); color: var(--on-ink-muted, #A3A9B5);
 }
 .shell-header .demo-account > span { flex: none; white-space: nowrap; }
 /* 20rem shows the longest "Name · Employer" of the NYC run in full; a longer one is cut with an ellipsis
-   and never widens the header. */
+   and never widens the header. The list the browser opens is dark too (color-scheme). */
 .shell-header .demo-account select {
-  padding: var(--space-1, 4px) var(--space-2, 8px); font: inherit; color: var(--text, #171C24);
-  background: var(--panel, #FFFFFF); border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px);
+  padding: var(--space-1, 4px) var(--space-2, 8px); font: inherit; color: var(--on-ink, #F4F2EC);
+  background: var(--ink, #0B0F17); border: 1px solid var(--ink-line, #262D3A); border-radius: var(--radius, 4px);
+  color-scheme: dark;
   max-width: 20rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.shell-header .demo-account-status { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-/* "Accounts unavailable" is an error: the rule above is more specific than global.css's and made it grey (#918). */
-.shell-header .demo-account-error { color: var(--danger, #A4322A); }
+.shell-header .demo-account select:hover { border-color: var(--on-ink-muted, #A3A9B5); }
+.shell-header .demo-account-status { font-size: var(--text-xs, 12px); color: var(--on-ink-muted, #A3A9B5); }
+.shell-header .demo-account-status a { color: var(--on-ink, #F4F2EC); }
+/* "Accounts unavailable" is an error: the rule above is more specific than global.css's and made it grey
+   (#918). On ink the page's red is too dark to read, so the bar has a lighter one. */
+.shell-header .demo-account-error { color: var(--danger-on-ink, #FF9B8E); }
 
-/* Focus: every header control gets a visible outline. */
+/* Focus: every header control gets a visible outline, light on the ink. */
 .shell-wordmark:focus-visible,
 .shell-nav-link:focus-visible,
 .shell-header .demo-account select:focus-visible,
 .shell-header .demo-account-status a:focus-visible {
-  outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; border-radius: var(--radius, 4px);
+  outline: 2px solid var(--focus-ring-on-dark, #FFFFFF); outline-offset: 2px; border-radius: var(--radius, 4px);
 }
 /* A link is as high as the bar: its ring is drawn inside it, where the window's top edge cannot cut it. */
 .shell-nav-link:focus-visible { outline-offset: -2px; }
@@ -107,13 +124,12 @@
    reorders it (#724). */
 /* Up to 900 px the selector (Business and Employee pages) has its own row under the bar, at the right:
    in the bar it would be squeezed to a few letters beside the centered links. The row is as wide as
-   the header and starts with a hairline, so the active link's bar still lies on a line. The selector is
-   44 px high for a finger. */
+   the header and starts with a hairline. The selector is 44 px high for a finger. */
 @media (max-width: 900px) {
   .shell-tools {
     grid-column: 1 / -1; justify-self: stretch; justify-content: flex-end; max-width: none;
     margin: 0 calc(-1 * var(--shell-pad)); padding: var(--space-2, 8px) var(--shell-pad);
-    border-top: 1px solid var(--border, #E3E3DE);
+    border-top: 1px solid var(--ink-line, #262D3A);
   }
   .shell-header .demo-account select { min-height: 44px; }
   /* "Loading accounts…" and "Accounts unavailable" are as high as the selector that follows them, so the
@@ -125,21 +141,27 @@
   }
 }
 /* A stale link's note (Business and Employee pages) is a sentence: beside the selector it does not fit
-   in the bar's right column, and under it the two lines made the bar higher than 64 px and put the
+   in the bar's right column, and under it the two lines made the bar higher than its one row and put the
    selector at the window's top edge (#918). So with a note the tools have the row under the bar at every
    width, as they have up to 900 px. */
 .shell-tools:has(.demo-account-status[role='status']) {
   grid-column: 1 / -1; justify-self: stretch; justify-content: flex-end; max-width: none;
   margin: 0 calc(-1 * var(--shell-pad)); padding: var(--space-2, 8px) var(--shell-pad);
-  border-top: 1px solid var(--border, #E3E3DE);
+  border-top: 1px solid var(--ink-line, #262D3A);
 }
-/* 390 px: the logo at the left and the three links share the rest of the bar. In a window too narrow
-   for that the links wrap inside the nav; they never run past the edge. */
+/* 390 px: the logo at the left and the three links share the rest of the bar, in Archivo's normal width
+   so they fit on one row. In a window too narrow for that the links wrap inside the nav; they never run
+   past the edge. The open page's line starts at the link's smaller padding. */
 @media (max-width: 600px) {
   .shell-header { --shell-pad: var(--space-3, 12px); grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-2, 8px); }
+  .shell-wordmark { font-size: 18px; font-stretch: 100%; }
+  .shell-logo { width: 28px; height: 28px; }
   .shell-nav { flex-wrap: wrap; gap: 0; }
-  .shell-nav-link { flex: 1 1 auto; }
+  .shell-nav-link { flex: 1 1 auto; font-size: 14px; font-stretch: 100%; }
   .shell-nav-link, .shell-header .nav-pending { padding: 0 var(--space-1, 4px); }
+  .shell-nav a.shell-nav-link[aria-current='page']::after,
+  .shell-header .nav-pending::after { left: var(--space-1, 4px); right: var(--space-1, 4px); }
+  .shell-nav a.shell-nav-link[aria-current='page']::before { left: var(--space-1, 4px); }
 }
 @media (max-width: 480px) {
   .shell-header .demo-account-slot, .shell-header .demo-account { width: 100%; }

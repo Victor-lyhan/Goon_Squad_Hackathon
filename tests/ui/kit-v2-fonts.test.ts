@@ -11,11 +11,23 @@ const globalCss = read('client/src/styles/global.css');
 const IMPORT_RE = /@import\s+['"]([^'"]+)['"]\s*;/g;
 const imports = [...fontsCss.matchAll(IMPORT_RE)].map((m) => m[1]);
 
-type Family = 'sans' | 'mono';
+/** 'display' is Archivo (#955): one variable file, so every weight from 100 to 900 is a real face. */
+type Family = 'sans' | 'mono' | 'display';
+type StaticFamily = Exclude<Family, 'display'>;
 /** Inter for UI, IBM Plex Mono for times, IDs, distances and prices (docs/mvp3.md P4, #651). */
-const PKG: Record<Family, string> = { sans: '@fontsource/inter', mono: '@fontsource/ibm-plex-mono' };
+const PKG: Record<StaticFamily, string> = { sans: '@fontsource/inter', mono: '@fontsource/ibm-plex-mono' };
+/** Archivo for headings and big numbers (#955), loaded once by client/src/main.tsx, not by fonts.css. */
+const DISPLAY_IMPORT = '@fontsource-variable/archivo/wdth.css';
+const displayCss = readFileSync(join('node_modules', DISPLAY_IMPORT), 'utf8');
+/** The two ends of an axis in the file's @font-face rules: `font-weight: 100 900`, `font-stretch: 62% 125%`. */
+const axis = (prop: string): [number, number] => {
+  const m = new RegExp(`${prop}:\\s*(\\d+)%?\\s+(\\d+)%?;`).exec(displayCss)!;
+  return [Number(m[1]), Number(m[2])];
+};
+const DISPLAY_WEIGHTS = axis('font-weight');
+const DISPLAY_WIDTHS = axis('font-stretch');
 
-function importedWeights(family: Family): Set<number> {
+function importedWeights(family: StaticFamily): Set<number> {
   const re = new RegExp(`^${PKG[family]}/latin-(\\d{3})\\.css$`);
   const out = new Set<number>();
   for (const p of imports) {
@@ -55,7 +67,13 @@ const MONO_RE = /--font-mono|monospace|IBM Plex Mono/;
 function ownFamily(r: Rule): Family | null {
   const value = r.decls.get('font-family') ?? r.decls.get('font');
   if (!value || /^(inherit|unset)$/.test(value)) return null;
-  return MONO_RE.test(value) ? 'mono' : 'sans';
+  return DISPLAY_RE.test(value) ? 'display' : MONO_RE.test(value) ? 'mono' : 'sans';
+}
+const DISPLAY_RE = /--font-display|Archivo/;
+/** True when a stylesheet may ask for this weight in this family: a loaded face, or inside Archivo's range. */
+function loaded(family: Family, weight: number): boolean {
+  if (family === 'display') return weight >= DISPLAY_WEIGHTS[0] && weight <= DISPLAY_WEIGHTS[1];
+  return importedWeights(family).has(weight);
 }
 
 /** A selector as compounds of simple selectors: `.a.b > .c:hover` is [['.a', '.b'], ['.c', ':hover']]. */
@@ -107,6 +125,7 @@ function weightUses(sheets: Sheet[]): { uses: Use[]; unreadable: string[] } {
   for (const { file, css } of sheets) {
     const rules = rulesOf(css);
     const monoSelectors = ['.mono', ...rules.filter((r) => ownFamily(r) === 'mono').flatMap((r) => r.selectors)];
+    const displaySelectors = rules.filter((r) => ownFamily(r) === 'display').flatMap((r) => r.selectors);
     for (const r of rules) {
       const where = (selector: string) => `${file}: ${selector}`;
       let value = r.decls.get('font-weight');
@@ -125,7 +144,8 @@ function weightUses(sheets: Sheet[]): { uses: Use[]; unreadable: string[] } {
       }
       // One use per selector: `.status strong, .time strong { font-weight: 600 }` is Inter and Plex Mono.
       for (const selector of r.selectors) {
-        const family: Family = ownFamily(r) ?? (monoSelectors.some((m) => selects(selector, m)) ? 'mono' : 'sans');
+        const family: Family = ownFamily(r)
+          ?? (monoSelectors.some((m) => selects(selector, m)) ? 'mono' : displaySelectors.some((m) => selects(selector, m)) ? 'display' : 'sans');
         uses.push({ family, weight, where: where(selector) });
       }
     }
@@ -180,17 +200,15 @@ describe('self-hosted Inter and IBM Plex Mono (#408, #651)', () => {
   });
 
   it('every font weight in every client stylesheet is an imported weight of its family (#737)', () => {
-    const sans = importedWeights('sans');
-    const mono = importedWeights('mono');
     const { uses, unreadable } = weightUses(SHEETS);
     expect(uses.length).toBeGreaterThan(50);
     expect(unreadable).toEqual([]);
     const bad = uses
-      .filter((u) => !(u.family === 'mono' ? mono : sans).has(u.weight) && !EXEMPT.includes(u.where))
+      .filter((u) => !loaded(u.family, u.weight) && !EXEMPT.includes(u.where))
       .map((u) => `${u.where}: ${u.family} ${u.weight}`);
     expect(bad).toEqual([]);
     // An exemption that no longer fails is removed, so the list never hides a new fault.
-    for (const e of EXEMPT) expect(uses.some((u) => u.where === e && !(u.family === 'mono' ? mono : sans).has(u.weight)), e).toBe(true);
+    for (const e of EXEMPT) expect(uses.some((u) => u.where === e && !loaded(u.family, u.weight)), e).toBe(true);
   });
 
   it('the journey badges and the reward are IBM Plex Mono 600, a loaded face (not a faked 700)', () => {
@@ -253,7 +271,9 @@ describe('self-hosted Inter and IBM Plex Mono (#408, #651)', () => {
     const all = weightUses(SHEETS).uses.filter((u) => isTag(u.where.split(': ')[1]));
     // The check sees the component rules too (`.ew h1`, `.bp-missing h2`), not only global.css.
     expect(all.some((u) => /\sh1$/.test(u.where.split(': ')[1]) && !u.where.startsWith('client/src/styles/global.css'))).toBe(true);
-    expect(all.filter((u) => u.weight > 600)).toEqual([]);
+    // Heavier than 600 only in Archivo, which has the face (the homepage's title and section heading, #955).
+    expect(all.filter((u) => u.weight > 600 && u.family !== 'display')).toEqual([]);
+    expect(all.filter((u) => u.weight > 600).map((u) => u.where.split(': ')[1]).sort()).toEqual(['.landing-hero h1', '.landing-how h2']);
     for (const s of ['h4', '.card h4', '.card > h5.title', 'h3:first-child', 'h6[id]', 'h2#top', 'td strong', 'b', 'tr > th.num']) expect(isTag(s), s).toBe(true);
     for (const s of ['.h4', '.th', '.job-v2__h3', 'h4 span', 'thead', 'h7', '.b']) expect(isTag(s), s).toBe(false);
     // What the check reports when the rule is missing its weight, says bold, or has lost a tag.
@@ -294,7 +314,7 @@ describe('self-hosted Inter and IBM Plex Mono (#408, #651)', () => {
   });
 
   it('every imported weight is one the UI uses (400 is the default weight of body text and .mono)', () => {
-    const used: Record<Family, Set<number>> = { sans: new Set([400]), mono: new Set([400]) };
+    const used: Record<Family, Set<number>> = { sans: new Set([400]), mono: new Set([400]), display: new Set() };
     for (const u of weightUses(SHEETS).uses) used[u.family].add(u.weight);
     for (const family of ['sans', 'mono'] as const) {
       for (const w of importedWeights(family)) expect(used[family].has(w), `${family} ${w}`).toBe(true);
@@ -324,6 +344,96 @@ describe('self-hosted Inter and IBM Plex Mono (#408, #651)', () => {
     const EXTERNAL = /fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net|fonts\.bunny\.net|@import\s+(url\()?['"]?https?:/;
     for (const file of [...STYLESHEETS, 'client/index.html']) {
       expect(readFileSync(file, 'utf8'), file).not.toMatch(EXTERNAL);
+    }
+  });
+});
+
+describe('self-hosted Archivo, the display face (#955)', () => {
+  /** The client's own source files (not the build, not the static files under public/). */
+  const sources = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory()
+      ? (e.name === 'dist' || e.name === 'public' ? [] : sources(join(dir, e.name)))
+      : /\.(css|tsx?|html)$/.test(e.name) ? [join(dir, e.name)] : []);
+
+  it('package.json lists @fontsource-variable/archivo, and the client entry imports its width-axis file once', () => {
+    const deps = JSON.parse(readFileSync('package.json', 'utf8')).dependencies as Record<string, string>;
+    expect(deps['@fontsource-variable/archivo']).toBeDefined();
+    expect(readFileSync('package-lock.json', 'utf8')).toContain('node_modules/@fontsource-variable/archivo');
+    const imports = (file: string) => readFileSync(file, 'utf8').match(/^\s*(?:@import|import)\s+['"]@fontsource-variable\/[^'"]+['"];/gm) ?? [];
+    const importers = sources('client').filter((file) => imports(file).length > 0);
+    expect(importers).toEqual([join('client/src', 'main.tsx')]);
+    expect(imports(importers[0]!)).toEqual([`import '${DISPLAY_IMPORT}';`]);
+  });
+
+  it('the file is one variable face per subset: every weight, condensed to wide, font-display: swap, woff2 of the package', () => {
+    const faces = displayCss.split('@font-face').slice(1);
+    expect(faces.length).toBeGreaterThan(0);
+    for (const face of faces) {
+      expect(face).toMatch(/font-family:\s*'Archivo Variable'/);
+      expect(face).toMatch(/font-style:\s*normal/);
+      expect(face).toMatch(/font-display:\s*swap/);
+      expect(face).toMatch(/url\(\.\/files\/[\w-]+\.woff2\)/); // a file of the package, no other host
+      expect(face).toMatch(/unicode-range:/); // so only the Latin file is fetched for this app's text
+    }
+    expect(DISPLAY_WEIGHTS).toEqual([100, 900]);
+    expect(DISPLAY_WIDTHS).toEqual([62, 125]);
+  });
+
+  it('--font-display starts with the face\'s name, then Inter and the system stack', () => {
+    const tokens = read('client/src/styles/tokens.css');
+    const stack = /--font-display\s*:\s*([^;]+);/.exec(tokens)![1].split(',').map((s) => s.trim());
+    expect(stack.slice(0, 3)).toEqual(['"Archivo Variable"', '"Inter"', 'system-ui']);
+    expect(stack.at(-1)).toBe('sans-serif');
+  });
+
+  it('every rule that sets Archivo names it through the token with the face as the fallback, and states its weight', () => {
+    const STACK = "'Archivo Variable', 'Inter', system-ui, sans-serif";
+    const TOKEN = `var(--font-display, ${STACK})`;
+    // The Business page (#956) names the face --ns-display in its own palette. That name is the token and
+    // nothing else, declared once, so its stylesheets follow --font-display like the rest of the app.
+    const BUSINESS = join('client/src/components/business/v2');
+    const ALIAS = `var(--ns-display, ${STACK})`;
+    const aliasValues = SHEETS.flatMap(({ file, css }) =>
+      [...strip(css).matchAll(/--ns-display\s*:\s*([^;]+);/g)].map((m) => `${file}: ${m[1].trim()}`));
+    expect(aliasValues).toEqual([`${join(BUSINESS, 'page/businessPage.css')}: ${TOKEN}`]);
+
+    const rules = SHEETS.flatMap(({ file, css }) => rulesOf(css).filter((r) => ownFamily(r) === 'display').map((r) => ({ file, r })));
+    expect(rules.length).toBeGreaterThanOrEqual(8); // the header's name and links; the homepage's title, heading, figure and buttons
+    const viaAlias: string[] = [];
+    for (const { file, r } of rules) {
+      const where = `${file}: ${r.selectors.join(', ')}`;
+      const family = r.decls.get('font-family');
+      if (family === ALIAS) viaAlias.push(file);
+      else expect(family, where).toBe(TOKEN);
+      // The weight is stated where the face is, so a heading's or a link's inherited weight is never left to chance.
+      expect(r.decls.get('font-weight'), where).toMatch(/^[1-9]00$/);
+    }
+    // Only the Business stylesheets use the alias; the header and the homepage name the token itself.
+    expect(viaAlias.length).toBeGreaterThan(0);
+    for (const file of viaAlias) expect(file.startsWith(BUSINESS), file).toBe(true);
+    expect(rules.filter(({ file }) => !file.startsWith(BUSINESS)).length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('every width asked of it is on the axis: condensed (under 100%) for large type, wide (over 100%) for small type', () => {
+    const sized: { where: string; px: number; width: number }[] = [];
+    for (const { file, css } of SHEETS) {
+      for (const r of rulesOf(css)) {
+        const stretch = r.decls.get('font-stretch');
+        if (stretch === undefined) continue;
+        const where = `${file}: ${r.selectors.join(', ')}`;
+        expect(stretch, where).toMatch(/^\d+%$/);
+        const width = Number.parseFloat(stretch);
+        expect(width, where).toBeGreaterThanOrEqual(DISPLAY_WIDTHS[0]);
+        expect(width, where).toBeLessThanOrEqual(DISPLAY_WIDTHS[1]);
+        // The largest size the rule can reach: the last length of a clamp(), or the plain size.
+        const px = /(\d+(?:\.\d+)?)px\)?$/.exec(r.decls.get('font-size') ?? '')?.[1];
+        if (px !== undefined) sized.push({ where, px: Number(px), width });
+      }
+    }
+    expect(sized.length).toBeGreaterThanOrEqual(8);
+    for (const { where, px, width } of sized) {
+      if (px >= 30) expect(width, where).toBeLessThan(100);
+      if (px <= 20) expect(width, where).toBeGreaterThanOrEqual(100);
     }
   });
 });

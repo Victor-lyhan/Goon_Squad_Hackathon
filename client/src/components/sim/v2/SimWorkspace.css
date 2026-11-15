@@ -3,11 +3,11 @@
    as var(--name, fallback) with the token's own value as the fallback. Hairline borders, radius 4px,
    no shadows, no gradients. Inter for text; IBM Plex Mono (.sw-mono) for the numbers. */
 
-/* The header's height comes from client/src/ui/shell.css (64px since #868, PR #875). The fallback is that
-   same 64px: the old 48px one was stale and would have tucked the panels 16px under the header (#883). */
+/* The header's height comes from client/src/ui/shell.css (72px since #955; 64px before). The fallback is
+   that same 72px: a stale one would tuck the panels under the header (#883: the old 48px did, by 16px). */
 .sim-v2 {
   position: fixed;
-  top: var(--app-header-h, 64px);
+  top: var(--app-header-h, 72px);
   left: 0;
   right: 0;
   bottom: 0;

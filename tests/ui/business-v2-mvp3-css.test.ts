@@ -50,6 +50,11 @@ function* decls(): Generator<{ file: string; rule: CssRule; decl: Decl }> {
   for (const [file, rules] of parsed) for (const rule of rules) for (const decl of rule.decls) yield { file, rule, decl };
 }
 const families = (value: string) => value.split(',').map((s) => norm(s));
+/** The font stack a property stands for: --ns-display is var(--font-display, …), so it is that token's stack. */
+const stackOf = (value: string): string => {
+  const m = /^var\(\s*(--[\w-]+)\s*,\s*([^()]+)\)$/.exec(value.trim());
+  return m ? tokens.get(m[1]) ?? m[2] : value;
+};
 
 describe('Business page, night-shift transit look (#956; MVP III look #684 before it)', () => {
   it('reads the seven Business stylesheets', () => {
@@ -136,7 +141,7 @@ describe('Business page, night-shift transit look (#956; MVP III look #684 befor
           if (name.startsWith('--font-') || name === '--ns-display') {
             // A font stack may be shorter than the token's, but it starts with the same family and ends
             // with the same generic one.
-            const [want, got] = [families(token), families(fb)];
+            const [want, got] = [families(stackOf(token)), families(fb)];
             if (got[0] !== want[0] || got.at(-1) !== want.at(-1)) bad.push(`${where(file, rule, decl)} (${name} is ${token})`);
           } else if (norm(fb) !== norm(token)) {
             bad.push(`${where(file, rule, decl)} (${name} is ${token}, fallback ${fb})`);
@@ -237,7 +242,12 @@ describe('Business page, night-shift transit look (#956; MVP III look #684 befor
     it('the tokens are Inter and IBM Plex Mono, and the page\'s heading face is Archivo with Inter behind it', () => {
       expect(tokens.get('--font-sans')).toMatch(/^"Inter", /);
       expect(tokens.get('--font-mono')).toMatch(/^"IBM Plex Mono", /);
-      expect(palette.get('--ns-display')).toBe("'Archivo Variable', 'Inter', system-ui, sans-serif");
+      // The heading face is the app's (#955): the palette names the kit's token, with the same stack behind
+      // it as every use has, so the page's headings follow the header and the homepage.
+      expect(palette.get('--ns-display')).toBe("var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif)");
+      expect(tokens.get('--font-display')).toMatch(/^"Archivo Variable", "Inter", /);
+      expect(stackOf(palette.get('--ns-display')!)).toBe(tokens.get('--font-display'));
+      expect(stackOf("'Inter', sans-serif")).toBe("'Inter', sans-serif");
     });
 
     it('a font-family is --font-sans, --font-mono or --ns-display, and the font shorthand only inherits', () => {

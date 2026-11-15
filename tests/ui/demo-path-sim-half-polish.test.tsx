@@ -51,11 +51,11 @@ const STORY_JOURNEY = '/simulator?package=shp-3&play=1';
 describe('the homepage: Watch a package (#908)', () => {
   const css = readFileSync('client/src/styles/landing.css', 'utf8');
 
-  it('is the first thing after the title and the first link of the page, with the line about a wider screen under it', () => {
+  it('is the first thing after the title and its sentence, and the first link of the page, with the line about a wider screen under it', () => {
     const { container: c } = mount(<MemoryRouter><Landing initialSummary={READY} /></MemoryRouter>);
     const copy = [...c.querySelector('.landing-hero-copy')!.children];
     expect(copy.map((el) => `${el.tagName.toLowerCase()}.${el.className || el.id}`)).toEqual([
-      'h1.landing-title', 'a.watch-button', 'p.watch-note', 'ul.workspaces',
+      'h1.landing-title', 'p.landing-sub', 'a.watch-button', 'p.watch-note', 'ul.workspaces',
     ]);
     const watch = link(c, WATCH_LABEL);
     expect(watch.getAttribute('href')).toBe(STORY_JOURNEY);
