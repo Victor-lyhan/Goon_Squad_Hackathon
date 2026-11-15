@@ -78,20 +78,24 @@ describe('delivery route map in a real DOM', () => {
     expect(getMap).toHaveBeenCalledTimes(2);
   });
 
-  it('a failed request shows one line with Retry; the table and details keep working; Retry loads the map', async () => {
+  it('a failed request shows the placeholder with Retry; the table and details keep working; Retry loads the map', async () => {
     let fail = true;
     const getMap = vi.fn<GetMap>(async () => { if (fail) throw new ApiRequestError(0, 'Network error'); return MAP; });
     const m = mount(<Page state={ready()} shipmentId={RELAY.shipment.id} getMap={getMap} />);
     await flush();
-    const alert = m.container.querySelector('.bdr-line--problem');
-    expect(alert && textOf(alert)).toBe("Couldn't load the map. Retry");
+    // #890: the map's placeholder in the map's box: a status with the words, Retry next to it.
+    const failed = () => m.container.querySelector('.bdr__map .map-v2__state--dark .map-v2__state-text[role="status"]');
+    expect(failed() && textOf(failed()!)).toBe("Couldn't load the map.Everything else on this page still works.");
+    expect(m.container.querySelector('[role="alert"]')).toBeNull();
     expect(m.container.querySelector('.bd-panel')).not.toBeNull();
     expect(m.container.querySelectorAll('.bw-row').length).toBeGreaterThan(0);
     fail = false;
     click(button(m.container, 'Retry'));
     await flush();
     expect(getMap).toHaveBeenCalledTimes(2);
-    expect(m.container.querySelector('.bdr-line--problem')).toBeNull();
+    // The map took the box over; with no browser key in the tests it says so, and Retry is gone.
+    expect(textOf(failed()!)).not.toContain("Couldn't load the map.");
+    expect(m.container.querySelector('.bdr__map .map-v2__retry')).toBeNull();
     expect(m.container.querySelector('section.bdr')).not.toBeNull();
   });
 

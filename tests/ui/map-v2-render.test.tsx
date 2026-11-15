@@ -13,20 +13,23 @@ afterEach(() => {
 });
 
 describe('GoogleBaseMap static render', () => {
-  it('shows the key-missing panel without a key', () => {
+  it('shows the key-missing placeholder without a key', () => {
     vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '');
     const html = renderToStaticMarkup(
       <GoogleBaseMap places={places} routes={[]} movers={[]} visible={visible} />,
     );
-    expect(text(html)).toContain(
-      'Google Maps key missing. Add VITE_GOOGLE_MAPS_BROWSER_KEY to .env, then restart npm run dev, or run npm run build again before npm start (the key is read at build time).',
+    // One plain line, then one hint (#890): what still works, and both ways to bring the key in (#737).
+    expect(html).toContain('<p class="map-v2__state-line">Google Maps key missing.</p>');
+    expect(text(html.replace(/<\/p>/g, '</p> '))).toContain(
+      'Google Maps key missing. Everything else on this page still works. To show the map, add VITE_GOOGLE_MAPS_BROWSER_KEY to .env, then restart the dev server or build again.',
     );
-    expect(html).toContain('class="map-v2__panel" role="status"');
+    expect(html).toContain('class="map-v2__state map-v2__state--dark"');
+    expect(html).toContain('class="map-v2__state-text" role="status"');
     expect(html).not.toContain('role="alert"');
     expect(html).not.toContain('map-v2__canvas');
   });
 
-  it('shows the key-missing panel with journey stops and panTo set, without throwing', () => {
+  it('shows the key-missing placeholder with journey stops and panTo set, without throwing', () => {
     vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '');
     const html = renderToStaticMarkup(
       <GoogleBaseMap
@@ -42,19 +45,23 @@ describe('GoogleBaseMap static render', () => {
       />,
     );
     expect(text(html)).toContain('Google Maps key missing.');
-    expect(html).toContain('class="map-v2__panel" role="status"');
+    expect(html).toContain('class="map-v2__state-text" role="status"');
     expect(html).not.toContain('role="alert"');
     expect(html).not.toContain('map-v2__canvas');
   });
 
-  it('shows a spinner with a key and never renders the key', () => {
+  it('shows "Loading the map…" with a key and never renders the key', () => {
     const fakeKey = 'TEST-ONLY-NOT-A-REAL-KEY-123';
     vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', fakeKey);
     const html = renderToStaticMarkup(
       <GoogleBaseMap places={places} routes={[]} movers={[]} visible={visible} selectedIds={['biz-a']} fitTo="places" />,
     );
     expect(html).toContain('map-v2__canvas');
-    expect(text(html)).toContain('Loading map');
+    expect(html).toContain('<p class="map-v2__state-line">Loading the map…</p>');
+    // Loading sits on the frame of the map that is coming, not on the ink, and has no hint and no Retry.
+    expect(html).toContain('class="map-v2__state map-v2__state--plain"');
+    expect(html).not.toContain('map-v2__state-hint');
+    expect(html).not.toContain('<button');
     expect(text(html)).not.toContain('key missing');
     expect(html).not.toContain(fakeKey);
   });

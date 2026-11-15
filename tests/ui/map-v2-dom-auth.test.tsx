@@ -101,7 +101,13 @@ function fireAuthFailure() {
   });
 }
 
-const alertOf = (root: Element) => root.querySelector('[role="alert"]');
+// #890: the rejected key is said in the placeholder's status region (polite), never in an alert.
+const REJECTED = 'Google rejected the browser key.';
+const noticeOf = (root: Element) => {
+  expect(root.querySelector('[role="alert"], [aria-live="assertive"]')).toBeNull();
+  const region = root.querySelector('.map-v2__state-text[role="status"]');
+  return region && textOf(region).includes(REJECTED) ? region : null;
+};
 
 describe('GoogleBaseMap: Google rejects the browser key', () => {
   it('installs the watcher before the loader starts', async () => {
@@ -112,15 +118,15 @@ describe('GoogleBaseMap: Google rejects the browser key', () => {
     expect(fake.watcherAtLoad).toEqual(['function']);
   });
 
-  it('failure then load: shows the auth alert and a later load does not switch to ready or create an overlay', async () => {
+  it('failure then load: shows the rejected-key notice and a later load does not switch to ready or create an overlay', async () => {
     const GoogleBaseMap = await freshMap();
     const m = mount(<GoogleBaseMap places={placesA} routes={[]} movers={[]} visible={visible} />);
     await flush();
     fireAuthFailure();
-    expect(textOf(alertOf(m.container)!)).toContain('Google rejected the browser key.');
+    expect(noticeOf(m.container)).not.toBeNull();
     await resolveLoad();
-    expect(textOf(alertOf(m.container)!)).toContain('Google rejected the browser key.');
-    expect(m.container.textContent).not.toContain('Loading map');
+    expect(noticeOf(m.container)).not.toBeNull();
+    expect(m.container.textContent).not.toContain('Loading the map');
     expect(fake.overlays).toHaveLength(0);
   });
 
@@ -130,7 +136,7 @@ describe('GoogleBaseMap: Google rejects the browser key', () => {
     const m = mount(el(placesA));
     await flush();
     await resolveLoad();
-    expect(alertOf(m.container)).toBeNull();
+    expect(noticeOf(m.container)).toBeNull();
     m.rerender(el(placesB));
     const before = setPropsCalls();
     expect(before).toBeGreaterThan(0);
@@ -139,7 +145,7 @@ describe('GoogleBaseMap: Google rejects the browser key', () => {
     const overlay = fake.overlays[0];
     expect(overlay.map).toBeNull();
     expect(overlay.finalized).toBe(true);
-    expect(textOf(alertOf(m.container)!)).toContain('Google rejected the browser key.');
+    expect(noticeOf(m.container)).not.toBeNull();
 
     m.rerender(el(placesA));
     m.rerender(el(placesB));
@@ -153,12 +159,13 @@ describe('GoogleBaseMap: Google rejects the browser key', () => {
     fireAuthFailure();
     const root = m.container.querySelector('.map-v2');
     expect(root).not.toBeNull();
-    expect(root!.classList.contains('map-v2--state')).toBe(false);
+    // The canvas stays in the page, hidden under the ink frame: Google's grey error box never shows.
     expect(root!.querySelector('.map-v2__canvas--hidden')).not.toBeNull();
+    expect(root!.querySelector('.map-v2__state--dark')).not.toBeNull();
     expect(textOf(m.container.querySelector('[data-testid="map-selected"]')!)).toBe(
       'Selected on map: DUMBO Café, Network business',
     );
-    expect(textOf(alertOf(m.container)!)).toContain(`this page's origin: ${window.location.origin}`);
+    expect(textOf(noticeOf(m.container)!)).toContain(`allow ${window.location.origin} for the key in Google Cloud`);
     expect(m.container.innerHTML).not.toContain(KEY);
     expect(m.container.querySelector('button')).toBeNull(); // no Retry: only a reload helps
   });
@@ -186,7 +193,7 @@ describe('GoogleBaseMap: Google rejects the browser key', () => {
 
     const second = mount(<GoogleBaseMap places={placesA} routes={[]} movers={[]} visible={visible} />);
     await flush();
-    expect(textOf(alertOf(second.container)!)).toContain('Google rejected the browser key.');
+    expect(noticeOf(second.container)).not.toBeNull();
     expect(fake.importLibrary.calls).toBe(1);
   });
 });

@@ -77,19 +77,37 @@ describe('route map in the Business page', () => {
     expect(text(html)).toContain(NO_ROUTE_NOTE);
   });
 
-  it('while loading: one status line, the details still render', () => {
+  // #890: the page's own loading and failed states are the map's placeholder, in the map's box.
+  const slotBox = (html: string) => /<section class="bdr" aria-label="Delivery route on the map"><div class="bdr__map"><div class="map-v2">([\s\S]*?)<\/section>/.exec(html)?.[1] ?? '<none>';
+
+  it('while loading: the map box with one status line, the details still render', () => {
     const html = renderPage(RELAY.shipment.id, { kind: 'loading', text: ROUTE_MAP_LOADING_TEXT });
-    expect(text(html)).toContain(ROUTE_MAP_LOADING_TEXT);
-    expect(html).not.toContain('class="bdr"');
+    expect(ROUTE_MAP_LOADING_TEXT).toBe('Loading the map…'); // the words of the map's own loading state
+    expect(slotBox(html)).toContain('<div class="map-v2__state-text" role="status"><p class="map-v2__state-line">Loading the map…</p></div>');
+    // On the light frame of the map that is coming; no hint, no Retry, no stops yet.
+    expect(slotBox(html)).toContain('map-v2__state--plain');
+    expect(slotBox(html)).not.toMatch(/<button|map-v2__state-hint|bdr__stops/);
     expect(text(html)).toContain('Fabric rolls');
   });
 
-  it('a failed map: one line with Retry, and the rest of the page keeps working', () => {
+  it('a failed map: one line, one hint and Retry, and the rest of the page keeps working', () => {
     const html = renderPage(RELAY.shipment.id, { kind: 'failed', text: ROUTE_MAP_FAILED_TEXT });
-    expect(html).toMatch(/role="alert">Couldn(?:&#x27;|')t load the map\. <button type="button" class="bdr-retry">Retry<\/button><\/p>/);
-    expect(html).not.toContain('class="bdr"');
+    const box = slotBox(html);
+    expect(box).toContain('map-v2__state--dark');
+    expect(box).toMatch(/role="status"><p class="map-v2__state-line">Couldn(?:&#x27;|')t load the map\.<\/p><p class="map-v2__state-hint">Everything else on this page still works\.<\/p><\/div><button type="button" class="map-v2__retry">Retry<\/button>/);
+    expect(html).not.toContain('role="alert"');
     expect(text(html)).toContain('Fabric rolls'); // the details
     expect(html).toContain('class="bw-row'); // the table
+  });
+
+  it('after Retry, while the request is pending: the same dark box, "Loading the map…" and Retry still there', () => {
+    const html = renderPage(RELAY.shipment.id, { kind: 'loading', text: ROUTE_MAP_LOADING_TEXT, retrying: true });
+    const box = slotBox(html);
+    expect(box).toContain('map-v2__state--dark');
+    expect(box).toContain('<p class="map-v2__state-line">Loading the map…</p>');
+    // aria-disabled, not disabled: the button keeps the keyboard focus it had when it was pressed.
+    expect(box).toMatch(/<button type="button" class="map-v2__retry" aria-disabled="true">Retry<\/button>/);
+    expect(box).not.toContain(' disabled');
   });
 
   it('no open delivery: no route map', () => {

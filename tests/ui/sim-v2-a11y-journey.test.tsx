@@ -14,8 +14,8 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MapKeyMissing } from '../../client/src/components/map/GoogleBaseMap';
-import { KEY_MISSING_TEXT } from '../../client/src/components/map/mapModel';
+import { MapPlaceholder } from '../../client/src/components/map/GoogleBaseMap';
+import { KEY_MISSING_TEXT, mapStateCopy } from '../../client/src/components/map/mapModel';
 import { JOURNEY_STEP_MS, OVERNIGHT_CARD_MS } from '../../client/src/components/sim/v2/motion/journeyPlayback';
 import { DemoServer, advance, demoRun, mountApp, settleUntil, type MountedApp } from './demo-path-mvp3-helper';
 import { parseCss, readTokens } from './employee-v2-qa-helpers';
@@ -358,22 +358,26 @@ describe('journey.css: MVP III tokens only', () => {
   });
 });
 
-describe('the no-key panel: "Google Maps key missing." is not heavier than the loaded Inter', () => {
-  it('renders the lead line in a <strong> inside .map-v2__panel', () => {
-    const html = renderToStaticMarkup(<MapKeyMissing />);
-    expect(html).toMatch(/^<div class="map-v2__panel" role="status"><strong>Google Maps key missing\.<\/strong>/);
+describe('the no-key placeholder: "Google Maps key missing." is not heavier than the loaded Inter', () => {
+  it('renders the lead line as the placeholder\'s line, with no <strong> of its own (#890)', () => {
+    const html = renderToStaticMarkup(<MapPlaceholder copy={mapStateCopy('missing-key')} />);
+    expect(html).toContain('<div class="map-v2__state-text" role="status"><p class="map-v2__state-line">Google Maps key missing.</p>');
+    expect(html).not.toMatch(/<(strong|b)\b/);
     expect(KEY_MISSING_TEXT).toBe('Google Maps key missing.');
   });
 
-  it('map.css sets the panel\'s <strong> to 600 at most, and fonts.css loads Inter up to that weight', () => {
+  it('map.css sets the line to 600 at most, and fonts.css loads Inter up to that weight', () => {
     const rules = parseCss(readFileSync(MAP_CSS, 'utf8'));
     const weights = rules
-      .filter((r) => r.selector.split(',').map((s) => s.trim().replace(/\s+/g, ' ')).includes('.map-v2__panel strong'))
+      .filter((r) => r.selector.split(',').map((s) => s.trim().replace(/\s+/g, ' ')).includes('.map-v2__state-line'))
       .flatMap((r) => r.decls.filter((d) => d.prop === 'font-weight').map((d) => d.value));
     expect(weights).toEqual(['600']);
-    // Inter's heaviest loaded file is 600; the panel's text is the UI font (no own font-family on the panel).
+    // Inter's heaviest loaded file is 600; the placeholder's text is the UI font (no own font-family on it).
     const inter = [...readFileSync('client/src/styles/fonts.css', 'utf8').matchAll(/@fontsource\/inter\/latin-(\d+)\.css/g)].map((m) => Number(m[1]));
     expect(Math.max(...inter)).toBe(600);
     expect(Number(weights[0])).toBeLessThanOrEqual(Math.max(...inter));
+    // No weight anywhere in the placeholder is above what is loaded.
+    const all = rules.filter((r) => /\.map-v2__(state|retry)/.test(r.selector)).flatMap((r) => r.decls.filter((d) => d.prop === 'font-weight').map((d) => Number(d.value)));
+    expect(Math.max(...all)).toBeLessThanOrEqual(600);
   });
 });

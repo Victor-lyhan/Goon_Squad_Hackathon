@@ -6,8 +6,81 @@ import type { LatLngBounds, MapMover, MapPanTarget, MapPlace, MapStop } from './
 export type MapStatus = 'missing-key' | 'loading' | 'ready' | 'error' | 'auth-error';
 
 export const KEY_MISSING_TEXT = 'Google Maps key missing.';
-export const LOAD_ERROR_TEXT = 'Google Maps could not be loaded';
+export const LOAD_ERROR_TEXT = "Couldn't load the map.";
 export const AUTH_ERROR_TEXT = 'Google rejected the browser key.';
+/** The sentence the Business and Employee pages already use while their own map data loads. */
+export const MAP_LOADING_TEXT = 'Loading the map…';
+/** Said in every state where no map will come: the page around the map does not need it. */
+export const STILL_WORKS_TEXT = 'Everything else on this page still works.';
+/** The name of the Vite variable, never its value. */
+export const BROWSER_KEY_NAME = 'VITE_GOOGLE_MAPS_BROWSER_KEY';
+
+/** A piece of a hint: plain words, or a name to set in the mono font (a variable, a file, an origin). */
+export type HintPart = string | { code: string };
+
+/**
+ * What the map area says while it shows no map (#890): one plain line for whoever is watching, an
+ * optional short hint for whoever runs the demo, and Retry only where a retry can help.
+ * `dark` is the ink frame of a map that is not coming; `plain` sits on the frame of the map that is
+ * about to appear (light by day, dark at night), so a normal load never flashes dark.
+ */
+export type MapStateCopy = {
+  line: string;
+  hint: HintPart[];
+  retry: boolean;
+  /** A Retry is loading: the button stays where it was (and keeps the keyboard focus) but does nothing. */
+  busy?: boolean;
+  tone: 'dark' | 'plain';
+};
+
+/**
+ * While a Retry loads: the frame and the button of the error it came from, so nothing flashes and a
+ * keyboard user who pressed Retry is still on it if the load fails again.
+ */
+export const RETRYING_COPY: MapStateCopy = { line: MAP_LOADING_TEXT, hint: [], retry: true, busy: true, tone: 'dark' };
+
+/**
+ * The placeholder of a map status; null when the map is showing. `origin` is this page's origin, the
+ * website to allow for a rejected key; `retrying` says the load was started by Retry. Never contains
+ * the key, the script URL or Google's error text.
+ */
+export function mapStateCopy(status: MapStatus, origin = '', retrying = false): MapStateCopy | null {
+  switch (status) {
+    case 'ready':
+      return null;
+    case 'loading':
+      return retrying ? RETRYING_COPY : { line: MAP_LOADING_TEXT, hint: [], retry: false, tone: 'plain' };
+    case 'missing-key':
+      return {
+        line: KEY_MISSING_TEXT,
+        // Vite reads the key when the dev server starts and when the app is built (#737): both ways.
+        hint: [
+          `${STILL_WORKS_TEXT} To show the map, add `, { code: BROWSER_KEY_NAME }, ' to ', { code: '.env' },
+          ', then restart the dev server or build again.',
+        ],
+        retry: false,
+        tone: 'dark',
+      };
+    case 'auth-error':
+      return {
+        line: AUTH_ERROR_TEXT,
+        // No Retry: Google will not accept the key again until the page is reloaded.
+        hint: [
+          `${STILL_WORKS_TEXT} To show the map, allow `, origin ? { code: origin } : 'this website',
+          ' for the key in Google Cloud, turn on Maps JavaScript and billing, then reload.',
+        ],
+        retry: false,
+        tone: 'dark',
+      };
+    case 'error':
+      return { line: LOAD_ERROR_TEXT, hint: [`${STILL_WORKS_TEXT} Check the connection, then retry.`], retry: true, tone: 'dark' };
+  }
+}
+
+/** A hint as one string, as a screen reader says it. */
+export function hintText(hint: HintPart[]): string {
+  return hint.map((part) => (typeof part === 'string' ? part : part.code)).join('');
+}
 
 /** Anything with Google's global auth-failure hook: `window` in the app, a plain object in tests. */
 export type AuthFailureTarget = { gm_authFailure?: unknown };
