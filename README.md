@@ -18,7 +18,7 @@ You need no key to run the app or the demo. Two optional Google keys add the map
 - Node.js 22.22.2 or newer to run the tests (`npm test`, `bash scripts/test.sh`): vitest and jsdom ask for more than Vite (their `engines` in `package-lock.json`). On Node 24 that is 24.15 or newer; vitest does not list Node 23 or 25.
 - npm
 
-No API key or environment variable is needed. `PORT` is optional and applies to `npm start` only (default `3001`); leave it unset for `npm run dev` ([Setup and run](#setup-and-run)). The two Google keys are optional and live in `.env` ([Google setup](#google-setup-keys-and-travel-data)).
+No API key or environment variable is needed. `PORT` is optional and applies to `npm start` only (default `3001`); leave it unset for `npm run dev` ([Setup and run](#setup-and-run)). `RELAY_STATE_PATH` is optional too and gives a second server its own state file ([State file and reset](#state-file-and-reset)). The two Google keys are optional and live in `.env` ([Google setup](#google-setup-keys-and-travel-data)).
 
 ## Setup and run
 ```bash
@@ -38,7 +38,7 @@ The main paths:
 | `/employee/<id>` | Employee workspace, for example `/employee/emp-7`: the saved commute, assigned deliveries, earnings. |
 | `/simulator` | Simulator: the whole network, the package list, playback, and the journey of one package. |
 
-You never have to type an ID: the header's **Business** and **Employee** links open the chosen demo account (the first business and the first employee of the run until you choose one), and the **Demo account** selector switches to any other ([Demo accounts](#demo-accounts)).
+You never have to type an ID: the header's **Business** and **Employee** links open the chosen demo account (the first business and the first employee of the run until you choose one), and the **Demo account** selector switches to any other ([Demo accounts](#demo-accounts)). `/business` and `/employee` with no ID go to that same account.
 
 ## Production build
 ```bash
@@ -51,7 +51,7 @@ When it starts, `npm start` prints one line about the built client ("Serving the
 
 `npm run dev` prints the same lines with `[api]` in front. On a fresh clone "client/dist not found" is expected there, because Vite serves the page; after an `npm run build` it reads "Serving the built client from client/dist". Either way, open port 5173 while `npm run dev` runs: port 3001 has only the API, or the page as it was at the last build.
 
-**The browser key is read at build time.** `npm run build` writes `VITE_GOOGLE_MAPS_BROWSER_KEY` into the files of `client/dist`; `npm start` only serves those files and never reads that key. So for the map in production mode, run `npm run build` in the checkout that has `.env`, and run it again after the key changes; restarting `npm start` is not enough. A build made without the key shows "Google Maps key missing." on every map area. That card also says to restart `npm run dev`, which is right for `npm run dev` only ([Google setup](#google-setup-keys-and-travel-data), step 3).
+**The browser key is read at build time.** `npm run build` writes `VITE_GOOGLE_MAPS_BROWSER_KEY` into the files of `client/dist`; `npm start` only serves those files and never reads that key. So for the map in production mode, run `npm run build` in the checkout that has `.env`, and run it again after the key changes; restarting `npm start` is not enough. A build made without the key shows "Google Maps key missing." on every map area; the fix is another `npm run build`, not a restart ([Google setup](#google-setup-keys-and-travel-data), step 3).
 
 ## Tests
 ```bash
@@ -75,7 +75,9 @@ The NYC story files or the default detour limit changed since data/state-v2.json
 
 It is not an error. The deliveries made before the pull are in the `.stale-<n>` file and no longer in the app; the number goes up with every run that is set aside.
 
-In the Simulator, **Play** with no package picked runs the whole network and locks the run: after it, new deliveries and commute changes are refused. The Business page then says "Locked" and its **New delivery** button is disabled, and **Edit commute** on the Employee page is disabled. **Pause** and **Back to start** do not unlock it, and neither does a restart. The pages speak of a "planning cycle", but the app has no control that starts a new planning cycle (removed in MVP III), so reset as above to unlock it. Playing one package's journey does not lock the run.
+A second server (a QA run next to the demo one) keeps its own run when `RELAY_STATE_PATH` names another file, for example `RELAY_STATE_PATH=/tmp/relay-qa/state-v2.json PORT=3002 npm start`. It reads and writes that file, with its `.source.json` next to it, and leaves `data/state-v2.json` alone. Its first start line then reads "State file: /tmp/relay-qa/state-v2.json (RELAY_STATE_PATH)".
+
+In the Simulator, **Play** with no package picked runs the whole network and locks the run: while it is locked, new deliveries and commute changes are refused. The Business page then says "Locked" and its **New delivery** button is disabled, and **Edit commute** on the Employee page is disabled. **Back to start** in the Simulator unlocks it: the clock returns to Day 1, 3:30 PM, paused, and every delivery keeps its plan. **Pause** does not unlock it, and neither does a restart. The locked pages speak of a "planning cycle"; the control that unlocks is **Back to start**, and no reset is needed. Playing one package's journey does not lock the run.
 
 ## Demo accounts
 On the Business and Employee pages the header's **Demo account** selector lists the businesses and employees of the run; the homepage and the Simulator do not show it. An employee is listed with the employer, for example "Elena Rossi · Brooklyn Roasting Company". Opening `/business/<id>` or `/employee/<id>` by its URL chooses that account too. The header's **Business** and **Employee** links open the chosen account, and the first business and the first employee of the run in a browser that has not chosen yet. The chosen account is the only thing stored in the browser; all delivery data lives on the server.
@@ -116,7 +118,7 @@ morning_carrier: Reese Green
 price: $10.00
 ```
 
-The type, the weight and the times are the defaults of the **New delivery** form, so leave them as they are: only the recipient, the package name and the contents are entered. The form shows the times as its fields hold them: "Ready for pickup (Day 1)" 16:00, "Deliver by: day" Day 2 and "Deliver by: time" 10:00 (the browser may write the two times as 04:00 PM and 10:00 AM). Use a fresh run: the request is planned on commutes that are still free, so after an earlier try, reset first ([State file and reset](#state-file-and-reset)). If the Simulator's **Play** was pressed earlier with no package picked, the run is locked and the **New delivery** button is disabled: reset first.
+The type, the weight and the times are the defaults of the **New delivery** form, so leave them as they are: only the recipient, the package name and the contents are entered. The form shows the times as its fields hold them: "Ready for pickup (Day 1)" 16:00, "Deliver by: day" Day 2 and "Deliver by: time" 10:00 (the browser may write the two times as 04:00 PM and 10:00 AM). Use a fresh run: the request is planned on commutes that are still free, so after an earlier try, reset first ([State file and reset](#state-file-and-reset)). If the Simulator's **Play** was pressed earlier with no package picked, the run is locked and the **New delivery** button is disabled: press **Back to start** in the Simulator first.
 
 1. **Employee** (`/employee/emp-7`, or choose **Elena Rossi** as the **Demo account**, where she is listed as "Elena Rossi · Brooklyn Roasting Company"): show the **Saved commute** between the Upper East Side and Brooklyn Roasting Company, the two departure times and the **Detour limit**.
 2. **Business** (`/business/biz-brooklyn-roasting`, Brooklyn Roasting Company): choose **New delivery**, pick **Blue Bottle Coffee** as the recipient (the list names it with its neighborhood, "Blue Bottle Coffee · Financial District"), enter the package from the block above and choose **Find a delivery match**: the backend looks for a matching commute.
@@ -264,7 +266,7 @@ After the drop the two files hold the coordinates of the businesses and of the m
   - `/employee/<id>`, for example `/employee/emp-7`: the employee's commute and the stops of their deliveries.
   - `/business/<id>`, for example `/business/biz-brooklyn-roasting`: a delivery's route next to its details, with the sender, the relay point and the recipient.
   - `/` has no map and looks the same with and without a key.
-- **Without the browser key** each map area says "Google Maps key missing." and the lists, forms and panels around it work as before. The card adds "restart `npm run dev`"; with `npm start`, run `npm run build` again instead. If the key is there but wrong, the map area says "Google rejected the browser key."; check its restrictions (step 2) and reload the page.
+- **Without the browser key** each map area says "Google Maps key missing." and the lists, forms and panels around it work as before. After adding the key, restart `npm run dev`; with `npm start`, run `npm run build` again instead. If the key is there but wrong, the map area says "Google rejected the browser key."; check its restrictions (step 2) and reload the page.
 - **With the server key**, **Edit commute** on the Employee page finds a new address and saves it. That home is written into `fixtures/nyc/matrix.json`: remove it before you commit the cache (step 5). Without it the search says "Address search needs the Google key on the server. Your saved home is unchanged.", and a save that keeps the home still works.
 - **If the cache is missing** from your checkout (`fixtures/nyc/matrix.json`), every `/api/v2` request answers `503` with the code `travel_data_missing`, and the pages show "NYC travel data is not loaded on this server yet." The server prints the reason when it starts.
 - **Old links.** The preview paths `/nyc/...` redirect to the main paths above.

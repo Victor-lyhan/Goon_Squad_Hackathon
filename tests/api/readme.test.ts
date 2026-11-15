@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { UNAVAILABLE_TEXT as ADDRESS_SEARCH_NEEDS_KEY_TEXT } from '../../client/src/components/employee/v2/addressSearchModel';
 import { TRAVEL_DATA_MISSING_TEXT } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
+import { RESET_LABEL } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { ENV_INDICATOR_TEXT } from '../../client/src/ui/shellModel';
 import { DEFAULT_V2_STATE_PATH, sourcePathFor } from '../../server/api/v2/bootRun';
 import { SERVER_KEY_NAME } from '../../server/geo/env';
@@ -10,7 +11,9 @@ import {
   CHECK_KEY_LINE, CHECK_LINE, DROP_ENTERED_COMMAND, EXIT_INCOMPLETE, EXIT_OK, EXIT_USAGE, RESUME_LINE, parseArgs, refetchCommand,
 } from '../../server/geo/fetchScript';
 import { formatKeyCheck } from '../../server/geo/keyCheck';
-import { CLIENT_MISSING_LINE, CLIENT_SERVED_LINE, KEY_NOT_SET_LINE, KEY_SET_LINE, portInUseMessage } from '../../server/index';
+import {
+  CLIENT_MISSING_LINE, CLIENT_SERVED_LINE, KEY_NOT_SET_LINE, KEY_SET_LINE, portInUseMessage, STATE_PATH_NAME, stateStartLine,
+} from '../../server/index';
 
 const root = path.resolve(__dirname, '../..');
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
@@ -146,13 +149,20 @@ describe('README after the cutover', () => {
     expect(stale).toMatch(/never deleted/);
     expect(stale).toContain('`data/state-v2.source.json`');
     expect(stale).toMatch(/travel cache is not part of it/);
-    // #648 (docs/mvp3.md P2): the simulator's Planning cycle section is gone, so the README no longer
-    // names an in-app reset; it says what locks the run and that the reset above unlocks it.
+    // #648 (docs/mvp3.md P2): the simulator's Planning cycle section is gone. #734 (DECISIONS pass 74):
+    // "Back to start" unlocks the run, so the README says what locks it and names that button, not a reset.
     expect(state).not.toContain('Start new planning cycle');
     expect(fs.existsSync(path.join(root, 'client/src/components/sim/v2/controls/PlanningControls.tsx'))).toBe(false);
     expect(state).toMatch(/\*\*Play\*\* with no package picked runs the whole network and locks the run/);
-    expect(state).toMatch(/reset as above to unlock it/);
+    expect(state).toMatch(/\*\*Back to start\*\* in the Simulator unlocks it/);
+    expect(state).not.toMatch(/reset as above to unlock it/);
+    expect(RESET_LABEL).toBe('Back to start'); // the button's own label
     expect(state).toMatch(/Playing one package's journey does not lock the run/);
+    // #727: a second server's own state file, with its start line in the words of server/index.ts.
+    const example = new RegExp(`\`${STATE_PATH_NAME}=(\\S+) PORT=3002 npm start\``).exec(state)?.[1] ?? '';
+    expect(example).toMatch(/^\/tmp\/.+\.json$/);
+    expect(state).toContain(`"${stateStartLine(example, DEFAULT_V2_STATE_PATH)}"`);
+    expect(stateStartLine(DEFAULT_V2_STATE_PATH, DEFAULT_V2_STATE_PATH)).toBeNull(); // the default file gets no line
   });
 
   it('the repository layout names folders and files that exist', () => {
