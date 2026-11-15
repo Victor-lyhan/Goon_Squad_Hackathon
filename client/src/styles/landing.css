@@ -29,10 +29,11 @@
   /* Map colors on the dark ground. The carrier blue and green are docs/mvp3.md's hues, lightened so the
      lines read on ink; the package orange and the faded gray are the doc's own. */
   --hero-ground: var(--text, #171C24);
-  --hero-land: #262F3E;
+  --hero-land: #1F2733;
   --hero-shore: #44526A;
-  --hero-street: #313C4E;
-  --hero-park: #254236;
+  --hero-street: #2A3442;
+  --hero-avenue: #3F4E64;
+  --hero-park: #1F3A30;
   --hero-carrier-a: #4C9BD6;
   --hero-carrier-b: #2DBE85;
   --hero-package: #E8590C;
@@ -210,12 +211,21 @@ a.workspace-entry:focus-visible {
   -webkit-mask-image: linear-gradient(var(--hero-fade, to right), transparent, #000 22%);
   mask-image: linear-gradient(var(--hero-fade, to right), transparent, #000 22%);
 }
-.hero-land path { fill: var(--hero-land, #262F3E); stroke: var(--hero-shore, #44526A); stroke-width: 1.5; stroke-linejoin: round; }
-.hero-street { fill: none; stroke: var(--hero-street, #313C4E); stroke-width: 1; }
-.hero-park { fill: var(--hero-park, #254236); }
+.hero-land path { fill: var(--hero-land, #1F2733); stroke: var(--hero-shore, #44526A); stroke-width: 1; stroke-opacity: .7; stroke-linejoin: round; }
+.hero-street { fill: none; stroke: var(--hero-street, #2A3442); stroke-width: 1; }
+.hero-avenue { fill: none; stroke: var(--hero-avenue, #3F4E64); stroke-width: 1.25; }
+.hero-scan { fill: none; stroke: var(--hero-light, #FFFFFF); stroke-width: 1; stroke-opacity: .035; }
+.hero-park { fill: var(--hero-park, #1F3A30); }
 .hero-borough-line { fill: none; stroke: var(--hero-shore, #44526A); stroke-width: 1.5; stroke-dasharray: 2 6; stroke-linecap: round; }
-.hero-line, .hero-line-casing { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+/* Network businesses. The glow is a flat, faint circle in a carrier color: no filter, no shadow. */
+.hero-node { fill: var(--hero-faded, #A8ABB2); }
+.hero-node-halo { opacity: .2; }
+.hero-node-halo-a { fill: var(--hero-carrier-a, #4C9BD6); }
+.hero-node-halo-b { fill: var(--hero-carrier-b, #2DBE85); }
+.hero-line, .hero-glow, .hero-track, .hero-line-casing { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .hero-line-casing { stroke: var(--hero-ground, #171C24); stroke-width: 10; }
+.hero-track { stroke-width: 5; stroke-opacity: .28; }
+.hero-glow { stroke-width: 15; stroke-opacity: .2; }
 .hero-line { stroke-width: 5; }
 .hero-line-a { stroke: var(--hero-carrier-a, #4C9BD6); }
 .hero-line-b { stroke: var(--hero-carrier-b, #2DBE85); }
@@ -230,37 +240,72 @@ a.workspace-entry:focus-visible {
 }
 .hero-stop { fill: var(--hero-ground, #171C24); stroke: var(--hero-light, #FFFFFF); stroke-width: 2.5; }
 .hero-relay { fill: var(--hero-light, #FFFFFF); stroke: var(--hero-ground, #171C24); stroke-width: 2; }
-.hero-relay-ring { fill: none; stroke: var(--hero-light, #FFFFFF); stroke-width: 1.5; opacity: 0; }
+.hero-relay-ring { fill: none; stroke: var(--hero-package, #E8590C); stroke-width: 2; opacity: 0; }
+.hero-flag-pole { fill: none; stroke: var(--hero-light, #FFFFFF); stroke-width: 2; stroke-linecap: round; }
+.hero-flag-cloth { fill: var(--hero-carrier-b, #2DBE85); stroke: var(--hero-ground, #171C24); stroke-width: 1; stroke-linejoin: round; }
 .hero-package { fill: var(--hero-package, #E8590C); stroke: var(--hero-light, #FFFFFF); stroke-width: 2; }
+.hero-trail { fill: var(--hero-package, #E8590C); opacity: .3; }
 
-/* The relay, in a loop: the package rides line A to the diamond, waits there (the handoff), rides line B to
-   the recipient, rests, and starts again. Its route and the diamond's place on it (--relay-split) are set
-   on the element from the same points the lines are drawn from. Without the animation the package rests
-   at the recipient: that is the last frame, and what prefers-reduced-motion shows. */
+/* The relay, one loop of 9 s on one clock (#939): line A draws on and the package rides it to the diamond
+   with a soft trail, waits there while the ring pulses once (the handoff), line B draws on and carries it
+   to the recipient, the flag goes up, then the run fades and starts again. The dim tracks, the badges and
+   the stops stay. The route and the diamond's place on it (--relay-split) are set on the element from the
+   same points the lines are drawn from. Only offset-distance, stroke-dashoffset, transform and opacity
+   move. Without the animation both lines are drawn, the flag is up and the package rests at the recipient:
+   that is the last frame, and what prefers-reduced-motion shows. */
 @supports (offset-path: path('M0 0')) {
-  .hero-package { transform: none; offset-rotate: 0deg; offset-distance: 100%; }
+  .hero-package-ride { transform: none; offset-rotate: 0deg; offset-distance: 100%; }
   @media (prefers-reduced-motion: no-preference) {
-    .hero-package { animation: hero-package-ride 10s ease-in-out infinite; }
-    .hero-relay-ring { animation: hero-relay-handoff 10s ease-out infinite; }
+    .hero-package-ride { animation: hero-package-ride 9s ease-in-out infinite; animation-delay: calc(var(--trail-lag, 0s) - 9s); }
+    .hero-relay-ring { animation: hero-relay-handoff 9s ease-out infinite; }
+    .hero-draw-a { stroke-dasharray: 1; animation: hero-draw-a 9s ease-in-out infinite; }
+    .hero-draw-b { stroke-dasharray: 1; animation: hero-draw-b 9s ease-in-out infinite; }
+    .hero-live { animation: hero-run-fade 9s ease-in-out infinite; }
+    .hero-flag { animation: hero-flag-up 9s ease-out infinite; }
+    .hero-node-halo { animation: hero-node-pulse 5s ease-in-out infinite; }
   }
 }
 @keyframes hero-package-ride {
   0% { offset-distance: 0%; opacity: 0; }
   4% { offset-distance: 0%; opacity: 1; }
-  10% { offset-distance: 0%; }
-  42% { offset-distance: var(--relay-split, 55%); }
-  58% { offset-distance: var(--relay-split, 55%); }
-  90% { offset-distance: 100%; }
-  96% { offset-distance: 100%; opacity: 1; }
+  8% { offset-distance: 0%; }
+  40% { offset-distance: var(--relay-split, 55%); }
+  54% { offset-distance: var(--relay-split, 55%); }
+  82% { offset-distance: 100%; }
+  94% { offset-distance: 100%; opacity: 1; }
   100% { offset-distance: 100%; opacity: 0; }
 }
+/* Each line sets off a little before the package and takes as long as the package's ride on it, so the
+   line's head stays just ahead of the package. */
+@keyframes hero-draw-a {
+  0%, 5% { stroke-dashoffset: 1; }
+  37%, 100% { stroke-dashoffset: 0; }
+}
+@keyframes hero-draw-b {
+  0%, 51% { stroke-dashoffset: 1; }
+  79%, 100% { stroke-dashoffset: 0; }
+}
+@keyframes hero-run-fade {
+  0% { opacity: 0; }
+  4%, 94% { opacity: 1; }
+  100% { opacity: 0; }
+}
 @keyframes hero-relay-handoff {
-  0%, 42% { transform: scale(1); opacity: 0; }
-  44% { transform: scale(1); opacity: .9; }
-  58%, 100% { transform: scale(2.4); opacity: 0; }
+  0%, 40% { transform: scale(1); opacity: 0; }
+  42% { transform: scale(1); opacity: .9; }
+  54%, 100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes hero-flag-up {
+  0%, 81% { transform: scale(.4); opacity: 0; }
+  87%, 94% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+@keyframes hero-node-pulse {
+  0%, 100% { transform: scale(.7); opacity: .12; }
+  50% { transform: scale(1.15); opacity: .3; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero-package, .hero-relay-ring { animation: none; }
+  .hero-package-ride, .hero-relay-ring, .hero-draw-a, .hero-draw-b, .hero-live, .hero-flag, .hero-node-halo { animation: none; }
 }
 
 /* The key to the drawing: letters and shapes, so nothing is told apart by color alone. It sits at the
