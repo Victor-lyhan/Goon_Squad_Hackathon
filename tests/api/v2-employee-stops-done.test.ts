@@ -149,9 +149,9 @@ describe('stopsDone of every job of the default NYC run (#781)', () => {
         expect(row!.status, what).toBe(expected === 0 ? 'assigned' : expected === stops.length ? 'completed' : 'in_progress');
 
         // The key list of a job row: the four fields every reader shares, plus the count and the
-        // `departed` flag of #791. `trip` only in GET /jobs/:id.
-        expect(Object.keys(row!).sort(), what).toStrictEqual(['departed', 'job', 'plan', 'shipment', 'status', 'stopsDone']);
-        expect(Object.keys(detail).sort(), what).toStrictEqual(['departed', 'job', 'plan', 'shipment', 'status', 'stopsDone', 'trip']);
+        // `departed` flag of #791 and the `arrived` flag of #836. `trip` only in GET /jobs/:id.
+        expect(Object.keys(row!).sort(), what).toStrictEqual(['arrived', 'departed', 'job', 'plan', 'shipment', 'status', 'stopsDone']);
+        expect(Object.keys(detail).sort(), what).toStrictEqual(['arrived', 'departed', 'job', 'plan', 'shipment', 'status', 'stopsDone', 'trip']);
         // Without the count, the row is still exactly the simulator's own word on the job.
         expect(jobViewOf(row!), what).toStrictEqual(simulatorJob(sim, job.id));
         seen.add(expected);
@@ -166,8 +166,9 @@ describe('stopsDone of every job of the default NYC run (#781)', () => {
     let rows = 0;
     for (const employeeId of new Set(sim.jobs.map((j) => j.employeeId))) {
       const dashboard = (await api.get<EmployeeDashboard>(`/employees/${enc(employeeId)}/dashboard`)).body;
-      // Only the count is taken out: the row keeps its `departed` flag (#791, measured in v2-employee-departed.test.ts).
-      const strip = (list: EmployeeJobView[]) => list.map((row) => ({ ...jobViewOf(row), departed: row.departed }));
+      // Only the count is taken out: the row keeps its `departed` flag (#791, measured in v2-employee-departed.test.ts)
+      // and its `arrived` flag (#836, measured in v2-employee-arrived.test.ts).
+      const strip = (list: EmployeeJobView[]) => list.map((row) => ({ ...jobViewOf(row), departed: row.departed, arrived: row.arrived }));
       const without = { ...dashboard, assigned: strip(dashboard.assigned), completed: strip(dashboard.completed) };
       const added = JSON.stringify(dashboard).length - JSON.stringify(without).length;
       const count = jobRows(dashboard).length;

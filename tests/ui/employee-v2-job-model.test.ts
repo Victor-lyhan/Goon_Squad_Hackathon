@@ -247,6 +247,77 @@ describe('jobDetail (v2 model)', () => {
     });
   });
 
+  // #836: the server says when the commute has arrived (`arrived`); the end row no longer follows "completed".
+  describe('the end row follows the API\'s arrived (#836)', () => {
+    const LEGS = [eveningDirect, morningDirect, relayLeg1, relayLeg2];
+    const done = (job: ReturnType<typeof eveningDirect>) => jobDetail(job, businesses, 'Astoria').route.map((r) => r.done);
+    const doneOf = (job: ReturnType<typeof eveningDirect>) =>
+      jobDetail(job, businesses, 'Astoria').route.map((r) => [r.action, r.done]);
+
+    it('the last stop is handled and the carrier is still driving: "Arrive home" / "Arrive at work" is not done while the job is completed', () => {
+      // What the server sends between the end of the last stop and the leg's finish minute.
+      for (const make of LEGS) {
+        expect(done({ ...make('completed'), stopsDone: 2, departed: true, arrived: false })).toEqual([true, true, true, false]);
+      }
+      expect(doneOf({ ...relayLeg1('completed'), stopsDone: 2, departed: true, arrived: false })).toEqual([
+        ['Leave work', true], ['Collect the package', true], ['Leave it at the relay point for the morning carrier', true], ['Arrive home', false],
+      ]);
+      expect(doneOf({ ...relayLeg2('completed'), stopsDone: 2, departed: true, arrived: false })).toEqual([
+        ['Leave home', true], ['Collect it from the relay point', true], ['Hand over the package', true], ['Arrive at work', false],
+      ]);
+    });
+
+    it('once the commute has arrived the end row is done', () => {
+      for (const make of LEGS) {
+        expect(done({ ...make('completed'), stopsDone: 2, departed: true, arrived: true })).toEqual([true, true, true, true]);
+      }
+      expect(doneOf({ ...eveningDirect('completed'), stopsDone: 2, departed: true, arrived: true })[3]).toEqual(['Arrive home', true]);
+      expect(doneOf({ ...morningDirect('completed'), stopsDone: 2, departed: true, arrived: true })[3]).toEqual(['Arrive at work', true]);
+    });
+
+    it('what the server sends earlier in the day: arrived is false and the end row is not done', () => {
+      for (const make of LEGS) {
+        expect(done({ ...make('assigned'), stopsDone: 0, departed: false, arrived: false })).toEqual([false, false, false, false]);
+        expect(done({ ...make('assigned'), stopsDone: 0, departed: true, arrived: false })).toEqual([true, false, false, false]);
+        expect(done({ ...make('in_progress'), stopsDone: 1, departed: true, arrived: false })).toEqual([true, true, false, false]);
+      }
+    });
+
+    it('the flag decides the end row whatever the status says, and only the end row', () => {
+      for (const status of STATUSES) {
+        for (const make of LEGS) {
+          const old = jobDetail(make(status), businesses, 'Astoria');
+          for (const arrived of [true, false]) {
+            const now = jobDetail({ ...make(status), arrived }, businesses, 'Astoria');
+            expect(now.route[3].done).toBe(arrived);
+            // Everything else on the page is as without the flag: the other marks, the times, places and
+            // actions, the status label and its note, the numbers.
+            expect(now.route.slice(0, 3)).toEqual(old.route.slice(0, 3));
+            expect({ ...now.route[3], done: old.route[3].done }).toEqual(old.route[3]);
+            expect({ ...now, route: old.route }).toEqual(old);
+          }
+        }
+      }
+      // The start row still reads `departed` and the stop rows `stopsDone`.
+      expect(done({ ...eveningDirect('completed'), stopsDone: 1, departed: false, arrived: true })).toEqual([false, true, false, true]);
+    });
+
+    it('without arrived (an older answer or sample) the old rule holds; a value that is no boolean counts as missing', () => {
+      const old = { assigned: false, in_progress: false, completed: true };
+      for (const status of STATUSES) {
+        for (const make of LEGS) {
+          const job = make(status);
+          expect('arrived' in job).toBe(false);
+          expect(jobDetail(job, businesses, 'Astoria').route[3].done).toBe(old[status]);
+          for (const bad of [undefined, null, 0, 1, 'true', 'false', Number.NaN, {}]) {
+            const odd = { ...make(status), stopsDone: 2, departed: true, arrived: bad as unknown as boolean };
+            expect(jobDetail(odd, businesses, 'Astoria').route[3].done).toBe(old[status]);
+          }
+        }
+      }
+    });
+  });
+
   it('an unresolved placeId reads "Unknown place", never the raw ID', () => {
     const job = relayLeg1();
     job.plan.legs[0].stops[1] = { ...job.plan.legs[0].stops[1], placeId: 'biz-gone' };

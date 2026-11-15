@@ -63,6 +63,9 @@ export type EmployeeJobView = {
   stopsDone?: number;
   // True once the job's commute has left: the simulation minute is at or past its trip's `departureMin` (#791). Optional like `stopsDone`.
   departed?: boolean;
+  // True once the job's commute has arrived (home in the evening, at work in the morning): the simulation minute is at or
+  // past its leg's `finishMin` (#836). Later than `status: 'completed'` when the leg goes on after its last stop. Optional like `departed`.
+  arrived?: boolean;
 };
 export type EmployeeDashboard = {
   employee: Employee; home: Home; trips: Trip[];
