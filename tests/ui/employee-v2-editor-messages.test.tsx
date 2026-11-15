@@ -194,7 +194,7 @@ describe('commute editor messages: the home is shown once (#598)', () => {
 });
 
 describe('commute editor messages: a locked run (#598)', () => {
-  it('the address search prints no sentence; the form prints one that names "Start new planning cycle"', () => {
+  it('the address search prints no sentence; the form prints one, which names no control that is gone', () => {
     const f = openEditor();
     f.poll(nowLocked);
 
@@ -204,7 +204,10 @@ describe('commute editor messages: a locked run (#598)', () => {
 
     expect(textOf(f.message())).toBe(LOCKED_MESSAGE);
     expect(f.message().getAttribute('role')).toBe('alert');
-    expect(LOCKED_MESSAGE).toContain('"Start new planning cycle" in the simulator');
+    // #720: the simulator has no "Start new planning cycle" button since MVP III (#700), so the sentence
+    // may not send the reader to it, or to any other button.
+    expect(LOCKED_MESSAGE).toBe('The run is playing, so the commute is read-only until a new planning cycle starts.');
+    expect(LOCKED_MESSAGE).not.toMatch(/Start new planning cycle|press|click|simulator/i);
     const formText = textOf(f.form());
     expect(count(formText, 'planning cycle')).toBe(1);
     expect(count(formText, 'read-only')).toBe(1);

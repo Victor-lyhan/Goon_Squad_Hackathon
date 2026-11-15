@@ -23,8 +23,13 @@ export const defaultEmployeeWorkspaceDeps: EmployeeWorkspaceDeps = {
 };
 
 /**
- * Saves a commute with the long timeout. Errors are rethrown unchanged (the form maps 409 and 503);
- * on success the dashboard is refetched at once so the new trips and matches show without waiting.
+ * Saves a commute with the long timeout. Errors are rethrown unchanged (the form maps 409 and 503).
+ * On success the dashboard is refetched at once, and the save is only done when that refetch is (#720):
+ * the page shows "Commute saved" and closes the editor when the save resolves, so resolving earlier put
+ * that note above the old departure and the old delivery times for one request (seen in Chrome on a slow
+ * connection, and whenever a poll was in flight when the PUT answered). `refetchNow` resolves after a
+ * poll that started after this call, also when that poll fails, so the save never hangs on it; a refetch
+ * that throws does not lose the saved answer either.
  */
 export async function saveCommuteWith(
   deps: Pick<EmployeeWorkspaceDeps, 'putCommute'>,
@@ -33,7 +38,7 @@ export async function saveCommuteWith(
   refetchNow: () => Promise<void>,
 ): Promise<CommuteResponse> {
   const res = await deps.putCommute(employeeId, req, { timeoutMs: COMMUTE_SAVE_TIMEOUT_MS });
-  void refetchNow();
+  try { await refetchNow(); } catch { /* the commute is saved; the next poll shows it */ }
   return res;
 }
 
