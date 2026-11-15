@@ -291,8 +291,8 @@ describe('v2 matchPending', () => {
 
     matchPending(run, ['shp-4'], sampleDeps());
 
-    // The same objects, unchanged. (The matcher lists the batch's plans first, as in MVP 1.)
-    expect(run.assignments.plans).toHaveLength(3);
+    // The same objects, unchanged, and the new plan after them: creation order (DECISIONS pass 4).
+    expect(run.assignments.plans.map((p) => p.id)).toEqual(['plan-shp-1', 'plan-shp-2', 'plan-shp-4']);
     expectSamePlanObjects(run, plansBefore);
     expect(plansBefore).toEqual(snapshot);
 
@@ -327,6 +327,37 @@ describe('v2 matchPending', () => {
     expect(run.events).toEqual(stubEvents(run.assignments.plans, run.jobs));
     expect(run.events).toHaveLength(4);
     expect(run.assignments.unmatched.map((u) => u.shipmentId)).toEqual(['shp-3']);
+  });
+
+  it('keeps plans, jobs and events in the creation order of their shipments, past shp-9 and after a request with no match', () => {
+    const run = freshRun();
+    // Ten or more deliveries: "shp-10" sorts before "shp-2" as text, so text order would show here.
+    const first = run.scenario.shipments.find((s) => s.id === 'shp-1')!;
+    run.scenario.shipments = run.scenario.shipments.filter((s) => s.id !== 'shp-1');
+    run.scenario.shipments.push({ ...first, id: 'shp-10', createdSeq: 10 });
+    const moved = { ...planFor(run, 'shp-1'), id: 'plan-shp-10', shipmentId: 'shp-10' };
+    run.assignments.plans = [planFor(run, 'shp-2'), moved];
+    Object.assign(run, materializeAssignment(run, run.assignments, sampleDeps()));
+
+    const planOrder = () => run.assignments.plans.map((p) => p.shipmentId);
+    const jobOrder = () => [...new Set(run.jobs.map((j) => j.shipmentId))];
+
+    addShipment(run, 11, 'Catering order', AGENCY, CAFE);
+    matchPending(run, ['shp-11'], sampleDeps());
+    expect(planOrder()).toEqual(['shp-2', 'shp-10', 'shp-11']);
+    expect(jobOrder()).toEqual(['shp-2', 'shp-10', 'shp-11']);
+    expect(run.events).toEqual(stubEvents(run.assignments.plans, run.jobs));
+
+    // A request with no match, and a retry of one, move nothing.
+    const plansBefore = [...run.assignments.plans];
+    const jobsBefore = structuredClone(run.jobs);
+    addShipment(run, 12, 'Second catering order', AGENCY, CAFE);
+    matchPending(run, ['shp-12'], sampleDeps());
+    matchPending(run, ['shp-3'], sampleDeps());
+    expect(run.assignments.unmatched.map((u) => u.shipmentId).sort()).toEqual(['shp-12', 'shp-3']);
+    expect(run.assignments.plans).toHaveLength(plansBefore.length);
+    run.assignments.plans.forEach((plan, i) => expect(plan).toBe(plansBefore[i]));
+    expect(run.jobs).toEqual(jobsBefore);
   });
 
   it('measures computeMs for the incremental match', () => {
