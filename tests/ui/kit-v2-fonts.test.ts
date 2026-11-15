@@ -387,14 +387,31 @@ describe('self-hosted Archivo, the display face (#955)', () => {
   });
 
   it('every rule that sets Archivo names it through the token with the face as the fallback, and states its weight', () => {
+    const STACK = "'Archivo Variable', 'Inter', system-ui, sans-serif";
+    const TOKEN = `var(--font-display, ${STACK})`;
+    // The Business page (#956) names the face --ns-display in its own palette. That name is the token and
+    // nothing else, declared once, so its stylesheets follow --font-display like the rest of the app.
+    const BUSINESS = join('client/src/components/business/v2');
+    const ALIAS = `var(--ns-display, ${STACK})`;
+    const aliasValues = SHEETS.flatMap(({ file, css }) =>
+      [...strip(css).matchAll(/--ns-display\s*:\s*([^;]+);/g)].map((m) => `${file}: ${m[1].trim()}`));
+    expect(aliasValues).toEqual([`${join(BUSINESS, 'page/businessPage.css')}: ${TOKEN}`]);
+
     const rules = SHEETS.flatMap(({ file, css }) => rulesOf(css).filter((r) => ownFamily(r) === 'display').map((r) => ({ file, r })));
     expect(rules.length).toBeGreaterThanOrEqual(8); // the header's name and links; the homepage's title, heading, figure and buttons
+    const viaAlias: string[] = [];
     for (const { file, r } of rules) {
       const where = `${file}: ${r.selectors.join(', ')}`;
-      expect(r.decls.get('font-family'), where).toBe("var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif)");
+      const family = r.decls.get('font-family');
+      if (family === ALIAS) viaAlias.push(file);
+      else expect(family, where).toBe(TOKEN);
       // The weight is stated where the face is, so a heading's or a link's inherited weight is never left to chance.
       expect(r.decls.get('font-weight'), where).toMatch(/^[1-9]00$/);
     }
+    // Only the Business stylesheets use the alias; the header and the homepage name the token itself.
+    expect(viaAlias.length).toBeGreaterThan(0);
+    for (const file of viaAlias) expect(file.startsWith(BUSINESS), file).toBe(true);
+    expect(rules.filter(({ file }) => !file.startsWith(BUSINESS)).length).toBeGreaterThanOrEqual(8);
   });
 
   it('every width asked of it is on the axis: condensed (under 100%) for large type, wide (over 100%) for small type', () => {
