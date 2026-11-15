@@ -12,6 +12,10 @@ import {
 import {
   activeDestination, cutoverPath, isFullWidthPath, isLegacyPreviewPath, pickAccount, workspaceHrefs,
 } from '../../client/src/ui/shellModel';
+import { loadWorkspacePages } from './lazy-pages-helper';
+
+// The workspace pages are lazy routes (#885): load them first, so a render shows the page, not the loading line.
+await loadWorkspacePages();
 
 const v2Employees = [
   { id: 'emp-01', name: 'Maya Chen' },

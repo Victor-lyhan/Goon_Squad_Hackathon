@@ -6,6 +6,11 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { vi } from 'vitest';
 import { AppShell } from '../../client/src/App';
 import { flush, mount } from './kitDom';
+import { loadWorkspacePages } from './lazy-pages-helper';
+
+// The workspace pages are lazy routes (#885). Every test file that imports this helper has them loaded
+// (its stand-in pages too) before its first render, so a route shows its page at once.
+await loadWorkspacePages();
 
 export const V2_EMPLOYEES = [
   { id: 'emp-01', name: 'Maya Chen' },

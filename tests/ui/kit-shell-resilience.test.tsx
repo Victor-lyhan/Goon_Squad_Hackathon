@@ -5,6 +5,10 @@ import { AppShell } from '../../client/src/App';
 import { ConnectionBanner } from '../../client/src/ui/ConnectionBanner';
 import { initialConnection, nextConnection } from '../../client/src/ui/connectionModel';
 import { reconcileSelection, runChanged, staleNote } from '../../client/src/ui/shellModel';
+import { loadWorkspacePages } from './lazy-pages-helper';
+
+// The workspace pages are lazy routes (#885): load them first, so a render shows the page, not the loading line.
+await loadWorkspacePages();
 
 const businesses = [{ id: 'biz-01', name: 'Brooklyn Roasters' }, { id: 'biz-02', name: 'Hudson Print Co' }];
 const employees = [{ id: 'emp-01', name: 'Maya Chen' }, { id: 'emp-02', name: 'Luis Ortega' }, { id: 'emp-03', name: 'Ana Ruiz' }, { id: 'emp-04', name: 'Sam Lee' }];
