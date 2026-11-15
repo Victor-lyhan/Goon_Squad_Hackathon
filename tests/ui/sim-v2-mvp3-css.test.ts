@@ -412,7 +412,7 @@ describe('Simulator CSS, MVP III look (#701)', () => {
 
     it('the day/night badge holds only its icon and the time, so the whole badge is mono', () => {
       const src = readFileSync(`${MAP}/GoogleBaseMap.tsx`, 'utf8');
-      const badge = /<div className=\{`map-v2__daynight map-v2__daynight--\$\{phase\}`\}[^>]*>([\s\S]*?)<\/div>/.exec(src)?.[1] ?? '';
+      const badge = /<div className="map-v2__daynight"[^>]*>([\s\S]*?)<\/div>/.exec(src)?.[1] ?? '';
       expect(badge).toContain('<span className="map-v2__daynight-time">{clockText}</span>');
       expect(badge.replace(/<svg[\s\S]*?<\/svg>/, '').replace(/\{clockText \? <span[^>]*>\{clockText\}<\/span> : null\}/, '').trim()).toBe('');
     });

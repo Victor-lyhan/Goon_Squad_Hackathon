@@ -127,8 +127,12 @@ describe('every control on the simulator map is the dark translucent pill of Pla
     expect(card).toContain('fill="currentColor"');
     expect(card).not.toMatch(/(fill|stroke)="#/);
     expect(decls('.spc-overnight__icon').has('color')).toBe(false);
-    // The legend's + / − takes the toggle's white, and the toggle takes the legend's.
-    expect(decls('.ml__chevron').has('color')).toBe(false);
+    // The legend's + / − takes the toggle's white, and the toggle takes the legend's. #874: the + / −
+    // has no class and no rule (it had `ml__chevron` with no rule behind it).
+    const legend = read('client/src/components/sim/v2/legend/MapLegend.tsx');
+    expect(legend).not.toContain('ml__chevron');
+    expect(legend).toContain(`<span aria-hidden="true">{isOpen ? '−' : '+'}</span>`);
+    expect(RULES.filter((r) => r.selectors.some((s) => s.includes('ml__chevron')))).toEqual([]);
     expect(decls('.ml__toggle').get('color')).toBe('inherit');
   });
 });
@@ -230,9 +234,28 @@ describe('nothing moved (#864): positions, sizes, z-order and the legend scroll 
     expect([corner.get('position'), corner.get('left'), corner.get('top'), corner.get('z-index'), corner.get('max-height'), corner.get('overflow-y')])
       .toEqual(['absolute', 'var(--space-3, 12px)', '48px', '2', 'calc(100% - 200px)', 'auto']);
     const legend = decls('.ml');
-    expect([legend.get('box-sizing'), legend.get('width'), legend.get('max-width')]).toEqual(['border-box', 'max-content', '240px']);
+    expect([legend.get('box-sizing'), legend.get('width'), legend.get('max-width')]).toEqual(['border-box', 'max-content', 'min(240px, 100%)']);
     // Play stays on top of all of them (bottom center, z-index 3).
     expect([decls('.spc-playbar').get('z-index'), decls('.spc-playbar').get('bottom')]).toEqual(['3', '32px']);
+  });
+
+  it('the legend fits inside the narrowest map (#874): 12px in from both sides, as Play, its labels wrapping', () => {
+    // A 900px window with both panels open leaves a 220px map; the legend was up to 240px and ran past it.
+    const corner = decls('.spc-legend');
+    // The corner box: at most the map less the 12px inset on each side (as Play), and at most the legend's
+    // 240px, so the empty scroll box never reaches past the legend and takes the map's clicks.
+    expect(corner.get('max-width')).toBe('min(240px, 100% - 2 * var(--space-3, 12px))');
+    expect(decls('.spc-playbar').get('max-width')).toBe('calc(100% - 2 * var(--space-3, 12px))');
+    expect(corner.get('left')).toBe('var(--space-3, 12px)');
+    // The legend box is never wider than that corner box (196px in a 220px map), never wider than 240px in a wide one.
+    expect(decls('.ml').get('max-width')).toBe('min(240px, 100%)');
+    // A label wraps beside its swatch (the swatch keeps its 20x14 box); a long word breaks rather than overflows.
+    expect(decls('.ml__label').get('min-width')).toBe('0');
+    expect(decls('.ml__label').get('overflow-wrap')).toBe('anywhere');
+    expect([decls('.ml__swatch-box').get('flex'), decls('.ml__swatch-box').get('width'), decls('.ml__swatch-box').get('height')]).toEqual(['0 0 auto', '20px', '14px']);
+    // No white-space: nowrap anywhere in the legend, so nothing can push it wider than its box.
+    const nowrap = RULES.filter((r) => r.selectors.some((s) => /^\.ml\b/.test(s)) && r.decls.some(([p, v]) => p === 'white-space' && v === 'nowrap'));
+    expect(nowrap).toEqual([]);
   });
 
   it('each box is as large as before: where a 1px border was, there is 1px more padding', () => {

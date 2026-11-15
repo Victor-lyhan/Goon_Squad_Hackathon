@@ -138,7 +138,9 @@ describe('withNightCasing: routes on the dark map', () => {
 describe('DayNightBadge', () => {
   it('night: a moon with the text alternative "Night" and the time', () => {
     const html = renderToStaticMarkup(<DayNightBadge phase="night" clockText="Day 1 · 6:12 PM" />);
-    expect(html).toContain('class="map-v2__daynight map-v2__daynight--night"');
+    // #874: one look by day and at night, so no phase modifier class; the phase is in data-day-night.
+    expect(html).toContain('class="map-v2__daynight"');
+    expect(html).not.toContain('map-v2__daynight--');
     expect(html).toContain('data-day-night="night"');
     expect(html).toMatch(/<svg[^>]*role="img"[^>]*aria-label="Night"/);
     expect(text(html)).toBe('Day 1 · 6:12 PM');
@@ -146,7 +148,9 @@ describe('DayNightBadge', () => {
 
   it('day: a sun with the text alternative "Day" and the time', () => {
     const html = renderToStaticMarkup(<DayNightBadge phase="day" clockText="Day 2 · 8:30 AM" />);
-    expect(html).toContain('class="map-v2__daynight map-v2__daynight--day"');
+    expect(html).toContain('class="map-v2__daynight"');
+    expect(html).not.toContain('map-v2__daynight--');
+    expect(html).toContain('data-day-night="day"');
     expect(html).toMatch(/<svg[^>]*role="img"[^>]*aria-label="Day"/);
     expect(html).toContain('<circle'); // the sun's disc; the moon is one path
     expect(text(html)).toBe('Day 2 · 8:30 AM');

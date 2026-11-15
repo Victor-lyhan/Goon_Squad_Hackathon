@@ -199,10 +199,11 @@ function SelectedAnnouncement({ text }: { text: string }) {
 /**
  * The sun or moon with the time, in the map's top-left corner. The icon carries the text alternative
  * ("Day" / "Night"); the time is plain text and is not a live region (it changes every second in Play).
+ * One look by day and at night (#864), so no phase modifier class (#874); the phase is in `data-day-night`.
  */
 export function DayNightBadge({ phase, clockText }: { phase: DayNight; clockText?: string }) {
   return (
-    <div className={`map-v2__daynight map-v2__daynight--${phase}`} data-day-night={phase}>
+    <div className="map-v2__daynight" data-day-night={phase}>
       <svg className="map-v2__daynight-icon" role="img" aria-label={DAY_NIGHT_ALT[phase]} viewBox="0 0 16 16" width="16" height="16">
         {phase === 'night' ? (
           <path fill="currentColor" d="M6.82 2.12A6 6 0 1 0 13.88 9.18 5 5 0 0 1 6.82 2.12Z" />

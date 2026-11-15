@@ -54,7 +54,8 @@ export function MapLegend({ mode, hasSelection = false, focus, open, onOpenChang
     <section className="ml" aria-label="Map legend">
       <button type="button" className="ml__toggle" aria-expanded={isOpen} aria-controls={bodyId} onClick={toggle}>
         <span>Legend</span>
-        <span className="ml__chevron" aria-hidden="true">{isOpen ? '−' : '+'}</span>
+        {/* The + / − takes the toggle's white; it needs no rule, so it has no class (issue 874). */}
+        <span aria-hidden="true">{isOpen ? '−' : '+'}</span>
       </button>
       <div id={bodyId} className="ml__body" hidden={!isOpen}>
         <ul className="ml__list">
