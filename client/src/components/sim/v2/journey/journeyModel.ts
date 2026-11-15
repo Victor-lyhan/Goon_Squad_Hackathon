@@ -30,6 +30,11 @@ export type JourneyStep = {
   n: number;
   kind: StopKind;
   label: string;
+  /**
+   * The step as one plain sentence (`stepSentence`): who does what, where. It is the line the timeline
+   * shows; `label` stays the short name of the stop for the map's tooltip and the Play bar's step text.
+   */
+  sentence: string;
   placeId: string;
   /** Business name, or "Unknown place"; never a raw place ID. */
   placeName: string;
@@ -132,6 +137,38 @@ const STEP_LABEL: Record<StopKind, string> = {
   delivery: 'Delivered to recipient',
 };
 
+/** Who a step's sentence names when the map has no name for the carrier. */
+export const SOMEONE = 'A commuter';
+/** The place a step's sentence names when the map has no name for the business. */
+const PLACE_ROLE: Record<StopKind, string> = {
+  pickup: 'the sender',
+  hub_drop: 'the relay point',
+  hub_pickup: 'the relay point',
+  delivery: 'the recipient',
+};
+
+/**
+ * One step of a journey as a plain sentence (issue 908): "Samira picks up the package at Blue Bottle
+ * Coffee." `who` is the carrier's first name and `place` the business's name, both read from the map
+ * response; without one the sentence says "A commuter" or the place's role. Only words: the step's
+ * time and state stay the plan's and the snapshot's.
+ */
+export function stepSentence(kind: StopKind, who: string, place: string): string {
+  const name = who.trim() || SOMEONE;
+  const at = place.trim() || PLACE_ROLE[kind] || 'the next stop';
+  switch (kind) {
+    case 'pickup': return `${name} picks up the package at ${at}.`;
+    case 'hub_drop': return `${name} leaves it at ${at} for the night.`;
+    case 'hub_pickup': return `${name} picks it up at ${at}.`;
+    case 'delivery': return `${name} delivers it to ${at}.`;
+    default: return `${name} stops at ${at}.`;
+  }
+}
+
+/** Where "See the numbers" goes: the study page, a static file (the homepage's button has the same two values). */
+export const NUMBERS_HREF = '/study.html';
+export const NUMBERS_LABEL = 'See the numbers';
+
 const EVENT_OF: Record<StopKind, SimEventKind> = {
   pickup: 'pickup',
   hub_drop: 'hub_drop',
@@ -168,6 +205,8 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   }
 
   const carrierName = (employeeId: string) => employees.get(employeeId)?.name ?? UNKNOWN_CARRIER;
+  // For the step sentences: the first name only ("Samira"), '' when the map has no name.
+  const firstName = (employeeId: string) => employees.get(employeeId)?.name?.trim().split(/\s+/)[0] ?? '';
 
   // ---- Stop symbols with short labels (times are clock times; the day/night badge gives the day) ----
   // Shared by the map's stops and the timeline's steps, so both read the same.
@@ -208,6 +247,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
         n: steps.length + 1,
         kind: stop.kind,
         label: STEP_LABEL[stop.kind] ?? 'Stop',
+        sentence: stepSentence(stop.kind, firstName(leg.employeeId), knownName(stop.placeId)),
         placeId: stop.placeId,
         placeName: placeName(stop.placeId),
         timeMin: stop.serviceEndMin,

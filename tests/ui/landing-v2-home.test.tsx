@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import Landing, {
-  HOW_STEPS, HOW_TITLE, HowItWorks, LANDING_TITLE, LandingTitle, LoadNote, STUDY_HREF, STUDY_LABEL, WORKSPACES,
+  HOW_STEPS, HOW_TITLE, HowItWorks, LANDING_TITLE, LandingTitle, LoadNote, STUDY_HREF, STUDY_LABEL, WATCH_NOTE_ID,
+  WATCH_NOTE_NARROW, WORKSPACES,
 } from '../../client/src/pages/Landing';
 import { HERO_LEGEND } from '../../client/src/pages/LandingHeroMap';
 import type { NycSummary } from '../../client/src/pages/landingModel';
@@ -37,9 +38,12 @@ describe('homepage content (#833)', () => {
     expect(html).not.toContain('class="landing-logo"');
     expect(html.match(/<h1[ >]/g)).toHaveLength(1);
     expect(html).toContain('<section class="landing-hero" aria-labelledby="landing-title">');
-    // nothing else next to the title but the button and the two entries: no paragraph, no environment line
-    expect(copy).not.toMatch(/<p[ >]/);
-    expect(text(copy)).toBe(`${LANDING_TITLE}Watch a package${WORKSPACES.map((w) => `${w.title}${w.text}`).join('')}`);
+    // nothing else next to the title but the button and the two entries: no environment line, and the one
+    // paragraph is the line under the button that only a window below 900 px shows (#908,
+    // tests/ui/demo-path-sim-half-polish.test.tsx has its CSS)
+    expect(copy.match(/<p[ >]/g)).toEqual(['<p ']);
+    expect(copy).toContain(`<p class="watch-note" id="${WATCH_NOTE_ID}">`);
+    expect(text(copy)).toBe(`${LANDING_TITLE}Watch a package${WATCH_NOTE_NARROW}${WORKSPACES.map((w) => `${w.title}${w.text}`).join('')}`);
   });
 
   it('the hero holds the centered column with the text, then the map outside it, and nothing else (#853, #869)', () => {

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, type MouseEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { readIdentity } from '../demoIdentity';
 import { LOGO_SRC } from '../ui/brand';
@@ -43,15 +43,44 @@ export const WORKSPACES: { key: WorkspaceKey; title: string; text: string }[] = 
   { key: 'employee', title: 'Employee', text: 'Set a commute and see your deliveries' },
 ];
 
-/** The large primary button: a link, so it works with the keyboard and before the run has loaded. */
-export function WatchButton({ to }: { to: string }) {
+/** The id of the line under the button; the button is described by it. */
+export const WATCH_NOTE_ID = 'landing-watch-note';
+/**
+ * Said under the button in a window too narrow for the simulator (below its own breakpoint, where it
+ * shows only its "needs a wider screen" notice): the reader is told before the press, and where to read on.
+ */
+export const WATCH_NOTE_NARROW = 'The simulator needs a wider screen. On this one, read How it works below.';
+/** The line while the button was pressed before the run had loaded: the page opens the journey as soon as it has. */
+export const WATCH_WAIT_TEXT = 'Opening the simulator…';
+
+/**
+ * The large primary button: a link, so it works with the keyboard and before the run has loaded.
+ * `onClick` lets the page hold a press that came before it knows the package (#908).
+ */
+export function WatchButton({ to, onClick }: { to: string; onClick?: (e: MouseEvent<HTMLAnchorElement>) => void }) {
   return (
-    <Link className="watch-button" to={to}>
+    <Link className="watch-button" to={to} aria-describedby={WATCH_NOTE_ID} onClick={onClick}>
       <svg className="watch-button-icon" viewBox="0 0 12 12" width="14" height="14" aria-hidden="true" focusable="false">
         <path d="M2 1l9 5-9 5z" fill="currentColor" />
       </svg>
       {WATCH_LABEL}
     </Link>
+  );
+}
+
+/**
+ * One line under the button (#908), which a wide window never shows: the hero there stays the title, the
+ * button and the two entries (#853). Below 900 px landing.css shows the sentence about the wider screen,
+ * so a phone is told before the press; hidden, it is `display: none` and not read out either. While
+ * `waiting` (any width) the line says the simulator is opening; that status region is in the page from
+ * the start, so a screen reader announces it.
+ */
+export function WatchNote({ waiting = false }: { waiting?: boolean }) {
+  return (
+    <p className={`watch-note${waiting ? ' is-waiting' : ''}`} id={WATCH_NOTE_ID}>
+      <span className="watch-note-narrow">{WATCH_NOTE_NARROW}</span>
+      <span className="watch-note-wait" role="status">{waiting ? WATCH_WAIT_TEXT : ''}</span>
+    </p>
   );
 }
 
@@ -148,7 +177,8 @@ function useNycSummary(initial?: NycSummary): NycSummary {
 
 /**
  * The homepage (#833): a dark hero with the title (the logo is its R, #853), the large "Watch a package"
- * button (it opens the simulator on the story package and plays it), Business and Employee as two smaller
+ * button (it opens the simulator on the story package and plays it; below 900 px one line under it says
+ * the simulator needs a wider screen, #908), Business and Employee as two smaller
  * entries, and a stylized NYC map on which a package is relayed in a loop; under it "How it works" in three
  * lines with the "See the numbers" button to the study page. The hero fills the window under the header, so
  * "How it works" starts below the fold. Its text sits in the left half of a centered column, which "How it
@@ -166,6 +196,22 @@ export default function Landing({ initialSummary }: {
   initialSummary?: NycSummary;
 } = {}) {
   const summary = useNycSummary(initialSummary);
+  const watchHref = watchPackageHref(summary);
+  // #908: while the run is loading the link has no package yet, and a press then opened the simulator
+  // with nothing picked (two more presses: a package, Play). Such a press is held instead, and the page
+  // goes to the journey as soon as the run is loaded, or to the plain simulator if the load fails (it has
+  // its own error state). A press with a modifier key, or with another button, is the browser's.
+  const navigate = useNavigate();
+  const [waiting, setWaiting] = useState(false);
+  const loading = summary.status === 'loading';
+  useEffect(() => {
+    if (waiting && !loading) navigate(watchHref);
+  }, [waiting, loading, watchHref, navigate]);
+  const holdWatch = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!loading || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    setWaiting(true);
+  };
   return (
     <div className="landing landing-nyc">
       <section className="landing-hero" aria-labelledby="landing-title">
@@ -174,7 +220,8 @@ export default function Landing({ initialSummary }: {
         <div className="landing-hero-inner">
           <div className="landing-hero-copy">
             <LandingTitle />
-            <WatchButton to={watchPackageHref(summary)} />
+            <WatchButton to={watchHref} onClick={holdWatch} />
+            <WatchNote waiting={waiting} />
             <WorkspaceEntries paths={nycWorkspacePaths(summary, readIdentity())} />
             <LoadNote status={summary.status} />
           </div>

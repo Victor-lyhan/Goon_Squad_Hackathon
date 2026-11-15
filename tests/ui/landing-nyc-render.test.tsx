@@ -54,7 +54,9 @@ describe('the homepage with sample /api/v2 responses', () => {
     expect(h).not.toContain('<footer');
     const copy = /<div class="landing-hero-copy">([\s\S]*?)<\/div>/.exec(h)![1];
     expect(copy.match(/<h1[ >]/g)).toHaveLength(1);
-    expect(copy).not.toMatch(/<p[ >]/);
+    // The one paragraph is the line under the button, which only a window below 900 px shows (#908).
+    expect(copy.match(/<p[ >]/g)).toEqual(['<p ']);
+    expect(copy).toContain('<p class="watch-note" ');
     // in every state, also after a failed load
     for (const s of [{ status: 'loading' }, { status: 'error' }, unavailable] as NycSummary[]) {
       expect(page({ initialSummary: s }), s.status).not.toContain(OLD_ENV_TEXT);

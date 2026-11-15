@@ -6,7 +6,9 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import Landing, { HOW_STEPS, HOW_TITLE, LANDING_TITLE, STUDY_LABEL, WATCH_LABEL, WORKSPACES } from '../../client/src/pages/Landing';
+import Landing, {
+  HOW_STEPS, HOW_TITLE, LANDING_TITLE, STUDY_LABEL, WATCH_LABEL, WATCH_NOTE_NARROW, WORKSPACES,
+} from '../../client/src/pages/Landing';
 import { HERO_LEGEND, HERO_MAP_LABEL } from '../../client/src/pages/LandingHeroMap';
 import type { NycSummary } from '../../client/src/pages/landingModel';
 
@@ -175,7 +177,7 @@ describe('"How it works" and "See the numbers" (#879)', () => {
 
   it('the copy of the whole page is short, in sentence case, and has no jargon or ids', () => {
     const copy = [
-      LANDING_TITLE, WATCH_LABEL, STUDY_LABEL, HOW_TITLE, ...HOW_STEPS,
+      LANDING_TITLE, WATCH_LABEL, WATCH_NOTE_NARROW, STUDY_LABEL, HOW_TITLE, ...HOW_STEPS,
       ...WORKSPACES.flatMap((w) => [w.title, w.text]), ...HERO_LEGEND.map((x) => x.text), HERO_MAP_LABEL,
     ];
     for (const line of copy) {
@@ -206,7 +208,8 @@ describe('the homepage\'s fonts and keyboard order (#879)', () => {
 
   it('the page\'s links are in the order they are drawn: Watch a package, Business, Employee, See the numbers', () => {
     // The header's stops come first (tests/ui/landing-dom-two-entries.test.tsx walks the whole shell).
-    const links = [...html.matchAll(/<a class="([^"]*)" href="([^"]*)"/g)].map((m) => `${m[1]} ${m[2]}`);
+    // The button is described by the line under it (#908), so its `aria-describedby` sits before its href.
+    const links = [...html.matchAll(/<a class="([^"]*)"(?: aria-describedby="[^"]*")? href="([^"]*)"/g)].map((m) => `${m[1]} ${m[2]}`);
     expect(links).toEqual([
       'watch-button /simulator?package=shp-3&amp;play=1', 'workspace-entry /business/biz-a', 'workspace-entry /employee/emp-a', 'numbers-button /study.html',
     ]);
