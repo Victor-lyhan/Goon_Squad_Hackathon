@@ -17,7 +17,8 @@ import { JobDetailV2, JobV2Missing, JobV2Other } from '../JobDetailV2';
 import { RECONNECTING_TEXT, RUN_CHANGED_NOTE, type EmployeeWorkspaceState } from '../live/employeeWorkspaceState';
 import {
   ERROR_TITLE, JOB_LOADING_TEXT, LOADING_TEXT, NOT_FOUND_TEXT, NOT_FOUND_TITLE, NO_EMPLOYEES_TEXT,
-  jobHref, outcomeFromError, outcomeFromResponse, pageScreen, saveNotice, showRunNote, type SaveOutcome,
+  jobHref, outcomeAfterDashboard, outcomeFromError, outcomeFromResponse, pageScreen, saveNotice, showRunNote,
+  type SaveOutcome,
 } from './employeePageModel';
 import { PageLink } from './PageLink';
 import './employeePage.css';
@@ -74,6 +75,17 @@ export function EmployeePageView({
   // "Commute saved" is for the moment after a save (#634): it goes when a job view opens and when the
   // run is locked (playback), and it does not come back. Opening the editor clears it as before.
   if (outcome?.kind === 'saved' && (jobId || state.dashboard?.phase === 'locked')) setOutcome(null);
+
+  // A 409 leaves its sentence above the editor and locks the form. Both go when a later dashboard says
+  // planning (Back to start). The form drops its own lock by the same rule (phase and version, CommuteForm),
+  // so the two never disagree.
+  const polled = state.dashboard ? { phase: state.dashboard.phase, version: state.dashboard.version } : null;
+  const [seenDashboard, setSeenDashboard] = useState(polled);
+  if (polled && (seenDashboard?.phase !== polled.phase || seenDashboard.version !== polled.version)) {
+    setSeenDashboard(polled);
+    const next = outcomeAfterDashboard(outcome, polled.phase);
+    if (next !== outcome) setOutcome(next);
+  }
 
   useEffect(() => { if (jobId) markSeen(jobId); }, [jobId, markSeen]);
 
@@ -230,6 +242,7 @@ export function EmployeePageView({
           home={dashboard.home}
           businesses={businesses}
           phase={dashboard.phase}
+          dashboardVersion={dashboard.version}
           homeControl={homeControl}
           onSave={onSave}
           // A save is said by the page's live region; with no save in play the form's own region still

@@ -28,6 +28,7 @@ type Props = {
   origin?: NetworkBusiness;
   businesses?: NetworkBusiness[];
   phase?: Phase;
+  dashboardVersion?: number;
   onSubmit?: (req: CreateShipmentRequest) => Promise<ShipmentResponse>;
   onOpenDelivery?: (id: string) => void;
 };
@@ -41,6 +42,7 @@ function setup(p: Props = {}) {
       origin={over.origin ?? p.origin ?? ACME}
       businesses={over.businesses ?? p.businesses ?? BUSINESSES}
       phase={over.phase ?? p.phase ?? 'planning'}
+      dashboardVersion={over.dashboardVersion ?? p.dashboardVersion}
       onSubmit={onSubmit}
       onOpenDelivery={onOpenDelivery}
       onCancel={onCancel}
@@ -256,6 +258,82 @@ describe('New delivery form in a real DOM', () => {
     await flush();
     expect(f.alert()).toContain('Run is locked');
     expect(f.send().disabled).toBe(true);
+  }, T);
+
+  // #755: the page is up to one poll behind, so a press right after Play is answered 409 while the form's
+  // dashboard still says planning. The refusal locks the form; a later planning dashboard reopens it.
+  it('a 409 stays until a later dashboard says planning: then the form is open again with the typing intact', async () => {
+    const sent = 'The simulation is playing. Press Back to start in the simulator to reopen requests.';
+    let refuse = true;
+    const f = setup({
+      dashboardVersion: 5,
+      onSubmit: async () => { if (refuse) throw new ApiRequestError(409, sent); return matchedAnswer(); },
+    });
+    const fields = () => [...f.container.querySelectorAll<HTMLInputElement | HTMLSelectElement>('form input, form select')];
+    fill(f);
+    click(f.send());
+    await flush();
+    expect(f.send().disabled).toBe(true);
+    expect(f.alert()).toBe(sent);
+
+    // The same dashboard again (a re-render, or a poll with the same version): still refused.
+    f.rerenderWith({ phase: 'planning', dashboardVersion: 5 });
+    expect(f.send().disabled).toBe(true);
+    expect(f.alert()).toBe(sent);
+    // The poll that brings the lock: still refused, with the server's text as sent.
+    f.rerenderWith({ phase: 'locked', dashboardVersion: 6 });
+    expect(f.send().disabled).toBe(true);
+    expect(f.alert()).toBe(sent);
+    f.rerenderWith({ phase: 'locked', dashboardVersion: 9 });
+    expect(f.alert()).toBe(sent);
+
+    // Back to start: the next dashboard says planning.
+    f.rerenderWith({ phase: 'planning', dashboardVersion: 10 });
+    expect(f.send().disabled).toBe(false);
+    expect(f.alert()).toBe('');
+    expect(fields().length).toBeGreaterThan(0);
+    for (const field of fields()) expect(field.disabled, field.id).toBe(false);
+    expect((f.field('Package name') as HTMLInputElement).value).toBe('Lab samples');
+    expect((f.field('Weight (kg)') as HTMLInputElement).value).toBe('1.2');
+    expect((f.field('Contents') as HTMLInputElement).value).toBe('Two sealed vials');
+    expect((f.field('Pickup instructions (optional)') as HTMLInputElement).value).toBe('Front desk');
+
+    // The same request goes out again (same ID, so it can never be stored twice) and is answered.
+    refuse = false;
+    click(f.send());
+    await flush();
+    expect(f.onSubmit).toHaveBeenCalledTimes(2);
+    expect(f.onSubmit.mock.calls[1][0]).toEqual(f.onSubmit.mock.calls[0][0]);
+    expect(f.onSubmit.mock.calls[0][0]).toEqual(toRequest(TYPED, ACME.id, f.onSubmit.mock.calls[0][0].clientRequestId));
+    expect(f.status()).toContain(RESULT_COPY.matched);
+  }, T);
+
+  it('a 409 is dropped by a newer planning dashboard even when the page never saw the lock', async () => {
+    // Play, the press and Back to start all inside one poll interval: the phase the form is given never changes.
+    const f = setup({ dashboardVersion: 5, onSubmit: async () => { throw new ApiRequestError(409, 'Run is locked'); } });
+    fill(f);
+    click(f.send());
+    await flush();
+    expect(f.send().disabled).toBe(true);
+    f.rerenderWith({ phase: 'planning', dashboardVersion: 7 });
+    expect(f.send().disabled).toBe(false);
+    expect(f.alert()).toBe('');
+    expect((f.field('Package name') as HTMLInputElement).value).toBe('Lab samples');
+  }, T);
+
+  it('without a dashboard version, a 409 is dropped when the phase comes back to planning', async () => {
+    const f = setup({ onSubmit: async () => { throw new ApiRequestError(409, 'Run is locked'); } });
+    fill(f);
+    click(f.send());
+    await flush();
+    f.rerenderWith({ phase: 'planning' });
+    expect(f.send().disabled).toBe(true);
+    f.rerenderWith({ phase: 'locked' });
+    expect(f.alert()).toBe('Run is locked');
+    f.rerenderWith({ phase: 'planning' });
+    expect(f.send().disabled).toBe(false);
+    expect(f.alert()).toBe('');
+    expect((f.field('Package name') as HTMLInputElement).value).toBe('Lab samples');
   }, T);
 
   it('Esc in the form cancels it', () => {

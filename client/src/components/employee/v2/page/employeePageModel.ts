@@ -2,6 +2,7 @@
 // each commute-save outcome. It only reads API responses and errors; it computes no status, ETA,
 // reward or count of its own (the matched count is the length of the server's rematchedShipmentIds).
 import type { CommuteResponse, GeocodeResponse } from '../../../../../../shared/v2/api';
+import type { Phase } from '../../../../../../shared/v2/types';
 import { ApiRequestError, isTravelUnavailable, type RequestOptions, type TravelUnavailableCode } from '../../../../api/v2';
 import type { AddressResult, SearchFn } from '../addressSearchModel';
 import { unavailableMessage } from '../commuteFormModel';
@@ -105,6 +106,15 @@ export function outcomeFromError(e: unknown): SaveOutcome {
     if (e.status === 400) return { kind: 'invalid', message: message || FAILED_TEXT };
   }
   return { kind: 'failed', message: message || FAILED_TEXT };
+}
+
+/**
+ * The outcome once a dashboard newer than it arrived (a poll). A 409's refusal goes when that dashboard
+ * says planning ("Back to start", DECISIONS pass 74): its sentence is no longer true. Every other outcome,
+ * and a refusal while the run is still locked, stays as it is.
+ */
+export function outcomeAfterDashboard(o: SaveOutcome | null, phase: Phase): SaveOutcome | null {
+  return o?.kind === 'locked' && phase === 'planning' ? null : o;
 }
 
 /** Text of a 503 for its code: the workspace's fixed copy for missing data, the form's copy otherwise. */

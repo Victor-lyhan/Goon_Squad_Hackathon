@@ -224,6 +224,7 @@ export function BusinessPageView({
                 origin={d.business}
                 businesses={businesses}
                 phase={d.phase}
+                dashboardVersion={d.version}
                 onSubmit={createShipment}
                 onOpenDelivery={onOpenShipment}
                 onCancel={closeNew}

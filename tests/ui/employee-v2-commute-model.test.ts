@@ -139,6 +139,38 @@ describe('saveReducer', () => {
       .toEqual({ status: 'locked' });
   });
 
+  // #755: the 409 locks the editor on its own; a planning dashboard that arrives after it reopens the editor.
+  it('a planning dashboard after a 409 drops the lock; a locked one keeps it; the typed draft is not touched', () => {
+    const typed: Draft = { ...draftFromSaved(employee, home), maxExtraMin: 12, eveningDepartureMin: 1080 };
+    const refused = saveReducer({ status: 'saving' }, { type: 'failure', error: { status: 409, message: 'Locked' } });
+    expect(refused).toEqual({ status: 'locked' });
+    expect(saveMessage(refused, 'planning')?.role).toBe('alert');
+    // The dashboard still says locked: nothing changes.
+    expect(saveReducer(refused, { type: 'dashboard', phase: 'locked' })).toBe(refused);
+    const reopened = saveReducer(refused, { type: 'dashboard', phase: 'planning' });
+    expect(reopened).toEqual({ status: 'idle' });
+    expect(saveMessage(reopened, 'planning')).toBeNull();
+    // The poll that brought the planning dashboard has equal saved values, so the draft is the same object
+    // (pass 43), still unsaved, and it still makes the request that was refused.
+    const next = nextDraft(typed, saved, clone());
+    expect(next).toBe(typed);
+    expect(isDirty(next, clone())).toBe(true);
+    expect(toRequest(next)).toMatchObject({ ok: true, request: { maxExtraMin: 12, eveningDepartureMin: 1080 } });
+  });
+
+  it('a dashboard changes no other save state: only a 409 is undone by planning', () => {
+    const others = [
+      INITIAL_SAVE_STATE,
+      { status: 'saving' } as const,
+      { status: 'saved', matched: 2 } as const,
+      { status: 'unavailable', code: 'google_unavailable' } as const,
+      { status: 'error', message: 'Bad', fieldErrors: {} } as const,
+    ];
+    for (const state of others) {
+      for (const phase of ['planning', 'locked'] as const) expect(saveReducer(state, { type: 'dashboard', phase })).toBe(state);
+    }
+  });
+
   it('maps 503 codes to unavailable, from the error or its body', () => {
     for (const code of ['google_key_missing', 'travel_data_missing', 'google_unavailable'] as const) {
       expect(saveReducer({ status: 'saving' }, { type: 'failure', error: { status: 503, code } }))

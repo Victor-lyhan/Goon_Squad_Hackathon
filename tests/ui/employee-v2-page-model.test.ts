@@ -6,8 +6,8 @@ import {
   TRAVEL_DATA_MISSING_TEXT, employeeWorkspaceReducer, initialWorkspaceState,
 } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
 import {
-  NETWORK_TEXT, SAVING_TEXT, TIMEOUT_TEXT, outcomeFromError, outcomeFromResponse, pageScreen, saveNotice,
-  searchFromGeocode, showRunNote, siblingEmployeePath,
+  NETWORK_TEXT, SAVING_TEXT, TIMEOUT_TEXT, outcomeAfterDashboard, outcomeFromError, outcomeFromResponse, pageScreen,
+  saveNotice, searchFromGeocode, showRunNote, siblingEmployeePath, type SaveOutcome,
 } from '../../client/src/components/employee/v2/page/employeePageModel';
 import { dash, jobResponse } from './employeeV2DataSample';
 
@@ -43,6 +43,25 @@ describe('save outcomes', () => {
   it("409 shows the server's text and keeps the form open", () => {
     const n = notice(new ApiRequestError(409, 'Planning is locked while the run plays.'));
     expect(n).toEqual({ at: 'page', role: 'alert', text: 'Planning is locked while the run plays.', formOpen: true });
+  });
+
+  // #755: the page's 409 sentence goes when a later dashboard says planning (Back to start).
+  it('a planning dashboard after a 409 drops the refusal; a locked one keeps it with the text as sent', () => {
+    const refused = outcomeFromError(new ApiRequestError(409, 'Planning is locked while the run plays.'));
+    expect(refused).toEqual({ kind: 'locked', message: 'Planning is locked while the run plays.' });
+    expect(outcomeAfterDashboard(refused, 'locked')).toBe(refused);
+    expect(outcomeAfterDashboard(refused, 'planning')).toBeNull();
+    expect(outcomeAfterDashboard(null, 'planning')).toBeNull();
+  });
+
+  it('a dashboard changes no other outcome: only a 409 is undone by planning', () => {
+    const others: SaveOutcome[] = [
+      { kind: 'saving' }, { kind: 'saved', matched: 1 }, { kind: 'unavailable', code: 'google_unavailable' },
+      { kind: 'invalid', message: 'Bad' }, { kind: 'timeout' }, { kind: 'network' }, { kind: 'failed', message: 'Oops' },
+    ];
+    for (const outcome of others) {
+      for (const phase of ['planning', 'locked'] as const) expect(outcomeAfterDashboard(outcome, phase)).toBe(outcome);
+    }
   });
 
   it('each 503 code shows its unavailable text', () => {
