@@ -68,7 +68,7 @@ let dist: string;
 const servers: Server[] = [];
 
 async function start(v2?: V2Deps): Promise<string> {
-  const server = createApp(v2 ? { clientDist: dist, v2 } : { clientDist: dist }).listen(0);
+  const server = createApp(v2 ? { clientDist: dist, v2 } : { clientDist: dist }).listen(0, '127.0.0.1');
   servers.push(server);
   await new Promise((r) => server.once('listening', r));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

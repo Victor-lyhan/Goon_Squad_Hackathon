@@ -87,6 +87,8 @@ export async function startRehearsalApi() {
     throw new Error(`/api/v2 did not load on the copy of fixtures/nyc: ${runtime.reason ?? 'no store'}`);
   }
   const app = createApp({ clientDist: path.join(root, 'no-dist'), v2: runtime.deps });
+  // 127.0.0.1 only (#821): a server on every address shares its port number with any program that listens
+  // on 127.0.0.1 alone, and that program then answers the requests below instead ("MCP server", PR #818).
   const server: Server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -139,6 +141,8 @@ export async function startRehearsalApi() {
     fixturesDir,
     statePath,
     runtime,
+    /** `http://127.0.0.1:<port>` of this server, the only address it listens on. */
+    origin,
     log,
     googleCalls,
     outgoing,

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ASSUMPTIONS, ASSUMPTION_KEYS } from '../../scripts/study/assumptions';
 import { DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
-import { assumptionValueParts, escapeHtml, renderStudyPage } from '../../scripts/study/page';
+import { CARD_MIN_WIDTH, CHART_TEXT_PX, CHART_WIDTH, assumptionValueParts, escapeHtml, headlineTiles, renderStudyPage } from '../../scripts/study/page';
 import { runStudy } from '../../scripts/study/runner';
 import type { StudyResults } from '../../scripts/study/types';
 import { STUDY_TIMEOUT_MS, TWO_RUN_GRID, studyInput } from './study-helper';
@@ -73,11 +73,40 @@ function references(html: string): string[] {
   ];
 }
 const isExternal = (reference: string): boolean => /^\s*(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(reference);
+/** The one `<link>` the page may have: an empty tab icon, so the browser does not ask for /favicon.ico. */
+const EMPTY_ICON = '<link rel="icon" href="data:,">';
 
 function expectSelfContained(html: string): void {
   expect(references(html).filter(isExternal)).toEqual([]);
-  expect(html).not.toMatch(/<script|<link|<img|<iframe|<object|<embed|<video|<audio|@import|@font-face|\sxmlns/i);
+  expect(html.replace(EMPTY_ICON, '')).not.toMatch(/<script|<link|<img|<iframe|<object|<embed|<video|<audio|@import|@font-face|\sxmlns/i);
   expect(html).not.toMatch(/https?:\/\//i);
+}
+
+const styleOf = (html: string): string => html.match(/<style>([\s\S]*?)<\/style>/)![1]!;
+const chartOf = (html: string, id: string): string => html.match(new RegExp(`<svg data-chart="${id}"[\\s\\S]*?</svg>`))![0];
+/** The declarations of the first CSS rule with exactly this selector, outside any media query. */
+function rule(css: string, selector: string): string {
+  const match = new RegExp(`(?:^|[}\\n])${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\{([^}]*)\\}`).exec(css);
+  expect(match, `CSS rule "${selector}"`).not.toBeNull();
+  return match![1]!;
+}
+type ChartText = { cls: string; x: number; y: number; anchor: string; text: string };
+/** Every `<text>` of a chart with its position. */
+function chartTexts(svg: string): ChartText[] {
+  return [...svg.matchAll(/<text class="([^"]+)" x="([\d.-]+)" y="([\d.-]+)"(?: text-anchor="(\w+)")?>([^<]*)<\/text>/g)]
+    .map(match => ({ cls: match[1]!, x: Number(match[2]), y: Number(match[3]), anchor: match[4] ?? 'start', text: match[5]! }));
+}
+/**
+ * The width of a chart text in SVG units, a little above what Chrome measured (#808): a figure (class `num`,
+ * monospace) is 0.6 em per character, a sans label averaged 0.54 em ("120 employees" was 84.7 units).
+ */
+const textWidth = (t: ChartText): number => t.text.length * CHART_TEXT_PX * (t.cls.includes('num') ? 0.6 : 0.58);
+/** The left and right edge of a chart text, from its anchor. */
+function extent(t: ChartText): { left: number; right: number } {
+  const width = textWidth(t);
+  if (t.anchor === 'end') return { left: t.x - width, right: t.x };
+  if (t.anchor === 'middle') return { left: t.x - width / 2, right: t.x + width / 2 };
+  return { left: t.x, right: t.x + width };
 }
 
 describe('the study page', () => {
@@ -190,7 +219,7 @@ describe('the study page', () => {
     const svgs = page.match(/<svg[\s\S]*?<\/svg>/g) ?? [];
     expect(svgs).toHaveLength(10);
     for (const svg of svgs) {
-      expect(svg).toMatch(/^<svg data-chart="[a-z0-9-]+" viewBox="0 0 360 \d+" role="img" aria-label="[^"]+">/);
+      expect(svg).toMatch(new RegExp(`^<svg data-chart="[a-z0-9-]+" viewBox="0 0 ${CHART_WIDTH} \\d+" role="img" aria-label="[^"]+">`));
       expect(svg).toMatch(/<(path|rect) class="f-/); // at least one mark
       expect(svg).not.toMatch(/NaN|undefined|Infinity|null/);
     }
@@ -208,7 +237,7 @@ describe('the study page', () => {
       expect(chart(id)).toMatch(/>Relay<\/text>[\s\S]*>Courier<\/text>/);
     }
     // The smaller value gets the shorter bar: Relay's bar ends before the courier's.
-    const widths = [...chart('cost').matchAll(/<path class="f-(?:relay|courier)" d="M60 [\d.]+h([\d.]+)/g)].map(match => Number(match[1]));
+    const widths = [...chart('cost').matchAll(/<path class="f-(?:relay|courier)" d="M[\d.]+ [\d.]+h([\d.]+)/g)].map(match => Number(match[1]));
     expect(widths).toHaveLength(2);
     expect(widths[0]!).toBeLessThan(widths[1]!);
     expect(widths[0]! / widths[1]!).toBeCloseTo(1000 / 1599, 1);
@@ -235,7 +264,7 @@ describe('the study page', () => {
 
   it('makes no network request: no external src or href, no script, no stylesheet, no web font', () => {
     expectSelfContained(page);
-    expect(references(page).sort()).toEqual(['#assumptions', '/', '/']);
+    expect(references(page).sort()).toEqual(['#assumptions', '/', '/', 'data:,']);
     // The check itself sees the forms it is meant to catch.
     expect(references('<a href="https://x.test/a"><img src=//cdn.test/b.png><p style="background:url(\'http://y.test\')">').filter(isExternal))
       .toEqual(['https://x.test/a', '//cdn.test/b.png', 'http://y.test']);
@@ -266,6 +295,155 @@ describe('the study page', () => {
     expect(renderStudyPage(sample)).toBe(page);
     expect(renderStudyPage(JSON.parse(JSON.stringify(sample)) as StudyResults)).toBe(page);
     expect(page).not.toMatch(/\b20\d\d-\d\d-\d\d\b|\bid="(?!assumptions")/);
+  });
+});
+
+// What headless Chrome showed at 1440 px and at a true 390 px viewport (#808), one test per fault. jsdom lays
+// nothing out, so each test checks the markup and CSS the measured fault came from.
+describe('the study page on a laptop and on a phone (#808)', () => {
+  const css = styleOf(page);
+  const pinnedPage = renderStudyPage(pinned);
+
+  it('never draws chart text below 12 px: a card is at least as wide as the chart box, also at 390 px', () => {
+    // Before: a 360-unit chart in a 324 px card (390 px viewport) was scaled to 0.9, so 12 px text was 10.8 px.
+    expect(CHART_TEXT_PX).toBeGreaterThanOrEqual(12);
+    expect(css).toContain(`svg text{font-size:${CHART_TEXT_PX}px}`);
+    expect(css).not.toMatch(/font-size:(?:\d|1[01])(?:\.\d+)?px/); // no HTML text below 12 px either
+    for (const svg of page.match(/<svg[\s\S]*?<\/svg>/g) ?? []) expect(svg).toContain(` viewBox="0 0 ${CHART_WIDTH} `);
+
+    // The chart fills its card (width 100%) and may only grow from its own width.
+    const svgRule = rule(css, 'svg');
+    expect(svgRule).toContain('width:100%');
+    expect(Number(/max-width:(\d+)px/.exec(svgRule)![1])).toBeGreaterThanOrEqual(CHART_WIDTH);
+
+    // The card: its content box is the chart's width when the card is at its narrowest.
+    const card = rule(css, '.card');
+    const padding = /padding:\d+px (\d+)px \d+px/.exec(card);
+    const border = /border-width:(\d+)px/.exec(card);
+    expect(padding).not.toBeNull();
+    expect(border).not.toBeNull();
+    const cardExtra = 2 * (Number(padding![1]) + Number(border![1]));
+    expect(CARD_MIN_WIDTH - cardExtra).toBe(CHART_WIDTH);
+    expect(css).toContain('*{box-sizing:border-box}');
+
+    // The grid never makes a column narrower than that card, and never wider than a narrow page.
+    expect(rule(css, '.grid3')).toContain(`grid-template-columns:repeat(auto-fit,minmax(min(100%,${CARD_MIN_WIDTH}px),1fr))`);
+
+    // At 390 px the one column is the viewport minus the page padding of the phone layout.
+    const phone = css.slice(css.indexOf('@media (max-width:640px)'));
+    const pagePadding = Number(/main\{padding:\d+px (\d+)px \d+px\}/.exec(phone)![1]);
+    expect(390 - 2 * pagePadding).toBeGreaterThanOrEqual(CARD_MIN_WIDTH);
+    // Three columns fit the widest page (main is at most 1120 px with 20 px padding and 12 px gaps).
+    expect(3 * CARD_MIN_WIDTH + 2 * 12).toBeLessThanOrEqual(1120 - 2 * 20);
+  });
+
+  it('keeps every chart text inside the chart box', () => {
+    for (const html of [page, pinnedPage, renderStudyPage(empty), renderStudyPage(unmatched)]) {
+      for (const svg of html.match(/<svg[\s\S]*?<\/svg>/g) ?? []) {
+        const height = Number(/viewBox="0 0 \d+ (\d+)"/.exec(svg)![1]);
+        const texts = chartTexts(svg);
+        expect(texts.length).toBe((svg.match(/<text/g) ?? []).length); // the reader above saw every text
+        for (const t of texts) {
+          const { left, right } = extent(t);
+          expect(left, `${t.text} left`).toBeGreaterThanOrEqual(0);
+          expect(right, `${t.text} right`).toBeLessThanOrEqual(CHART_WIDTH);
+          expect(t.y - CHART_TEXT_PX * 0.8, `${t.text} top`).toBeGreaterThanOrEqual(0); // cap height above the baseline
+          expect(t.y + CHART_TEXT_PX * 0.25, `${t.text} bottom`).toBeLessThanOrEqual(height); // descender below it
+        }
+      }
+    }
+  });
+
+  it('keeps the axis labels of a run distribution apart: "runs" above the top count, the bin labels below "0"', () => {
+    // Before: "runs" sat 12 units above the top count label and "0" 13 units above the first bin label,
+    // both at the same x, so at 390 px they read as one block.
+    const lineGap = CHART_TEXT_PX + 4;
+    for (const id of ['runs-cost', 'runs-miles', 'runs-co2']) {
+      const texts = chartTexts(chartOf(page, id));
+      const runsTitle = texts.find(t => t.text === 'runs')!;
+      const counts = texts.filter(t => t.cls === 'tm num' && t.anchor === 'end');
+      const bins = texts.filter(t => t.cls === 'tm num' && t.anchor === 'middle');
+      const axisTitle = texts.find(t => t.cls === 'tm' && t.anchor === 'middle')!;
+      expect(counts.length).toBeGreaterThanOrEqual(2);
+      expect(bins.length).toBeGreaterThanOrEqual(2);
+      expect(counts.map(t => t.text)).toContain('0');
+
+      const topCountY = Math.min(...counts.map(t => t.y));
+      const zeroY = counts.find(t => t.text === '0')!.y;
+      expect(new Set(bins.map(t => t.y)).size).toBe(1);
+      expect(topCountY - runsTitle.y).toBeGreaterThanOrEqual(lineGap);
+      expect(bins[0]!.y - zeroY).toBeGreaterThanOrEqual(lineGap);
+      expect(axisTitle.y - bins[0]!.y).toBeGreaterThanOrEqual(lineGap);
+
+      // Neighbouring bin labels do not run into each other.
+      const sorted = [...bins].sort((a, b) => a.x - b.x);
+      for (let index = 1; index < sorted.length; index += 1) {
+        expect(extent(sorted[index]!).left, `${sorted[index - 1]!.text} | ${sorted[index]!.text}`).toBeGreaterThan(extent(sorted[index - 1]!).right);
+      }
+    }
+  });
+
+  it('keeps a row label clear of its bar in the match-rate and per-package charts', () => {
+    for (const id of ['match-employees', 'match-packages', 'match-detour', 'cost', 'miles', 'co2']) {
+      const svg = chartOf(pinnedPage, id);
+      const starts = [...svg.matchAll(/<(?:rect class="f-track" x="|path class="f-[a-z]+" d="M)([\d.]+)/g)].map(match => Number(match[1]));
+      expect(starts.length).toBeGreaterThanOrEqual(1);
+      const barStart = Math.min(...starts);
+      const names = chartTexts(svg).filter(t => t.cls === 't' && t.x === 0);
+      expect(names.length).toBeGreaterThanOrEqual(1); // the two-run sample has one row per match-rate chart
+      for (const name of names) expect(extent(name).right, name.text).toBeLessThan(barStart);
+    }
+    // And the figure after a per-package bar ends inside the box even for the longest bar.
+    for (const id of ['cost', 'miles', 'co2']) {
+      for (const value of chartTexts(chartOf(pinnedPage, id)).filter(t => t.cls === 't num')) {
+        expect(extent(value).right, value.text).toBeLessThanOrEqual(CHART_WIDTH);
+      }
+    }
+  });
+
+  it('asks the server for nothing but itself: the tab icon is an empty data: URL', () => {
+    // Before: with no icon named, Chrome asked for /favicon.ico (and got the app's index.html).
+    const head = page.slice(0, page.indexOf('</head>'));
+    expect(head).toContain(EMPTY_ICON);
+    expect(page.match(/<link\b/g)).toHaveLength(1);
+    expect(page).not.toMatch(/favicon|\.ico\b|\.png\b/);
+  });
+
+  it('lets the headers of the run table wrap, so its 14 columns fit a laptop without sideways scroll', () => {
+    // Before: one-line headers made the table 1308 px wide in a 1078 px box at 1440 px; 4 columns were cut off.
+    expect(rule(css, '.runs thead th')).toContain('white-space:normal');
+    expect(rule(css, '.runs th,.runs td')).toContain('white-space:nowrap'); // the numbers stay on one line
+    const header = page.match(/<table class="runs">\s*<thead>([\s\S]*?)<\/thead>/)![1]!;
+    const columns = [...header.matchAll(/<th scope="col">([^<]*)<\/th>/g)].map(match => match[1]!);
+    expect(columns).toHaveLength(14);
+    // "/ pkg" stays together, so a header breaks before the slash, not after it.
+    expect(columns.filter(column => column.includes('pkg'))).toHaveLength(5);
+    for (const column of columns.filter(column => column.includes('pkg'))) expect(column).toMatch(/ \/&nbsp;pkg$/);
+    // On a phone the table still scrolls inside its own box, not the page.
+    expect(page).toMatch(/<div class="scroll">\s*<table class="runs">/);
+    expect(rule(css, '.scroll')).toContain('overflow-x:auto');
+  });
+
+  it('lines the headline values up when one label needs two lines: tiles share their rows', () => {
+    // Before: at 1440 px "Delivered by the courier’s promised time" wrapped and its value sat a line lower.
+    const tileRule = rule(css, '.tile');
+    expect(tileRule).toContain('display:grid');
+    expect(tileRule).toContain('grid-row:span 3');
+    expect(tileRule).toContain('grid-template-rows:subgrid');
+    expect(rule(css, '.tiles')).toContain('row-gap:0'); // no gap between the three rows inside a tile
+    expect(rule(css, '.tile-label')).toContain('align-self:end'); // a one-line label stays next to its value
+    // Three rows per tile: label, value, detail, and nothing else in the section.
+    const section = page.match(/<section class="tiles"[^>]*>([\s\S]*?)<\/section>/)![1]!;
+    expect(headlineTiles(section)).toHaveLength(5);
+    expect(section.match(/<p /g)).toHaveLength(15);
+    expect(section.replace(/<div class="tile">(?:<p class="tile-(?:label|value|detail)">[^<]*<\/p>){3}<\/div>/g, '').trim()).toBe('');
+  });
+
+  it('changes no headline number: the tiles depend on the results only', () => {
+    expect(headlineTiles(pinnedPage).map(tile => tile.value)).toEqual(['37.4% less', '74.8% less', '75.1% less', '98.8%', '53.4%']);
+    expect(headlineTiles(pinnedPage)[0]).toEqual({
+      label: 'Cost to the sender', value: '37.4% less', detail: 'Relay $10.00 vs courier $15.99 per package',
+    });
   });
 });
 

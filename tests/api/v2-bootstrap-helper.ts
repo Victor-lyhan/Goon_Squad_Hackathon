@@ -137,7 +137,7 @@ export async function startBootstrapApi(opts: BootstrapApiOptions) {
   });
 
   const app = createApp({ clientDist: path.join(repo.root, 'no-dist'), v2: runtime.deps });
-  const server: Server = app.listen(0);
+  const server: Server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 

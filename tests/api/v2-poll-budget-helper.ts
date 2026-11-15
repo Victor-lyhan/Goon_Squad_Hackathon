@@ -79,7 +79,7 @@ export async function startPollApi() {
   const store: Store<Run> = runtime.deps.store;
 
   const app = createApp({ clientDist: path.join(dir, 'no-dist'), v2: runtime.deps });
-  const server: Server = app.listen(0);
+  const server: Server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;
 

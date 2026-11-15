@@ -7,7 +7,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AddressInfo } from 'node:net';
 import { z } from 'zod';
 import { GEMINI_MODELS_URL } from '../../server/ai/gemini';
 import { buildParsePrompt, INVALID_ANSWER_MESSAGE, PARSE_RESPONSE_SCHEMA } from '../../server/ai/geminiParser';
@@ -19,6 +18,7 @@ import type { Store } from '../../server/store';
 import type { ParseRequestResponse } from '../../shared/v2/parseRequest';
 import type { Run as RunV2 } from '../../shared/v2/types';
 import { T, startBootstrapApi, tempRepo, type Answer, type BootstrapApi, type BootstrapApiOptions, type TempRepo } from './v2-bootstrap-helper';
+import { ownOrigin } from './own-origin-helper';
 
 // Not a real key. It starts with `AQ` like a new AI Studio key.
 const KEY = 'AQ.FAKE_route-key-8d41';
@@ -472,7 +472,7 @@ describe('startServer: GEMINI_API_KEY and GEMINI_MODEL from .env reach the route
       server.once('listening', () => resolve());
       server.once('error', reject);
     });
-    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const origin = await ownOrigin(server); // not 127.0.0.1:<port>: another program may answer there (own-origin-helper.ts)
     const parse = async (text: string) => {
       const res = await fetch(`${origin}/api/v2/parse-request`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),

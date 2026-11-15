@@ -204,7 +204,16 @@ The words after "Gemini is unavailable:" name the cause:
 | `no answer within 6000 ms` | Gemini was too slow this time. | Nothing: the offline draft was sent in its place. |
 | `the request failed before an answer arrived` | The server could not reach Google. | Check the network. |
 
-When Gemini did answer but not with a draft, the line reads "[parse-request] Gemini answered, but not with a usable draft. Parsed offline." The line never holds the key, the sentence or Gemini's answer. Without a key no line is printed: the offline parser is then the normal case.
+When Gemini did answer but not with a draft, the line reads "[parse-request] Gemini answered, but not with a usable draft. Parsed offline." The line never holds the key, the sentence or Gemini's answer.
+
+The two other cases print one line each as well, so every sentence has exactly one line in the terminal:
+
+```
+[parse-request] Parsed by Gemini (gemini-2.5-flash, 1840 ms).
+[parse-request] Parsed offline: no key (GEMINI_API_KEY is not set).
+```
+
+The first names the model and how long Gemini took. The second means the server found no key when it started. If it shows although the key is in `.env`, check that the variable is named `GEMINI_API_KEY`, that `.env` is at the repo root, and that the server was restarted after the edit.
 
 To check from a terminal while the server runs (port 3001):
 

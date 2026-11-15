@@ -96,7 +96,7 @@ export async function startPlanningApi(opts: PlanningApiOptions) {
       },
     },
   });
-  const server: Server = app.listen(0);
+  const server: Server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;
 
