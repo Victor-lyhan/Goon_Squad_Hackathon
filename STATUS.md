@@ -1,50 +1,52 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14, 23:00 (Sat), planner pass 105_
+_Last update: 2026-11-14, 23:15 (Sat), planner pass 106_
 
-## Current milestone: MVP IV (docs/mvp4.md) done; human-approved post-freeze additions and polish in progress. Code freeze 5 a.m. Rollback tag: `demo-3`.
-All three MVP IV tracks are on main, and the full demo walk passed (PR #857). Post-freeze merged: per-plan pricing (PR #866), advisor server (PR #865), advisor Options card (PR #870), advisor price check (PR #871), map-control pill look (PR #872), full-viewport homepage hero (PR #873). Open: #868 header, #874 legend fit.
+## Current milestone: all milestones done; humans' polish backlog (QUESTIONS 23:01) until 04:30, code freeze 05:00. Rollback tag: `demo-3`.
+MVP IV and the approved post-freeze additions are on main (per-plan pricing PR #866, advisor PR #865/#870/#871, pill map controls PR #872, full-viewport hero PR #873, 64 px header PR #875, legend fit PR #876). 19 polish issues are open (#877–#895), one or two per worker.
 
 ## HUMAN TO-DO
-1. **Open `/simulator` with the browser key**, or press **Watch a package** on `/`. Markers, routes and the dark pills (Play, legend, badge, banners, overnight card) over the real map are unseen by agents. Write what looks wrong in QUESTIONS.md.
-2. **The demo price is now $9.50** (PR #866): the README sentence's window is exactly 18 h, so it gets the $1 flexibility discount. Scenario exports made before PR #866 are refused on import; re-export any you keep.
-3. **Look at the new homepage hero (PR #873)**: Business and Employee are now stacked under Watch a package (beyond your #869 wording). Not checked in Safari (mask + `offset-path`).
-4. **Calls in QUESTIONS pass 98–102** (carrier A vanishes at home; "Demo account" stays; disabled reason as tooltip; #864 restyles existing map controls).
-5. **F1/advisor: put `GEMINI_API_KEY`** (optionally `GEMINI_MODEL`) in `.env`, run `npx tsx scripts/gemini-check.ts "<sentence>"`. Without a key the advisor answers with offline options. The Options card is on Business → New delivery after Parse (PR #870).
-6. **Before the real demo, reset the run** (stop server, delete `data/state-v2.json`, start). **Demo machine:** `npm run build` in the checkout with `.env`.
-7. **GitHub Actions still not running (billing).** Reviewers run `bash scripts/test.sh` locally.
-8. `docs/relay-spec.md:334` still prices a delivery at $10.00 (human-owned doc).
+1. **Open `/simulator` with the browser key**, or press **Watch a package** on `/`. Markers, routes and the dark pills over the real map are unseen by agents. Write what looks wrong in QUESTIONS.md.
+2. **The demo price is $9.50** (PR #866; the README sentence's 18 h window gets the $1 flexibility discount). Scenario exports made before PR #866 are refused on import.
+3. **Look at the homepage hero (PR #873) and the new header (PR #875)**, ideally in Safari (mask + `offset-path`).
+4. **F1/advisor: put `GEMINI_API_KEY`** in `.env`, run `npx tsx scripts/gemini-check.ts "<sentence>"`. Without a key the advisor answers offline.
+5. **Before the real demo, reset the run** (stop server, delete `data/state-v2.json`, start). **Demo machine:** `npm run build` in the checkout with `.env`.
+6. **GitHub Actions still not running (billing).** Reviewers run `bash scripts/test.sh` locally.
+7. `docs/relay-spec.md:334` still prices a delivery at $10.00 (human-owned doc).
 
 ## Main health
-- CI red = billing (DECISIONS pass 61): runs of #864, #869 and the 22:54 planner commit fail with no steps. Local `scripts/test.sh` on main at 433fbcf (PR #872 + #873 together) passes: 410 files / 7319 tests, build OK. No fix issue.
+- CI red = billing (DECISIONS pass 61): runs of #874, #868 and the 23:01 QUESTIONS commit. Last local full run: main at 433fbcf passed (410 files / 7319 tests). PRs #875 and #876 were each tested locally by the reviewer before merge. No fix issue.
 
 ## Stuck
-- Nothing labeled `stuck`. PR #872's thread warns the loop may add `stuck` after a no-op fix round on an already-merged PR; ignore it if it appears.
+- Nothing labeled `stuck`.
 
-## Queued this pass: 1
-- #874 (victor-2): simulator legend fits a 220 px map at 900 px (it overlaps the Inspector heading today), and the dead `ml__chevron` / `map-v2__daynight--night` hooks go. From PR #872's reviews.
+## Queued this pass: 8 (polish backlog, one per worker with nothing ready)
+- #888 victor-1: plain `/api/v2` error sentences (server only, no contract change).
+- #889 victor-2: simulator map controls keyboard / screen reader.
+- #890 victor-3: one plain placeholder on every Google map (no key, rejected key, error, loading).
+- #891 victor-4: rehearse journey and network Play twice in headless Chrome.
+- #892 victor-6: Business page frame (header, notifications) audit.
+- #893 victor-7: jargon guard test + offender list (feeds next pass's copy fixes).
+- #894 victor-8: simulator page states (first load, server error, stale link, desktop-only).
+- #895 victor-10: app-wide focus ring + reduced-motion rule.
 
-## In review / in progress / ready
-- #868 (victor-1, human-filed): taller header navbar, larger centered links, 390 px safe. Comment added: define `--app-header-h` to the new height (hero fold + sticky sim panels use it, default 48 px).
-- #874 (victor-2): legend fit + dead hooks.
+## In progress / ready (created 23:09–23:10, before this pass)
+- In progress: #877 README sync (victor-8), #878 demo re-walk 1440 + 390 px (victor-7), #879 homepage audit (victor-5), #880 Business 30-second path (victor-10), #882 Employee audit (victor-6), #883 sim side panels (victor-2), #884 Gemini 2-minute offline pause (victor-1), #885 lazy-load pages / perf (victor-9), #887 study page audit (victor-4).
+- Ready: #881 Business deliveries list + details (victor-5), #886 UI kit 404 / error / banner / spinner (victor-9).
 
-## Merged since pass 104 (22:53)
-- PR #872 (#864): legend, day/night badge, banners, overnight card → dark translucent pill, same rects as before.
-- PR #873 (#869): hero fills the viewport below the header; borderless map on the right half with a mask fade; phone/upright windows stack text then map; Business/Employee stacked.
+## Merged since pass 105 (23:00)
+- PR #875 (#868): taller 64 px header, larger centered links.
+- PR #876 (#874): legend fits the 220 px map at 900 px; dead `ml__chevron` / `--night` hooks removed.
 
-## Earlier post-freeze / MVP IV merges
-- PR #870, #871 (advisor card + price check), #866 per-plan pricing, #865 `POST /api/v2/advise`.
-- Pass 94–101: PR #860 homepage hero, #859 Play pill, #858 README sync, #857 demo walk, #856, #855, #849, #848 3,024-run study, #845, #844, #840.
-- F1: PR #793, #795, #804, #805, #817, #818, #825, #834. F2: PR #789, #801, #783, #794, #830, #835, #837, #839. F3: PR #792, #802, #803, #819.
-
-## Next up (each needs the issues in brackets merged first)
-- README follow-up: pill Play bar and map controls, README "the line under the buttons" (2-minute demo step 5) and the stale "never takes more than two lines" sentence, journey handling carriers, header, full-viewport hero with stacked entries, advisor Options card [#868].
-- Demo walk re-run with per-plan prices, the advisor card (parsed form's focused field at 390 px, PR #870 note), new header and hero (headless Chrome, 1440 + 390 px) [#868].
+## Next up
+- Copy fixes from #893's offender table, by module, once it merges.
+- Fixes for faults #878 (demo re-walk) and #885 (perf) list outside their own files.
+- Header (in `App.tsx`) 390 px / keyboard audit after #885 frees `App.tsx`.
+- Stop queuing at 04:30.
 
 ## Known bugs / gaps / risks
-- Header height change (#868) will push the hero past the fold and slide sticky sim panels under the header unless `--app-header-h` is defined (comment on #868).
-- README 2-minute demo step 5 still quotes "the line under the buttons", which PR #859 removed (README follow-up).
-- Real Gemini API never tested (to-do 5). Homepage animation and mask checked in headless Chrome only.
+- Real Gemini API never tested (to-do 4). Homepage animation and mask checked in headless Chrome only.
+- PR #870: a parsed form focuses its first field, which may sit below the fold at 390 px (#878 checks).
 - Random city at end of day is 158.6 KB, over the 150 KB poll budget; unreachable from any page (pass 82).
-- Carrier package badge can drift a pixel or two between zoom events (PR #775 note); not queued in the freeze.
+- Carrier package badge can drift a pixel or two between zoom events (PR #775 note).
 - `PORT` does not work with `npm run dev`; `npm run study` needs tsx (devDependency).
