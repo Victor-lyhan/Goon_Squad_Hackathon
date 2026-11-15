@@ -61,7 +61,7 @@ export function revealAnswer(form: Element | null, kind: SubmitStatus['kind']): 
   }
 }
 
-/** A pointer press on a button or link of the form: when and where. */
+/** A pointer press on the form's submit button: when and where. */
 export type Press = { time: number; x: number; y: number };
 /** Two presses this close in time and place are one double press. */
 export const REPEAT_PRESS_MS = 500;
@@ -69,29 +69,32 @@ export const REPEAT_PRESS_PX = 10;
 
 type PressEvent = Pick<MouseEvent, 'detail' | 'target' | 'timeStamp' | 'clientX' | 'clientY'>;
 
-const onControl = (target: unknown): boolean => {
+const inside = (target: unknown, selector: string): boolean => {
   const el = target as { closest?: (selector: string) => unknown } | null;
-  return typeof el?.closest === 'function' && el.closest('button, a') != null;
+  return typeof el?.closest === 'function' && el.closest(selector) != null;
 };
 
-/** The press to compare the next one with; null for a key press, a scripted click or a click on no control. */
+/**
+ * The press to compare the next one with: a pointer press on the submit button, the one press whose answer
+ * moves the form. Null for a key press or a scripted click (`detail` 0) and for a press anywhere else.
+ */
 export function pressOf(e: PressEvent): Press | null {
-  return e.detail >= 1 && onControl(e.target) ? { time: e.timeStamp, x: e.clientX, y: e.clientY } : null;
+  return e.detail >= 1 && inside(e.target, 'button[type="submit"]') ? { time: e.timeStamp, x: e.clientX, y: e.clientY } : null;
 }
 
 /**
- * True for the second press of a double press on a button or link (#719). The answer to the first press
- * moves the form under the pointer, so the second would press whatever is there now: the same button with
- * the emptied draft (two "is required" errors under "Delivery arranged"), "View delivery" or Cancel. A mouse
- * says so itself (`detail` counts the clicks); a touch screen reports every tap as a first click, so a tap
- * within REPEAT_PRESS_MS and REPEAT_PRESS_PX of the last press counts too. Key presses (`detail` 0) never do.
+ * True for the second press of a double press that began on the submit button (#719). The answer to the
+ * first press moves the form under the pointer, so the second would press whatever button or link is there
+ * now: the same button with the emptied draft (two "is required" errors under "Delivery arranged"), "View
+ * delivery", "Watch in simulator" or Cancel. It is a press at the same place (REPEAT_PRESS_PX) that a mouse
+ * counts as a further click (`detail` 2 or more) or, because a touch screen reports every tap as a first
+ * click, that comes within REPEAT_PRESS_MS. Key presses (`detail` 0) and presses that follow no press on
+ * the submit button are never dropped.
  */
 export function isRepeatPress(e: PressEvent, previous: Press | null): boolean {
-  if (!onControl(e.target)) return false;
-  if (e.detail > 1) return true;
-  return e.detail === 1 && previous !== null
-    && e.timeStamp - previous.time < REPEAT_PRESS_MS
-    && Math.abs(e.clientX - previous.x) <= REPEAT_PRESS_PX && Math.abs(e.clientY - previous.y) <= REPEAT_PRESS_PX;
+  if (previous === null || e.detail < 1 || !inside(e.target, 'button, a')) return false;
+  const near = Math.abs(e.clientX - previous.x) <= REPEAT_PRESS_PX && Math.abs(e.clientY - previous.y) <= REPEAT_PRESS_PX;
+  return near && (e.detail > 1 || e.timeStamp - previous.time < REPEAT_PRESS_MS);
 }
 
 /**
@@ -226,7 +229,7 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
   const retrying = p.status.kind === 'submitting' && p.status.retry === true;
   const locked = p.phase === 'locked' || p.status.kind === 'locked';
   const ref = (f: DraftField) => p.fieldRef?.(f);
-  /** The last pointer press on a button or link here; a second one right after it is dropped (isRepeatPress). */
+  /** The last pointer press on the submit button; a second press right after it is dropped (isRepeatPress). */
   const lastPress = useRef<Press | null>(null);
 
   const field = (f: DraftField, label: ReactNode, control: (a: {
