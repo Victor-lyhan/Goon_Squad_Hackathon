@@ -3,7 +3,9 @@
    client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
    Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
    IDs, weights and prices; Inter (--font-sans) for everything else.
-   Fluid widths only: works at 390 px. */
+   Fluid widths only: works at 390 px.
+   Design pass (#940): the gaps between the page's parts are 8, 16 or 24 px; every button on the page is
+   36 px tall with 16 px at its sides and semibold text; the loading line is plain text, not a box. */
 
 /* The shell's column is 960 px for every page. This page was laid out for 1320 px, so it widens the shell's
    <main> only while a Business page is inside it (#581, DECISIONS pass 60). The rule is local on purpose:
@@ -25,16 +27,20 @@
 
 .bp-state, .bp-missing {
   margin: var(--space-4, 16px) 0;
-  padding: var(--space-4, 16px);
+  padding: var(--space-6, 24px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
 .bp-state h1 { font-size: var(--text-lg, 18px); font-weight: 600; margin: 0 0 var(--space-2, 8px); }
 .bp-missing { margin: 0; }
+/* Loading is one quiet line where the page will be, with no box around it. */
+p.bp-state { padding: var(--space-2, 8px) 0; border-color: transparent; background: none; color: var(--muted, #5B6472); }
 .bp-missing h2 { font-size: var(--text-md, 14px); font-weight: 600; margin: 0 0 var(--space-2, 8px); }
-.bp-state p, .bp-missing p { margin: 0 0 var(--space-2, 8px); }
-.bp-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3, 12px); }
+.bp-state p, .bp-missing p { max-width: 60ch; margin: 0 0 var(--space-2, 8px); }
+.bp-state > :last-child, .bp-missing > :last-child { margin-bottom: 0; }
+.bp-state .bp-links, .bp-missing .bp-links, .bp-state > .bp-btn { margin-top: var(--space-4, 16px); }
+.bp-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-4, 16px); }
 .bp-links a { color: var(--accent, #1D5075); }
 .bp-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); color: var(--muted, #5B6472); }
 
@@ -56,29 +62,30 @@
 .bp-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
-  gap: var(--space-4, 16px);
-  margin-top: var(--space-4, 16px);
+  gap: var(--space-6, 24px);
+  margin-top: var(--space-6, 24px);
   min-width: 0;
 }
 .bp-layout--open { grid-template-columns: minmax(0, 1fr) minmax(0, 440px); }
-.bp-main, .bp-side { min-width: 0; display: flex; flex-direction: column; gap: var(--space-3, 12px); }
+.bp-main, .bp-side { min-width: 0; display: flex; flex-direction: column; gap: var(--space-4, 16px); }
 .bp-details { display: flex; flex-direction: column; gap: var(--space-2, 8px); min-width: 0; }
 .bp-details .bp-notice { margin: 0; }
 .bp-new { min-width: 0; }
 
 .bp-btn {
   min-height: 36px;
-  padding: 0 var(--space-3, 12px);
+  padding: 0 var(--space-4, 16px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   color: var(--text, #171C24);
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 .bp-btn:hover { border-color: var(--muted, #5B6472); }
 .bp-btn:focus-visible, .bp-links a:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-.bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); text-decoration: underline; }
+.bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); font-weight: 400; text-decoration: underline; }
 
 /* One column: the open delivery comes first, then the table, then the notifications.
    Up to 1160 px the 440 px details column would leave the table under about 640 px, so the page stacks.
@@ -93,8 +100,8 @@
 
 @media (max-width: 390px) {
   .bp { padding: var(--space-2, 8px); }
-  .bp-state, .bp-missing { padding: var(--space-3, 12px); }
-  .bp-layout { gap: var(--space-3, 12px); }
+  .bp-state, .bp-missing { padding: var(--space-4, 16px); }
+  .bp-layout { gap: var(--space-4, 16px); margin-top: var(--space-4, 16px); }
   .bp-links .bp-btn, .bp-state > .bp-btn { width: 100%; min-height: 44px; }
 }
 
