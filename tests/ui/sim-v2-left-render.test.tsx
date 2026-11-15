@@ -179,16 +179,18 @@ describe('controls.css', () => {
   it('a journey step line with text keeps two lines of height; an empty one takes none (#816)', () => {
     const decl = (body: string, prop: string) => body.match(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`))?.[1].trim();
     const rules = [...noComments.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, sel, body]) => ({ sel: sel.trim(), body }));
-    const status = rules.find((r) => r.sel === '.ctl-status');
+    // #842: the shown step line is `.ctl-line` (the `.ctl-status` live region is visually hidden).
+    const status = rules.find((r) => r.sel === '.ctl-line');
     const lineHeight = Number(decl(status?.body ?? '', 'line-height'));
-    expect(lineHeight, '.ctl-status needs a unitless line-height').toBeGreaterThan(1);
+    expect(lineHeight, '.ctl-line needs a unitless line-height').toBeGreaterThan(1);
 
-    const journey = rules.find((r) => r.sel === '.ctl-playback[data-play-action$="_journey"] .ctl-status:not(:empty)');
+    const journey = rules.find((r) => r.sel === '.ctl-playback[data-play-action$="_journey"] .ctl-line');
     const minHeight = decl(journey?.body ?? '', 'min-height');
     expect(minHeight, 'journey step line min-height').toMatch(/^\d+(\.\d+)?em$/);
     expect(parseFloat(minHeight!)).toBeGreaterThanOrEqual(2 * lineHeight - 0.001);
-    // No other .ctl-status rule sets a height, so the empty (idle) line takes no room.
-    for (const r of rules) if (r.sel !== journey!.sel && /\.ctl-status/.test(r.sel)) expect(decl(r.body, 'min-height'), r.sel).toBeUndefined();
+    // No other step line rule sets a minimum height; idle, the shown line is not rendered at all.
+    for (const r of rules) if (r.sel !== journey!.sel && /\.ctl-(status|line)/.test(r.sel)) expect(decl(r.body, 'min-height'), r.sel).toBeUndefined();
+    expect(render()).not.toContain('ctl-line');
 
     // The selector matches what PlaybackControls renders: the two seek-play actions end in "_journey"
     // (`pause_journey` is also a running network Play's Pause), Play on the network and a clock pause do not.

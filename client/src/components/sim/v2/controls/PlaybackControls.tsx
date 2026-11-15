@@ -45,6 +45,11 @@ export function PlaybackControls({ button, status = '', error = null, resetDisab
       </div>
       {button.note && <p className="ctl-note" id={noteId}>{button.note}</p>}
       {resetNote && <p className="ctl-note" id={resetNoteId}>{resetNote}</p>}
+      {/* #842: the step line shown is at most two lines, cut with an ellipsis (controls.css), so it cannot
+          push Play/Pause up in a narrow map. Its full text is its title (hover) and the live region under
+          it, which is visually hidden and read by screen readers; the shown copy is hidden from them, so
+          each step is heard once. */}
+      {status && <p className="ctl-line" aria-hidden="true" title={status}>{status}</p>}
       <p className="ctl-status" role="status">{status}</p>
       {error && <p className="ctl-error" role="alert">{error}</p>}
     </div>
