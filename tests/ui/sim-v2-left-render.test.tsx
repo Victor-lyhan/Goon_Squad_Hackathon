@@ -16,7 +16,7 @@ const isDisabled = (b: { attrs: string }) => {
   return /\saria-disabled="true"/.test(b.attrs);
 };
 
-const PLAY: PlayButtonView = { label: 'Play', action: 'play_clock', note: null };
+const PLAY: PlayButtonView = { label: 'Play', action: 'play_network', note: null };
 const PAUSE: PlayButtonView = { label: 'Pause', action: 'pause_journey', note: null };
 
 function render(over: Partial<PlaybackControlsProps> = {}) {

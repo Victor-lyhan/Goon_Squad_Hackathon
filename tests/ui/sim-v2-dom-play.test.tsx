@@ -5,7 +5,7 @@
 // for the night for about 1 s, the step line in the live region follows the server's events, Pause
 // and Esc stop it with no further call and Play goes on from there, an unmount leaves no timer and
 // no call behind, and with reduced motion the steps snap (no animation frame is asked for). With no
-// package the same button plays the server clock at the one fixed speed. `?play=1` starts a journey once.
+// package the same button steps every carrier's commute with seeks (#790). `?play=1` starts a journey once.
 // The map runs in its no-key state: the Google loader is replaced by a recorder that must stay unused.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SimulatorResponse } from '../../shared/v2/api';
@@ -15,7 +15,7 @@ import { simDataReducer, type SimDataState } from '../../client/src/components/s
 import { createSimActions } from '../../client/src/components/sim/v2/live/useSimulatorV2';
 import { button, buttons, click, press, textOf } from './kitDom';
 import {
-  FakeSimServer, T, advance, currentSearch, journeySteps, leftBody, mountBody, mountPage, overnightCard, playPause,
+  FakeSimServer, T, advance, currentSearch, journeySteps, leftBody, mountBody, mountPage, overnightCard, packageRow, playPause,
   playStatus, readyState, rightBody, runAt, settle, stubMatchMedia,
 } from './sim-v2-dom-helpers';
 
@@ -397,47 +397,186 @@ describe('the overnight card (#648)', () => {
   }, T);
 });
 
-describe('one Play/Pause button: no package picked plays the server clock (#648)', () => {
-  it('Play sends play, Pause sends pause; no seek, no card, no step line', async () => {
+/**
+ * #790: network Play over the sample run (it has no `trips`, so each leg's window starts one minute before
+ * its first stop): the evening legs merge into 1039 to 1110, the morning leg is 1949 to 1977, then one jump
+ * to the end of the run (2160). The first step of a window is one minute, then 4 minutes per 500 ms.
+ */
+const NET_EVE = [1039, 1040, 1044, 1048, 1052, 1056, 1060, 1064, 1068, 1072, 1076, 1080, 1084, 1088, 1092, 1096, 1100, 1104, 1108, 1110];
+const NET_MORN = [1949, 1950, 1954, 1958, 1962, 1966, 1970, 1974, 1977];
+const NET_PLANNED = [...NET_EVE, ...NET_MORN, 2160];
+const NET_TOTAL_MS = NET_PLANNED.length * STEP_MS + CARD_MS;
+const NET_PLAYING = "Playing every carrier's commute.";
+const NET_OVERNIGHT = 'Overnight: skipping to the morning commute';
+
+describe('one Play/Pause button: no package picked steps every commute with seeks (#790)', () => {
+  it('one click: the seeks in the planned order, the overnight card for the night, the end of the run; never play or speed', async () => {
+    const server = new FakeSimServer(withClock(readyState(1000), { speed: 600, phase: 'planning' }));
+    const { container: c } = mountBody(server, null);
+    clickPlayPause(c, 'Play');
+    await settle();
+    expect(server.seeks()).toEqual([NET_EVE[0]]);
+    expect(label(c)).toBe('Pause');
+    expect(textOf(playStatus(c)!)).toBe(NET_PLAYING);
+
+    await advance(NET_EVE.length * STEP_MS);
+    expect(server.seeks()).toEqual(NET_EVE);
+    expect(textOf(overnightCard(c)!)).toBe(NET_OVERNIGHT);
+    expect(label(c)).toBe('Pause');
+    await advance(CARD_MS);
+    expect(overnightCard(c)).toBeNull();
+    expect(server.seeks()).toEqual([...NET_EVE, NET_MORN[0]]);
+
+    await advance(NET_TOTAL_MS);
+    expect(server.seeks()).toEqual(NET_PLANNED);
+    // Only seeks: the clock is never played, so its speed is never set and the run is never locked by Play.
+    expect(server.controls().every((r) => r.action === 'seek')).toBe(true);
+    expect(server.state.sim?.clock).toMatchObject({ playing: false, timeMin: 2160 });
+    // Finished at the end of the run: Play is disabled and names Back to start; the step line says it is done.
+    expect(label(c)).toBe('Play');
+    expect(isOff(playPause(c))).toBe(true);
+    expect(textOf(leftBody(c))).toContain('Run finished. Use Back to start to watch again.');
+    expect(textOf(playStatus(c)!)).toBe('Every commute played.');
+    await advance(5_000);
+    expect(server.controls()).toHaveLength(NET_PLANNED.length);
+  }, T);
+
+  it('starts from the clock\'s minute: inside a window it goes on from there, not from the first departure', async () => {
+    const server = new FakeSimServer(readyState(1060));
+    const { container: c } = mountBody(server, null);
+    clickPlayPause(c, 'Play');
+    await settle();
+    await advance(2 * STEP_MS);
+    expect(server.seeks()).toEqual([1064, 1068, 1072]);
+  }, T);
+
+  it('Pause stops at the current minute with no further call; Play goes on from there', async () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountBody(server, null);
     clickPlayPause(c, 'Play');
     await settle();
-    expect(server.controls()).toEqual([{ action: 'play' }]);
-    expect(label(c)).toBe('Pause');
-    await advance(5_000);
-    expect(server.controls()).toEqual([{ action: 'play' }]);
-    expect(textOf(playStatus(c)!)).toBe('');
-    expect(overnightCard(c)).toBeNull();
-
+    await advance(3 * STEP_MS);
     clickPlayPause(c, 'Pause');
     await settle();
-    expect(server.controls()).toEqual([{ action: 'play' }, { action: 'pause' }]);
+    const sent = server.seeks();
+    expect(sent).toEqual(NET_EVE.slice(0, 4));
+    expect(server.state.sim?.clock.timeMin).toBe(NET_EVE[3]);
     expect(label(c)).toBe('Play');
+    expect(textOf(playStatus(c)!)).toBe('Paused.');
+    await advance(5_000);
+    expect(server.controls()).toHaveLength(sent.length);
+
+    clickPlayPause(c, 'Play');
+    await settle();
+    await advance(STEP_MS);
+    expect(server.seeks()).toEqual(NET_EVE.slice(0, 6));
   }, T);
 
-  it('a clock left at another speed gets speed 120 once, then play; the next Play sends play alone', async () => {
-    const server = new FakeSimServer(withClock(readyState(1000), { speed: 600 }));
+  it('Pause while the card is up takes it down and sends nothing; Play shows it again, then the morning', async () => {
+    const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountBody(server, null);
     clickPlayPause(c, 'Play');
     await settle();
-    expect(server.controls()).toEqual([{ action: 'speed', speed: 120 }, { action: 'play' }]);
-    expect(server.state.sim?.clock).toMatchObject({ speed: 120, playing: true });
-
+    await advance(NET_EVE.length * STEP_MS);
+    expect(overnightCard(c)).not.toBeNull();
     clickPlayPause(c, 'Pause');
     await settle();
+    expect(overnightCard(c)).toBeNull();
+    await advance(5_000);
+    expect(server.seeks()).toEqual(NET_EVE);
+
     clickPlayPause(c, 'Play');
     await settle();
-    expect(server.controls().slice(2)).toEqual([{ action: 'pause' }, { action: 'play' }]);
+    expect(overnightCard(c)).not.toBeNull();
+    await advance(CARD_MS);
+    expect(server.seeks()).toEqual([...NET_EVE, NET_MORN[0]]);
   }, T);
 
-  it('a refused speed request sends no play', async () => {
-    const server = new FakeSimServer(withClock(readyState(1000), { speed: 30 }));
-    server.refuse = true;
+  it('Back to start while it plays: one reset, no further seek, and Play starts again from the first departure', async () => {
+    const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountBody(server, null);
     clickPlayPause(c, 'Play');
     await settle();
-    expect(server.controls()).toEqual([{ action: 'speed', speed: 120 }]);
+    await advance(2 * STEP_MS);
+    click(button(leftBody(c), 'Back to start'));
+    await settle();
+    const before = server.controls();
+    expect(before[before.length - 1]).toEqual({ action: 'reset_playback' });
+    expect(label(c)).toBe('Play');
+    expect(textOf(playStatus(c)!)).toBe('');
+    await advance(5_000);
+    expect(server.controls()).toEqual(before);
+
+    clickPlayPause(c, 'Play');
+    await settle();
+    expect(server.seeks().slice(3)).toEqual([NET_EVE[0]]);
+  }, T);
+
+  it('a seek answer that lands after Pause sends nothing more and leaves the button at Play', async () => {
+    const server = new FakeSimServer(readyState(1000));
+    const answer = server.control.bind(server);
+    let release: () => void = () => {};
+    let n = 0;
+    // The second seek hangs until `release`; the server records it when it answers.
+    server.control = async (req) => {
+      if (req.action === 'seek' && (n += 1) === 2) await new Promise<void>((r) => { release = r; });
+      return answer(req);
+    };
+    const { container: c } = mountBody(server, null);
+    clickPlayPause(c, 'Play');
+    await settle();
+    await advance(STEP_MS); // the second seek is out and has no answer yet
+    expect(n).toBe(2);
+    clickPlayPause(c, 'Pause');
+    await settle();
+    release();
+    await settle();
+    await advance(5_000);
+    expect(server.seeks()).toEqual(NET_EVE.slice(0, 2));
+    expect(n).toBe(2);
+    expect(label(c)).toBe('Play');
+    expect(textOf(playStatus(c)!)).toBe('Paused.');
+  }, T);
+
+  it('picking a package while it plays stops it: no further seek, the card is down, the journey is idle', async () => {
+    const server = new FakeSimServer(readyState(1000));
+    const { container: c } = mountBody(server, null);
+    clickPlayPause(c, 'Play');
+    await settle();
+    await advance(NET_EVE.length * STEP_MS);
+    expect(overnightCard(c)).not.toBeNull();
+    const sent = server.controls().length;
+    click(packageRow(c, 'Coffee samples'));
+    await settle();
+    expect(server.selections[server.selections.length - 1]).toEqual(SHP2);
+    expect(overnightCard(c)).toBeNull();
+    await advance(5_000);
+    expect(server.controls()).toHaveLength(sent);
+    expect(label(c)).toBe('Play');
+    expect(textOf(playStatus(c)!)).toBe('');
+  }, T);
+
+  it('a refused seek stops it with the error as an alert and no further call', async () => {
+    const server = new FakeSimServer(readyState(1000));
+    const { container: c } = mountBody(server, null);
+    clickPlayPause(c, 'Play');
+    await settle();
+    server.refuse = true;
+    await advance(STEP_MS);
+    expect(server.controls()).toHaveLength(2);
+    expect(label(c)).toBe('Play');
+    expect(textOf(leftBody(c).querySelector('.ctl-error')!)).toBe('Play stopped: the simulator did not accept a step.');
+    await advance(5_000);
+    expect(server.controls()).toHaveLength(2);
+  }, T);
+
+  it('a clock playing on its own (another tab) reads Pause and is paused with one request', async () => {
+    const server = new FakeSimServer(withClock(readyState(1000), { playing: true }));
+    const { container: c } = mountBody(server, null);
+    clickPlayPause(c, 'Pause');
+    await settle();
+    expect(server.controls()).toEqual([{ action: 'pause' }]);
+    expect(label(c)).toBe('Play');
   }, T);
 
   it('at the end of the run Play is disabled and names Back to start, which sends the reset', async () => {
@@ -451,7 +590,7 @@ describe('one Play/Pause button: no package picked plays the server clock (#648)
     expect(isOff(playPause(c))).toBe(false);
   }, T);
 
-  it('on the page, Space plays and pauses the clock, and "." does nothing', async () => {
+  it('on the page, Space plays and pauses network Play, Esc pauses it, and "." does nothing', async () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountPage(server);
     press('.', document.body);
@@ -460,14 +599,26 @@ describe('one Play/Pause button: no package picked plays the server clock (#648)
 
     press(' ', document.body);
     await settle();
-    expect(server.controls()).toEqual([{ action: 'play' }]);
+    expect(server.seeks()).toEqual([NET_EVE[0]]);
+    expect(label(c)).toBe('Pause');
     press(' ', document.body);
     await settle();
-    expect(server.controls()).toEqual([{ action: 'play' }, { action: 'pause' }]);
+    expect(label(c)).toBe('Play');
+    await advance(2_000);
+    expect(server.controls()).toEqual([{ action: 'seek', timeMin: NET_EVE[0] }]);
+
+    press(' ', document.body);
+    await settle();
+    expect(label(c)).toBe('Pause');
+    press('Escape', document.body);
+    await settle();
+    expect(label(c)).toBe('Play');
+    await advance(2_000);
+    expect(server.seeks()).toEqual(NET_EVE.slice(0, 2));
     press('.', document.body);
     await settle();
     expect(server.controls()).toHaveLength(2);
-    expect(label(c)).toBe('Play');
+    expect(server.controls().every((r) => r.action === 'seek')).toBe(true);
   }, T);
 });
 
@@ -618,7 +769,9 @@ class SlowControlServer extends FakeSimServer {
 
   private answer(req: SimControlRequest): SimulatorResponse {
     const cur = this.state.sim!;
-    const base = req.action === 'seek' ? runAt(req.timeMin, { runId: cur.runId }) : cur;
+    // Back to start puts the clock at the start of the run, like the server.
+    const base = req.action === 'seek' ? runAt(req.timeMin, { runId: cur.runId })
+      : req.action === 'reset_playback' ? runAt(930, { runId: cur.runId }) : cur;
     const playing = req.action === 'play' ? true : req.action === 'pause' ? false : base.clock.playing;
     this.version += 1;
     return { ...base, version: this.version, nextEventMin: 2100, clock: { ...base.clock, playing } };
@@ -633,7 +786,7 @@ class SlowControlServer extends FakeSimServer {
 describe('a playing journey keeps the left panel still (#594)', () => {
   const backToStart = (c: ParentNode) => button(leftBody(c), 'Back to start');
 
-  it('with slow answers, no busy text and no disabled button while it plays; the clock\'s Play and Pause still show busy', async () => {
+  it('with slow answers, no busy text and no disabled button while a journey or network Play runs; Back to start still shows busy', async () => {
     const server = new SlowControlServer(readyState(1000));
     const { container: c } = mountPage(server, '?package=shp-2');
     expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
@@ -654,23 +807,30 @@ describe('a playing journey keeps the left panel still (#594)', () => {
     expect(textOf(playStatus(c)!)).toBe('Journey complete: Delivered to recipient at Etsy.');
     expect(server.state.sim?.clock.timeMin).toBe(1977); // the last seek's answer is what is shown
 
-    // With no package the button plays the server clock, and that is busy as before: Play, then Pause.
+    // Back to start is not a seek: it is busy as before.
     press('Escape', document.body);
     expect(currentSearch(server)).toBe('');
-    clickPlayPause(c, 'Play');
-    await settle();
-    expect(textOf(leftBody(c))).toContain(BUSY_REASON);
-    expect(isOff(backToStart(c))).toBe(true);
-    await advance(DELAY_MS);
-    expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
-
-    clickPlayPause(c, 'Pause');
+    click(backToStart(c));
     await settle();
     expect(textOf(leftBody(c))).toContain(BUSY_REASON);
     expect(isOff(playPause(c))).toBe(true);
     await advance(DELAY_MS);
     expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
     expect(isOff(backToStart(c))).toBe(false);
+
+    // #790: with no package the button plays every commute with the same quiet seeks: never busy either.
+    clickPlayPause(c, 'Play');
+    for (let t = 0; t < 10 * STEP_MS; t += 100) {
+      await advance(100);
+      expect(server.state.busy).toBe(false);
+      expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+      expect(isOff(playPause(c))).toBe(false);
+      expect(isOff(backToStart(c))).toBe(false);
+    }
+    expect(label(c)).toBe('Pause');
+    clickPlayPause(c, 'Pause');
+    await advance(DELAY_MS);
     expect(label(c)).toBe('Play');
+    expect(server.controls().filter((r) => r.action !== 'seek')).toEqual([{ action: 'reset_playback' }]);
   }, T);
 });

@@ -13,7 +13,18 @@
  * `carryStartMin` to `carryEndMin` is the part around the package (just before the carrier's first
  * stop to the end of its last); without them the whole window is that part.
  */
-export type JourneyWindow = { startMin: number; endMin: number; carryStartMin?: number; carryEndMin?: number };
+export type JourneyWindow = {
+  startMin: number;
+  endMin: number;
+  carryStartMin?: number;
+  carryEndMin?: number;
+  /**
+   * `false`: the gap before this window is one plain jump, with no overnight card (network Play skips
+   * the quiet minutes inside one commute period this way, #790). Otherwise the gap before every window
+   * after the first is the night (a journey has one window per carrier, one carrier per day).
+   */
+  nightBefore?: boolean;
+};
 
 /**
  * `overnight` marks the jump over the gap between two windows: the package waits at the relay
@@ -56,13 +67,15 @@ function stepInWindow(w: JourneyWindow, timeMin: number): number {
  * The next seek from `timeMin`: a step inside the current window (JOURNEY_STEP_MIN around the
  * package, JOURNEY_COMMUTE_STEP_MIN on the rest of the commute, never past the window's end), or
  * the jump to the start of the next window when in a gap (`overnight` when a window came before
- * it). `done` after the last window.
+ * it, unless the window says `nightBefore: false`). `done` after the last window.
  */
 export function nextJourneyAction(windows: JourneyWindow[], timeMin: number): JourneyAction {
   const list = ordered(windows);
   for (let i = 0; i < list.length; i += 1) {
     const w = list[i];
-    if (timeMin < w.startMin) return i > 0 ? { kind: 'seek', toMin: w.startMin, overnight: true } : { kind: 'seek', toMin: w.startMin };
+    if (timeMin < w.startMin) {
+      return i > 0 && w.nightBefore !== false ? { kind: 'seek', toMin: w.startMin, overnight: true } : { kind: 'seek', toMin: w.startMin };
+    }
     if (timeMin < w.endMin) return { kind: 'seek', toMin: stepInWindow(w, timeMin) };
   }
   return { kind: 'done' };

@@ -5,6 +5,9 @@
 // client/src/api against a REAL server: `createV2Runtime` on a temp copy of fixtures/nyc, a temp state file
 // and no key (demo-rehearse-twice-helper.ts). Both pages stay mounted side by side, like two browser tabs,
 // while the simulator's controls are sent the way its buttons send them (controlsModel.ts).
+// #790: the simulator's own Play now steps with seeks and never locks the run, so the lock here comes from
+// the server clock's `play` (a clock started outside the page: another tab, the API); Back to start and the
+// reopening it checks are the same.
 //
 // One rehearsal: Play locks the New delivery form and the commute editor; the day runs to its end; "Back to
 // start" reopens both within ONE poll; "Find a delivery match" with the README's demo request answers
@@ -28,7 +31,7 @@ import {
 } from '../../client/src/components/business/v2/newDeliveryModel';
 import { MAX_DETOUR_MIN } from '../../client/src/components/employee/v2/commuteFormModel';
 import { POLL_INTERVAL_MS as EMPLOYEE_POLL_MS } from '../../client/src/components/employee/v2/live/employeePoller';
-import { RESET_LABEL, RESET_REQUEST, playClockRequests } from '../../client/src/components/sim/v2/controls/controlsModel';
+import { RESET_LABEL, RESET_REQUEST } from '../../client/src/components/sim/v2/controls/controlsModel';
 import BusinessV2 from '../../client/src/pages/v2/BusinessV2';
 import EmployeeV2 from '../../client/src/pages/v2/EmployeeV2';
 import { commuteOf, nycFilesState } from '../api/v2-e2e-nyc-helper';
@@ -246,11 +249,10 @@ function expectEditorOpen(c: ParentNode, step: string): void {
 
 // ---------- the controls, as the simulator's buttons send them ----------
 
-/** Play with no package picked: the fixed speed first when the clock is at another one, then `play`. */
+/** The server clock's `play` (not the simulator's Play since #790, which only seeks): it locks the run. */
 async function pressPlay(clock: Clock): Promise<void> {
   expect(clock).toMatchObject({ phase: 'planning', playing: false });
-  let after: Clock = clock;
-  for (const request of playClockRequests(clock)) after = (await simulatorControl(request)).clock;
+  const after = (await simulatorControl({ action: 'play' })).clock;
   expect(after).toMatchObject({ phase: 'locked', playing: true });
 }
 

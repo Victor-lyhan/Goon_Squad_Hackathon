@@ -281,21 +281,24 @@ describe('the one Play/Pause button in the page', () => {
     expect(l.journeyPlay.play).not.toHaveBeenCalled();
   });
 
-  it('togglePlay with no package: play at the fixed speed (speed 120 first when the clock is at another), or pause', async () => {
-    const at120 = layout(journeyHook(), null);
-    at120.handlers.togglePlay();
-    await Promise.resolve();
-    expect(controlsOf(at120.sim)).toEqual([{ action: 'play' }]);
-    expect(at120.journeyPlay.play).not.toHaveBeenCalled();
-
-    const at30 = layout(clockHook({ speed: 30 }), null);
-    at30.handlers.togglePlay();
-    await new Promise((r) => setTimeout(r, 0));
-    expect(controlsOf(at30.sim)).toEqual([{ action: 'speed', speed: 120 }, { action: 'play' }]);
+  it('togglePlay with no package: network Play through the player, never `play` or `speed` (#790); a playing clock is paused', async () => {
+    for (const speed of [120, 30, 600] as const) {
+      const l = layout(clockHook({ speed }), null);
+      l.handlers.togglePlay();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(l.journeyPlay.play).toHaveBeenCalledTimes(1);
+      expect(controlsOf(l.sim)).toEqual([]);
+    }
+    const network = { shipmentId: null, runId: 'run-1' };
+    const runningNet = layout(journeyHook(), null, { status: 'running', overnight: false, ...network });
+    runningNet.handlers.togglePlay();
+    expect(runningNet.journeyPlay.pause).toHaveBeenCalledTimes(1);
+    expect(controlsOf(runningNet.sim)).toEqual([]);
 
     const playing = layout(clockHook({ playing: true, speed: 600 }), null);
     playing.handlers.togglePlay();
     expect(controlsOf(playing.sim)).toEqual([{ action: 'pause' }]); // pausing never sends a speed
+    expect(playing.journeyPlay.play).not.toHaveBeenCalled();
   });
 
   it('togglePlay does nothing while the button is disabled, and before the page is ready', () => {

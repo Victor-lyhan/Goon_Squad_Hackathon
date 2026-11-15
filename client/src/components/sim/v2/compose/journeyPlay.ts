@@ -7,14 +7,23 @@
 // Pause keeps the clock where it is; Play again goes on from there. The step rule and the
 // timer loop are `startJourneyPlayback` (motion/); this file adds the page's play, pause and copy.
 //
+// #790 (docs/mvp4.md F2): with no package picked the same player plays the whole network the same way
+// (`shipmentId: null`). Its windows are every plan leg's commute (`networkWindows`), merged where they
+// overlap; the quiet gaps inside an evening or a morning are one jump, the night is the overnight card,
+// and a last jump lands on the end of the run. It starts from the clock's minute, so Play after Pause
+// goes on in place. It sends only seeks: no `play`, no `speed`, so it never locks the run.
+//
 // No React, no DOM, tested in Node with fake timers. The server decides every position and status;
 // the browser only chooses the next minute to seek to.
+import type { SimulatorResponse } from '../../../../../../shared/v2/api';
 import type { SimControlRequest } from '../../../../../../shared/v2/schemas';
 import type { Clock } from '../../../../../../shared/v2/types';
 import {
   BUSY_REASON, FINISHED_REASON, PAUSE_LABEL, PLAY_LABEL, isRunFinished, type PlayButtonView,
 } from '../controls/controlsModel';
-import { journeyEndMin, startJourneyPlayback, type JourneyWindow } from '../motion/journeyPlayback';
+import {
+  JOURNEY_COMMUTE_STEP_MIN, journeyEndMin, startJourneyPlayback, type JourneyWindow,
+} from '../motion/journeyPlayback';
 import { playPlan, type Journey, type JourneyResult } from '../journey/journeyModel';
 
 // ---------- Copy ----------
@@ -23,9 +32,14 @@ export const NO_JOURNEY_TEXT = 'No journey to play: this package has no match ye
 export const PAUSED_TEXT = 'Journey paused.';
 export const PLAY_FAILED_TEXT = 'Play stopped: the simulator did not accept a step.';
 export const RELAY_FALLBACK_NAME = 'the relay point';
+export const NETWORK_PLAYING_TEXT = "Playing every carrier's commute.";
+export const NETWORK_PAUSED_TEXT = 'Paused.';
+export const NETWORK_FINISHED_TEXT = 'Every commute played.';
+export const NETWORK_OVERNIGHT_TEXT = 'Overnight: skipping to the morning commute';
 
 // ---------- State ----------
-type Target = { shipmentId: string; runId: string };
+/** `shipmentId: null` is network Play (no package picked, #790). */
+type Target = { shipmentId: string | null; runId: string };
 
 /**
  * running: steps are being sent (`overnight` while the card is up in place of the night);
@@ -48,6 +62,56 @@ export function currentPlay(state: PlayState, shipmentId: string | null, runId: 
 /** The plan's windows in the form the step driver takes. */
 export const journeyWindows = (journey: Journey): JourneyWindow[] =>
   playPlan(journey).windows.map(({ startMin, endMin, carryStartMin, carryEndMin }) => ({ startMin, endMin, carryStartMin, carryEndMin }));
+
+// ---------- Network Play (no package picked, #790) ----------
+
+/**
+ * Network Play's pace: simulated minutes per step (one step every JOURNEY_STEP_MS = 500 ms). On the real
+ * NYC run this draws every carrier in at least 3 steps of its commute and plays the whole network
+ * (Back to start to the end) in under 60 s (tests/ui/sim-v2-f2-network-play-real.test.ts).
+ */
+export const NETWORK_STEP_MIN = JOURNEY_COMMUTE_STEP_MIN;
+
+type Span = { startMin: number; endMin: number };
+const MIN_PER_DAY = 1440;
+const dayOf = (min: number) => Math.floor(min / MIN_PER_DAY);
+
+/**
+ * Network Play's windows: one per plan leg, from one minute before its carrier's trip `departureMin`
+ * to the leg's `finishMin` (read from the response's `trips` and `plans`; a leg whose trip is missing
+ * starts at its first stop), merged where they overlap. A gap inside one day is a plain jump
+ * (`nightBefore: false`); a gap into the next day (the evening to the morning) is the night, with the
+ * overnight card. When `endMin` (the end of the run) is later than the last window, one more jump lands there,
+ * so the button reads "Run finished" when Play is done. Every step is NETWORK_STEP_MIN (the first step
+ * of a window is one minute, onto the first departure). The browser only picks minutes to seek to.
+ */
+export function networkWindows(sim: Pick<SimulatorResponse, 'plans' | 'trips'>, endMin: number): JourneyWindow[] {
+  const trips = new Map((sim.trips ?? []).map((t) => [t.id, t]));
+  const spans: Span[] = sim.plans.flatMap((plan) => plan.legs.map((leg): Span => {
+    const trip = trips.get(leg.tripId);
+    const from = trip ? trip.departureMin : leg.stops[0]?.arrivalMin ?? leg.finishMin;
+    return { startMin: from - 1, endMin: Math.max(leg.finishMin, from) };
+  })).filter((w) => Number.isFinite(w.startMin) && Number.isFinite(w.endMin)).sort((a, b) => a.startMin - b.startMin);
+
+  const merged: Span[] = [];
+  for (const w of spans) {
+    const last = merged[merged.length - 1];
+    if (last && w.startMin <= last.endMin) last.endMin = Math.max(last.endMin, w.endMin);
+    else merged.push({ ...w });
+  }
+  // `carryStartMin = carryEndMin = endMin`: no part of a window is slowed down for a package.
+  const windows: JourneyWindow[] = merged.map((w, i) => ({
+    startMin: w.startMin,
+    endMin: w.endMin,
+    carryStartMin: w.endMin,
+    carryEndMin: w.endMin,
+    nightBefore: i > 0 && dayOf(w.startMin) > dayOf(merged[i - 1].endMin),
+  }));
+  if (Number.isFinite(endMin) && endMin > journeyEndMin(windows)) {
+    windows.push({ startMin: endMin, endMin, nightBefore: false });
+  }
+  return windows;
+}
 
 /**
  * Where Play starts. After a pause it goes on from the clock's time (also when a timeline step
@@ -112,6 +176,7 @@ export function createJourneyPlayer(deps: JourneyPlayerDeps): JourneyPlayer {
 
   return {
     start({ windows, fromMin, clockPlaying, shipmentId, runId }) {
+      // shipmentId null: network Play (#790); the same steps, windows and stop rules.
       halt();
       const my = token;
       const target = { shipmentId, runId };
@@ -161,12 +226,12 @@ export function createJourneyPlayer(deps: JourneyPlayerDeps): JourneyPlayer {
   };
 }
 
-/** What the page sees after a render, for `syncJourneyPlayer`. */
+/** What the page sees after a render, for `syncJourneyPlayer` (`shipmentId` null: no package picked). */
 export type PlaySync = { shipmentId: string | null; runId: string | null; clockPlaying: boolean };
 
 /**
  * Run by the page after each render that changes `now`. Another package, another selection kind or
- * a new run resets the player; the server clock switching to playing (in another tab) pauses it.
+ * a new run resets the player (so picking a package stops network Play); the server clock switching to playing (in another tab) pauses it.
  * A journey started on a playing clock is not paused by that: it pauses the clock itself.
  */
 export function syncJourneyPlayer(player: JourneyPlayer, prev: PlaySync | null, now: PlaySync): void {
@@ -194,9 +259,10 @@ export type PlayButtonInput = {
 };
 
 /**
- * What the one button shows and does. Anything moving reads Pause: a running journey first, then
- * a playing server clock. Otherwise Play: the picked package's journey, or with no package the
- * server clock. An unmatched package has nothing to play, and a finished run needs Back to start.
+ * What the one button shows and does. Anything moving reads Pause: a running journey or network Play
+ * first, then a server clock playing on its own. Otherwise Play: the picked package's journey, or with
+ * no package every carrier's commute (`play_network`, #790). An unmatched package has nothing to play,
+ * and a finished run needs Back to start.
  */
 export function playButtonView({ packagePicked, journey, play, clock, busy, simEndMin }: PlayButtonInput): PlayButtonView {
   if (play.status === 'running') return { label: PAUSE_LABEL, action: 'pause_journey', note: null };
@@ -209,7 +275,7 @@ export function playButtonView({ packagePicked, journey, play, clock, busy, simE
   }
   if (busy) return { label: PLAY_LABEL, action: null, note: BUSY_REASON };
   if (isRunFinished(clock, simEndMin)) return { label: PLAY_LABEL, action: null, note: FINISHED_REASON };
-  return { label: PLAY_LABEL, action: 'play_clock', note: null };
+  return { label: PLAY_LABEL, action: 'play_network', note: null };
 }
 
 // ---------- The overnight card ----------
@@ -220,9 +286,14 @@ export function relayPointName(journey: Journey): string | null {
   return stop ? stop.placeName : null;
 }
 
-/** "Overnight at <relay business name>" while the card is up; null otherwise. */
+/**
+ * "Overnight at <relay business name>" while the card is up; NETWORK_OVERNIGHT_TEXT for network Play
+ * (several relay points); null otherwise.
+ */
 export function overnightText(journey: JourneyResult | null, play: PlayState): string | null {
-  if (journey?.kind !== 'journey' || play.status !== 'running' || !play.overnight) return null;
+  if (play.status !== 'running' || !play.overnight) return null;
+  if (play.shipmentId === null) return NETWORK_OVERNIGHT_TEXT;
+  if (journey?.kind !== 'journey') return null;
   return `Overnight at ${relayPointName(journey) ?? RELAY_FALLBACK_NAME}`;
 }
 
@@ -264,11 +335,22 @@ export function stepAnnouncement(journey: Journey, playing = false, clockMin = -
  * `clockMin`: the polled clock, so the line after the delivery can tell driving on from arrived.
  */
 export function playStatusText(journey: JourneyResult | null, play: PlayState, clockMin = -Infinity): string {
+  if (play.status !== 'idle' && play.shipmentId === null) return networkStatusText(play);
   if (journey?.kind !== 'journey') return '';
   if (play.status === 'running') return stepAnnouncement(journey, true, clockMin);
   if (play.status === 'finished') return stepAnnouncement(journey);
   if (play.status === 'paused') return PAUSED_TEXT;
   return '';
+}
+
+/** Network Play's status line (#790): one fixed sentence per state, so a screen reader hears it once, not each seek. */
+function networkStatusText(play: PlayState): string {
+  switch (play.status) {
+    case 'running': return NETWORK_PLAYING_TEXT;
+    case 'paused': return NETWORK_PAUSED_TEXT;
+    case 'finished': return NETWORK_FINISHED_TEXT;
+    default: return '';
+  }
 }
 
 /** The error under the button after a failed step: the hook's message, or a fixed sentence. */

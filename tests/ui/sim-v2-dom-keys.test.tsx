@@ -39,17 +39,19 @@ function pageKey(key: string) {
 }
 
 describe('Space', () => {
-  it('with no package: Space sends play, then pause once the server says the clock is playing', async () => {
+  it('with no package: Space starts network Play (a seek, never play), then pauses it with nothing more sent (#790)', async () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountPage(server);
     pageKey(' ');
     await settle();
-    expect(server.controls()).toEqual([{ action: 'play' }]);
-    expect(server.state.sim?.clock.playing).toBe(true); // the fake server applied it
+    expect(server.controls()).toEqual([{ action: 'seek', timeMin: 1039 }]);
+    expect(server.state.sim?.clock.playing).toBe(false);
     expect(textOf(playPause(c))).toBe('Pause');
     pageKey(' ');
     await settle();
-    expect(server.controls()).toEqual([{ action: 'play' }, { action: 'pause' }]);
+    expect(textOf(playPause(c))).toBe('Play');
+    await act(() => new Promise((r) => { setTimeout(r, 700); })); // longer than one step
+    expect(server.controls()).toEqual([{ action: 'seek', timeMin: 1039 }]);
   }, T);
 
   it('"." sends nothing (#648): the next-event key went with its button', async () => {
