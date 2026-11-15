@@ -139,7 +139,7 @@ describe('the Options card after "Read my request"', () => {
     expect(card.tagName).toBe('SECTION');
     expect(textOf(document.getElementById(card.getAttribute('aria-labelledby')!)!)).toBe('Options');
     expect(card.hasAttribute('aria-busy')).toBe(false);
-    expect(p.status()).toBe('Planned by Gemini, priced by Relay.');
+    expect(p.status()).toBe(''); // no line about who made the options (#960)
     expect(p.skeletons()).toHaveLength(0);
 
     const rows = p.rows();
@@ -161,19 +161,21 @@ describe('the Options card after "Read my request"', () => {
       const dds = [...row.querySelectorAll('dd')];
       expect(dds.map((dd) => dd.classList.contains('nd-mono'))).toEqual([true, false, true, false]);
     }
-    // The cheapest one is marked, in words.
-    expect(rows.map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$16.00', 'Cheapest $12.50', '$14.00']);
+    // The price stands alone (#960). These options carry no tags, so no row has a badge: the page marks no
+    // price itself (the badges of a tagged answer: business-v2-dom-advice-tags.test.tsx).
+    expect(rows.map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$16.00', '$12.50', '$14.00']);
+    expect(rows.map((r) => [...r.querySelectorAll('.nd-option__tag')].map(textOf))).toEqual([[], [], []]);
     // Nothing was sent, and the form is as the request was read.
     expect(p.times()).toEqual(['16:00', '2', '10:00']);
     expect(p.createShipment).not.toHaveBeenCalled();
   }, T);
 
-  it('offline options say so and never name Gemini', async () => {
+  it('the card never says who made the options, and keeps the answer\'s note', async () => {
     const p = setup({ advise: async () => ({ ...OPTIONS, source: 'offline', note: 'Only two variants found a carrier.' }) });
     await p.read();
-    // One plain line: the label, and what "offline" means.
-    expect(p.status()).toBe('Priced by Relay, with no AI model.');
-    expect(textOf(p.card()!)).not.toContain('Gemini');
+    // #960: no source line, for either source (the Gemini answer is the test above).
+    expect(p.status()).toBe('');
+    expect(textOf(p.card()!)).not.toMatch(/Gemini|AI model|Priced by|Planned by/);
     expect(textOf(p.card()!)).toContain('Only two variants found a carrier.');
   }, T);
 
@@ -324,7 +326,7 @@ describe('keyboard and screen reader', () => {
     }
     expect(chooseButtons.map((b) => b.getAttribute('aria-label'))).toEqual([
       'In the form: As requested, $16.00',
-      'Choose this option: Ready 30 minutes earlier, $12.50, cheapest',
+      'Choose this option: Ready 30 minutes earlier, $12.50',
       'Choose this option: Deliver by noon, $14.00',
     ]);
     const order = tabOrder(p.container);
@@ -332,7 +334,7 @@ describe('keyboard and screen reader', () => {
     expect(order.slice(first, first + 3)).toEqual(chooseButtons);
     expect(first + 2).toBeLessThan(order.indexOf(button(p.note()!, 'Edit request')));
     expect(order.indexOf(button(p.note()!, 'Edit request'))).toBeLessThan(order.indexOf(byLabel(p.form()!, 'Recipient')));
-    // The line about who planned them is a polite status: announced when the options arrive.
+    // The card's one line is a polite status (the wait, or why there is no option); with options it is empty (#960).
     expect(p.card()!.querySelector('.nd-options__status')!.getAttribute('role')).toBe('status');
   }, T);
 
@@ -493,7 +495,7 @@ describe('the card belongs to one read request', () => {
 });
 
 describe('without a stub the page asks the server', () => {
-  it('POST /api/v2/advise with { draft } after the parse, and the answer fills the card', async () => {
+  it('POST /api/v2/advise with { draft } and the sentence after the parse, and the answer fills the card', async () => {
     const fetchMock = vi.fn(async (url: string, _init?: RequestInit) =>
       new Response(JSON.stringify(url.endsWith('/advise') ? OPTIONS : parsed()), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
@@ -516,6 +518,8 @@ describe('without a stub the page asks the server', () => {
         originBusinessId: ACME.id, destinationBusinessId: BAKERY.id, label: 'Envelope', category: 'envelope',
         description: 'Signed contract', weightKg: 0.2, readyMin: 960, deadlineMin: 2040,
       },
+      // #960: the sentence that was read goes along, for the server's recommended option (#959's `text`).
+      text: SENTENCE,
     });
     expect([...m.container.querySelectorAll('.nd-option__cents')].map(textOf)).toEqual(['$16.00', '$12.50', '$14.00']);
   }, T);

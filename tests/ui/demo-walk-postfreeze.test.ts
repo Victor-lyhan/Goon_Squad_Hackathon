@@ -36,7 +36,7 @@ import {
   parseRequest,
 } from '../../client/src/api/v2';
 import {
-  ADVICE_COPY, MAX_OPTIONS, adviceCard, adviseDraft, chosenKey, type AdviceCard, type AdviseDraft,
+  MAX_OPTIONS, adviceCard, adviseDraft, chosenKey, type AdviceCard, type AdviseDraft,
 } from '../../client/src/components/business/v2/adviceModel';
 import {
   draftFromParsed, toRequest, validate, type NewDeliveryDraft,
@@ -172,18 +172,22 @@ describe('the demo walk after the freeze, over the API on one server with no key
     expect(pick.carrierNames).toStrictEqual([demo.evening_carrier, demo.morning_carrier]);
 
     // The card as the page draws it: every option is a row, the first one holds the form's times ("In the
-    // form") and shows the README's price; the label says nobody but the server computed it.
+    // form") and shows the README's price; the card does not say who made the options (#960).
     const drawn = adviceCard(advice, { draft: asked, businesses });
     expect(drawn).not.toBeNull();
     card = drawn!;
-    expect(card.sourceLabel).toBe(ADVICE_COPY.offline);
+    expect(Object.keys(card).sort()).toStrictEqual(['note', 'rows']);
     expect(card.rows).toHaveLength(advice.options.length);
     const times = { readyTime: form.readyTime, deadlineDay: form.deadlineDay, deadlineTime: form.deadlineTime };
     for (const row of card.rows) expect(row).toMatchObject({ priceText: demo.price, routeText: `Via ${demo.relay_point}`, times });
     expect(card.rows[advice.options.indexOf(pick)].carriersText).toBe(`${demo.evening_carrier}, ${demo.morning_carrier}`);
     expect(chosenKey(card, form)).toBe(card.rows[0].key);
-    // Every row has the same price (each already has the flexibility discount), so none is marked cheapest.
-    expect(card.rows.filter((r) => r.cheapest)).toStrictEqual([]);
+    // #960: the badges are the server's tags, in the card's order, and a row's name leaves their words out.
+    // Every row has the same price (each already has the flexibility discount); the first is the fastest too.
+    expect(card.rows.map((r) => r.tags)).toStrictEqual(advice.options.map((o) => o.tags));
+    expect(card.rows.map((r) => [r.tags, r.label])).toStrictEqual([
+      [['fastest', 'cheapest'], `Relay via ${demo.relay_point}, ${demo.price}`], [['balanced'], `Relay via ${demo.relay_point}, ${demo.price}`],
+    ]);
 
     // Options are read-only: the run is as it was, and nothing is reserved.
     const after = await getSimulator();

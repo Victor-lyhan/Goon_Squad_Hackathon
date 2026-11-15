@@ -355,6 +355,7 @@ export function BusinessPageView({
                 <AdviceOptions
                   key={`options-${newView.key}`}
                   request={ask}
+                  sentence={newView.parsed.text}
                   businesses={businesses}
                   advise={advise}
                   onChoose={(times) => setTimesPatch((patch) => ({ seq: (patch?.seq ?? 0) + 1, times }))}

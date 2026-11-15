@@ -10,6 +10,7 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ADVICE_COPY, adviceCard } from '../../client/src/components/business/v2/adviceModel';
 import { adviseOffline, candidateSet, money, timeText } from '../../server/ai/advisor';
 import { advisorEngine } from '../../server/api/v2/adviseRoutes';
 import { customerPriceCents } from '../../server/domain/pricing';
@@ -133,12 +134,18 @@ describe('POST /api/v2/advise on the README demo sentence, offline: the prices a
 
     // README step 2 and the example under "Options for a request" quote this answer.
     expect(readme).toContain(`\n${DEMO_SENTENCE}\n`);
+    // Step 2 says what the card shows for it (#960): the tags as badges, and each row named without their words.
+    const card = adviceCard(body, { draft, businesses: run.store.get().scenario.businesses });
+    expect(card?.rows.map((row) => [row.label, row.tags.map((tag) => ADVICE_COPY[tag])])).toStrictEqual([
+      [`Relay via Etsy, ${demo.price}`, ['Fastest', 'Cheapest']], [`Relay via Etsy, ${demo.price}`, ['Balanced']],
+    ]);
     expect(step(2)).toContain(
-      `for this sentence it has two options, "${fastest.label}" and "${balanced.label}", the first marked "In the form", with a note on why there is no direct one,`,
+      `for this sentence it has two options, both named "Relay via Etsy, ${demo.price}": the first has the badges "Fastest" and "Cheapest" `
+      + 'and is marked "In the form", the second has the badge "Balanced", with a note on why there is no direct one.',
     );
     const carried = (o: typeof fastest) => o.carrierNames.join(' and ');
     expect(optionsExample).toContain(
-      `so the card shows "${fastest.label}" (${carried(fastest)}, arriving ${timeText(fastest.deliveryMin)}) `
+      `so the options are "${fastest.label}" (${carried(fastest)}, arriving ${timeText(fastest.deliveryMin)}) `
       + `and "${balanced.label}" (${carried(balanced)}, ${timeText(balanced.deliveryMin)}), with the note on why there is no direct one.`,
     );
     // README step 3: why the price is what it is, written from the run's own settings and the block's times.
