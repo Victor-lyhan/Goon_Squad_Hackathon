@@ -126,6 +126,8 @@ export const USAGE: readonly string[] = [
   '              times were fetched, with the command that fixes it. Calls nothing, writes nothing, needs no key.',
   '              Also says how many entered homes the cache holds (see --drop-entered), when there is one, and',
   '              explains the story packages that are not as written, when the cache can answer the matcher.',
+  '              One line counts the commute route lines of the carriers: the home ↔ work stretches of the',
+  '              employees who carry a package. They are part of the route lines above it, not extra requests.',
   '  --refetch <placeId>',
   '              For a home that moved or a business whose address was corrected after the fetch. Drops the place',
   '              from the cache with all its pairs and route lines, saves that, then runs the normal fetch, which',

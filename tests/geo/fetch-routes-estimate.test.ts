@@ -6,10 +6,46 @@ import { describe, expect, it, vi } from 'vitest';
 import { pairKey } from '../../shared/v2/types';
 import { emptyTravelFiles } from '../../server/geo/cache';
 import { commutePairs } from '../../server/geo/fetchPlan';
-import { DEFAULT_SCENARIO_REQUEST, PLAN_POLYLINES_NOTE, estimateFetch, formatEstimate, nothingToFetch } from '../../server/geo/fetchRoutes';
+import type { PlacePair } from '../../server/geo/fetchPlan';
+import {
+  CARRIER_COMMUTE_LINES_LABEL,
+  CARRIER_COMMUTE_LINES_NOTE,
+  DEFAULT_SCENARIO_REQUEST,
+  PLAN_POLYLINES_NOTE,
+  estimateFetch,
+  formatEstimate,
+  nothingToFetch,
+} from '../../server/geo/fetchRoutes';
+import type { FetchRoutesResult } from '../../server/geo/fetchRoutes';
 import { FETCH_ROUTES_TEST_TIMEOUT_MS, deepFreeze, firstRun, input, leakedLines, loggedLineCount, matrixPairsRequested, repoRoot, storyFile } from './fetch-routes-helpers';
 
 vi.setConfig({ testTimeout: FETCH_ROUTES_TEST_TIMEOUT_MS });
+
+/**
+ * The carriers' home ↔ work stretches of a finished run, written out here and not taken from fetchPlan.ts: every
+ * stretch of a plan leg with a home at one end, and both baseline commutes of every employee who carries a leg.
+ * Each pair key once.
+ */
+function carrierCommuteKeys(result: FetchRoutesResult): string[] {
+  const employees = result.scenario!.employees;
+  const homeIds = new Set(employees.map((employee) => employee.homeId));
+  const pairs: PlacePair[] = [];
+  const carrierIds = new Set<string>();
+  for (const plan of result.assignments!.plans) {
+    for (const leg of plan.legs) {
+      carrierIds.add(leg.employeeId);
+      for (let i = 1; i < leg.placeIds.length; i++) {
+        const [from, to] = [leg.placeIds[i - 1], leg.placeIds[i]];
+        if (homeIds.has(from) || homeIds.has(to)) pairs.push({ from, to });
+      }
+    }
+  }
+  for (const employee of employees) {
+    if (!carrierIds.has(employee.id)) continue;
+    pairs.push({ from: employee.businessId, to: employee.homeId }, { from: employee.homeId, to: employee.businessId });
+  }
+  return [...new Set(pairs.map(({ from, to }) => pairKey(from, to)))];
+}
 
 describe('estimateFetch', () => {
   it('on empty files agrees with the calls the first run made for geocodes, matrix pairs and commute lines', async () => {
@@ -33,6 +69,7 @@ describe('estimateFetch', () => {
       commutePolylines: 120,
       planPolylines: null, // not knowable without the matrix, so not guessed
       planPolylinesAtMost: 4 * storyFile.shipments.length,
+      carrierCommutePolylines: null, // who carries is the matcher's result, so not guessed either
       note: PLAN_POLYLINES_NOTE,
     });
     expect(nothingToFetch(estimate)).toBe(false);
@@ -53,11 +90,46 @@ describe('estimateFetch', () => {
     expect(estimate.planPolylines).toBeGreaterThan(0);
   });
 
+  it("counts the carriers' home ↔ work lines once the matrix is cached: a part of the lines above, not more requests", async () => {
+    const { result, calls, saves } = await firstRun();
+    const carrierKeys = carrierCommuteKeys(result);
+    const legHomeKeys = carrierKeys.filter((key) => !commutePairs(result.scenario!.employees).some(({ from, to }) => pairKey(from, to) === key));
+    expect(legHomeKeys.length).toBeGreaterThan(0); // otherwise this would only count baseline commutes
+
+    const estimate = estimateFetch(input(deepFreeze(structuredClone(saves[1])))); // no route line cached yet
+    expect(estimate.carrierCommutePolylines).toBe(carrierKeys.length);
+    // Every one of them is a line the run fetched, and the total is unchanged by the new count.
+    for (const key of carrierKeys) expect(calls.polyline, key).toContain(key);
+    expect(estimate.commutePolylines + estimate.planPolylines!).toBe(calls.polyline.length);
+    expect(estimate.carrierCommutePolylines!).toBeLessThanOrEqual(estimate.commutePolylines + estimate.planPolylines!);
+    expect(nothingToFetch(estimate)).toBe(false);
+  });
+
+  it("counts only the carriers' lines the cache lacks", async () => {
+    const { result } = await firstRun();
+    const carrierKeys = carrierCommuteKeys(result).sort();
+    const files = structuredClone(result.files);
+    const dropped = carrierKeys.filter((_, index) => index % 3 === 0);
+    for (const key of dropped) delete files.polylines.polylines[key];
+    // A business → business stretch of a plan is no carrier commute line.
+    const betweenBusinesses = result.assignments!.plans
+      .flatMap((plan) => plan.legs.map((leg) => pairKey(leg.placeIds[0], leg.placeIds[1])))
+      .find((key) => !carrierKeys.includes(key))!;
+    expect(betweenBusinesses).toMatch(/^biz-[^|]+\|biz-/);
+    delete files.polylines.polylines[betweenBusinesses];
+
+    const estimate = estimateFetch(input(deepFreeze(files)));
+    expect(estimate.carrierCommutePolylines).toBe(dropped.length);
+    expect(estimate.commutePolylines + estimate.planPolylines!).toBe(dropped.length + 1);
+    expect(formatEstimate(estimate)).toContain(`  ${CARRIER_COMMUTE_LINES_LABEL}: ${dropped.length} ${CARRIER_COMMUTE_LINES_NOTE}`);
+    expect(formatEstimate(estimate)).toContain(`  Google requests: ${dropped.length + 1}`);
+  });
+
   it('reports nothing to fetch on the finished files', async () => {
     const { result } = await firstRun();
     const estimate = estimateFetch(input(deepFreeze(structuredClone(result.files))));
 
-    expect(estimate).toMatchObject({ geocodes: 0, matrixPairsMissing: 0, matrixRequests: 0, commutePolylines: 0, planPolylines: 0 });
+    expect(estimate).toMatchObject({ geocodes: 0, matrixPairsMissing: 0, matrixRequests: 0, commutePolylines: 0, planPolylines: 0, carrierCommutePolylines: 0 });
     expect(estimate.matrixPairsCached).toBe(18 * 17 + 2 * 130 * 18);
     expect(nothingToFetch(estimate)).toBe(true);
     expect(formatEstimate(estimate).join('\n')).toContain('Nothing to fetch');
@@ -75,6 +147,7 @@ describe('estimateFetch', () => {
     expect(estimate.matrixRequests).toBe(1);
     expect(estimate.commutePolylines).toBe(0);
     expect(estimate.planPolylines).toBeNull();
+    expect(estimate.carrierCommutePolylines).toBeNull();
   });
 
   it('uses the default demo scenario: 60 employees, 24 packages', () => {
@@ -93,6 +166,8 @@ describe('formatEstimate', () => {
     expect(text).toContain('baseline commutes: 120');
     expect(text).toContain('at most 96');
     expect(lines).toContain(`  ${PLAN_POLYLINES_NOTE}`);
+    // Who carries is the matcher's result too: no number is printed for the carriers before it can run.
+    expect(lines).toContain(`  ${CARRIER_COMMUTE_LINES_LABEL}: not known yet ${CARRIER_COMMUTE_LINES_NOTE}`);
     for (const line of lines) expect(line).not.toContain('\n');
   });
 
@@ -101,6 +176,17 @@ describe('formatEstimate', () => {
     const lines = formatEstimate(estimateFetch(input(saves[1])));
     expect(lines.join('\n')).not.toContain(PLAN_POLYLINES_NOTE);
     expect(lines.some((line) => /matched plans: \d+$/.test(line))).toBe(true);
+  });
+
+  it("prints the carriers' line right after the matched plans' line and before the total", async () => {
+    const { saves } = await firstRun();
+    const estimate = estimateFetch(input(saves[1]));
+    const lines = formatEstimate(estimate);
+    const plans = lines.findIndex((line) => line.startsWith('  route lines to fetch for matched plans: '));
+    expect(CARRIER_COMMUTE_LINES_LABEL).toBe('commute route lines to fetch for carriers');
+    expect(lines[plans + 1]).toBe(`  commute route lines to fetch for carriers: ${estimate.carrierCommutePolylines} ${CARRIER_COMMUTE_LINES_NOTE}`);
+    expect(lines[plans + 2]).toBe(`  Google requests: ${estimate.commutePolylines + estimate.planPolylines!}`);
+    expect(CARRIER_COMMUTE_LINES_NOTE).toMatch(/part of the route lines above/);
   });
 });
 

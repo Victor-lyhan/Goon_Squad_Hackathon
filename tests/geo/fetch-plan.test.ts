@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { pairKey } from '../../shared/v2/types';
 import type { PolylinesFile, TravelMatrixFile } from '../../shared/v2/types';
-import { batchPairs, commutePairs, planGeocodes, planLegPairs, planMatrixPairs, planPolylines } from '../../server/geo/fetchPlan';
+import { batchPairs, carrierCommutePairs, commutePairs, planGeocodes, planLegPairs, planMatrixPairs, planPolylines } from '../../server/geo/fetchPlan';
 import type { MatrixPlan } from '../../server/geo/fetchPlan';
 import { MAX_MATRIX_ELEMENTS } from '../../server/geo/googleClient';
 
@@ -222,5 +222,83 @@ describe('commutePairs and planLegPairs', () => {
       { from: 'biz-b', to: 'home-001' },
       { from: 'home-001', to: 'biz-a' },
     ]);
+  });
+});
+
+describe('carrierCommutePairs (MVP IV F2: the home ↔ work stretches of the employees who carry a package)', () => {
+  const employees = [
+    { id: 'emp-1', businessId: 'biz-a', homeId: 'home-001' }, // carries in the evening
+    { id: 'emp-2', businessId: 'biz-b', homeId: 'home-002' }, // carries in the morning
+    { id: 'emp-3', businessId: 'biz-c', homeId: 'home-003' }, // carries nothing
+    { id: 'emp-4', businessId: 'biz-a', homeId: 'home-story-ana' }, // carries a direct package in the evening
+  ];
+  const plans = [
+    {
+      legs: [
+        { employeeId: 'emp-1', placeIds: ['biz-a', 'biz-c', 'home-001'] },
+        { employeeId: 'emp-2', placeIds: ['home-002', 'biz-c', 'biz-b'] },
+      ],
+    },
+    { legs: [{ employeeId: 'emp-4', placeIds: ['biz-a', 'biz-b', 'home-story-ana'] }] },
+  ];
+
+  it('gives the leg stretches that touch a home, in plan order, then both baseline commutes of every carrier', () => {
+    expect(carrierCommutePairs(plans, employees)).toEqual([
+      { from: 'biz-c', to: 'home-001' },
+      { from: 'home-002', to: 'biz-c' },
+      { from: 'biz-b', to: 'home-story-ana' },
+      { from: 'biz-a', to: 'home-001' },
+      { from: 'home-001', to: 'biz-a' },
+      { from: 'biz-b', to: 'home-002' },
+      { from: 'home-002', to: 'biz-b' },
+      { from: 'biz-a', to: 'home-story-ana' },
+      { from: 'home-story-ana', to: 'biz-a' },
+    ]);
+  });
+
+  it('leaves out every business → business stretch and the commutes of an employee who carries nothing', () => {
+    const keys = carrierCommutePairs(plans, employees).map(({ from, to }) => pairKey(from, to));
+    expect(keys).not.toContain('biz-a|biz-c');
+    expect(keys).not.toContain('biz-c|biz-b');
+    expect(keys).not.toContain('biz-a|biz-b');
+    expect(keys.filter((key) => key.includes('home-003'))).toEqual([]);
+    for (const key of keys) expect(key).toMatch(/home-/);
+  });
+
+  it('adds no pair to what the fetch already asks for: each one is a leg pair or a baseline commute', () => {
+    const already = new Set([...planLegPairs(plans), ...commutePairs(employees)].map(({ from, to }) => pairKey(from, to)));
+    const carriers = carrierCommutePairs(plans, employees);
+    for (const { from, to } of carriers) expect(already.has(pairKey(from, to)), pairKey(from, to)).toBe(true);
+    const all = [...commutePairs(employees), ...planLegPairs(plans)];
+    expect(planPolylines([...all, ...carriers], emptyPolylines())).toEqual(planPolylines(all, emptyPolylines()));
+  });
+
+  it('knows a home by the employees, not by the spelling of its ID', () => {
+    const odd = [{ id: 'emp-9', businessId: 'biz-a', homeId: 'flat-9' }];
+    expect(carrierCommutePairs([{ legs: [{ employeeId: 'emp-9', placeIds: ['biz-a', 'biz-b', 'flat-9'] }] }], odd)).toEqual([
+      { from: 'biz-b', to: 'flat-9' },
+      { from: 'biz-a', to: 'flat-9' },
+      { from: 'flat-9', to: 'biz-a' },
+    ]);
+  });
+
+  it('feeds planPolylines: only the lines the cache lacks, each once', () => {
+    const polylines = emptyPolylines();
+    polylines.polylines['biz-c|home-001'] = 'cached';
+    polylines.polylines['home-002|biz-b'] = 'cached';
+    const twice = [...plans, ...plans];
+    expect(planPolylines(carrierCommutePairs(twice, employees), polylines)).toEqual([
+      { from: 'biz-a', to: 'home-001' },
+      { from: 'biz-a', to: 'home-story-ana' },
+      { from: 'biz-b', to: 'home-002' },
+      { from: 'biz-b', to: 'home-story-ana' },
+      { from: 'home-001', to: 'biz-a' },
+      { from: 'home-002', to: 'biz-c' },
+      { from: 'home-story-ana', to: 'biz-a' },
+    ]);
+  });
+
+  it('is empty when there is no plan', () => {
+    expect(carrierCommutePairs([], employees)).toEqual([]);
   });
 });
