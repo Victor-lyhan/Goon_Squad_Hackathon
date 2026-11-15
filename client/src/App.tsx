@@ -12,6 +12,7 @@ import {
 } from './ui/shellModel';
 import { NYC_UNAVAILABLE_TEXT, type NycSummary } from './pages/landingModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
+import { LOGO_SRC } from './ui/brand';
 import NotFoundPage from './ui/NotFoundPage';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import {
@@ -202,7 +203,11 @@ export function Header({ employees, businesses }: { employees: V2Directory; busi
   const active = activeDestination(pathname);
   return (
     <header className="shell-header">
-      <Link to={HOME_PATH} className="shell-wordmark">Relay</Link>
+      <Link to={HOME_PATH} className="shell-wordmark">
+        {/* Decorative: the word "Relay" next to it is the link's name (#784). */}
+        <img className="shell-logo" src={LOGO_SRC} alt="" width={28} height={28} />
+        Relay
+      </Link>
       <nav aria-label="Workspaces" className="shell-nav">
         {DESTINATIONS.map(({ key, label }) => {
           const to = hrefs[key];

@@ -61,7 +61,12 @@ describe('compact header', () => {
     expect(current(html)).toEqual(active ? [active] : []);
     // The header says it once.
     expect(header(html).split(ENV_INDICATOR_TEXT)).toHaveLength(2);
-    expect(header(html)).toMatch(/<a [^>]*class="shell-wordmark"[^>]*>Relay<|<a [^>]*href="\/"[^>]*class="shell-wordmark"/);
+    // The brand link (#784): to "/", the logo first (decorative, so the link's name is the word), then "Relay".
+    const brand = /<a ([^>]*)>(.*?)<\/a>/.exec(header(html))!;
+    expect(brand[1]).toContain('class="shell-wordmark"');
+    expect(brand[1]).toContain('href="/"');
+    expect(brand[2]).toBe('<img class="shell-logo" src="/brand/relay-logo.png" alt="" width="28" height="28"/>Relay');
+    expect(header(html).match(/<img /g)).toHaveLength(1);
     expect(header(html)).not.toContain('href="/help"'); // the Help page is deleted (#623)
     expect(header(html)).toContain(`class="shell-env">${ENV_INDICATOR_TEXT}<`);
   });
@@ -112,6 +117,16 @@ describe('shell CSS', () => {
     expect(css).toContain("var(--font-sans, 'Inter', 'Geist', system-ui");
     // No MVP II value is left as a fallback (#651).
     expect(css).not.toMatch(/#151B26|#F7F8FA|#D7DDE5|#28618A|#1F4E70|IBM Plex Sans|var\(--radius, 2px\)/i);
+  });
+  it('the logo is 28 px beside the word, and does not make the 48 px header taller (#784)', () => {
+    const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(noComments).toMatch(/\.shell-logo \{[^}]*width: 28px; height: 28px/);
+    expect(noComments).toMatch(/\.shell-logo \{[^}]*flex: none/); // never squeezed at 390 px
+    const wordmark = /\.shell-wordmark \{([^}]*)\}/.exec(noComments)![1];
+    expect(wordmark).toMatch(/display: inline-flex; align-items: center; gap: var\(--space-2, 8px\)/);
+    // 28 px logo + the header's 8 px padding above and below = 44 px, under the 48 px min-height.
+    expect(wordmark).toMatch(/padding: 0;/);
+    expect(noComments).toMatch(/\.shell-header \{[^}]*min-height: 48px; padding: var\(--space-2, 8px\)/);
   });
   it('every nav item and the selector have a focus-visible style', () => {
     const focus = /([^{}]*)\{[^}]*outline: 2px solid/.exec(css.slice(css.indexOf('.shell-wordmark:focus-visible')))![1];

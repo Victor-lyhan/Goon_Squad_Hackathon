@@ -24,7 +24,10 @@ describe('homepage content (docs/mvp3.md P4)', () => {
     expect(LANDING_SENTENCE).toBe('Relay moves packages between businesses on employees’ existing commutes.');
     expect(LANDING_SENTENCE.match(/[.!?]/g)).toHaveLength(1);
     const intro = /<section class="landing-intro">([\s\S]*?)<\/section>/.exec(html)![1];
-    expect(intro.startsWith(`<h1>${LANDING_SENTENCE}</h1>`)).toBe(true);
+    // The logo comes first (#784): about 96 px, decorative (empty alt), a file of this app.
+    const logo = '<img class="landing-logo" src="/brand/relay-logo.png" alt="" width="96" height="96"/>';
+    expect(intro.startsWith(`${logo}<h1>${LANDING_SENTENCE}</h1>`)).toBe(true);
+    expect(html.match(/<img /g)).toHaveLength(1);
     expect(html.match(/<h[1-6]/g)).toEqual(['<h1']);
     // nothing else in the introduction but the button: no second paragraph, no environment line (#610)
     expect(intro).not.toMatch(/<p[ >]/);

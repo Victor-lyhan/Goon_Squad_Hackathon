@@ -25,6 +25,14 @@ describe('landing.css at 390 px', () => {
     expect(css).not.toMatch(/overflow(-x)?:\s*(scroll|auto)/);
   });
 
+  it('shows the logo at 96 px above the sentence, smaller on a phone, with no frame (#784)', () => {
+    const logo = /\.landing-logo \{([^}]*)\}/.exec(css)![1];
+    expect(logo).toMatch(/display: block; width: 96px; height: 96px/);
+    expect(logo).not.toMatch(/border|background|radius/);
+    const narrow = css.match(/@media \(max-width: (\d+)px\) \{([\s\S]*?)\n\}/)![2];
+    expect(narrow).toMatch(/\.landing-logo \{ width: 72px; height: 72px/);
+  });
+
   it('has no rule left for the removed parts: the Relay points note, the indicator line, the footer (#610, #652, #724)', () => {
     for (const gone of ['op-summary-hint', 'op-summary-item', 'landing-indicator', 'landing-footer', 'workspace-id', 'workspace-action']) {
       expect(css, gone).not.toContain(gone);
