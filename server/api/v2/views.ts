@@ -6,7 +6,7 @@ import type {
   RoutePolyline, ShipmentView, SimulatorResponse,
 } from '../../../shared/v2/api';
 import { pairKey } from '../../../shared/v2/types';
-import type { Home, Job, Notification, Run, Shipment, Snapshot, TravelProvider } from '../../../shared/v2/types';
+import type { DeliveryPlan, Home, Job, Notification, Run, Shipment, Snapshot, TravelProvider } from '../../../shared/v2/types';
 
 // Plain code-unit order, so the result never depends on the machine's locale.
 const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -33,7 +33,21 @@ function buildJobView(run: Run, snapshot: Snapshot, job: Job): EmployeeJobView |
   const shipment = run.scenario.shipments.find((s) => s.id === job.shipmentId);
   const plan = run.assignments.plans.find((p) => p.id === job.planId);
   if (!shipment || !plan) return null;
-  return { job, status: snapshot.jobStatus[job.id] ?? 'assigned', shipment, plan };
+  return {
+    job, status: snapshot.jobStatus[job.id] ?? 'assigned', shipment, plan,
+    stopsDone: stopsDoneAt(job, plan, snapshot.timeMin),
+  };
+}
+
+// How many of the job's leg stops are done at the snapshot's minute (#781): the stops, in order, whose
+// handling ended at or before it. The same rule as the stop events of the timeline (`serviceEndMin`),
+// so the count agrees with `status`. A leg without stops falls back to the job's own two, as the page does.
+function stopsDoneAt(job: Job, plan: DeliveryPlan, timeMin: number): number {
+  const leg = plan.legs[job.legIndex];
+  const stops = leg?.stops?.length ? leg.stops : [job.pickup, job.dropoff];
+  let done = 0;
+  while (done < stops.length && stops[done].serviceEndMin <= timeMin) done += 1;
+  return done;
 }
 
 const homeOf = (run: Run, homeId: string): Home | undefined => run.scenario.homes.find((h) => h.id === homeId);

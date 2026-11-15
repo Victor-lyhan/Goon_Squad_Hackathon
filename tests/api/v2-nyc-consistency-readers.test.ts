@@ -189,7 +189,8 @@ describe('two readers and one live delivery request, on the default NYC run', ()
         const dashboardBefore = before.employee[leg.employeeId];
         expect(jobRows(dashboardBefore).map((row) => row.job.id)).not.toContain(jobId);
         const rows = dashboard.assigned.filter((row) => row.job.id === jobId);
-        expect(rows).toStrictEqual([{ job, status: 'assigned', shipment: created.shipment, plan }]);
+        // `stopsDone: 0` (#781): the new job's commute has not handled a stop yet.
+        expect(rows).toStrictEqual([{ job, status: 'assigned', shipment: created.shipment, plan, stopsDone: 0 }]);
         // One carrier can hold both legs' worth of new jobs only if it is on both legs; count all of them.
         const newRewards = sum(plan.legs.filter((l) => l.employeeId === leg.employeeId).map((l) => l.rewardCents));
         expect(dashboard.projectedCents).toBe(dashboardBefore.projectedCents + newRewards);
