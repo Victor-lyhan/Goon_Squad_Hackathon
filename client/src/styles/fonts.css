@@ -2,10 +2,13 @@
    SPEC MVP II rule 1: no external font host.
    Latin subset only, and only the weights the UI uses. Each fontsource file sets font-display: swap,
    so text shows in the --font-sans / --font-mono fallback until the font arrives.
-   Adding a font-weight to client/src/ui/ or client/src/styles/? Import it here too
-   (tests/ui/kit-v2-fonts.test.ts checks both lists agree). */
+   Plex Mono 600 is for the mono text set at 600 (the journey badges and reward, the legend's toggle, an
+   emphasised comparison number): without it the browser fakes the bold from 500 (#737).
+   Adding a font-weight to any .css file under client/src/? Import it here too
+   (tests/ui/kit-v2-fonts.test.ts checks every stylesheet against this list). */
 @import '@fontsource/inter/latin-400.css';
 @import '@fontsource/inter/latin-500.css';
 @import '@fontsource/inter/latin-600.css';
 @import '@fontsource/ibm-plex-mono/latin-400.css';
 @import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
