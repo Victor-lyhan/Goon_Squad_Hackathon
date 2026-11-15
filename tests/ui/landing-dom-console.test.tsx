@@ -38,8 +38,8 @@ const entries = (container: HTMLElement) => [...container.querySelectorAll('.wor
 
 const link = (href: string, text: string) => ({ tag: 'a', className: 'workspace-entry', href, disabled: null, text });
 const off = (text: string) => ({ tag: 'div', className: 'workspace-entry is-disabled', href: null, disabled: 'true', text });
-const BUSINESS = 'BusinessSend a package and track it→';
-const EMPLOYEE = 'EmployeeSet a commute and see your deliveries→';
+const BUSINESS = 'BusinessSend a package and track it';
+const EMPLOYEE = 'EmployeeSet a commute and see your deliveries';
 
 describe('the homepage logs nothing to the console (#746)', () => {
   it('with Business and Employee both links', () => {

@@ -2,7 +2,8 @@
 // #863 (the AI what-if advisor, UI half): after "Read my request" the Business page asks POST /api/v2/advise
 // (a stub here: no server, no Gemini) and shows the Options card above the confirmation card. Choosing an
 // option only sets the form's ready and deliver-by times: the form's own button still sends, through the
-// unchanged createShipment. A failed call or an answer without options hides the card and nothing else.
+// unchanged createShipment. A failed call or an answer without options is one plain sentence in the card
+// (#880; before it the card was hidden), and the form still sends.
 // The pure model: business-v2-advice-model.test.ts.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdviseOption, AdviseResponse, ShipmentResponse } from '../../shared/v2/api';
@@ -88,8 +89,10 @@ function setup({ advise: answer = async () => OPTIONS, parse = async () => parse
     rows: () => [...c.querySelectorAll<HTMLElement>('.nd-options .nd-option:not(.nd-option--skeleton)')],
     skeletons: () => [...c.querySelectorAll<HTMLElement>('.nd-options .nd-option--skeleton')],
     note: () => c.querySelector<HTMLElement>('.nd-parsed'),
-    /** The row's button: "Choose this option". */
-    choose: (row: number) => button(p.rows()[row], ADVICE_COPY.choose),
+    /** The row's one button: "Choose this option", or "In the form" on the option the form holds (#880). */
+    choose: (row: number) => p.rows()[row].querySelector<HTMLButtonElement>('button.nd-option__choose')!,
+    /** The card's one line under its title: the wait, who made the options, or why there are none. */
+    status: () => textOf(p.card()!.querySelector('.nd-options__status')!),
     chosen: () => p.rows().map((r) => r.classList.contains('nd-option--chosen')),
     value: (label: string) => (byLabel(form()!, label) as HTMLInputElement | HTMLSelectElement).value,
     times: () => [p.value('Ready for pickup (Day 1)'), p.value('Deliver by: day'), p.value('Deliver by: time')],
@@ -135,7 +138,7 @@ describe('the Options card after "Read my request"', () => {
     expect(card.tagName).toBe('SECTION');
     expect(textOf(document.getElementById(card.getAttribute('aria-labelledby')!)!)).toBe('Options');
     expect(card.hasAttribute('aria-busy')).toBe(false);
-    expect(textOf(card.querySelector('.nd-options__source')!)).toBe('Planned by Gemini, checked by the engine');
+    expect(p.status()).toBe('Planned by Gemini, priced by Relay.');
     expect(p.skeletons()).toHaveLength(0);
 
     const rows = p.rows();
@@ -146,10 +149,10 @@ describe('the Options card after "Read my request"', () => {
     ]);
     const facts = (row: Element) => Object.fromEntries([...row.querySelectorAll('dt')].map((dt) => [textOf(dt), textOf(dt.nextElementSibling!)]));
     expect(facts(rows[0])).toEqual({
-      Arrives: 'Day 2, 9:05 AM', Route: 'Via Atlas Books', 'Extra for carriers': '+17 min · +2.4 mi', 'Carried by': 'Maya Chen, Luis Ortega',
+      Arrives: 'Day 2, 9:05 AM', Route: 'Via Atlas Books', 'Added to commutes': '+17 min · +2.4 mi', 'Carried by': 'Maya Chen, Luis Ortega',
     });
     expect(facts(rows[1])).toEqual({
-      Arrives: 'Day 1, 6:30 PM', Route: 'Direct', 'Extra for carriers': '+9 min · +1.0 mi', 'Carried by': 'Maya Chen',
+      Arrives: 'Day 1, 6:30 PM', Route: 'Direct', 'Added to commutes': '+9 min · +1.0 mi', 'Carried by': 'Maya Chen',
     });
     // Prices, arrival times and the extras are data: IBM Plex Mono. The route and the names are not.
     for (const row of rows) {
@@ -167,7 +170,8 @@ describe('the Options card after "Read my request"', () => {
   it('offline options say so and never name Gemini', async () => {
     const p = setup({ advise: async () => ({ ...OPTIONS, source: 'offline', note: 'Only two variants found a carrier.' }) });
     await p.read();
-    expect(textOf(p.card()!.querySelector('.nd-options__source')!)).toBe('Options computed offline');
+    // One plain line: the label, and what "offline" means.
+    expect(p.status()).toBe('Priced by Relay, with no AI model.');
     expect(textOf(p.card()!)).not.toContain('Gemini');
     expect(textOf(p.card()!)).toContain('Only two variants found a carrier.');
   }, T);
@@ -178,8 +182,8 @@ describe('the Options card after "Read my request"', () => {
     await p.read();
     const card = p.card()!;
     expect(card.getAttribute('aria-busy')).toBe('true');
-    expect(textOf(card.querySelector('.nd-options__source')!)).toBe('Looking for options…');
-    expect(p.skeletons()).toHaveLength(3);
+    expect(p.status()).toBe(ADVICE_COPY.loadingLine);
+    expect(p.skeletons()).toHaveLength(2);
     expect(p.skeletons()[0].closest('[aria-hidden="true"]')).not.toBeNull(); // bars, not content
     expect(p.rows()).toHaveLength(0);
     expect(card.querySelectorAll('button')).toHaveLength(0);
@@ -203,7 +207,8 @@ describe('choosing an option', () => {
     await p.read();
     expect(p.chosen()).toEqual([true, false, false]);
     expect([0, 1, 2].map((i) => p.choose(i).getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false']);
-    expect(textOf(p.rows()[0].querySelector('.nd-option__foot')!)).toBe('Choose this option In the form');
+    // The option the form holds says so on its button; the others offer themselves (#880).
+    expect(p.rows().map((r) => textOf(r.querySelector('.nd-option__foot')!))).toEqual(['In the form', 'Choose this option', 'Choose this option']);
     expect(textOf(p.card()!.querySelector('.nd-options__applied')!)).toBe('');
   }, T);
 
@@ -312,16 +317,22 @@ describe('keyboard and screen reader', () => {
     for (const [i, b] of chooseButtons.entries()) {
       expect(b.tagName).toBe('BUTTON');
       expect(b.type).toBe('button'); // never submits the form
-      expect(textOf(b)).toBe('Choose this option');
-      expect(textOf(document.getElementById(b.getAttribute('aria-describedby')!)!)).toBe(OPTIONS.options[i].label);
+      expect(textOf(b)).toBe(i === 0 ? 'In the form' : 'Choose this option');
+      // The name starts with what the button says, then the option and its price (#880).
+      expect(b.getAttribute('aria-label')).toContain(`${textOf(b)}: ${OPTIONS.options[i].label}, `);
     }
+    expect(chooseButtons.map((b) => b.getAttribute('aria-label'))).toEqual([
+      'In the form: As requested, $16.00',
+      'Choose this option: Ready 30 minutes earlier, $12.50, cheapest',
+      'Choose this option: Deliver by noon, $14.00',
+    ]);
     const order = tabOrder(p.container);
     const first = order.indexOf(chooseButtons[0]);
     expect(order.slice(first, first + 3)).toEqual(chooseButtons);
     expect(first + 2).toBeLessThan(order.indexOf(button(p.note()!, 'Edit request')));
     expect(order.indexOf(button(p.note()!, 'Edit request'))).toBeLessThan(order.indexOf(byLabel(p.form()!, 'Recipient')));
-    // The label of who planned them is announced when the options arrive.
-    expect(p.card()!.querySelector('.nd-options__source')!.getAttribute('aria-live')).toBe('polite');
+    // The line about who planned them is a polite status: announced when the options arrive.
+    expect(p.card()!.querySelector('.nd-options__status')!.getAttribute('role')).toBe('status');
   }, T);
 
   it('Esc in the card does not close New delivery', async () => {
@@ -333,28 +344,31 @@ describe('keyboard and screen reader', () => {
   }, T);
 });
 
-describe('no options: the card is hidden and the flow is as before', () => {
-  const failures: Array<[string, () => Promise<AdviseResponse>]> = [
-    ['a 404 (a server without the route)', async () => { throw new ApiRequestError(404, 'Not found'); }],
-    ['a 500', async () => { throw new ApiRequestError(500, 'Internal Server Error'); }],
-    ['no answer', async () => { throw new ApiRequestError(0, 'Request timed out after 15000 ms', undefined, 'timeout'); }],
-    ['a thrown error', async () => { throw new TypeError('x is undefined'); }],
-    ['an answer with no option', async () => ({ options: [], source: 'offline', note: 'No carrier passes both businesses.' })],
-    ['an answer that is not one', async () => ({ error: 'nope' }) as unknown as AdviseResponse],
+describe('no options: one plain sentence in the card, and the flow is as before', () => {
+  const NO_OPTION = `No carrier passes both businesses. ${ADVICE_COPY.noneNext}`;
+  const failures: Array<[string, () => Promise<AdviseResponse>, string]> = [
+    ['a 404 (a server without the route)', async () => { throw new ApiRequestError(404, 'Not found'); }, ADVICE_COPY.failed],
+    ['a 500', async () => { throw new ApiRequestError(500, 'Internal Server Error'); }, ADVICE_COPY.failed],
+    ['no answer', async () => { throw new ApiRequestError(0, 'Request timed out after 15000 ms', undefined, 'timeout'); }, ADVICE_COPY.failed],
+    ['a thrown error', async () => { throw new TypeError('x is undefined'); }, ADVICE_COPY.failed],
+    ['an answer with no option', async () => ({ options: [], source: 'offline', note: 'No carrier passes both businesses.' }), NO_OPTION],
+    ['an answer that is not one', async () => ({ error: 'nope' }) as unknown as AdviseResponse, ADVICE_COPY.failed],
   ];
 
-  for (const [name, advise] of failures) {
-    it(`${name}: no card, no message, and Send works`, async () => {
+  for (const [name, advise, sentence] of failures) {
+    it(`${name}: one sentence, no rows, and Send works`, async () => {
       const p = setup({ advise });
       await p.read();
       expect(p.advise).toHaveBeenCalledTimes(1);
-      expect(p.card()).toBeNull();
+      // The card stays, with its title and one sentence (#880): never the server's error text or a status code.
+      expect(textOf(p.card()!)).toBe(`Options${sentence}`);
+      expect(p.card()!.hasAttribute('aria-busy')).toBe(false);
       expect(p.container.querySelector('.nd-option, .nd-skeleton')).toBeNull();
-      // Nothing says that something failed.
+      expect(p.card()!.querySelectorAll('button')).toHaveLength(0);
+      // It is a polite status, not an alert: the request is not in trouble, and the form is not blocked.
       expect([...p.container.querySelectorAll('[role="alert"]')].map(textOf).filter(Boolean)).toEqual([]);
-      expect(textOf(p.container)).not.toContain('No carrier passes both businesses.');
       // The confirmation card is the one of before #863.
-      expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed by Gemini');
+      expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Gemini');
       expect(p.note()!.nextElementSibling).toBe(p.form());
       expect(p.times()).toEqual(['16:00', '2', '10:00']);
       await p.send();
@@ -381,7 +395,7 @@ describe('no options: the card is hidden and the flow is as before', () => {
     const pending = deferred<AdviseResponse>();
     const p = setup({ advise: () => pending.promise });
     await p.read();
-    expect(p.skeletons()).toHaveLength(3);
+    expect(p.skeletons()).toHaveLength(2);
     await p.send();
     expect(p.createShipment).toHaveBeenCalledTimes(1);
     expect(p.card()).toBeNull();

@@ -39,7 +39,7 @@ describe('the homepage in the app shell, on the real NYC run (#824)', () => {
     const stops = tabOrder(container);
     expect(stops.map((el) => textOf(el))).toEqual([
       'Skip to main content', 'Relay', 'Business', 'Employee', 'Simulator',
-      WATCH_LABEL, 'BusinessSend a package and track it→', 'EmployeeSet a commute and see your deliveries→', STUDY_LABEL,
+      WATCH_LABEL, 'BusinessSend a package and track it', 'EmployeeSet a commute and see your deliveries', STUDY_LABEL,
     ]);
     // Plain links in document order: no tabindex moves one of them, so the order on screen is the Tab order.
     expect(container.querySelector('[tabindex]:not([tabindex="-1"])')).toBeNull();

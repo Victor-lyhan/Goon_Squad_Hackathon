@@ -108,7 +108,8 @@ describe('client abort / timeout', () => {
     expect(outcome.status).toBe('rejected');
     const e = (outcome as PromiseRejectedResult).reason;
     expect(e).toBeInstanceOf(api.ApiRequestError);
-    expect([e.status, e.kind, e.message]).toEqual([0, 'timeout', 'Request timed out after 100 ms']);
+    // #909: one plain sentence with no time in it (the table is in client-error-copy.test.ts).
+    expect([e.status, e.kind, e.message]).toEqual([0, 'timeout', 'The Relay server took too long to answer, so try again in a moment.']);
   }, TIMEOUT);
 
   // Was a real 80 ms wait on the hung server, which only showed that the call ended within the test timeout.
@@ -134,7 +135,7 @@ describe('client abort / timeout', () => {
     const e = await caught(get('/api/does-not-exist'));
     expect(e).toBeInstanceOf(api.ApiRequestError);
     expect(e.status).toBe(404);
-    expect(e.message).toBe('Not found'); // the server's JSON `error`, not the default "Request failed (404)"
+    expect(e.message).toBe('Not found'); // the server's JSON `error`, not the client's own sentence
     expect(api.isNetworkError(e)).toBe(false);
     expect(api.isAbortError(e)).toBe(false);
     expect(api.isNetworkError(new Error('x'))).toBe(false);

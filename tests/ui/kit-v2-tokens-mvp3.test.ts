@@ -84,6 +84,8 @@ describe('MVP III base look in tokens.css (#651)', () => {
       '--ok', '--warn', '--danger', '--radius', '--radius-lg',
       '--space-1', '--space-2', '--space-3', '--space-4', '--space-6', '--space-8',
       '--font-sans', '--font-mono', '--text-xs', '--text-sm', '--text-md', '--text-lg', '--text-xl',
+      // Added by #895 (the app-wide keyboard focus ring); pinned in global-focus-motion.test.ts.
+      '--focus-ring', '--focus-ring-on-dark', '--focus-ring-offset',
     ];
     expect([...RAW.keys()].sort()).toEqual([...names].sort());
   });

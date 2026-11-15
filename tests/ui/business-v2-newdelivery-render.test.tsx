@@ -74,9 +74,9 @@ describe('NewDeliveryForm (static renders)', () => {
 
   it('submitting: submit disabled, inputs disabled, progress in the status region', () => {
     const html = view({ kind: 'submitting' });
-    expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Sending…</);
+    expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Finding a match…</);
     expect(html.match(/<fieldset[^>]*disabled=""/g)).toHaveLength(2);
-    expect(regionText(html, 'status')).toContain('Sending request');
+    expect(regionText(html, 'status')).toContain('Finding a delivery match for your request');
     expectLabelled(html);
     expectClean(html);
   });
@@ -107,7 +107,7 @@ describe('NewDeliveryForm (static renders)', () => {
     expect(retry(status, false)).toMatch(/<button type="submit"[^>]*>Find a delivery match</);
     const pending = retry({ kind: 'submitting', retry: true }, true);
     expect(pending).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Matching…</);
-    expect(regionText(pending, 'status')).toContain('Looking for a matching commute again');
+    expect(regionText(pending, 'status')).toContain('Finding a delivery match again');
   });
 
   it('unmatched: the server reason and the same action', () => {

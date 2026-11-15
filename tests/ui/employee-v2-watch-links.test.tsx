@@ -38,7 +38,7 @@ describe('simulatorHref', () => {
 
 describe('the delivery list\'s "Watch in simulator"', () => {
   const list = (views: Parameters<typeof deliveryRows>[0]) => renderToStaticMarkup(
-    <DeliveryList id="assigned" title="Assigned deliveries" rows={deliveryRows(views, listBusinesses, 'Astoria')} emptyText="" />,
+    <DeliveryList id="assigned" title="Assigned deliveries" rows={deliveryRows(views, listBusinesses, 'Astoria')} />,
   );
 
   it('plays the journey of each row\'s own package', () => {

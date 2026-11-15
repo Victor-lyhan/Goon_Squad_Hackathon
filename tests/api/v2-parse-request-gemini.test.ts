@@ -245,7 +245,7 @@ describe('POST /api/v2/parse-request with a Gemini key', () => {
     const text = 'Deliver an envelope from Etsy to my home by 10 a.m. tomorrow';
     const home = expectDraft(await post({ text }), store.get());
     expect(home.draft).toMatchObject({ originBusinessId: 'biz-etsy', destinationBusinessId: null });
-    expect(home.rejected).toBe('Relay delivers only between network businesses. "my home" is not one of them.');
+    expect(home.rejected).toBe('Relay delivers only between network businesses, and "my home" is not one.');
     expect(home.rejected).toBe(offline(text, store.get()).rejected);
     expect(home.source).toBe('gemini');
   }, T);

@@ -170,7 +170,7 @@ describe('New delivery opens on the request text box', () => {
 });
 
 describe('"Read my request": the answer opens the form as the confirmation card', () => {
-  it('a Gemini draft: every field prefilled, "Parsed by Gemini", nothing to check, nothing sent', async () => {
+  it('a Gemini draft: every field prefilled, "Read by Gemini", nothing to check, nothing sent', async () => {
     const p = setup();
     await p.read(`  ${SENTENCE}  `);
     expect(p.parseRequest).toHaveBeenCalledTimes(1);
@@ -190,7 +190,7 @@ describe('"Read my request": the answer opens the form as the confirmation card'
     // The lines above the form: the label, the sentence, and that nothing has been sent.
     const note = p.note()!;
     expect(note.nextElementSibling).toBe(form);
-    expect(textOf(note.querySelector('.nd-parsed__source')!)).toBe('Parsed by Gemini');
+    expect(textOf(note.querySelector('.nd-parsed__source')!)).toBe('Read by Gemini');
     expect(textOf(note.querySelector('.nd-parsed__text')!)).toBe(`“${SENTENCE}”`);
     expect(textOf(note)).toContain(REQUEST_COPY.confirm);
     expect(textOf(note)).not.toContain('You are signed in as');
@@ -223,14 +223,14 @@ describe('"Read my request": the answer opens the form as the confirmation card'
     click(button(p.form()!, 'Find a delivery match'));
     await flush();
     expect(textOf(p.form()!.querySelector('.nd-result')!)).toContain(RESULT_COPY.unmatched);
-    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed by Gemini');
+    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Gemini');
     expect(p.value('Package name')).toBe('Envelope');
   }, T);
 
-  it('an offline draft with missing fields: "Parsed offline", defaults with "Check this", focus on the first', async () => {
+  it('an offline draft with missing fields: "Read by Relay’s rules", defaults with "Check this", focus on the first', async () => {
     const p = setup(async () => OFFLINE);
     await p.read();
-    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed offline');
+    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Relay’s rules');
     expect(textOf(p.note()!)).not.toContain('Gemini');
     expect(p.checks()).toEqual(['Package name', 'Weight (kg)', 'Contents']);
     expect(p.recipient()).toBe('Bakery Row · Williamsburg');
@@ -301,7 +301,7 @@ describe('"Read my request": the answer opens the form as the confirmation card'
     await p.read(`${SENTENCE} It is a signed contract.`);
     expect(p.parseRequest).toHaveBeenCalledTimes(2);
     // The second card is the second answer, not the first card's fields or hints.
-    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed by Gemini');
+    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Gemini');
     expect(p.value('Package name')).toBe('Envelope');
     expect(p.checks()).toEqual([]);
     expect(p.createShipment).not.toHaveBeenCalled();
@@ -467,7 +467,7 @@ describe('a request that could not be read', () => {
     click(p.readButton());
     await flush();
     expect(p.parseRequest).toHaveBeenCalledTimes(2);
-    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed offline');
+    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Relay’s rules');
   }, T);
 });
 
@@ -542,7 +542,7 @@ describe('the locked run', () => {
     await flush();
     expect(textOf(p.form()!.querySelector('[role="alert"]')!)).toBe('The simulation is playing. Press Back to start.');
     expect(button(p.form()!, 'Find a delivery match').disabled).toBe(true);
-    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed by Gemini');
+    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Gemini');
     expect(p.value('Package name')).toBe('Envelope');
   }, T);
 
@@ -573,14 +573,18 @@ describe('without a stub the page asks the server', () => {
     for (let i = 0; i < 20 && !m.container.querySelector('form.nd'); i++) await flush();
     await flush();
     // One read. The call after it asks for the Options card (#863, business-v2-dom-advice.test.tsx); this
-    // fake answers it with the draft again, which holds no option, so no card is drawn.
+    // fake answers it with the draft again, which is no advise answer: the card holds no option and says so
+    // in one sentence (#880; before it the card was not drawn).
     expect(fetchMock.mock.calls.map(([called]) => called)).toEqual(['/api/v2/parse-request', '/api/v2/advise']);
-    expect(m.container.querySelector('.nd-options')).toBeNull();
+    expect(m.container.querySelector('.nd-option')).toBeNull();
+    expect(textOf(m.container.querySelector('.nd-options')!)).toBe(
+      'OptionsOptions could not be loaded. You can still send your request: press Find a delivery match.',
+    );
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('/api/v2/parse-request');
     expect(init!.method).toBe('POST');
     expect(JSON.parse(String(init!.body))).toEqual({ text: SENTENCE });
-    expect(textOf(m.container.querySelector('.nd-parsed__source')!)).toBe('Parsed offline');
+    expect(textOf(m.container.querySelector('.nd-parsed__source')!)).toBe('Read by Relay’s rules');
     expect(m.container.querySelector('form.nd')).not.toBeNull();
   }, T);
 });

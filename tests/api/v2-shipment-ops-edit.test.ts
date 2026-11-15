@@ -42,10 +42,10 @@ describe('planPatchShipment: refusals', () => {
 
 describe('planPatchShipment: invalid (400)', () => {
   const cases: [string, unknown, Record<string, string>][] = [
-    ['a string body', 'rename it', { body: 'Send the delivery details as a JSON object' }],
-    ['a null body', null, { body: 'Send the delivery details as a JSON object' }],
-    ['no body', undefined, { body: 'Send the delivery details as a JSON object' }],
-    ['an array body', [{ label: 'x' }], { body: 'Send the delivery details as a JSON object' }],
+    ['a string body', 'rename it', { body: 'The delivery details did not arrive, so reload the page and send again' }],
+    ['a null body', null, { body: 'The delivery details did not arrive, so reload the page and send again' }],
+    ['no body', undefined, { body: 'The delivery details did not arrive, so reload the page and send again' }],
+    ['an array body', [{ label: 'x' }], { body: 'The delivery details did not arrive, so reload the page and send again' }],
     ['a blank name', { label: '  ' }, { label: 'Package name is required' }],
     ['a null name', { label: null }, { label: 'Package name is required' }],
     ['a blank description', { description: '' }, { description: 'Describe the contents' }],

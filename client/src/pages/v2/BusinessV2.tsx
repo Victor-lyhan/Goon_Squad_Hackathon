@@ -12,8 +12,7 @@ import { BusinessPageView } from '../../components/business/v2/page/BusinessPage
 import { pageScreen, siblingBusinessPath, withShipment } from '../../components/business/v2/page/businessPageModel';
 import { DeliveryRouteSlot } from '../../components/business/v2/route/DeliveryRoutePreview';
 import { useDeliveryMap } from '../../components/business/v2/route/useDeliveryMap';
-import { ShipmentsListLoadContext, type ShipmentsListLoad } from '../../components/business/v2/ShipmentsTable';
-import { listLoadKind } from '../../components/business/v2/shipmentsTableModel';
+import { ShipmentsListLoadContext, useShipmentsListLoad } from '../../components/business/v2/ShipmentsTable';
 
 export default function BusinessV2() {
   const { id = '' } = useParams();
@@ -36,11 +35,9 @@ export default function BusinessV2() {
     () => ({ employees: ws.employees, matchShipment: ws.matchShipment }), [ws.employees, ws.matchShipment],
   );
 
-  // Deliveries without their business names are still loading; a failed update keeps the rows and offers a retry.
-  const listKind = listLoadKind(ws);
-  const listLoad = useMemo<ShipmentsListLoad>(
-    () => (listKind === 'error' ? { kind: 'error', onRetry: ws.refetchNow } : { kind: listKind }), [listKind, ws.refetchNow],
-  );
+  // Deliveries without their business names are still loading, for a few seconds at most; a failed update
+  // keeps the rows and offers a retry.
+  const listLoad = useShipmentsListLoad(ws, ws.refetchNow);
 
   return (
     <NewDeliveryServicesContext.Provider value={formServices}>

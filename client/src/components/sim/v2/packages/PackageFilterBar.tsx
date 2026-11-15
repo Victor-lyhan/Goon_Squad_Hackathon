@@ -11,6 +11,14 @@ export type PackageFilterBarProps = {
   options: StatusFilterOption[];
 };
 
+/**
+ * A status chip's name for a screen reader (#883): "Delivered, 12 packages", not the bare "Delivered 12".
+ * It starts with the visible word, so speech control ("click Delivered") still finds it.
+ */
+export function statusChipName(label: string, count: number): string {
+  return `${label}, ${count} ${count === 1 ? 'package' : 'packages'}`;
+}
+
 /** Search box plus the status filter as a labelled button group. Controlled: the panel owns the state. */
 export function PackageFilterBar({ query, onQueryChange, status, onStatusChange, options }: PackageFilterBarProps) {
   const searchId = useId();
@@ -38,6 +46,7 @@ export function PackageFilterBar({ query, onQueryChange, status, onStatusChange,
               type="button"
               className={`pk-chip${pressed ? ' is-pressed' : ''}`}
               aria-pressed={pressed}
+              aria-label={statusChipName(o.label, o.count)}
               onClick={() => onStatusChange(o.value)}
             >
               <span>{o.label}</span>

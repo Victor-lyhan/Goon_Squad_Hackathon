@@ -218,7 +218,9 @@ describe('visible keyboard focus on every kit control (#477)', () => {
         if (d.prop === 'outline' || d.prop === 'outline-color') {
           const v = /var\(--[\w-]+\)/.exec(d.value);
           if (!v) continue;
-          for (const bg of SURFACES) expect(contrast(resolve(v[0]), bg), `${r.selectors} ${d.value}`).toBeGreaterThanOrEqual(3);
+          // #895: the ring of the dark grounds is drawn on ink, not on the light surfaces.
+          const grounds = v[0] === 'var(--focus-ring-on-dark)' ? [resolve('var(--text)')] : SURFACES;
+          for (const bg of grounds) expect(contrast(resolve(v[0]), bg), `${r.selectors} ${d.value}`).toBeGreaterThanOrEqual(3);
         }
       }
     }

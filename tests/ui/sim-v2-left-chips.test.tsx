@@ -68,7 +68,7 @@ describe('#846 left panel content never wider than the panel', () => {
     expect(html).toMatch(/^<div class="pk-filters">/);
     const row = html.match(/<div class="pk-status" role="group"[^>]*>([\s\S]*)<\/div><\/div>$/);
     expect(row).not.toBeNull();
-    const chips = [...row![1].matchAll(/<button type="button" class="pk-chip[^"]*" aria-pressed="(true|false)">([\s\S]*?)<\/button>/g)]
+    const chips = [...row![1].matchAll(/<button type="button" class="pk-chip[^"]*" aria-pressed="(true|false)" aria-label="[^"]*">([\s\S]*?)<\/button>/g)]
       .map((m) => `${m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}${m[1] === 'true' ? ' *' : ''}`);
     expect(chips).toEqual(['All 24 *', 'Scheduled 1', 'Picked up 1', 'At relay point 8', 'Out for delivery 2', 'Delivered 12']);
   });

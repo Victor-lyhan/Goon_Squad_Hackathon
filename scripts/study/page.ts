@@ -3,8 +3,13 @@
 //
 // Rules of the page:
 // - Pure and deterministic: the same results give the same text. No timestamp, no random id, no clock.
-// - One file, no network: inline CSS, charts as inline SVG, no script, no web font (system sans fallback).
+// - One file, no network: inline CSS, charts as inline SVG, no script. Inter and IBM Plex Mono are in the
+//   page as data: URLs (scripts/study/fonts.ts), with the system fonts as the fallback.
 //   The tab icon is an empty data: URL, so the browser does not ask the server for /favicon.ico either.
+// - Results first (#887): the back link, the title line, then the headline numbers as the one dark band of
+//   the page; the charts follow, and how the comparison was made comes after them, next to the assumptions.
+// - Every chart has a title, says its unit (on the axis, in the title or at each bar) and names its series
+//   in words next to the marks, so nothing is read from colour alone.
 // - It shows numbers, it does not make them: totals and headline values are read from the results, and the
 //   spread across runs and the groups of runs from scripts/study/summary.ts. The only arithmetic here is
 //   presentation (a run's saving per matched package for the histograms, chart geometry).
@@ -13,6 +18,7 @@
 // - Assumption text (label, unit, reason) is printed as it is in assumptions.ts, only HTML-escaped, so
 //   tests/study/page.test.ts can check the committed page against that file.
 // Colors are the MVP III palette (docs/mvp3.md, client/src/styles/tokens.css) in plain hex.
+import { embeddedFontCss } from './fonts';
 import { HIGH_PERCENTILE, LOW_PERCENTILE, percentileOf, summarize, type GroupSummary, type SidesSpread, type StudySummary } from './summary';
 import type { Assumption, ComparisonTotals, StudyGrid, StudyResults, StudyRun } from './types';
 import { MINUTES_PER_DAY, dollars, percent, rate, roundTo } from './units';
@@ -37,7 +43,14 @@ const COLOR = {
   courier: '#A8ABB2', // the baseline, drawn as the quiet series
   onTime: '#0F8A5F',
   late: '#A4322A',
+  // The headline band: white figures on ink, like a transit sign. The two greys are only used on ink.
+  onInk: '#FFFFFF',
+  onInkMuted: '#C3C8D0', // 10.0:1 on ink
+  inkLine: '#3A414D',
 };
+
+const SANS = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+const MONO = '"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 
 const NA = 'n/a';
 const MINUS = '−';
@@ -133,6 +146,19 @@ export const CARD_MIN_WIDTH = CHART_WIDTH + 2 * (CARD_PADDING_X + CARD_BORDER);
 /** A chart in a wide card stops growing here, so its text stays near the size of the text around it. */
 const CHART_MAX_WIDTH = Math.round(CHART_WIDTH * 1.4);
 
+/** Paragraphs stop here: about 80 characters a line at 15 px (they ran to about 105 at 760 px before #887). */
+const TEXT_MAX_WIDTH = 640;
+// The headline band: five tiles in one row on a page wide enough to give each TILE_MIN_WIDTH, three and two
+// below that (never one tile alone on a row of dark), one column on a phone. A headline value is at most 10
+// characters ("54.8% less"), each 0.6 em wide in IBM Plex Mono less the letter-spacing of the rule below:
+// 163 px of text, which fits the narrowest tile of every layout (200 px less its padding at a 641 px page).
+/** The font size of a headline value: the largest text on the page. */
+export const TILE_VALUE_PX = 28;
+/** The narrowest a headline tile is in the five-in-a-row layout. */
+export const TILE_MIN_WIDTH = 208;
+const TILE_PADDING_X = 16;
+const PAGE_PADDING_X = 20;
+
 const W = CHART_WIDTH;
 const BAR_RADIUS = 4;
 
@@ -211,12 +237,17 @@ type Distribution = {
   id: string;
   /** What one value is, e.g. "cost saved per package". */
   what: string;
+  /** The title of the value axis, with its unit, e.g. "Saved per package, dollars". */
+  axis: string;
   values: number[];
   /** A value in full, for the summary line and the bar titles. */
   format: (value: number) => string;
   /** An axis label for a bin edge, given the decimals the step needs. */
   tick: (value: number, decimals: number) => string;
 };
+
+/** The title of the count axis of a run distribution. */
+export const RUNS_AXIS = 'Number of runs';
 
 /** How many runs fall in each range of a per-run value: one series, so one color and no legend. */
 function histogram(d: Distribution): string {
@@ -239,8 +270,8 @@ function histogram(d: Distribution): string {
   }
   const ticks = countTicks(Math.max(...counts));
   const topCount = ticks[ticks.length - 1]!;
-  // Room for the widest count label left of the plot (a monospace figure is 0.6 em wide): "1500" needs more than "2".
-  const left = Math.max(30, Math.ceil(String(topCount).length * CHART_TEXT_PX * 0.6) + 8);
+  // Room for the widest count label left of the plot (a monospace figure is 0.6 em wide): "1,500" needs more than "2".
+  const left = Math.max(30, Math.ceil(count(topCount).length * CHART_TEXT_PX * 0.6) + 8);
   const plotWidth = W - left - right;
   const yOf = (value: number): number => baseY - (value / topCount) * (baseY - topY);
   const slot = plotWidth / bins;
@@ -255,7 +286,7 @@ function histogram(d: Distribution): string {
 
   const grid = ticks.map(tick =>
     `<line class="grid" x1="${left}" x2="${W - right}" y1="${px(yOf(tick))}" y2="${px(yOf(tick))}"/>`
-    + `<text class="tm num" x="${left - 6}" y="${px(yOf(tick) + 4)}" text-anchor="end">${tick}</text>`).join('');
+    + `<text class="tm num" x="${left - 6}" y="${px(yOf(tick) + 4)}" text-anchor="end">${count(tick)}</text>`).join('');
   const bars = counts.map((value, index) => {
     if (value === 0) return '';
     const x = left + index * slot + (slot - barWidth) / 2;
@@ -271,8 +302,8 @@ function histogram(d: Distribution): string {
       edges += `<text class="tm num" x="${px(x)}" y="${xLabelY}" text-anchor="middle">${d.tick(edge(index), decimals)}</text>`;
     }
   }
-  const axisTitle = `<text class="tm" x="${px(left + plotWidth / 2)}" y="${height - 6}" text-anchor="middle">${escapeHtml(d.what)}</text>`
-    + `<text class="tm" x="0" y="12">runs</text>`;
+  const axisTitle = `<text class="tm" x="${px(left + plotWidth / 2)}" y="${height - 6}" text-anchor="middle">${escapeHtml(d.axis)}</text>`
+    + `<text class="tm" x="0" y="12">${RUNS_AXIS}</text>`;
   const label = `Runs by ${d.what}: ${runsWord(d.values.length)}, from ${d.format(sorted[0]!)} to ${d.format(sorted[sorted.length - 1]!)}`;
   return svg(d.id, height, label, grid + bars + edges + axisTitle);
 }
@@ -283,17 +314,26 @@ function distributionSummary(d: Distribution): string {
   const sorted = [...d.values].sort((a, b) => a - b);
   const at = (percentile: number): string => d.format(percentileOf(sorted, percentile)!);
   const ahead = d.values.filter(value => value > 0).length;
-  return `<p class="note">Median ${at(50)} · 10th to 90th percentile ${at(LOW_PERCENTILE)} to ${at(HIGH_PERCENTILE)} · `
-    + `Relay ahead in ${count(ahead)} of ${runsWord(d.values.length)}</p>`;
+  return `<p class="note">Median ${at(50)}. 10th to 90th percentile: ${at(LOW_PERCENTILE)} to ${at(HIGH_PERCENTILE)}. `
+    + `Relay ahead in ${count(ahead)} of ${runsWord(d.values.length)}.</p>`;
 }
 
-/** A rate per named row against the same whole (0 to 100%): a bar on a lighter track, the figure at the end. */
+/**
+ * A rate per named row against the same whole (0 to 100%): a bar on a lighter track, the figure at the end,
+ * and under the last row the scale of the track in percent.
+ */
 function rateRows(id: string, what: string, rows: Array<{ name: string; fraction: number | null }>): string {
   const labelWidth = 98;
   const valueWidth = 50;
   const barHeight = 14;
   const rowHeight = 26;
   const span = W - labelWidth - valueWidth;
+  const axisY = rows.length * rowHeight;
+  const axis = [0, 0.5, 1].map(fraction => {
+    const x = labelWidth + fraction * span;
+    return `<line class="grid" x1="${px(x)}" x2="${px(x)}" y1="${axisY}" y2="${axisY + 4}"/>`
+      + `<text class="tm num" x="${px(x)}" y="${axisY + 18}" text-anchor="middle">${percent(fraction).replace('.0%', '%')}</text>`;
+  }).join('');
   const body = rows.map((row, index) => {
     const y = 4 + index * rowHeight;
     const width = row.fraction === null ? 0 : Math.max(0, Math.min(1, row.fraction)) * span;
@@ -303,14 +343,21 @@ function rateRows(id: string, what: string, rows: Array<{ name: string; fraction
       + `<text class="t num" x="${W}" y="${px(y + 11)}" text-anchor="end">${pct(row.fraction)}</text>`;
   }).join('');
   const label = `${what}: ${rows.map(row => `${row.name} ${pct(row.fraction)}`).join(', ')}`;
-  return svg(id, rows.length * rowHeight + 2, label, body);
+  return svg(id, axisY + 24, label, body + axis);
 }
 
 type Part = { name: string; value: number; cls: string };
 
-/** One whole split into parts: each part its own block, its share printed on it where it fits. */
+/**
+ * One whole split into parts: each part its own block, with its name above it and its share below it where
+ * the block is wide enough for both. The words are dark text on the card, never text on a colour (white on
+ * the on-time green was 4.4:1, below the 4.5:1 of small text), so a part is named without its colour.
+ * A part too narrow for its name is named in the key under the chart.
+ */
 function segmentedBar(id: string, what: string, parts: Part[]): string {
-  const height = 28;
+  const barY = 18;
+  const barHeight = 28;
+  const shareY = barY + barHeight + 14;
   const gap = 2;
   const total = parts.reduce((sum, part) => sum + part.value, 0);
   const shown = parts.filter(part => part.value > 0);
@@ -319,14 +366,18 @@ function segmentedBar(id: string, what: string, parts: Part[]): string {
   const body = shown.map(part => {
     const width = (part.value / total) * span;
     const share = pct(rate(part.value, total));
+    // Chrome's widths (#808): a sans label is at most 0.58 em per character, a figure 0.6 em.
+    const fits = width >= Math.max(part.name.length * CHART_TEXT_PX * 0.58, share.length * CHART_TEXT_PX * 0.6);
     const block = `<g><title>${escapeHtml(`${part.name}: ${count(part.value)} (${share})`)}</title>`
-      + `<rect class="${part.cls}" x="${px(x)}" y="0" width="${px(width)}" height="${height}" rx="${BAR_RADIUS}"/></g>`
-      + (width >= 52 ? `<text class="t-on num" x="${px(x + 8)}" y="18">${share}</text>` : '');
+      + `<rect class="${part.cls}" x="${px(x)}" y="${barY}" width="${px(width)}" height="${barHeight}" rx="${BAR_RADIUS}"/></g>`
+      + (fits ? `<text class="t" x="${px(x)}" y="12">${escapeHtml(part.name)}</text><text class="t num" x="${px(x)}" y="${shareY}">${share}</text>` : '');
     x += width + gap;
     return block;
   }).join('');
   const label = `${what}: ${parts.map(part => `${part.name} ${count(part.value)}`).join(', ')}`;
-  return svg(id, height, label, total === 0 ? `<text class="tm" x="0" y="18">No package matched.</text>` : body);
+  return total === 0
+    ? svg(id, 28, label, `<text class="tm" x="0" y="18">No package matched.</text>`)
+    : svg(id, shareY + 4, label, body);
 }
 
 // ---------- sections ----------
@@ -425,36 +476,38 @@ function skippedBlock(grid: StudyGrid): string {
 const CSS = `
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:${COLOR.bg};color:${COLOR.ink};font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5}
-main{max-width:1120px;margin:0 auto;padding:20px 20px 56px}
+body{margin:0;background:${COLOR.bg};color:${COLOR.ink};font-family:${SANS};font-size:15px;line-height:1.5}
+main{max-width:1120px;margin:0 auto;padding:20px ${PAGE_PADDING_X}px 56px}
 a{color:${COLOR.relay}}
-a:focus-visible,summary:focus-visible{outline:2px solid ${COLOR.relay};outline-offset:2px}
+a:focus-visible,summary:focus-visible,.scroll:focus-visible{outline:2px solid ${COLOR.relay};outline-offset:2px}
+strong,b,th,dd{font-weight:600}
+.num,code,.tile-value,.figures td{font-family:${MONO}}
 .back{display:inline-block;font-size:14px;font-weight:600;text-decoration:none;padding:6px 0}
 .back:hover{text-decoration:underline}
-.eyebrow{font-size:14px;font-weight:600;color:${COLOR.muted};margin:20px 0 0}
-h1{font-size:30px;line-height:1.2;margin:2px 0 8px;font-weight:600;letter-spacing:-0.01em}
-h2{font-size:19px;line-height:1.3;margin:40px 0 4px;font-weight:600}
+.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 12px;margin:14px 0 0}
+h1{font-size:22px;line-height:1.3;margin:0;font-weight:600;letter-spacing:-0.01em}
+.sub{margin:0;color:${COLOR.muted}}
+h2{font-size:19px;line-height:1.3;margin:44px 0 4px;font-weight:600}
 p{margin:0 0 12px}
-.lede{font-size:17px;color:${COLOR.muted};max-width:760px}
-.intro{color:${COLOR.muted};max-width:760px}
+.lede{font-size:17px;color:${COLOR.muted};max-width:${TEXT_MAX_WIDTH}px;margin:20px 0 0}
+.lede a{white-space:nowrap}
+.intro{color:${COLOR.muted};max-width:${TEXT_MAX_WIDTH}px}
 .after{margin-top:20px}
-.how{max-width:760px}
-.num,code{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));column-gap:12px;row-gap:0;margin:12px 0 0}
-.tile,.card{background:${COLOR.panel};border:1px solid ${COLOR.line};border-radius:6px}
-.tile{display:grid;grid-row:span 3;grid-template-rows:subgrid;row-gap:0;margin-top:12px;padding:14px 16px}
+.how{max-width:${TEXT_MAX_WIDTH}px}
+.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));column-gap:0;row-gap:0;margin:12px 0 0;background:${COLOR.ink};color:${COLOR.onInk};border-radius:6px;overflow:hidden}
+.tile{display:grid;grid-row:span 3;grid-template-rows:subgrid;row-gap:0;margin:-1px 0 0 -1px;padding:17px ${TILE_PADDING_X}px 16px ${TILE_PADDING_X + 1}px;border:solid ${COLOR.inkLine};border-width:1px 0 0 1px}
 .tile p{margin:0}
-.tile-label{font-size:13px;color:${COLOR.muted};align-self:end}
-.tile-value{font-size:26px;line-height:1.25;font-weight:600;margin:2px 0 4px}
-.tile-detail{font-size:13px;color:${COLOR.muted}}
+.tile-label{font-size:13px;color:${COLOR.onInkMuted};align-self:end}
+.tile-value{font-size:${TILE_VALUE_PX}px;font-weight:600;line-height:1.25;letter-spacing:-0.02em;margin:2px 0 4px}
+.tile-detail{font-size:13px;color:${COLOR.onInkMuted}}
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,${CARD_MIN_WIDTH}px),1fr));gap:12px;margin-top:12px}
-.card{margin:0;padding:14px ${CARD_PADDING_X}px 12px;border-width:${CARD_BORDER}px;min-width:0}
+.grid2{display:grid;grid-template-columns:minmax(${CARD_MIN_WIDTH}px,1fr) minmax(0,2fr);gap:12px 24px;align-items:start;margin-top:12px}
+.card{margin:0;padding:14px ${CARD_PADDING_X}px 12px;background:${COLOR.panel};border:solid ${COLOR.line};border-width:${CARD_BORDER}px;border-radius:6px;min-width:0}
 figcaption{font-size:14px;font-weight:600;margin-bottom:10px}
 svg{display:block;width:100%;height:auto;max-width:${CHART_MAX_WIDTH}px}
 svg text{font-size:${CHART_TEXT_PX}px}
 .t{fill:${COLOR.ink}}
 .tm{fill:${COLOR.muted}}
-.t-on{fill:#FFFFFF;font-weight:600}
 .grid{stroke:${COLOR.line};stroke-width:1}
 .f-relay{fill:${COLOR.relay}}
 .f-courier{fill:${COLOR.courier}}
@@ -462,25 +515,23 @@ svg text{font-size:${CHART_TEXT_PX}px}
 .f-ontime{fill:${COLOR.onTime}}
 .f-late{fill:${COLOR.late}}
 .legend{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:10px 0 0;padding:0;font-size:13px;color:${COLOR.muted}}
-.legend li{display:flex;align-items:center;gap:6px}
+.legend li{display:flex;align-items:baseline;gap:6px}
 .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;flex:none}
 .note{font-size:13px;color:${COLOR.muted};margin:10px 0 0}
-.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 20px;margin:16px 0 0;max-width:760px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 20px;margin:16px 0 0;max-width:${TEXT_MAX_WIDTH}px}
 .facts div{border-top:1px solid ${COLOR.line};padding-top:6px}
 .facts dt{font-size:13px;color:${COLOR.muted}}
-.facts dd{margin:0;font-weight:600}
+.facts dd{margin:0}
 .scroll{overflow-x:auto;margin-top:12px;background:${COLOR.panel};border:1px solid ${COLOR.line};border-radius:6px}
 table{border-collapse:collapse;width:100%;font-size:14px}
 th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid ${COLOR.line}}
-thead th{border-top:0;font-size:12px;font-weight:600;color:${COLOR.muted};white-space:nowrap}
-tbody th{font-weight:600}
+thead th{border-top:0;font-size:12px;color:${COLOR.muted};white-space:nowrap}
 .assumptions tbody th{width:26%}
 .assumptions .value{width:24%}
-.assumptions .value b{font-weight:600}
-.assumptions code{display:block;margin-top:2px;font-size:12px;font-weight:400;color:${COLOR.muted};overflow-wrap:anywhere}
+.assumptions code{display:block;margin-top:2px;font-size:12px;color:${COLOR.muted};overflow-wrap:anywhere}
 .figures{font-size:13px;font-variant-numeric:tabular-nums}
 .figures th,.figures td{padding:8px 12px;white-space:nowrap}
-.figures td{text-align:right;font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.figures td{text-align:right}
 .figures thead th{text-align:right;white-space:normal;vertical-align:bottom}
 .figures thead th:first-child,.figures.spread thead th:nth-child(2){text-align:left}
 .figures tbody th[rowspan]{white-space:normal}
@@ -491,12 +542,23 @@ tbody th{font-weight:600}
 details{margin-top:12px}
 summary{cursor:pointer;font-weight:600;color:${COLOR.relay};padding:6px 0}
 .skipped{font-size:13px;color:${COLOR.muted};padding-left:20px}
-footer{margin-top:40px;padding-top:12px;border-top:1px solid ${COLOR.line};font-size:13px;color:${COLOR.muted}}
+footer{margin-top:44px;padding-top:12px;border-top:1px solid ${COLOR.line};font-size:13px;color:${COLOR.muted}}
+@media (max-width:${5 * TILE_MIN_WIDTH + 2 * PAGE_PADDING_X - 1}px){
+.tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
+.tile{grid-column:span 2}
+.tile:nth-child(n+4){grid-column:span 3}
+}
+@media (max-width:860px){
+.grid2{grid-template-columns:minmax(0,1fr)}
+.grid2 .card{max-width:${CHART_MAX_WIDTH + 2 * (CARD_PADDING_X + CARD_BORDER)}px}
+}
 @media (max-width:640px){
 main{padding:12px 16px 40px}
-h1{font-size:25px}
+.tiles{grid-template-columns:minmax(0,1fr)}
+.tile,.tile:nth-child(n+4){grid-column:auto}
 .figures th,.figures td{padding:6px}
 .figures.spread td:last-child{white-space:normal}
+.figures.detour tbody th,.figures.detour thead th:first-child{position:sticky;left:0;padding-right:10px;background:${COLOR.panel};box-shadow:inset -1px 0 0 ${COLOR.line}}
 .assumptions thead{display:none}
 .assumptions tr{display:block;padding:12px 14px;border-top:1px solid ${COLOR.line}}
 .assumptions tbody tr:first-child{border-top:0}
@@ -530,32 +592,32 @@ export function renderStudyPage(results: StudyResults): string {
   ].join('\n');
 
   const pairs = [
-    figure('Cost to the sender, per package',
+    figure('Cost to the sender per package, dollars',
       pairChart('cost', 'Cost to the sender per package', h.relayCostPerPackageCents, h.courierCostPerPackageCents, money),
       `<p class="note">Relay saves ${money(h.costSavedPerPackageCents)} per package.</p>`),
-    figure('Added vehicle miles, per package',
+    figure('Added vehicle miles per package',
       pairChart('miles', 'Added vehicle miles per package', h.relayAddedMilesPerPackage, h.courierMilesPerPackage, miles),
       `<p class="note">Relay adds ${miles(h.milesSavedPerPackage)} less driving per package.</p>`),
-    figure('CO₂, per package',
+    figure('CO₂ per package, kg',
       pairChart('co2', 'CO₂ per package', h.relayCo2KgPerPackage, h.courierCo2KgPerPackage, kg),
       `<p class="note">Relay emits ${kg(h.co2SavedKgPerPackage)} less per package.</p>`),
   ].join('\n');
 
   const distributions: Array<Distribution & { title: string }> = [
     {
-      id: 'runs-cost', title: 'Cost saved per package', what: 'cost saved per package',
+      id: 'runs-cost', title: 'Cost saved per package', what: 'cost saved per package', axis: 'Saved per package, dollars',
       values: perMatched(runs, t => t.costSavedCents).map(cents => cents / 100),
       format: value => money(Math.round(value * 100)),
       tick: (value, decimals) => `${value < 0 ? MINUS : ''}$${Math.abs(value).toFixed(decimals === 0 ? 0 : 2)}`,
     },
     {
-      id: 'runs-miles', title: 'Miles saved per package', what: 'miles saved per package',
+      id: 'runs-miles', title: 'Miles saved per package', what: 'miles saved per package', axis: 'Saved per package, miles',
       values: perMatched(runs, t => t.milesSaved),
       format: miles,
       tick: (value, decimals) => fixed(value, decimals),
     },
     {
-      id: 'runs-co2', title: 'CO₂ saved per package, kg', what: 'kg of CO₂ saved per package',
+      id: 'runs-co2', title: 'CO₂ saved per package', what: 'kg of CO₂ saved per package', axis: 'Saved per package, kg of CO₂',
       values: perMatched(runs, t => t.co2SavedKg),
       format: kg,
       tick: (value, decimals) => fixed(value, decimals),
@@ -564,12 +626,12 @@ export function renderStudyPage(results: StudyResults): string {
   const histograms = distributions.map(d => figure(d.title, histogram(d), distributionSummary(d))).join('\n');
 
   const matchCharts = [
-    figure('By number of commuting employees',
+    figure('Match rate by employees commuting',
       rateRows('match-employees', 'Match rate by number of employees', groupRates(summary.byEmployees, value => `${value} employees`)),
       employeesNote(summary.byEmployees)),
-    figure('By number of packages requested',
+    figure('Match rate by packages requested',
       rateRows('match-packages', 'Match rate by number of packages', groupRates(summary.byPackages, value => `${value} packages`))),
-    figure('By detour limit per commute',
+    figure('Match rate by detour limit per commute',
       rateRows('match-detour', 'Match rate by detour limit', groupRates(summary.byDetourLimit, value => `${value} min detour`))),
   ].join('\n');
 
@@ -579,9 +641,9 @@ export function renderStudyPage(results: StudyResults): string {
     { name: 'Late', value: totals.late, cls: 'f-late' },
   ];
   const timingLegend = [
-    { cls: COLOR.relay, text: `A day early: delivered the day it was sent · ${count(totals.early)} (${pct(h.earlyRate)})` },
-    { cls: COLOR.onTime, text: `On time: the next day by ${promiseClock} · ${count(totals.onTime)} (${pct(rate(totals.onTime, totals.matched))})` },
-    { cls: COLOR.late, text: `Late: after ${promiseClock} · ${count(totals.late)} (${pct(h.lateRate)})` },
+    { cls: COLOR.relay, text: `A day early, delivered the day it was sent: ${count(totals.early)} (${pct(h.earlyRate)})` },
+    { cls: COLOR.onTime, text: `On time, the next day by ${promiseClock}: ${count(totals.onTime)} (${pct(rate(totals.onTime, totals.matched))})` },
+    { cls: COLOR.late, text: `Late, after ${promiseClock}: ${count(totals.late)} (${pct(h.lateRate)})` },
   ].map(item => `<li><span class="swatch" style="background:${item.cls}"></span>${item.text}</li>`).join('');
   const ahead = h.avgMinutesAheadOfPromise;
   const aheadText = ahead === null ? ''
@@ -613,31 +675,20 @@ export function renderStudyPage(results: StudyResults): string {
 <meta name="theme-color" content="${COLOR.relay}">
 <link rel="icon" href="data:,">
 <title>Relay vs. a next-day courier: the numbers</title>
-<style>${CSS}</style>
+<style>${embeddedFontCss()}${CSS}</style>
 </head>
 <body>
 <main>
 <a class="back" href="/">← Back to Relay</a>
-<p class="eyebrow">Relay vs. a next-day courier: the numbers</p>
+<header class="top">
 <h1>${count(totals.runs)} ${totals.runs === 1 ? 'simulation' : 'simulations'}</h1>
-<p class="lede">The same packages sent two ways: on a commute an employee already drives, or on a dedicated courier trip. ${count(totals.matched)} packages compared.</p>
+<p class="sub">Relay vs. a next-day courier</p>
+</header>
 
 <section class="tiles" aria-label="Headline numbers">
 ${tiles}
 </section>
-
-<section>
-<h2>How we compared</h2>
-<p class="how">Each run is a full two-day Relay simulation of a random New York City scenario, on the committed cache of driving distances.
-We ran every combination of seeds ${listOrRange(grid.seeds)}; ${list(grid.employeeCounts)} commuting employees; ${list(grid.packageCounts)} packages; and detour limits of ${list(grid.detourLimitsMin)} minutes per commute:
-${count(grid.plannedRuns)} runs planned, ${count(grid.completedRuns)} simulated, ${count(skipped)} skipped (a skipped run needs a driving distance the cache does not have; it is never estimated).
-For every package Relay matched to a commute, the baseline is the same package sent with a <strong>standard next-day B2B courier</strong>: one dedicated trip from sender to recipient, promised by ${promiseClock} on the next business day. It is <strong>not a same-hour courier</strong>.
-Relay’s price is built for each package from the pricing values in the assumptions table: the pay of each carrier, a relay fee when the package waits overnight at a relay point, and the platform fee, minus a discount for a flexible delivery window.
-“Per package” always means per package Relay matched. A package with no suitable commute would go by courier at the courier’s price, so it is left out of the comparison and counted in the match rate instead.
-Every number that is not travel data or simulation output is in the <a href="#assumptions">assumptions table</a>.</p>
-<dl class="facts">${facts}</dl>
-${skippedBlock(grid)}
-</section>
+<p class="lede">Each package sent two ways: on a commute an employee already drives, or on a dedicated trip by a standard next-day courier. ${count(totals.matched)} packages compared. <a href="#how">How we compared</a></p>
 
 <section>
 <h2>Per package: cost, added miles and CO₂</h2>
@@ -651,7 +702,7 @@ ${pairs}
 <section>
 <h2>Spread across runs</h2>
 <p class="intro">The average is over all ${count(totals.matched)} matched packages. The median and the percentiles are over the ${runsWord(summary.runsWithMatch)} that matched a package, one per-package value per run: 8 in 10 runs lie between the 10th and the 90th percentile.${noMatchRuns > 0 ? ` ${runsWord(noMatchRuns)} matched no package and ${noMatchRuns === 1 ? 'is' : 'are'} not shown.` : ''}</p>
-<div class="scroll">
+<div class="scroll" tabindex="0" role="region" aria-label="Spread across runs">
 <table class="figures spread">
 <thead><tr><th scope="col">Per package</th><th scope="col">Sent with</th><th scope="col">Average</th><th scope="col">Median</th><th scope="col">10th to 90th percentile</th></tr></thead>
 <tbody>
@@ -676,7 +727,7 @@ ${matchCharts}
 <section>
 <h2>Results by detour limit</h2>
 <p class="intro">The detour limit is the most minutes a package may add to one commute. Each row is the runs with that limit, per package Relay matched.</p>
-<div class="scroll">
+<div class="scroll" tabindex="0" role="region" aria-label="Results by detour limit">
 <table class="figures detour">
 <thead><tr><th scope="col">Detour limit</th><th scope="col">Match rate</th><th scope="col">Relay added mi /&nbsp;pkg</th><th scope="col">Courier mi /&nbsp;pkg</th><th scope="col">Relay CO₂ /&nbsp;pkg</th><th scope="col">Courier CO₂ /&nbsp;pkg</th><th scope="col">Cost saved /&nbsp;pkg</th><th scope="col">A day early</th><th scope="col">Runs</th></tr></thead>
 <tbody>
@@ -689,10 +740,23 @@ ${detourRows(summary.byDetourLimit)}
 <section>
 <h2>On time against the courier’s promised window</h2>
 <p class="intro">The courier promises delivery by ${promiseClock} on the next business day and is assumed to always keep that promise. Each matched package is early, on time or late against it.</p>
-<div class="grid3">
-<figure class="card"><figcaption>${count(totals.matched)} matched packages</figcaption>${segmentedBar('timing', 'Relay delivery time against the courier’s promise', timingParts)}<ul class="legend">${timingLegend}</ul></figure>
+<div class="grid2">
+<figure class="card"><figcaption>${count(totals.matched)} matched packages, by arrival</figcaption>${segmentedBar('timing', 'Relay delivery time against the courier’s promise', timingParts)}<ul class="legend">${timingLegend}</ul></figure>
 <div class="how">${aheadText}${windowText}</div>
 </div>
+</section>
+
+<section id="how">
+<h2>How we compared</h2>
+<p class="how">Each run is a full two-day Relay simulation of a random New York City scenario, on the committed cache of driving distances.
+We ran every combination of seeds ${listOrRange(grid.seeds)}; ${list(grid.employeeCounts)} commuting employees; ${list(grid.packageCounts)} packages; and detour limits of ${list(grid.detourLimitsMin)} minutes per commute:
+${count(grid.plannedRuns)} runs planned, ${count(grid.completedRuns)} simulated, ${count(skipped)} skipped (a skipped run needs a driving distance the cache does not have; it is never estimated).</p>
+<p class="how">For every package Relay matched to a commute, the baseline is the same package sent with a <strong>standard next-day B2B courier</strong>: one dedicated trip from sender to recipient, promised by ${promiseClock} on the next business day. It is <strong>not a same-hour courier</strong>.</p>
+<p class="how">Relay’s price is built for each package from the pricing values in the assumptions table: the pay of each carrier, a relay fee when the package waits overnight at a relay point, and the platform fee, minus a discount for a flexible delivery window.</p>
+<p class="how">“Per package” always means per package Relay matched. A package with no suitable commute would go by courier at the courier’s price, so it is left out of the comparison and counted in the match rate instead.
+Every number that is not travel data or simulation output is in the <a href="#assumptions">assumptions table</a>.</p>
+<dl class="facts">${facts}</dl>
+${skippedBlock(grid)}
 </section>
 
 <section id="assumptions">

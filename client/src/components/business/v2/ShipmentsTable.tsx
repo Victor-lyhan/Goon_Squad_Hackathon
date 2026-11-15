@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { ListLoadKind, ShipmentRow, SortDir, SortKey } from './shipmentsTableModel';
 import {
   LIST_EMPTY_TEXT, LIST_EMPTY_TITLE, LIST_ERROR_TEXT, LIST_ERROR_TITLE, LIST_FILTERED_TITLE, LIST_LOADING_TEXT,
-  LIST_RETRYING_LABEL, LIST_RETRY_LABEL, LIST_STALE_TEXT, LIST_TITLE, shipmentCountText,
+  LIST_RETRYING_LABEL, LIST_RETRY_LABEL, LIST_STALE_TEXT, LIST_TITLE, NAMES_WAIT_MS, listLoadKind, namesMissing,
+  shipmentCountText,
 } from './shipmentsTableModel';
 import './businessWorkspace.css';
 
@@ -19,6 +20,28 @@ const LIST_READY: ShipmentsListLoad = { kind: 'ready' };
  * them passes nothing through. Without a provider the list is `ready`. The `load` prop wins over it.
  */
 export const ShipmentsListLoadContext = createContext<ShipmentsListLoad>(LIST_READY);
+
+/**
+ * The value for ShipmentsListLoadContext, from the workspace state and the page's retry. Deliveries whose
+ * business names have not arrived are `loading` for `namesWaitMs` only: if the names keep failing while the
+ * deliveries load, the rows show without them ("Unknown business") under the line with the retry, instead
+ * of "Loading deliveries…" for good. The retry polls again, and every poll asks for the missing names.
+ */
+export function useShipmentsListLoad(
+  ws: Parameters<typeof listLoadKind>[0],
+  onRetry: () => void | Promise<void>,
+  namesWaitMs: number = NAMES_WAIT_MS,
+): ShipmentsListLoad {
+  const waiting = namesMissing(ws);
+  const [namesLate, setNamesLate] = useState(false);
+  useEffect(() => {
+    if (!waiting) { setNamesLate(false); return undefined; }
+    const timer = setTimeout(() => setNamesLate(true), namesWaitMs);
+    return () => clearTimeout(timer);
+  }, [waiting, namesWaitMs]);
+  const kind = listLoadKind(ws, namesLate);
+  return useMemo<ShipmentsListLoad>(() => (kind === 'error' ? { kind, onRetry } : { kind }), [kind, onRetry]);
+}
 
 export type ShipmentsTableProps = {
   /** Rows to show, already filtered and sorted by the model. */

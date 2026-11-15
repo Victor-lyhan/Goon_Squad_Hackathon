@@ -232,18 +232,32 @@ export function shipmentCountText(n: number): string {
 export type ListLoadKind = 'ready' | 'loading' | 'error';
 
 /**
+ * How long the list waits for the business names before it shows its rows without them. The page polls
+ * every second and asks for the names again on each poll, so this is about three failed tries.
+ */
+export const NAMES_WAIT_MS = 3000;
+
+/** True while the deliveries are here but the business names are not: rows would read "Unknown business". */
+export function namesMissing(s: Pick<BusinessWorkspaceState, 'dashboard' | 'businesses'>): boolean {
+  if (!s.dashboard) return false;
+  return s.dashboard.outgoing.length + s.dashboard.incoming.length > 0 && s.businesses.length === 0;
+}
+
+/**
  * The list's own state, read from the workspace state alone (nothing is asked of the server here):
  * `error` when the deliveries could not be read or the last update failed, `loading` before the first answer
- * and while the deliveries are here but the business names are not (rows would read "Unknown business"),
- * else `ready`.
+ * and while the deliveries are here but the business names are not, else `ready`.
+ * `namesLate`: the names have been missing for NAMES_WAIT_MS. The list then stops waiting: it is `error`,
+ * which keeps the rows on screen under the "could not be updated" line and its retry.
  */
 export function listLoadKind(
   s: Pick<BusinessWorkspaceState, 'view' | 'dashboard' | 'businesses' | 'reconnecting'>,
+  namesLate = false,
 ): ListLoadKind {
   if (s.view === 'error' || s.view === 'unavailable' || s.reconnecting) return 'error';
   // A business that is not in this city has no list at all; the page shows its own screen for it.
   if (s.view === 'not_found') return 'ready';
   if (s.view === 'loading' || !s.dashboard) return 'loading';
-  const deliveries = s.dashboard.outgoing.length + s.dashboard.incoming.length;
-  return deliveries > 0 && s.businesses.length === 0 ? 'loading' : 'ready';
+  if (!namesMissing(s)) return 'ready';
+  return namesLate ? 'error' : 'loading';
 }

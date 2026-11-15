@@ -5,6 +5,10 @@ import { AppShell } from '../../client/src/App';
 import { ConnectionBanner } from '../../client/src/ui/ConnectionBanner';
 import { initialConnection, nextConnection } from '../../client/src/ui/connectionModel';
 import { reconcileSelection, runChanged, staleNote } from '../../client/src/ui/shellModel';
+import { loadWorkspacePages } from './lazy-pages-helper';
+
+// The workspace pages are lazy routes (#885): load them first, so a render shows the page, not the loading line.
+await loadWorkspacePages();
 
 const businesses = [{ id: 'biz-01', name: 'Brooklyn Roasters' }, { id: 'biz-02', name: 'Hudson Print Co' }];
 const employees = [{ id: 'emp-01', name: 'Maya Chen' }, { id: 'emp-02', name: 'Luis Ortega' }, { id: 'emp-03', name: 'Ana Ruiz' }, { id: 'emp-04', name: 'Sam Lee' }];
@@ -70,12 +74,19 @@ describe('shell render', () => {
 });
 
 describe('connection banner recovery', () => {
-  it('appears after failed checks, disappears on the next success, as role=status', () => {
+  it('appears after failed checks, says "connected again" on the next success, then goes, as role=status', () => {
     let s = nextConnection(nextConnection(initialConnection, false), false);
     const off = renderToStaticMarkup(<ConnectionBanner status={s.status} />);
     expect(off).toContain('role="status"');
     expect(off).not.toContain('role="alert"');
+    expect(off).toContain('ui-connection-banner');
+    // Since #886 the next success is the "back" moment; the note goes two answered checks later.
     s = nextConnection(s, true);
-    expect(renderToStaticMarkup(<ConnectionBanner status={s.status} />)).toBe('');
+    const back = renderToStaticMarkup(<ConnectionBanner status={s.status} />);
+    expect(back).toContain('Connected to the Relay server again.');
+    expect(back).not.toContain('role="alert"');
+    s = nextConnection(nextConnection(s, true), true);
+    expect(s.status).toBe('online');
+    expect(renderToStaticMarkup(<ConnectionBanner status={s.status} />)).not.toContain('ui-connection-banner');
   });
 });

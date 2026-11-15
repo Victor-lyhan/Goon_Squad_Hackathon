@@ -106,7 +106,7 @@ describe.each<[string, Prepare]>([
       expect(body.error.trim(), route).not.toBe('');
       expect(body.fieldErrors, route).toBeUndefined();
       // The sentence names the control that unlocks, and none the app no longer has (#734).
-      expect(body.error, route).toMatch(/Press Back to start in the simulator/);
+      expect(body.error, route).toMatch(/press Back to start in the simulator/);
       expect(body.error, route).not.toMatch(/planning cycle/i);
     }
     await expectSimulatorStill(api, end, 'the refused writes');

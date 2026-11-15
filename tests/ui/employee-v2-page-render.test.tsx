@@ -42,7 +42,7 @@ function expectClean(html: string) {
 describe('hook states', () => {
   it('loading', () => {
     const h = render(initialWorkspaceState);
-    expect(text(h)).toContain('Loading your workspace');
+    expect(text(h)).toContain('Loading your commute and deliveries');
     expectClean(h);
   });
 
@@ -251,7 +251,7 @@ describe('?job=', () => {
 
   it('shows a loading line until the job arrives', () => {
     const h = render(ready(), { jobId: 'job-x' });
-    expect(text(h)).toContain('Loading delivery');
+    expect(text(h)).toContain('Loading this delivery');
     expectNameHeading(h);
   });
 
@@ -283,6 +283,6 @@ describe('imports and CSS', () => {
     const css = readFileSync(join(folder, 'employeePage.css'), 'utf8');
     const widths = [...css.matchAll(/(?:^|[\s;{])(min-width|width)\s*:\s*(\d+)px/g)].map((m) => Number(m[2]));
     expect(widths.every((w) => w <= 390)).toBe(true);
-    expect(css).toMatch(/@media \(max-width: 390px\)/);
+    expect(css).toMatch(/@media \(max-width: 480px\)/); // #882: phone rules from 480 px down, so 390 px has them
   });
 });

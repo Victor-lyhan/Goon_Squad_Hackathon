@@ -65,8 +65,8 @@ describe('buildNetworkView: places, routes, movers', () => {
       'baseline:emp-2-morn': 'Li Chen · morning',
       'baseline:emp-3-eve': 'Sam Rivera · evening',
       'leg:plan-shp-1:0': 'Astoria product proofs · carried by Maya Ortiz',
-      'leg:plan-shp-2:0': 'Ceramic samples · leg 1 of 2 · carried by Sam Rivera',
-      'leg:plan-shp-2:1': 'Ceramic samples · leg 2 of 2 · carried by Li Chen',
+      'leg:plan-shp-2:0': 'Ceramic samples · A · Sam Rivera',
+      'leg:plan-shp-2:1': 'Ceramic samples · B · Li Chen',
     });
   });
 
@@ -150,7 +150,7 @@ describe('hoverText', () => {
     expect(text('shp-1')).toBe('Astoria product proofs · Package · with Maya Ortiz');
     expect(text('shp-3')).toBe('Spare keys · Package · not matched');
     expect(text('baseline:emp-2-morn')).toBe('Li Chen · Normal commute · morning');
-    expect(text('leg:plan-shp-2:1')).toBe('Ceramic samples · Delivery route · leg 2 of 2 · carried by Li Chen');
+    expect(text('leg:plan-shp-2:1')).toBe('Ceramic samples · Delivery route · B · Li Chen');
     expect(text('leg:plan-shp-1:0')).toBe('Astoria product proofs · Delivery route · carried by Maya Ortiz');
   });
 

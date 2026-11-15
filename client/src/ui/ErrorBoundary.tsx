@@ -1,10 +1,19 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Button } from './Button';
-import './shell.css';
+import { activeDestination, DESTINATIONS, HOME_PATH } from './shellModel';
+import './ui.css';
 
 export const ERROR_FALLBACK_TITLE = 'This page hit a problem';
-export const ERROR_FALLBACK_TEXT = 'Something went wrong while showing this page. The header above still works.';
+export const ERROR_FALLBACK_ACTION = 'Reload page';
+
+/** The fallback's one sentence. It names the page by the word its header link uses. */
+export function errorFallbackText(pathname: string): string {
+  const key = activeDestination(pathname);
+  const label = DESTINATIONS.find((d) => d.key === key)?.label;
+  if (label) return `Relay could not show the ${label} page.`;
+  return pathname === HOME_PATH ? 'Relay could not show the homepage.' : 'Relay could not show this page.';
+}
 
 export type ErrorBoundaryProps = {
   children: ReactNode;
@@ -13,18 +22,31 @@ export type ErrorBoundaryProps = {
    * pathname plus the query string, not the hash (#705).
    */
   resetKey: string;
-  /** The homepage link in the fallback (/nyc on a preview path, / elsewhere). */
-  homeHref: string;
+  /** No longer read (#886): the fallback has one action, Reload. Kept because the app shell still passes it. */
+  homeHref?: string;
   /** "Reload page" action; defaults to a full browser reload (tests inject a spy). */
   onReload?: () => void;
 };
 
 type State = { failed: boolean; key: string };
 
+/** One heading, one sentence that names the page, one action. role="alert": read out at once. */
+function ErrorFallback({ onReload }: { onReload: () => void }) {
+  const { pathname } = useLocation();
+  return (
+    <section className="ui-state ui-state--problem error-fallback" role="alert" aria-labelledby="error-fallback-title">
+      <h1 id="error-fallback-title" className="ui-state__title">{ERROR_FALLBACK_TITLE}</h1>
+      <p className="ui-state__text">{errorFallbackText(pathname)}</p>
+      <Button variant="primary" onClick={onReload}>{ERROR_FALLBACK_ACTION}</Button>
+    </section>
+  );
+}
+
 /**
  * Catches a render error in the page below the header (DECISIONS pass 57). Shows a short fallback with
- * role="alert" instead of a blank screen. The error text is never shown on the page (React still logs it).
- * Must sit inside the router, because the fallback uses <Link>.
+ * role="alert" instead of a blank screen. The error's message and stack are never put on the page, in a
+ * development or a production build (React still logs the error to the console).
+ * Must sit inside the router, because the fallback reads the path to name the page.
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
   state: State = { failed: false, key: this.props.resetKey };
@@ -49,15 +71,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
 
   render() {
     if (!this.state.failed) return this.props.children;
-    return (
-      <section className="error-fallback" role="alert" aria-labelledby="error-fallback-title">
-        <h1 id="error-fallback-title" className="error-fallback__title">{ERROR_FALLBACK_TITLE}</h1>
-        <p className="error-fallback__text">{ERROR_FALLBACK_TEXT}</p>
-        <div className="error-fallback__actions">
-          <Button variant="primary" onClick={this.reload}>Reload page</Button>
-          <Link to={this.props.homeHref} className="error-fallback__home">Go to the homepage</Link>
-        </div>
-      </section>
-    );
+    return <ErrorFallback onReload={this.reload} />;
   }
 }

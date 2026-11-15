@@ -54,7 +54,7 @@ function setup(p: Props = {}) {
     ...m, onSubmit, onOpenDelivery, onCancel,
     rerenderWith: (over: Props) => m.rerender(el(over)),
     field: (label: string) => byLabel(c, label),
-    send: () => button(c, /^(Find a delivery match|Sending…)$/),
+    send: () => button(c, /^(Find a delivery match|Finding a match…)$/),
     status: () => textOf(c.querySelector('[role="status"]')!),
     alert: () => textOf(c.querySelector('[role="alert"]')!),
   };
@@ -87,8 +87,8 @@ describe('New delivery form in a real DOM', () => {
     expect(req).toEqual(toRequest(TYPED, ACME.id, req.clientRequestId));
     // Pending: the button is disabled and says so; the status region says what is happening.
     expect(f.send().disabled).toBe(true);
-    expect(textOf(f.send())).toBe('Sending…');
-    expect(f.status()).toContain('Sending request');
+    expect(textOf(f.send())).toBe('Finding a match…'); // one verb from the button to the wait (#880)
+    expect(f.status()).toBe('Finding a delivery match for your request…');
 
     answer.resolve(matchedAnswer('shp-41'));
     await flush();

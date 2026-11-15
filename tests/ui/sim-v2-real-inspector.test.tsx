@@ -133,7 +133,6 @@ describe.each(real.moments)('every business inspector at $name', (moment) => {
         `Commuters ${commuters}`,
         ...rows.map((r) => r.timeLabel ?? ''),
         ...rows.flatMap((r) => [r.rewardLabel ?? '', r.extraLabel ?? '']),
-        ...rows.flatMap((r) => r.carriers.map((_, i) => `Leg ${i + 1}`)),
       ];
       expect({ business: b.id, left: leftover(html, allowed).match(/\d+/g) ?? [] }).toEqual({ business: b.id, left: [] });
     }
@@ -206,7 +205,7 @@ describe.each(real.moments)('every employee inspector at $name', (moment) => {
         expect(block!.rewardLabel).toBe(formatCents(leg.rewardCents));
         const job = sim.jobs.find((j) => j.id === block!.jobId)!;
         expect(block!.statusLabel).toBe(JOB_STATUS_LABEL[sim.snapshot.jobStatus[job.id]]);
-        const legLabel = plan.kind === 'relay' ? `Relay leg ${legIndex + 1} of ${plan.legs.length}` : 'Direct';
+        const legLabel = plan.kind === 'relay' ? `Relay · carrier ${'AB'[legIndex]}` : 'Direct';
         expect(block!.legLabel).toBe(legLabel);
         allowed.push(legLabel, formatMin(leg.finishMin), `+${leg.extraMin} min`, formatCents(leg.rewardCents),
           ...leg.stops.map((s) => formatMin(s.serviceEndMin)));

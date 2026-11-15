@@ -5,25 +5,30 @@
 // Enter / Space on a row, Close right after the heading, the journey link at the top of a matched delivery,
 // and the CSS rules behind the 390 px and 900 px layouts.
 import { readFileSync } from 'node:fs';
-import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { act, useState } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ShipmentProgress } from '../../shared/v2/types';
 import { DeliveryDetails } from '../../client/src/components/business/v2/DeliveryDetails';
 import { UNTITLED_PACKAGE, deliveryDetails } from '../../client/src/components/business/v2/deliveryDetailsModel';
 import { simulatorHref } from '../../client/src/components/business/v2/links';
 import { initialBusinessWorkspaceState } from '../../client/src/components/business/v2/live/businessWorkspaceState';
 import { BusinessPageView } from '../../client/src/components/business/v2/page/BusinessPageView';
-import { ShipmentsListLoadContext, ShipmentsTable, type ShipmentsListLoad } from '../../client/src/components/business/v2/ShipmentsTable';
+import {
+  ShipmentsListLoadContext, ShipmentsTable, useShipmentsListLoad, type ShipmentsListLoad,
+} from '../../client/src/components/business/v2/ShipmentsTable';
 import { ShipmentsToolbar } from '../../client/src/components/business/v2/ShipmentsToolbar';
 import {
   LIST_EMPTY_TEXT, LIST_EMPTY_TITLE, LIST_ERROR_TEXT, LIST_ERROR_TITLE, LIST_LOADING_TEXT, LIST_STALE_TEXT,
-  NO_MATCH, STATUS_ORDER, buildRows, listLoadKind, shipmentCountText, shipmentStatusLabel, statusCounts,
+  NAMES_WAIT_MS, NO_MATCH, STATUS_ORDER, buildRows, listLoadKind, namesMissing, shipmentCountText, shipmentStatusLabel,
+  statusCounts,
 } from '../../client/src/components/business/v2/shipmentsTableModel';
 import {
   NO_MATCH as SIM_NO_MATCH, SHIPMENT_STATUS_TEXT, UNTITLED_PACKAGE as SIM_UNTITLED,
 } from '../../client/src/components/sim/v2/packages/statusText';
+import BusinessV2 from '../../client/src/pages/v2/BusinessV2';
 import { BUSINESSES as DETAIL_BUSINESSES, EMPLOYEES, relayPlan, shipment as detailShipment, unmatchedView, view as detailView } from './business-v2-details-sample';
-import { DASHBOARD as PAGE_DASHBOARD, ready } from './business-v2-page-sample';
+import { BUSINESSES as PAGE_BUSINESSES, DASHBOARD as PAGE_DASHBOARD, EMPLOYEES as PAGE_EMPLOYEES, ready } from './business-v2-page-sample';
 import { BUSINESSES, DASHBOARD, EMPTY_DASHBOARD } from './business-v2-table-sample';
 import { button, click, deferred, flush, mount, press, tabOrder, textOf } from './kitDom';
 
@@ -158,7 +163,69 @@ describe('which state the page gives the list (#881)', () => {
     expect(listLoadKind({ ...base, businesses: [] })).toBe('loading');
     // No deliveries: nothing needs a name, so the empty state shows at once.
     expect(listLoadKind({ ...base, dashboard: EMPTY_DASHBOARD, businesses: [] })).toBe('ready');
+    expect(namesMissing({ ...base, businesses: [] })).toBe(true);
+    for (const s of [base, initialBusinessWorkspaceState, { ...base, dashboard: EMPTY_DASHBOARD, businesses: [] }]) {
+      expect(namesMissing(s)).toBe(false);
+    }
   });
+
+  it('names that stay missing: the list stops waiting and keeps its rows under the line with the retry', () => {
+    expect(listLoadKind({ ...base, businesses: [] }, true)).toBe('error');
+    // Only that one state changes: the others do not depend on the wait.
+    expect(listLoadKind(base, true)).toBe('ready');
+    expect(listLoadKind(initialBusinessWorkspaceState, true)).toBe('loading');
+    expect(listLoadKind({ ...base, dashboard: EMPTY_DASHBOARD, businesses: [] }, true)).toBe('ready');
+    // About three polls of one second each.
+    expect(NAMES_WAIT_MS).toBe(3000);
+  });
+
+  it('the hook: "Loading deliveries…" for the wait, then rows with the retry; names that arrive clear it', async () => {
+    function Harness({ businesses, onRetry }: { businesses: typeof BUSINESSES; onRetry: () => void }) {
+      const load = useShipmentsListLoad({ ...base, businesses }, onRetry);
+      const rows = buildRows(DASHBOARD, businesses);
+      return (
+        <ShipmentsTable rows={rows} totalCount={rows.length} sort={{ key: 'ready', dir: 'asc' }} onSort={noop} selectedId={null}
+          onSelect={noop} onNewDelivery={noop} onClearFilters={noop} load={load} />
+      );
+    }
+    vi.useFakeTimers();
+    try {
+      let retries = 0;
+      const retry = () => { retries += 1; };
+      const m = mount(<Harness businesses={[]} onRetry={retry} />);
+      const c = m.container;
+      expect(textOf(c.querySelector('.bw-empty')!)).toBe(LIST_LOADING_TEXT);
+      act(() => { vi.advanceTimersByTime(NAMES_WAIT_MS - 1); });
+      expect(c.querySelector('table')).toBeNull();
+      act(() => { vi.advanceTimersByTime(1); });
+      // The rows, as they read without the names, under the line that offers the retry.
+      expect(c.querySelectorAll('tr.bw-row')).toHaveLength(ROWS.length);
+      expect([...c.querySelectorAll('td[data-label="Business"]')].map(textOf)).toEqual(ROWS.map(() => 'Unknown business'));
+      expect(textOf(c.querySelector('.bw-stale span')!)).toBe(LIST_STALE_TEXT);
+      click(button(c.querySelector('.bw-stale')!, 'Try again'));
+      await act(async () => {});
+      expect(retries).toBe(1);
+
+      // The names arrive: the line goes and every row has its business.
+      m.rerender(<Harness businesses={BUSINESSES} onRetry={retry} />);
+      expect(c.querySelector('.bw-stale')).toBeNull();
+      expect(textOf(c)).not.toContain('Unknown business');
+      act(() => { vi.advanceTimersByTime(NAMES_WAIT_MS * 2); });
+      expect(c.querySelector('.bw-stale')).toBeNull();
+
+      // Names that arrive inside the wait never show the line; a new wait starts from zero.
+      const quick = mount(<Harness businesses={[]} onRetry={retry} />);
+      act(() => { vi.advanceTimersByTime(NAMES_WAIT_MS - 1); });
+      quick.rerender(<Harness businesses={BUSINESSES} onRetry={retry} />);
+      act(() => { vi.advanceTimersByTime(NAMES_WAIT_MS); });
+      expect(quick.container.querySelectorAll('tr.bw-row')).toHaveLength(ROWS.length);
+      expect(quick.container.querySelector('.bw-stale')).toBeNull();
+      quick.rerender(<Harness businesses={[]} onRetry={retry} />);
+      expect(textOf(quick.container.querySelector('.bw-empty')!)).toBe(LIST_LOADING_TEXT);
+    } finally {
+      vi.useRealTimers();
+    }
+  }, T);
 
   it('error when the deliveries could not be read or the last update failed', () => {
     expect(listLoadKind({ ...base, reconnecting: true })).toBe('error');
@@ -170,8 +237,7 @@ describe('which state the page gives the list (#881)', () => {
 
   it('the page reads it from the hook state and hands it to the list through the context', () => {
     const src = readFileSync('client/src/pages/v2/BusinessV2.tsx', 'utf8');
-    expect(src).toContain('listLoadKind(ws)');
-    expect(src).toContain('onRetry: ws.refetchNow');
+    expect(src).toContain('const listLoad = useShipmentsListLoad(ws, ws.refetchNow);');
     expect(src).toMatch(/<ShipmentsListLoadContext\.Provider value=\{listLoad\}>\s*<BusinessPageView/);
   });
 
@@ -203,6 +269,56 @@ describe('which state the page gives the list (#881)', () => {
     ).container;
     expect(both.querySelectorAll('tr.bw-row')).toHaveLength(ROWS.length);
   }, T);
+});
+
+describe('the real page when the business names never load (#881)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('"Loading deliveries…" first, then the rows under the line with the retry; Try again brings the names', async () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '');
+    const me = PAGE_DASHBOARD.business.id;
+    const json = (status: number, body: unknown) =>
+      new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    // /api/v2 with a dashboard that answers and two directories that do not.
+    let namesDown = true;
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url === `/api/v2/businesses/${me}/dashboard`) return json(200, PAGE_DASHBOARD);
+      if (url === '/api/v2/businesses') return namesDown ? json(500, { error: 'down' }) : json(200, { businesses: PAGE_BUSINESSES });
+      if (url === '/api/v2/employees') return namesDown ? json(500, { error: 'down' }) : json(200, { employees: PAGE_EMPLOYEES });
+      if (url === '/api/v2/map') return json(200, { runId: 'run-1', businesses: PAGE_BUSINESSES, homes: [], employees: [], polylines: [] });
+      return json(404, { error: `No such route: ${url}` });
+    });
+    const c = mount(
+      <MemoryRouter initialEntries={[`/business/${me}`]}>
+        <Routes><Route path="/business/:id" element={<BusinessV2 />} /></Routes>
+      </MemoryRouter>,
+    ).container;
+    /** Waits in real time (the page polls every second) until `ok()` holds. */
+    const until = async (ok: () => boolean, what: string, ms: number) => {
+      const end = Date.now() + ms;
+      while (!ok() && Date.now() < end) await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+      if (!ok()) throw new Error(`timed out waiting for ${what}; page: ${textOf(c).slice(0, 400)}`);
+    };
+    const total = PAGE_DASHBOARD.outgoing.length + PAGE_DASHBOARD.incoming.length;
+
+    await until(() => textOf(c).includes(LIST_LOADING_TEXT), 'the loading line', 10_000);
+    expect(c.querySelector('tr.bw-row')).toBeNull();
+    // Not for good: after the wait the deliveries show without the names, and the line offers the retry.
+    await until(() => c.querySelector('.bw-stale') !== null, 'the rows and the line with the retry', NAMES_WAIT_MS + 15_000);
+    expect(textOf(c)).not.toContain(LIST_LOADING_TEXT);
+    expect(c.querySelectorAll('tr.bw-row')).toHaveLength(total);
+    expect([...c.querySelectorAll('td[data-label="Business"]')].map(textOf)).toEqual(Array.from({ length: total }, () => 'Unknown business'));
+
+    namesDown = false;
+    click(button(c.querySelector('.bw-stale')!, 'Try again'));
+    await until(() => c.querySelector('.bw-stale') === null, 'the names', 10_000);
+    expect(c.querySelectorAll('tr.bw-row')).toHaveLength(total);
+    expect(textOf(c.querySelector('table')!)).not.toContain('Unknown business');
+  }, 60_000);
 });
 
 describe('plain words on the list and the details (#881)', () => {
@@ -284,7 +400,7 @@ describe('hierarchy and consistent controls (#881)', () => {
     expect(caption.querySelector('h2.bw-table__title')).not.toBeNull();
     // "Deliveries 4": the number alone on screen, the word for a screen reader.
     expect(textOf(caption.querySelector('.bw-table__count')!)).toBe(`${ROWS.length} deliveries`);
-    expect(shownText(caption)).toBe(`Deliveries${ROWS.length}`);
+    expect(shownText(caption)).toBe(`Deliveries ${ROWS.length}`);
     for (const c of [list({ load: { kind: 'loading' } }), list({ rows: [], totalCount: 0 }), list({ rows: [] }),
       list({ rows: [], totalCount: 0, load: { kind: 'error', onRetry: noop } })]) {
       expect(c.querySelectorAll('h2')).toHaveLength(1);

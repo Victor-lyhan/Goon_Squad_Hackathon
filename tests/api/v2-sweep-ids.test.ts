@@ -144,7 +144,8 @@ describe('every /api/v2 route that takes an ID', () => {
     const id = `sweep-secret-${'z'.repeat(40)}`;
     for (const route of idRoutes) {
       const error = await sweep.refused(route.method, urlOf(route, id), bodyFor(route), [404], 'an unknown ID');
-      expect(error.error).toMatch(/not found/i);
+      // The read routes say "not found"; the write routes say it in a sentence (#888).
+      expect(error.error).toMatch(/not found|no longer/i);
       expect(JSON.stringify(error)).not.toContain('sweep-secret');
     }
   }, T);

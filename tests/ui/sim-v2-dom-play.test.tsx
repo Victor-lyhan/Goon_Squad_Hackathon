@@ -699,7 +699,7 @@ describe('/simulator?package=<id>&play=1 (#648)', () => {
     const { container: c } = mountPage(server, '?package=shp-404&play=1');
     await advance(5 * STEP_MS);
     expect(server.calls).toEqual([]);
-    expect(textOf(rightBody(c))).toContain('This package is not in the current scenario');
+    expect(textOf(rightBody(c))).toContain("That package isn't in this run.");
     expect(currentSearch(server)).toBe('?package=shp-404');
 
     click(button(rightBody(c), /Back to network/));

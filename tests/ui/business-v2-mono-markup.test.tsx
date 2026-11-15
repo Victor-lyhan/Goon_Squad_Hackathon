@@ -74,9 +74,9 @@ describe('a notification sentence (span.ba-note__msg)', () => {
     expect(price.nextSibling?.textContent).toBe('.');
   });
 
-  it('keeps the row button\'s accessible name: the whole sentence, then the delivery to open', () => {
+  it('keeps the row button\'s accessible name: the whole sentence, the ready time, then the delivery to open', () => {
     const [item] = list([SENDER]);
-    expect(item.querySelector('button')!.getAttribute('aria-label')).toBe(`${SENDER.message} Open delivery shp-1`);
+    expect(item.querySelector('button')!.getAttribute('aria-label')).toBe(`${SENDER.message} Ready 5:00 PM. Open delivery shp-1`);
     expect(item.querySelector('.ba-note__msg')!.textContent).toBe(SENDER.message);
     expect(mono(item, 'ba-mono')).toEqual(['$12.50']);
   });

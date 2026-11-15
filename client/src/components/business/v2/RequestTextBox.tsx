@@ -4,7 +4,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { ParseRequestResponse } from '../../../../../shared/v2/parseRequest';
 import type { NetworkBusiness, Phase } from '../../../../../shared/v2/types';
-import { Spinner } from '../../../ui';
+import '../../../ui/ui.css'; // the kit's spinner mark (.ui-spinner), drawn here without the kit's status text
 import { RESULT_COPY } from './newDeliveryModel';
 import {
   PARSE_TEXT_MAX, PARSE_TIMEOUT_MS, REQUEST_COPY, checkRequestText, countText, exampleRequest, isParseAnswer,
@@ -115,12 +115,15 @@ export function RequestTextBox(p: RequestTextBoxProps) {
       <div className="nd-alert" role="alert">
         {alertText && <p className="nd-result__line nd-result__line--danger">{alertText}</p>}
       </div>
+      {/* The wait is never blank (#880): the button is disabled and this line says what is happening. The
+          region is in the page before the line, so a screen reader announces it; the spinner is decoration. */}
+      <p className="nd-wait" role="status">{pending ? REQUEST_COPY.readingLine : ''}</p>
 
       <div className="nd-actions nd-request__actions">
         <button type="submit" className="nd-btn nd-btn--primary nd-request__read" disabled={pending || locked}
           aria-busy={pending || undefined}>
           {pending
-            ? <><Spinner label={REQUEST_COPY.readingLabel} /><span aria-hidden="true">{REQUEST_COPY.reading}</span></>
+            ? <><span className="ui-spinner" aria-hidden="true" />{REQUEST_COPY.reading}</>
             : REQUEST_COPY.read}
         </button>
         <button type="button" className="nd-btn" onClick={p.onFillForm}>{REQUEST_COPY.fillForm}</button>
@@ -138,7 +141,8 @@ export type ParsedRequestNoteProps = {
 
 /**
  * The lines above the prefilled form, which together with it are the confirmation card: the sentence, who
- * read it ("Parsed by Gemini" / "Parsed offline"), the sender note and a rejected stop, each as plain text.
+ * read it ("Read by Gemini" / "Read by Relay’s rules", the latter with one plain line that says what it means), the
+ * sender note and a rejected stop, each as plain text.
  */
 export function ParsedRequestNote({ parsed, onEdit }: ParsedRequestNoteProps) {
   const note = useRef<HTMLElement>(null);
@@ -154,6 +158,7 @@ export function ParsedRequestNote({ parsed, onEdit }: ParsedRequestNoteProps) {
         <p className="nd-parsed__source">{parsed.sourceLabel}</p>
         <button type="button" className="nd-btn nd-btn--link" onClick={onEdit}>{REQUEST_COPY.edit}</button>
       </div>
+      {parsed.sourceLine && <p className="nd-hint nd-parsed__how">{parsed.sourceLine}</p>}
       <p className="nd-parsed__text">“{parsed.text.trim()}”</p>
       <div className="nd-parsed__notes" role="status">
         {parsed.rejected && <p className="nd-parsed__note nd-parsed__note--warn">{parsed.rejected}</p>}

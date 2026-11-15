@@ -13,13 +13,31 @@ import { buildTrips } from '../../domain/v2/trips';
  */
 export const NYC_BOUNDS = { south: 40.4774, west: -74.2591, north: 40.9176, east: -73.7002 } as const;
 
-export const EMPLOYEE_NOT_FOUND = 'Employee not found';
+// Copy (#888): one plain sentence each, in the Employee page's words ("workplace", "home", "Back to start").
+export const EMPLOYEE_NOT_FOUND = 'This employee is no longer listed, so refresh the page and choose again.';
 export const COMMUTE_LOCKED =
-  'The simulation is playing. Press Back to start in the simulator to edit commutes.';
-export const INVALID_COMMUTE = 'Invalid commute';
-export const UNKNOWN_BUSINESS = 'Unknown business';
-export const UNKNOWN_HOME = 'Unknown home';
+  'Playback has started, so press Back to start in the simulator to edit commutes.';
+export const INVALID_COMMUTE = 'Fix the missing or wrong commute details, then save again.';
+export const UNKNOWN_BUSINESS = 'Choose a workplace from the list';
+export const UNKNOWN_HOME = 'Choose a home from the list, or search for an address';
 export const HOME_OUTSIDE_NYC = 'Choose a home inside New York City';
+
+/**
+ * The text for each field of a body the request schema refuses (the route keys it by the field's path).
+ * Zod's own texts name JavaScript types and the contract's field names ("homeId", "lat, lng"), so none of
+ * them is sent. The words are the commute editor's.
+ */
+export const COMMUTE_FIELD_COPY: Record<string, string> = {
+  body: 'The commute details did not arrive, so reload the page and save again',
+  businessId: 'Choose a workplace',
+  home: UNKNOWN_HOME,
+  eveningDepartureMin: 'Enter an evening departure time on Day 1',
+  morningDepartureMin: 'Enter a morning departure time on Day 2',
+  availableEvening: 'Choose whether you are available in the evening',
+  availableMorning: 'Choose whether you are available in the morning',
+  maxExtraMin: 'Maximum detour must be a whole number from 0 to 30 minutes',
+};
+export const COMMUTE_FIELD_FALLBACK = 'This value is not valid';
 
 const round5 = (value: number) => Math.round(value * 1e5) / 1e5;
 
@@ -128,7 +146,7 @@ export function applyCommute(
 ): { employee: Employee; home: Home; trips: Trip[] } {
   const { scenario } = run;
   const index = scenario.employees.findIndex((e) => e.id === employee.id);
-  if (index < 0) throw new Error(EMPLOYEE_NOT_FOUND);
+  if (index < 0) throw new Error('The employee is not in the run');
   if (employee.homeId !== home.id) throw new Error('The employee and the home do not belong together');
   const trips = buildTrips(employee, travel);
 

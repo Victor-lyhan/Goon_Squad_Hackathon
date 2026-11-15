@@ -22,6 +22,11 @@ const commute = {
 };
 const caught = (p: Promise<unknown>) => p.then(() => null, (e) => e);
 
+// The client's own sentences (#909); the full table and its rules are in client-error-copy.test.ts.
+const NETWORK_TEXT = "Can't reach the Relay server, so check it's running and try again.";
+const TIMEOUT_TEXT = 'The Relay server took too long to answer, so try again in a moment.';
+const NO_ERROR_TEXT = "The Relay server had a problem, so check it's running and try again.";
+
 afterEach(() => {
   vi.unstubAllGlobals();
   v2.apiConfig.timeoutMs = v2.DEFAULT_TIMEOUT_MS;
@@ -67,7 +72,7 @@ describe('v2 client: 503 TravelUnavailable', () => {
     expect(e.status).toBe(503);
     expect(e.kind).toBe('http');
     expect(e.code).toBeUndefined();
-    expect(e.message).toBe('Request failed (503)');
+    expect(e.message).toBe(NO_ERROR_TEXT);
     expect(v2.isTravelUnavailable(e)).toBe(false);
     expect(v2.isNetworkError(e)).toBe(false);
   });
@@ -118,7 +123,7 @@ describe('v2 client: HTTP errors as in the MVP 1 client', () => {
     reply(() => new Response('boom', { status: 502 }));
     const e = await caught(v2.getBusinesses());
     expect(e.status).toBe(502);
-    expect(e.message).toBe('Request failed (502)');
+    expect(e.message).toBe(NO_ERROR_TEXT);
     expect(e.fieldErrors).toBeUndefined();
   });
 
@@ -134,7 +139,7 @@ describe('v2 client: network, timeout and abort', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
     const e = await caught(v2.getSimulator());
     expect(e).toBeInstanceOf(v2.ApiRequestError);
-    expect([e.status, e.kind, e.message]).toEqual([0, 'network', 'fetch failed']);
+    expect([e.status, e.kind, e.message]).toEqual([0, 'network', NETWORK_TEXT]);
     expect(v2.isNetworkError(e)).toBe(true);
     expect(v2.isAbortError(e)).toBe(false);
     expect(v2.isTravelUnavailable(e)).toBe(false);
@@ -146,7 +151,7 @@ describe('v2 client: network, timeout and abort', () => {
     const e = await caught(v2.getSimulator());
     expect(e).toBeInstanceOf(v2.ApiRequestError);
     expect([e.status, e.kind]).toEqual([0, 'timeout']);
-    expect(e.message).toBe('Request timed out after 40 ms');
+    expect(e.message).toBe(TIMEOUT_TEXT);
     expect(v2.isNetworkError(e)).toBe(true);
     expect(v2.isAbortError(e)).toBe(false);
   });
@@ -157,7 +162,7 @@ describe('v2 client: network, timeout and abort', () => {
     expect(get.kind).toBe('timeout');
     const put = await caught(v2.putCommute('emp-1', commute, { timeoutMs: 30 }));
     expect(put.kind).toBe('timeout');
-    expect(put.message).toBe('Request timed out after 30 ms');
+    expect(put.message).toBe(TIMEOUT_TEXT);
   });
 
   it('a timeout wins over a caller signal that was never aborted', async () => {

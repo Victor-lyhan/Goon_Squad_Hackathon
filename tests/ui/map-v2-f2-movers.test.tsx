@@ -242,7 +242,7 @@ describe('an uncached place pair is a straight dashed line, never a crash', () =
     expect(commute.every((d) => d.width === L.COMMUTE_WIDTH && d.path.length === 2)).toBe(true);
     expect(commute[0].path[0]).toEqual(lngLat('biz-roast'));
     expect(commute[0].item).toMatchObject({ id: 'journey-shp-2-L0-straight-1', kind: 'leg', label: 'Cy Lam · evening' });
-    expect(commute[0].item.role).toMatch(/no street route cached/);
+    expect(commute[0].item.role).toBe('Whole commute · Straight line: street route not loaded');
     const carried = spec<PathSpec>(specs, 'routes-leg')!.data.filter((d) => d.id === 'journey-shp-2-L1-straight-1');
     expect(carried.length).toBeGreaterThan(0);
     expect(carried.every((d) => d.width === L.CARRIED_WIDTH)).toBe(true);

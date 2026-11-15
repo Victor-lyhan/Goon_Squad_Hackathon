@@ -149,7 +149,7 @@ describe('planGenerate: invalid requests', () => {
   it('refuses a missing preset and a body that is not an object', () => {
     for (const body of [{}, undefined, null]) expect(fieldErrorsOf(body)).toStrictEqual({ preset: 'Choose demo or random' });
     for (const body of ['demo', 42, ['demo']]) {
-      expect(fieldErrorsOf(body)).toStrictEqual({ body: 'Send the scenario options as a JSON object' });
+      expect(fieldErrorsOf(body)).toStrictEqual({ body: 'The scenario options did not arrive, so choose them and try again' });
     }
   });
 
@@ -171,7 +171,7 @@ describe('planGenerate: missing travel data', () => {
         kind: 'unavailable', status: 503, code: 'travel_data_missing', missingPlaces: 1,
         error: {
           code: 'travel_data_missing',
-          error: '1 of 18 businesses has no geocoded location. Run npm run fetch:routes and commit fixtures/nyc/.',
+          error: '1 of 18 businesses has no map location yet. Run npm run fetch:routes and commit fixtures/nyc/.',
         },
       });
       expect(plan).not.toHaveProperty('scenario');
@@ -184,7 +184,7 @@ describe('planGenerate: missing travel data', () => {
     places[secondBusiness.id] = { lat: Number.NaN, lng: -73.99 };
     const two = planGenerate({ preset: 'demo' }, inputsWithPlaces(places));
     expect(two).toMatchObject({ kind: 'unavailable', missingPlaces: 2 });
-    expect(two.kind === 'unavailable' && two.error.error).toMatch(/^2 of 18 businesses have no geocoded location\./);
+    expect(two.kind === 'unavailable' && two.error.error).toMatch(/^2 of 18 businesses have no map location yet\./);
 
     expect(planGenerate({ preset: 'demo' }, inputsWithPlaces({}))).toMatchObject({
       kind: 'unavailable', code: 'travel_data_missing', missingPlaces: 18,

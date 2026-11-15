@@ -142,9 +142,9 @@ describe('resolveSelection', () => {
 
 describe('stale copy', () => {
   it('names the kind and offers Back to network', () => {
-    expect(staleMessage('package')).toBe('This package is not in the current scenario');
-    expect(staleMessage('employee')).toBe('This employee is not in the current scenario');
-    expect(staleMessage('business')).toBe('This business is not in the current scenario');
+    expect(staleMessage('package')).toBe("That package isn't in this run.");
+    expect(staleMessage('employee')).toBe("That employee isn't in this run.");
+    expect(staleMessage('business')).toBe("That business isn't in this run.");
     expect(BACK_TO_NETWORK).toBe('Back to network');
   });
 });

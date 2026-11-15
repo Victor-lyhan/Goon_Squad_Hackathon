@@ -2,12 +2,13 @@
 // read, the server tries a few variants of it on the engine (POST /api/v2/advise, #862) and this card lists
 // them above the confirmation card, each with its price. Choosing one only sets the ready and deliver-by
 // times of the form; the form's own button still sends (unchanged POST /api/v2/shipments).
-// The card is an extra: while it waits it shows skeleton rows, and when the call fails or answers with no
-// option it is not drawn at all. It never shows an error and never blocks the form.
+// The card is an extra and never blocks the form (#880): while it waits it shows skeleton rows and a line
+// that says what is happening; when the call fails or answers with no option it says so in one plain
+// sentence, and that the request can still be sent.
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { NetworkBusiness } from '../../../../../shared/v2/types';
 import {
-  ADVICE_COPY, MAX_OPTIONS, adviceCard, appliedText, chosenKey,
+  ADVICE_COPY, WAITING_ROWS, adviceCard, appliedText, chosenKey, noOptionsText, optionName,
   type AdviseCall, type AdviseDraft,
 } from './adviceModel';
 import { sameTimes, type DraftTimes } from './newDeliveryModel';
@@ -28,7 +29,7 @@ export type AdviceOptionsProps = {
   onChoose: (times: DraftTimes) => void;
 };
 
-type Answer = { kind: 'loading' } | { kind: 'answer'; body: unknown } | { kind: 'none' };
+type Answer = { kind: 'loading' } | { kind: 'answer'; body: unknown } | { kind: 'failed' };
 
 export function AdviceOptions(p: AdviceOptionsProps) {
   const base = useId();
@@ -44,7 +45,7 @@ export function AdviceOptions(p: AdviceOptionsProps) {
     const controller = new AbortController();
     advise(draft, { signal: controller.signal }).then(
       (body) => { if (!controller.signal.aborted) setAnswer({ kind: 'answer', body }); },
-      () => { if (!controller.signal.aborted) setAnswer({ kind: 'none' }); },
+      () => { if (!controller.signal.aborted) setAnswer({ kind: 'failed' }); },
     );
     return () => { controller.abort(); };
   }, [advise, draft]);
@@ -54,25 +55,30 @@ export function AdviceOptions(p: AdviceOptionsProps) {
     [answer, draft, p.businesses],
   );
 
-  if (p.current === null || answer.kind === 'none' || (answer.kind === 'answer' && !card)) return null;
+  // The form is about another recipient: these prices are not for it.
+  if (p.current === null) return null;
 
+  const loading = answer.kind === 'loading';
+  // No rows to show: the call failed, or the answer holds no option the page can show.
+  const problem = loading || card ? '' : answer.kind === 'answer' ? noOptionsText(answer.body) : ADVICE_COPY.failed;
   const chosen = card ? chosenKey(card, p.current) : null;
   const applied = pressed && sameTimes(pressed, p.current) ? appliedText(pressed) : '';
 
   return (
-    <section className="nd-options" aria-labelledby={`${base}-title`} aria-busy={card ? undefined : true}>
-      <div className="nd-options__head">
-        <h2 className="nd-options__title" id={`${base}-title`}>{ADVICE_COPY.title}</h2>
-        {/* Polite: "Looking for options…" turns into who planned them when they arrive. */}
-        <p className="nd-options__source" aria-live="polite">{card ? card.sourceLabel : ADVICE_COPY.loading}</p>
-      </div>
-      {!card && (
+    <section className="nd-options" aria-labelledby={`${base}-title`} aria-busy={loading || undefined}>
+      <h2 className="nd-options__title" id={`${base}-title`}>{ADVICE_COPY.title}</h2>
+      {/* One line, polite, and in the page before its text changes: what the card is waiting for, then who
+          made the options (in plain words, #919), or the one sentence about a call
+          that failed or found nothing. */}
+      <p className="nd-options__status" role="status">
+        {loading ? ADVICE_COPY.loadingLine : card ? card.sourceLine : problem}
+      </p>
+      {loading && (
         <ul className="nd-options__list" aria-hidden="true">
-          {Array.from({ length: MAX_OPTIONS }, (_, i) => (
+          {Array.from({ length: WAITING_ROWS }, (_, i) => (
             <li key={i} className="nd-option nd-option--skeleton">
               <span className="nd-skeleton nd-skeleton--label" />
               <span className="nd-skeleton nd-skeleton--line" />
-              <span className="nd-skeleton nd-skeleton--short" />
             </li>
           ))}
         </ul>
@@ -82,11 +88,10 @@ export function AdviceOptions(p: AdviceOptionsProps) {
           <ul className="nd-options__list">
             {card.rows.map((r) => {
               const isChosen = r.key === chosen;
-              const labelId = `${base}-${r.key}`;
               return (
                 <li key={r.key} className={`nd-option${isChosen ? ' nd-option--chosen' : ''}`}>
                   <div className="nd-option__top">
-                    <h3 className="nd-option__label" id={labelId}>{r.label}</h3>
+                    <h3 className="nd-option__label">{r.label}</h3>
                     <p className="nd-option__price">
                       {r.cheapest && <><span className="nd-option__tag nd-option__tag--ok">{ADVICE_COPY.cheapest}</span>{' '}</>}
                       <span className="nd-mono nd-option__cents">{r.priceText}</span>
@@ -103,7 +108,7 @@ export function AdviceOptions(p: AdviceOptionsProps) {
                       <dd>{r.routeText}</dd>
                     </div>
                     <div className="nd-option__fact">
-                      <dt>Extra for carriers</dt>
+                      <dt>{ADVICE_COPY.extra}</dt>
                       <dd className="nd-mono">{r.extraText}</dd>
                     </div>
                     {r.carriersText && (
@@ -114,20 +119,21 @@ export function AdviceOptions(p: AdviceOptionsProps) {
                     )}
                   </dl>
                   <div className="nd-option__foot">
-                    {/* A toggle that only turns on: the name stays, `aria-pressed` says which option the form holds. */}
+                    {/* One stop per option. Its name holds the option and its price (#880). The option the
+                        form holds says so on the button itself: a "Choose this option" on what is chosen
+                        already read as one more thing to press before sending. */}
                     <button type="button" className="nd-btn nd-option__choose" aria-pressed={isChosen}
-                      aria-describedby={labelId}
+                      aria-label={optionName(r, isChosen)}
                       onClick={() => { p.onChoose(r.times); setPressed(r.times); }}>
-                      {ADVICE_COPY.choose}
+                      {isChosen ? ADVICE_COPY.chosen : ADVICE_COPY.choose}
                     </button>
-                    {isChosen && <>{' '}<span className="nd-option__tag">{ADVICE_COPY.chosen}</span></>}
                   </div>
                 </li>
               );
             })}
           </ul>
           {card.note && <p className="nd-options__hint">{card.note}</p>}
-          <p className="nd-options__hint">{ADVICE_COPY.hint}</p>
+          <p className="nd-options__hint">{card.rows.length > 1 ? ADVICE_COPY.hint : ADVICE_COPY.hintSingle}</p>
           <p className="nd-options__applied" aria-live="polite">{applied}</p>
         </>
       )}

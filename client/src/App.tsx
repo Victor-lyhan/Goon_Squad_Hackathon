@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrowserRouter, Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { readIdentity, resolveIdentity, writeIdentity } from './demoIdentity';
 import {
@@ -22,9 +22,15 @@ import {
 import './styles/global.css';
 import './ui/shell.css';
 import Landing from './pages/Landing';
-import SimulatorV2 from './pages/v2/SimulatorV2';
-import EmployeeV2 from './pages/v2/EmployeeV2';
-import BusinessV2 from './pages/v2/BusinessV2';
+
+// The three workspace pages are their own chunks (#885): `/` downloads the shell and the homepage only, and a
+// workspace's code (the simulator with the map, deck.gl and the Google Maps loader) arrives when its route opens.
+const SimulatorV2 = lazy(() => import('./pages/v2/SimulatorV2'));
+const EmployeeV2 = lazy(() => import('./pages/v2/EmployeeV2'));
+const BusinessV2 = lazy(() => import('./pages/v2/BusinessV2'));
+
+/** Shown in <main> while a workspace page's chunk loads. The header above it is already there and does not move. */
+export const PAGE_LOADING_TEXT = 'Loading page…';
 
 export { readIdentity, writeIdentity, resolveIdentity };
 
@@ -242,6 +248,8 @@ export function AppShell({ initialV2, initialV2Businesses, initialNycSummary }: 
       <Header employees={employees} businesses={businesses} />
       <main className={isFullWidthPath(pathname) ? 'app-main app-main--full' : 'app-main'} id="main-content" tabIndex={-1}>
         <ErrorBoundary resetKey={pathname + search} homeHref={HOME_PATH}>
+        {/* A chunk that fails to load (server gone) lands in the ErrorBoundary above, like a page crash. */}
+        <Suspense fallback={<p className="shell-page-state" role="status">{PAGE_LOADING_TEXT}</p>}>
         <Routes>
           {/* MVP II on the real NYC run since the cutover (#548). The MVP 1 pages are no longer mounted. */}
           <Route path="/" element={<Landing dataset="nyc" initialSummary={initialNycSummary} />} />
@@ -255,6 +263,7 @@ export function AppShell({ initialV2, initialV2Businesses, initialNycSummary }: 
           <Route path="/nyc/*" element={<CutoverRedirect />} />
           <Route path="*" element={notFound} />
         </Routes>
+        </Suspense>
         </ErrorBoundary>
       </main>
     </>

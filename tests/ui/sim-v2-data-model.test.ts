@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MapResponse, SimulatorResponse } from '../../shared/v2/api';
 import {
-  CONNECTION_LOST_MESSAGE, INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, mapKey, planLegsMissingLine,
+  CONNECTION_LOST_MESSAGE, INITIAL_SIM_DATA, SERVER_ERROR_MESSAGE, TRAVEL_DATA_MISSING_MESSAGE, mapKey, planLegsMissingLine,
   sameJson, simDataReducer, type SimDataAction, type SimDataState,
 } from '../../client/src/components/sim/v2/live/simDataModel';
 import { abortError, httpError, mapOf, networkError, simAt, travel503 } from './sim-v2-data-fixtures';
@@ -122,10 +122,11 @@ describe('simDataReducer: connection errors', () => {
     expect(ok.reconnecting).toBe(false);
   });
 
-  it('before the first success, an HTTP error shows its message', () => {
+  it('before the first success, an HTTP error is one plain sentence, not the server text (#894)', () => {
     const s = run({ type: 'pollFailed', error: httpError(500, 'Internal error') });
     expect(s.view).toBe('error');
-    expect(s.error).toBe('Internal error');
+    expect(s.error).toBe(SERVER_ERROR_MESSAGE);
+    expect(s.error).toBe('The Relay server returned an error. Retrying…');
     expect(s.reconnecting).toBe(false);
   });
 
@@ -136,9 +137,16 @@ describe('simDataReducer: connection errors', () => {
     expect(s.sim).toBe(s0.sim);
     expect(s.map).toBe(s0.map);
     expect(s.reconnecting).toBe(true);
-    expect(simDataReducer(s, { type: 'pollFailed', error: httpError(500, 'x') })).toBe(s);
+    // #894: the banner's sentence. The same failure again keeps the state object (no re-render).
+    expect(s.error).toBe(CONNECTION_LOST_MESSAGE);
+    expect(simDataReducer(s, { type: 'pollFailed', error: networkError() })).toBe(s);
+    // Another kind of failure changes the sentence, and only that.
+    const erroring = simDataReducer(s, { type: 'pollFailed', error: httpError(500, 'x') });
+    expect(erroring).toEqual({ ...s, error: SERVER_ERROR_MESSAGE });
+    expect(simDataReducer(erroring, { type: 'pollFailed', error: httpError(502, 'y') })).toBe(erroring);
     const back = simDataReducer(s, { type: 'sim', sim: simAt('run-a', 5) });
     expect(back.reconnecting).toBe(false);
+    expect(back.error).toBeNull();
     expect(back.sim).toBe(s0.sim);
   });
 

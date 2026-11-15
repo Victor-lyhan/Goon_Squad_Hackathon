@@ -8,18 +8,23 @@
 import { CreateShipmentRequest, PatchShipmentRequest, type ApiError } from '../../../shared/v2/schemas';
 import type { Run, Shipment } from '../../../shared/v2/types';
 
-export const INVALID_SHIPMENT = 'Invalid shipment';
-export const SHIPMENT_NOT_FOUND = 'Shipment not found';
+// Copy (#888): every text below is one plain sentence in the pages' words ("delivery", "Back to start"),
+// with no ID, status number or contract name in it. The texts shared/schemas.ts writes itself
+// (SAME_BUSINESS, DEADLINE_BEFORE_READY and the form's own) are the ones the Business form already shows.
+export const INVALID_SHIPMENT = 'Fix the missing or wrong delivery details, then try again.';
+export const SHIPMENT_NOT_FOUND = 'This delivery no longer exists, so refresh the page to see the current list.';
 // The three locked texts (this one, COMMUTE_LOCKED, RECOMPUTE_LOCKED) name the simulator's "Back to start",
 // the one control in the app that unlocks a run (#734).
 export const SHIPMENTS_LOCKED =
-  'The simulation is playing. Press Back to start in the simulator to change deliveries.';
-export const SHIPMENT_MATCHED = 'This delivery is already matched and can no longer be edited';
-export const UNKNOWN_BUSINESS = 'Unknown business';
+  'Playback has started, so press Back to start in the simulator to change deliveries.';
+export const SHIPMENT_MATCHED = 'This delivery is already matched, so it can no longer be edited.';
+export const UNKNOWN_BUSINESS = 'Choose a business from the list';
 export const SAME_BUSINESS = 'Choose a different business';
-export const READY_OUTSIDE_WINDOW = 'Ready time is outside the planning window';
-export const DEADLINE_OUTSIDE_WINDOW = 'Deliver-by is outside the planning window';
+export const READY_OUTSIDE_WINDOW = 'Choose a ready time inside the simulation hours';
+export const DEADLINE_OUTSIDE_WINDOW = 'Choose a deliver-by time inside the simulation hours';
 export const DEADLINE_BEFORE_READY = 'Deliver-by must be after ready time';
+/** A body that is not a filled-in form, or has no request reference: only a broken page sends one. */
+export const SHIPMENT_NOT_READABLE = 'The delivery details did not arrive, so reload the page and send again';
 
 /** A request that is not carried out. The route answers `status` with `error` as the body. */
 export type ShipmentRefusal =
@@ -61,8 +66,8 @@ const hasErrors = (errors: FieldErrors) => Object.keys(errors).length > 0;
 type Copy = { missing: string; invalid: string; low?: string; high?: string };
 const text = (missing: string, invalid = missing): Copy => ({ missing, invalid });
 const FIELD_COPY: Record<string, Copy> = {
-  body: text('Send the delivery details as a JSON object'),
-  clientRequestId: text('A request ID is required', 'The request ID must be text'),
+  body: text(SHIPMENT_NOT_READABLE),
+  clientRequestId: text(SHIPMENT_NOT_READABLE),
   originBusinessId: text('Choose a sender'),
   destinationBusinessId: text('Choose a recipient'),
   label: text('Package name is required', 'Package name must be text'),

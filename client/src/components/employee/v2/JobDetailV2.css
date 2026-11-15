@@ -1,6 +1,8 @@
 /* Job detail (#387), MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius, no
    shadows, no pills. Tokens with fallbacks; every fallback is the value in client/src/styles/tokens.css.
-   The trip line, the stop times and the numbers are set in mono. Fits 390 px with no horizontal scroll. */
+   The trip line, the stop times and the numbers are set in mono. Fits 390 px with no horizontal scroll.
+   #882: the route is a checklist (a tick box per row, rows at least 44 px tall), the line above the
+   title is sentence case, and the phone rules start at 480 px so a 412 or 430 px phone gets them too. */
 .job-v2 {
   /* As wide as the page column, so its right edge lines up with the route map under it (#714). */
   box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0;
@@ -13,8 +15,10 @@
 }
 .job-v2 *, .job-v2 *::before, .job-v2 *::after { box-sizing: border-box; }
 .job-v2__head { display: flex; flex-direction: column; gap: var(--space-1, 4px); }
-.job-v2__kind { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); text-transform: uppercase; letter-spacing: 0.04em; }
-.job-v2__title { margin: 0; font-size: var(--text-lg, 18px); line-height: 1.25; }
+/* Sentence case as written, no capitals and no tracking (#882): it is a sentence, not a label. */
+.job-v2__kind { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+/* As wide as its words, so the focus ring it gets when the view opens sits around the title only (#882). */
+.job-v2__title { margin: 0; align-self: flex-start; max-width: 100%; font-size: var(--text-lg, 18px); line-height: 1.25; }
 .job-v2__title:focus { outline: none; }
 .job-v2__title:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 /* "Evening commute, leaves Day 1, 5:15 PM": the line is there for its time, so it is mono as a whole. */
@@ -33,15 +37,29 @@
 /* 600 like every other heading: Inter is loaded up to 600, an h3's default 700 is not (#714). */
 .job-v2__h3 { margin: 0; font-size: var(--text-md, 14px); font-weight: 600; }
 
-.job-v2__route { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--border, #E3E3DE); }
-/* The time column holds "Day 2, 10:05 AM" in mono on one line (#583). */
+.job-v2__route { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border, #E3E3DE); }
+/* A checklist row (#882): tick box, time, then what to do and where. The time column holds
+   "Day 2, 10:05 AM" in mono on one line (#583). A row is never shorter than a 44 px touch target. */
 .job-v2__stop {
-  display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: var(--space-3, 12px);
-  padding: var(--space-2, 8px) 0 var(--space-2, 8px) var(--space-3, 12px);
+  position: relative;
+  display: grid; grid-template-columns: 18px 136px minmax(0, 1fr); gap: 2px var(--space-3, 12px);
+  align-items: start; min-height: 44px;
+  padding: var(--space-3, 12px) 0;
   border-bottom: 1px solid var(--border, #E3E3DE);
 }
-.job-v2__stop:last-child { border-bottom: 0; }
+.job-v2__stop:last-child { border-bottom: 0; padding-bottom: 0; min-height: 32px; }
+/* The box: empty with a muted hairline, filled with the "ok" green and a white tick once done. The
+   state is never the colour alone: the row also says "(done)", or "Not done yet" to a screen reader. */
+.job-v2__check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  border: 1px solid var(--muted, #5B6472); border-radius: var(--radius, 4px);
+  background: var(--panel, #FFFFFF); color: var(--panel, #FFFFFF);
+}
+.job-v2__stop[data-done='true'] .job-v2__check { border-color: var(--ok, #2F6B4F); background: var(--ok, #2F6B4F); }
 .job-v2__stop[data-done='true'] .job-v2__action { color: var(--ok, #2F6B4F); }
+/* Text for screen readers only ("Not done yet"). */
+.job-v2__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .job-v2__time { font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .job-v2__stop-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .job-v2__action { font-weight: 600; font-size: var(--text-sm, 13px); }
@@ -55,8 +73,10 @@
   background: var(--accent-soft, #E8EEF1); font-size: var(--text-sm, 13px);
 }
 
-.job-v2__numbers { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px); }
-.job-v2__number { display: flex; justify-content: space-between; gap: var(--space-2, 8px); padding: var(--space-2, 8px) var(--space-3, 12px); border-bottom: 1px solid var(--border, #E3E3DE); }
+/* The last row's own bottom line would sit on the box's border as a 2 px line (#882): every cell is pulled
+   up by its 1 px line and the box clips the one that falls outside. */
+.job-v2__numbers { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--border, #E3E3DE); border-radius: var(--radius, 4px); }
+.job-v2__number { display: flex; justify-content: space-between; gap: var(--space-2, 8px); margin-bottom: -1px; padding: var(--space-2, 8px) var(--space-3, 12px); border-bottom: 1px solid var(--border, #E3E3DE); }
 .job-v2__number dt { color: var(--muted, #5B6472); font-size: var(--text-sm, 13px); }
 .job-v2__number dd { margin: 0; font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; text-align: right; }
 /* The reward leads "What it adds" (#551). IBM Plex Mono is loaded at 400 and 500 only (styles/fonts.css). */
@@ -78,10 +98,12 @@
   box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
 }
 
-@media (max-width: 390px) {
+@media (max-width: 480px) {
   /* The card sits inside the page's padding, so it keeps all four borders (#714). */
   .job-v2 { padding: var(--space-3, 12px); }
-  .job-v2__stop { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  /* Top to bottom: the box and the time on one line, then the action, the place and the address. */
+  .job-v2__stop { grid-template-columns: 18px minmax(0, 1fr); }
+  .job-v2__stop-body { grid-column: 2; }
   .job-v2__numbers { grid-template-columns: minmax(0, 1fr); }
   .job-v2__link, .job-v2__button { flex: 1 1 100%; }
 }

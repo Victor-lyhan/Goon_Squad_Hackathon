@@ -32,11 +32,12 @@ describe('shell.css (#714)', () => {
 describe('landing.css (#714)', () => {
   const all = rules('client/src/styles/landing.css');
   it('at projector widths the Watch button is bigger than an entry under it', () => {
-    const wide = /min-width:\s*600px/;
-    expect(value(all, '.watch-button', 'min-height', wide)).toBe('64px');
-    expect(value(all, '.watch-button', 'min-width', wide)).toBe('320px');
-    expect(value(all, '.watch-button', 'font-size', wide)).toBe('20px');
-    // An entry: 2 × 8 px padding and two lines of text, so about 61 px high.
+    // Since #879 these are the button's base rule, not one for 600 px and up: it is 72 px high (it was 64)
+    // and as wide as the entries wherever 320 px fit.
+    expect(value(all, '.watch-button', 'min-height')).toBe('72px');
+    expect(value(all, '.watch-button', 'min-width')).toBe('min(320px, 100%)');
+    expect(value(all, '.watch-button', 'font-size')).toBe('20px');
+    // An entry: 2 × 8 px padding and two lines of text, so about 59 px high.
     expect(value(all, '.workspace-entry', 'padding')).toBe('var(--space-2, 8px) var(--space-4, 16px)');
   });
 });

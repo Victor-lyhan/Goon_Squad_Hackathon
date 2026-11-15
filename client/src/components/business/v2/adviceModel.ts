@@ -32,23 +32,55 @@ export type AdviseCall = (draft: AdviseDraft, opts?: { signal?: AbortSignal; tim
 
 /** The card never shows more rows than this, whatever the answer holds. */
 export const MAX_OPTIONS = 3;
+/**
+ * The still rows drawn while the card waits (#880). Two short ones: three as high as an option pushed the
+ * form's send button off a 900 px screen for the whole wait, and the answer may hold one option only.
+ */
+export const WAITING_ROWS = 2;
 
 export const ADVICE_COPY = {
   title: 'Options',
-  loading: 'Looking for options…',
-  byModel: 'Planned by Gemini, checked by the engine',
-  offline: 'Options computed offline',
+  /**
+   * The line in the card while it waits (#880). The server's agent has 10 s; the form below is not held up,
+   * so the line says that too.
+   */
+  loadingLine: 'Pricing your request and a few other times. This takes up to 10 seconds; you can send the request as it is meanwhile.',
+  /**
+   * Who made the options (#919: plain words, so no "engine" and no "offline"). Relay prices every option
+   * either way; the model only chooses which times to try. The keys keep the names of the contract's two
+   * `source` values; `offline` is for every source but 'gemini'.
+   */
+  byModel: 'Planned by Gemini, priced by Relay',
+  offline: 'Priced by Relay, no AI model',
+  /** The card's one line about who made the options (#880): the label as a sentence. */
+  byModelLine: 'Planned by Gemini, priced by Relay.',
+  offlineLine: 'Priced by Relay, with no AI model.',
   cheapest: 'Cheapest',
   chosen: 'In the form',
   choose: 'Choose this option',
+  /** The fact that says what the carriers add to their commutes for this option. */
+  extra: 'Added to commutes',
   hint: 'Prices and times are for your request as it was read. Choosing an option sets the ready and deliver-by times in the form below.',
+  /** Under a card with one option: there is nothing to choose, so the line only says what the numbers are. */
+  hintSingle: 'The price and arrival time are for your request as it was read.',
   /** After a press, with the two times in front. */
   applied: 'Nothing is sent until you press Find a delivery match.',
+  /** The call failed (#880): one sentence, and the form below still sends. */
+  failed: 'Options could not be loaded. You can still send your request: press Find a delivery match.',
+  /** An answer with no option and no sentence of the server's own. */
+  none: 'No option was found for this request as it was read.',
+  /** After the server's sentence about a request with no option: the form is still there to change and send. */
+  noneNext: 'You can change the times in the form below, or send the request as it is.',
 } as const;
 
-/** The label names the model only when the server says the model planned the options; anything else is "offline". */
+/** The label names the model only when the server says the model planned the options; anything else is Relay alone. */
 export function adviceSourceLabel(source: unknown): string {
   return source === 'gemini' ? ADVICE_COPY.byModel : ADVICE_COPY.offline;
+}
+
+/** The card's plain line about who made the options; like the label, it names the model only when the server does. */
+export function adviceSourceLine(source: unknown): string {
+  return source === 'gemini' ? ADVICE_COPY.byModelLine : ADVICE_COPY.offlineLine;
 }
 
 /**
@@ -98,6 +130,8 @@ export type AdviceRow = {
 
 export type AdviceCard = {
   sourceLabel: string;
+  /** The one line the card shows about who made the options, in plain words. */
+  sourceLine: string;
   /** The server's sentence, when it sent one. */
   note: string | null;
   rows: AdviceRow[];
@@ -163,9 +197,29 @@ export function adviceCard(
   const differ = rows.some((x) => x.cents !== lowest);
   return {
     sourceLabel: adviceSourceLabel(r.source),
+    sourceLine: adviceSourceLine(r.source),
     note: text(r.note) || null,
     rows: rows.map(({ cents, ...x }) => ({ ...x, cheapest: differ && cents === lowest })),
   };
+}
+
+/**
+ * What the card says for an answer with no option to show (`adviceCard` is null): the server's own sentence
+ * about why (its `note`), or a plain default. A body that is not an advise answer reads like a failed call.
+ */
+export function noOptionsText(response: unknown): string {
+  const r = response as { options?: unknown; note?: unknown } | null;
+  if (typeof r !== 'object' || r === null || !Array.isArray(r.options)) return ADVICE_COPY.failed;
+  return `${text(r.note) || ADVICE_COPY.none} ${ADVICE_COPY.noneNext}`;
+}
+
+/**
+ * The accessible name of an option's button (#880): what the button says, then which option and its price,
+ * so a screen reader user hears the price on every stop ("Choose this option: As requested, $9.50").
+ */
+export function optionName(row: Pick<AdviceRow, 'label' | 'priceText' | 'cheapest'>, chosen: boolean): string {
+  const price = row.cheapest ? `${row.priceText}, ${ADVICE_COPY.cheapest.toLowerCase()}` : row.priceText;
+  return `${chosen ? ADVICE_COPY.chosen : ADVICE_COPY.choose}: ${row.label}, ${price}`;
 }
 
 /** The row whose times the form holds now (the first one, should two options share their times), or null. */

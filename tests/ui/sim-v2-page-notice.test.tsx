@@ -36,11 +36,10 @@ describe('DesktopOnlyNotice render', () => {
   it('shows the notice text and a link to /', () => {
     const html = renderToStaticMarkup(<DesktopOnlyNotice />);
     expect(html).toContain('class="sim-desktop-notice"');
-    expect(html).toContain(
-      'The simulator needs a wider screen. Open Relay on a desktop, or use the Business and Employee workspaces on this device.',
-    );
+    // #894: one sentence and one link.
+    expect(html).toContain('The simulator needs a wider screen, so open it on a desktop.');
     expect(html).toContain(DESKTOP_ONLY_TEXT);
-    expect(html).toMatch(/<a href="\/">[^<]+<\/a>/);
+    expect(html).toMatch(/<a href="\/">Back to the homepage<\/a>/);
     expect(html).not.toContain('sim-desktop-content');
   });
 

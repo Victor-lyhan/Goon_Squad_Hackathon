@@ -211,7 +211,7 @@ describe('JobDetailV2.css', () => {
   const css = readFileSync(resolve(__dirname, '../../client/src/components/employee/v2/JobDetailV2.css'), 'utf8');
 
   it('has a 390 px rule', () => {
-    expect(css).toMatch(/@media\s*\(max-width:\s*390px\)/);
+    expect(css).toMatch(/@media\s*\(max-width:\s*480px\)/); // #882: phone rules from 480 px down, so 390 px has them
   });
   it('uses no radius over 4px', () => {
     for (const m of css.matchAll(/border-radius:\s*([^;]+);/g)) {

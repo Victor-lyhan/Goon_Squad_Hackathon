@@ -69,10 +69,11 @@ function assertClean(html: string) {
 
 // ---------- Render ----------
 describe('SimPageBody render', () => {
-  it('loading', () => {
+  it('loading: the one line in the map area of the workspace frame (#894)', () => {
     const html = render(hookOf({}));
     expect(text(html)).toContain('Loading the simulator…');
     expect(html).toContain('role="status"');
+    expect(html).toContain('sw-frame'); // the panels and the map area, not a blank page
     assertClean(html);
   });
 
@@ -86,14 +87,15 @@ describe('SimPageBody render', () => {
     assertClean(html);
   });
 
-  it('first-load error with the reconnecting note', () => {
-    const html = render(hookOf({ view: 'error', error: 'Request failed', reconnecting: true }));
-    expect(text(html)).toContain('Simulator could not load');
-    expect(text(html)).toContain('Request failed');
-    expect(text(html)).toContain(RECONNECTING_TEXT);
-    // The connection message is never printed twice.
-    const same = text(render(hookOf({ view: 'error', error: RECONNECTING_TEXT, reconnecting: true })));
-    expect(same.split(RECONNECTING_TEXT).length - 1).toBe(1);
+  it('first-load error: one sentence and a retry button, in the workspace frame (#894)', () => {
+    const html = render(hookOf({ view: 'error', error: RECONNECTING_TEXT, reconnecting: true }));
+    expect(RECONNECTING_TEXT).toBe("Can't reach the Relay server. Retrying…");
+    // The sentence is printed once, with no title above it and no second note under it.
+    expect(text(html).split(RECONNECTING_TEXT).length - 1).toBe(1);
+    expect(text(html)).not.toContain('could not load');
+    expect(text(html)).toContain('Retry now');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('sw-frame');
     assertClean(html);
   });
 
@@ -222,7 +224,7 @@ describe('SimPageBody render', () => {
     expect(t).toContain('Works at');
     expect(t).toContain('Park Slope');
     expect(t).toContain('Ceramic samples');
-    expect(t).toContain('Relay leg 2 of 2');
+    expect(t).toContain('Relay · carrier B');
     expect(t).toContain('Pickup at relay point');
     expect(t).toContain('+9 min');
     expect(t).toContain('$4.50');
@@ -234,7 +236,7 @@ describe('SimPageBody render', () => {
   it('an unknown business or employee: the message and Back to network', () => {
     for (const sel of [{ kind: 'business', id: 'biz-gone' }, { kind: 'employee', id: 'emp-gone' }] as const) {
       const t = text(render(networkHook(), sel));
-      expect(t).toMatch(/This (business|employee) is not in the current scenario/);
+      expect(t).toMatch(/That (business|employee) isn't in this run\./);
       expect(t).toContain('Back to network');
     }
   });
@@ -331,7 +333,7 @@ describe('SimPageBody render', () => {
 
   it('unknown package: the message and Back to network', () => {
     const html = render(networkHook(), { kind: 'package', id: 'shp-404' });
-    expect(text(html)).toContain('This package is not in the current scenario');
+    expect(text(html)).toContain("That package isn't in this run.");
     expect(text(html)).toContain('Back to network');
     assertClean(html);
   });

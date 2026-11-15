@@ -261,7 +261,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   }, [status]);
   // A prefilled form opens on the first field the request left out. Once, on mount: never on a poll's re-render.
   // Without scrolling (#807): at 390 px the browser moved that field to the middle of the screen, and the top
-  // of the card ("Parsed offline", the sentence, the notes about the sender or a refused stop) was scrolled away.
+  // of the card (who read the sentence, the sentence, the notes about the sender or a refused stop) was scrolled away.
   useEffect(() => {
     const first = firstNeedsInput(props.needsInput ?? []);
     if (first) fields.current[first]?.focus({ preventScroll: true });
@@ -444,7 +444,7 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
       <div className="nd-result" role="status" aria-live="polite">
         {submitting && (
           <p className="nd-result__line">
-            {retrying ? 'Looking for a matching commute again…' : 'Sending request and looking for a matching commute…'}
+            {retrying ? RESULT_COPY.retryingLine : RESULT_COPY.sendingLine}
           </p>
         )}
         {p.status.kind === 'matched' && (
@@ -466,7 +466,8 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
 
       <div className="nd-actions">
         <button type="submit" className="nd-btn nd-btn--primary" disabled={submitting || locked}>
-          {retrying ? 'Matching…' : submitting ? 'Sending…' : p.retry ? 'Try matching again' : 'Find a delivery match'}
+          {/* The label README quotes stays spelled out here; its wait takes the same verb (#880). */}
+          {retrying ? 'Matching…' : submitting ? RESULT_COPY.sending : p.retry ? 'Try matching again' : 'Find a delivery match'}
         </button>
         <button type="button" className="nd-btn" onClick={p.onCancel}>Cancel</button>
       </div>

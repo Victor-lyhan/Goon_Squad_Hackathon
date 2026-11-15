@@ -175,7 +175,7 @@ describe('POST /api/v2/advise without a Gemini key', () => {
     }
     // shp-5's own plan holds the only commutes that fit it as typed, so the request as typed finds none.
     const body = await adviseOk(draftOf(run, 'shp-5'));
-    expect(body.note).toBe('As typed, no carrier can take it: Every matching commute is already carrying a package.');
+    expect(body.note).toBe('As typed, every matching commute is already carrying a package.');
     expect(body.options.every((o) => Object.keys(o.changes).length > 0)).toBe(true);
   }, T);
 
@@ -184,7 +184,7 @@ describe('POST /api/v2/advise without a Gemini key', () => {
     const body = await adviseOk(draftOf(store.get(), 'shp-8'));
     expect(body).toStrictEqual({
       options: [], source: 'offline',
-      note: 'No carrier can take it, even with an earlier ready time or a later deliver-by: Every matching commute is already carrying a package.',
+      note: 'Even with more time, every matching commute is already carrying a package.',
     });
   }, T);
 

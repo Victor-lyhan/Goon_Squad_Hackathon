@@ -5,7 +5,7 @@ import type { Clock, Run } from '../../shared/v2/types';
 import { deepFreeze, events, sampleRun } from './v2-sample';
 import { eventAt, runWith } from './v2-control-helpers';
 
-const ERROR = 'Invalid simulator control';
+const ERROR = 'The simulator did not understand that control, so reload the page and try again.';
 
 /** The new clock, or a failed expectation that shows the 400 instead. */
 function applied(run: Run, body: unknown): Clock {
@@ -55,7 +55,7 @@ describe('planControl: seek', () => {
   });
 
   it.each([929, 2161, 0, 2880])('seek to %i (outside 930..2160) is a 400 on timeMin, not a clamp', (timeMin) => {
-    expect(refused(run, { action: 'seek', timeMin })).toEqual({ timeMin: 'Must be between 930 and 2160' });
+    expect(refused(run, { action: 'seek', timeMin })).toEqual({ timeMin: 'Choose a time inside the simulation hours' });
   });
 
   it('the bounds are the run\'s own settings', () => {
@@ -63,8 +63,8 @@ describe('planControl: seek', () => {
     short.scenario.settings.simStartMin = 1000;
     short.scenario.settings.simEndMin = 1100;
     expect(applied(short, { action: 'seek', timeMin: 1100 }).timeMin).toBe(1100);
-    expect(refused(short, { action: 'seek', timeMin: 1101 })).toEqual({ timeMin: 'Must be between 1000 and 1100' });
-    expect(refused(short, { action: 'seek', timeMin: 999 })).toEqual({ timeMin: 'Must be between 1000 and 1100' });
+    expect(refused(short, { action: 'seek', timeMin: 1101 })).toEqual({ timeMin: 'Choose a time inside the simulation hours' });
+    expect(refused(short, { action: 'seek', timeMin: 999 })).toEqual({ timeMin: 'Choose a time inside the simulation hours' });
   });
 
   it.each([1000.5, '1000', null, -1, 2881])('seek to %j is a 400 on timeMin', (timeMin) => {
@@ -204,7 +204,7 @@ describe('planControl: bad requests', () => {
   it('controlError is the ApiError body of the 400', () => {
     const plan = planControl(run, { action: 'seek', timeMin: 929 });
     if (plan.kind !== 'invalid') throw new Error('expected an invalid plan');
-    expect(controlError(plan)).toEqual({ error: ERROR, fieldErrors: { timeMin: 'Must be between 930 and 2160' } });
+    expect(controlError(plan)).toEqual({ error: ERROR, fieldErrors: { timeMin: 'Choose a time inside the simulation hours' } });
   });
 });
 

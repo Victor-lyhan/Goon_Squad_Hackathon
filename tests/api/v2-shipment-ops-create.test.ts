@@ -32,7 +32,7 @@ describe('planCreateShipment: invalid (400)', () => {
   ];
   for (const [name, body] of notObjects) {
     it(`a body that is not an object: ${name}`, () => {
-      expect(fieldErrorsOf(create(body))).toEqual({ body: 'Send the delivery details as a JSON object' });
+      expect(fieldErrorsOf(create(body))).toEqual({ body: 'The delivery details did not arrive, so reload the page and send again' });
     });
   }
 
@@ -85,7 +85,7 @@ describe('planCreateShipment: invalid (400)', () => {
     ['a blank package name', createBody({ label: '   ' }), { label: 'Package name is required' }],
     ['a blank description', createBody({ description: '' }), { description: 'Describe the contents' }],
     ['an unknown category', createBody({ category: 'crate' }), { category: 'Choose envelope or small box' }],
-    ['an empty request ID', createBody({ clientRequestId: '' }), { clientRequestId: 'A request ID is required' }],
+    ['an empty request ID', createBody({ clientRequestId: '' }), { clientRequestId: 'The delivery details did not arrive, so reload the page and send again' }],
     ['an empty sender', createBody({ originBusinessId: '' }), { originBusinessId: 'Choose a sender' }],
     ['a sender that is not text', createBody({ originBusinessId: 7 }), { originBusinessId: 'Choose a sender' }],
     ['instructions that are not text', createBody({ pickupInstructions: 5, dropoffInstructions: null }),
@@ -103,7 +103,7 @@ describe('planCreateShipment: invalid (400)', () => {
 describe('planCreateShipment: locked (409)', () => {
   it('refuses a valid request while the run is locked', () => {
     expect(create(createBody(), lockedRun)).toEqual({ kind: 'locked', status: 409, error: { error: SHIPMENTS_LOCKED } });
-    expect(SHIPMENTS_LOCKED).toBe('The simulation is playing. Press Back to start in the simulator to change deliveries.');
+    expect(SHIPMENTS_LOCKED).toBe('Playback has started, so press Back to start in the simulator to change deliveries.');
   });
 
   it('the lock comes before the business checks', () => {
