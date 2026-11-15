@@ -219,6 +219,11 @@ export type StartServerOptions = {
   statePath: string;
   /** Passed to the Google clients instead of the global `fetch`. Tests give a fake, so nothing touches the network. */
   fetch?: FetchLike;
+  /**
+   * Gets one line per POST /api/v2/parse-request that Gemini answered or that had no key (`console.info` in the
+   * app; a fallback with a key set already prints its reason with `console.warn`). Left out: no such line.
+   */
+  parseRequestLog?: (line: string) => void;
   /** Called with 1 after the "port is already in use" line. Default: `process.exit`. */
   exit?: (code: number) => void;
 };
@@ -246,8 +251,9 @@ export function startServer(opts: StartServerOptions): RelayServer {
   // The key is read from the environment (.env at the repo root) and is never logged.
   const key = serverKey(env);
   // The Gemini key and model for POST /api/v2/parse-request (docs/mvp4.md F1), from the same environment.
-  // Without the key every sentence is parsed offline. No start line: the card says "Parsed by Gemini" or "Parsed offline".
-  const gemini = { apiKey: geminiKey(env), model: geminiModel(env) };
+  // Without the key every sentence is parsed offline. No start line: the card says "Parsed by Gemini" or "Parsed offline",
+  // and `parseRequestLog` gets one line per sentence saying which, never the key or the sentence (#811).
+  const gemini = { apiKey: geminiKey(env), model: geminiModel(env), info: opts.parseRequestLog };
   const v2 = createV2Runtime({ fixturesDir: opts.fixturesDir, statePath, key, fetch: opts.fetch, gemini });
   if (v2.status === 'ready') v2.startTicker();
   for (const line of v2StartLines(v2)) log(line);
@@ -285,6 +291,7 @@ if (isEntry) {
     env: process.env,
     envPath: DEFAULT_ENV_PATH,
     log: (line) => console.log(line),
+    parseRequestLog: (line) => console.info(line),
     clientDist,
     fixturesDir: NYC_FIXTURES_DIR,
     statePath: DEFAULT_V2_STATE_PATH,
