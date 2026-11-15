@@ -11,12 +11,11 @@ describe('landing.css at 390 px', () => {
     for (const [, cols] of css.matchAll(/grid-template-columns:\s*([^;]+);/g)) expect(cols.replace(/minmax\(0, [^)]*\)/g, '')).not.toMatch(/\d+px/);
   });
 
-  it('stacks the entries to one column, and the stats line and footer wrap rather than scroll if they must', () => {
+  it('stacks the entries to one column, and the stats line wraps rather than scrolls if it must', () => {
     const m = css.match(/@media \(max-width: (\d+)px\) \{([\s\S]*?)\n\}/);
     expect(Number(m![1])).toBeGreaterThanOrEqual(390);
     expect(m![2]).toMatch(/\.workspaces \{ grid-template-columns: 1fr; \}/);
     expect(css).toMatch(/\.op-summary-list \{[^}]*flex-wrap: wrap/);
-    expect(css).toMatch(/\.landing-footer \{[^}]*flex-wrap: wrap/);
     expect(css).toMatch(/\.landing \{[^}]*overflow-wrap: anywhere/);
   });
 
@@ -26,8 +25,8 @@ describe('landing.css at 390 px', () => {
     expect(css).not.toMatch(/overflow(-x)?:\s*(scroll|auto)/);
   });
 
-  it('has no rule left for the removed parts: the Relay points note, the indicator line, the footer link (#610, #652)', () => {
-    for (const gone of ['op-summary-hint', 'op-summary-item', 'landing-indicator', 'landing-footer a', 'workspace-id', 'workspace-action']) {
+  it('has no rule left for the removed parts: the Relay points note, the indicator line, the footer (#610, #652, #724)', () => {
+    for (const gone of ['op-summary-hint', 'op-summary-item', 'landing-indicator', 'landing-footer', 'workspace-id', 'workspace-action']) {
       expect(css, gone).not.toContain(gone);
     }
   });

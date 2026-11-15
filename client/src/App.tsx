@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrowserRouter, Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { readIdentity, resolveIdentity, writeIdentity } from './demoIdentity';
 import {
   getBusinesses as getV2Businesses, getEmployees as getV2Employees, getSimulator as getV2Simulator, isTravelUnavailable,
 } from './api/v2';
 import {
-  activeDestination, cutoverPath, DESTINATIONS, employeeOptions, ENV_INDICATOR_TEXT, HOME_PATH, isFullWidthPath,
-  openAccount, pickAccount, reconcileSelection, RUN_POLL_MS, runChanged, staleNote, withOpenAccount, workspaceHrefs,
+  ACCOUNTS_ERROR_TEXT, ACCOUNTS_LOADING_TEXT, activeDestination, bareWorkspace, cutoverPath, DESTINATIONS,
+  employeeOptions, ENV_INDICATOR_TEXT, HOME_PATH, isFullWidthPath, openAccount, pickAccount, reconcileSelection,
+  RUN_POLL_MS, runChanged, staleNote, withOpenAccount, workspaceHrefs,
   type AccountOption,
 } from './ui/shellModel';
-import type { NycSummary } from './pages/landingModel';
+import { NYC_UNAVAILABLE_TEXT, type NycSummary } from './pages/landingModel';
 import { ConnectionMonitor } from './ui/ConnectionBanner';
 import NotFoundPage from './ui/NotFoundPage';
 import { ErrorBoundary } from './ui/ErrorBoundary';
@@ -94,9 +95,9 @@ function DemoAccountSelector({ employees, businesses }: { employees: V2Directory
   const dir = bizMatch ? businesses : employees;
   // 503 (no travel data yet): no selector; the page below explains it.
   if (dir.status === 'unavailable') return null;
-  if (dir.status === 'loading') return <span className="demo-account-status">Loading accounts…</span>;
+  if (dir.status === 'loading') return <span className="demo-account-status">{ACCOUNTS_LOADING_TEXT}</span>;
   if (dir.status === 'error') {
-    return <span className="demo-account-status demo-account-error" role="alert">Accounts unavailable</span>;
+    return <span className="demo-account-status demo-account-error" role="alert">{ACCOUNTS_ERROR_TEXT}</span>;
   }
   const accounts: Account[] = 'businesses' in dir ? dir.businesses : dir.employees;
   const options: AccountOption[] = 'businesses' in dir
@@ -136,6 +137,32 @@ function CutoverRedirect() {
   return <Navigate replace to={{ pathname: cutoverPath(pathname) ?? HOME_PATH, search, hash }} />;
 }
 
+/**
+ * `/business` and `/employee` without an ID (#724): a replace-redirect to the account the header's link of
+ * that kind points to (the remembered one, else the first), so Back does not return here. The query string
+ * and hash are dropped: a `?shipment=` or `?job=` belongs to one account. While the account list is loading
+ * or failed, the page says so (the header's loader asks again until the list is ready); it is never the 404
+ * page unless the list is loaded and empty.
+ */
+function AccountRedirect({ kind, list, notFound }: {
+  kind: 'business' | 'employee'; list: V2Directory | V2BusinessDirectory; notFound: ReactNode;
+}) {
+  const ids = idsOf(list);
+  const stored = readIdentity();
+  const target = bareWorkspace(
+    kind, ids ? { status: 'ready', ids } : { status: list.status as 'loading' | 'unavailable' | 'error' },
+    kind === 'business' ? stored.businessId : stored.employeeId,
+  );
+  if (target.kind === 'redirect') return <Navigate replace to={target.to} />;
+  if (target.kind === 'none') return <>{notFound}</>;
+  if (target.kind === 'error') return <p className="shell-page-state shell-page-state--error" role="alert">{ACCOUNTS_ERROR_TEXT}</p>;
+  return (
+    <p className="shell-page-state" role="status">
+      {target.kind === 'unavailable' ? NYC_UNAVAILABLE_TEXT : ACCOUNTS_LOADING_TEXT}
+    </p>
+  );
+}
+
 type ShellProps = {
   /** The header's /api/v2 lists (tests); without them the header loads /api/v2. */
   initialV2?: V2Directory; initialV2Businesses?: V2BusinessDirectory;
@@ -143,9 +170,8 @@ type ShellProps = {
   initialNycSummary?: NycSummary;
 };
 
-/** `initialV2` / `initialV2Businesses` skip the API loads (used by tests). */
-export function Header({ initialV2, initialV2Businesses }: ShellProps = {}) {
-  const { employees, businesses } = useV2Lists(initialV2, initialV2Businesses);
+/** The header. Its two account lists come from the shell (`useV2Lists`), which also uses them for the bare paths. */
+export function Header({ employees, businesses }: { employees: V2Directory; businesses: V2BusinessDirectory }) {
   // Re-read after route changes so a fresh choice is reflected in the workspace links.
   const { pathname } = useLocation();
   const [stored, setStored] = useState(readIdentity);
@@ -203,11 +229,14 @@ export function Header({ initialV2, initialV2Businesses }: ShellProps = {}) {
 /** Header + routes, without a router, so tests can wrap it in MemoryRouter. */
 export function AppShell({ initialV2, initialV2Businesses, initialNycSummary }: ShellProps = {}) {
   const { pathname, search } = useLocation();
+  // `initialV2` / `initialV2Businesses` skip the API loads (used by tests).
+  const { employees, businesses } = useV2Lists(initialV2, initialV2Businesses);
+  const notFound = <NotFoundPage initialEmployees={initialV2} initialBusinesses={initialV2Businesses} />;
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <ConnectionMonitor />
-      <Header initialV2={initialV2} initialV2Businesses={initialV2Businesses} />
+      <Header employees={employees} businesses={businesses} />
       <main className={isFullWidthPath(pathname) ? 'app-main app-main--full' : 'app-main'} id="main-content" tabIndex={-1}>
         <ErrorBoundary resetKey={pathname + search} homeHref={HOME_PATH}>
         <Routes>
@@ -215,10 +244,13 @@ export function AppShell({ initialV2, initialV2Businesses, initialNycSummary }: 
           <Route path="/" element={<Landing dataset="nyc" initialSummary={initialNycSummary} />} />
           <Route path="/business/:id" element={<BusinessV2 />} />
           <Route path="/employee/:id" element={<EmployeeV2 />} />
+          {/* Without an ID: on to the account the header links to (#724). A trailing slash matches too. */}
+          <Route path="/business" element={<AccountRedirect kind="business" list={businesses} notFound={notFound} />} />
+          <Route path="/employee" element={<AccountRedirect kind="employee" list={employees} notFound={notFound} />} />
           <Route path="/simulator" element={<SimulatorV2 />} />
           {/* The old preview paths (DECISIONS pass 57). */}
           <Route path="/nyc/*" element={<CutoverRedirect />} />
-          <Route path="*" element={<NotFoundPage initialEmployees={initialV2} initialBusinesses={initialV2Businesses} />} />
+          <Route path="*" element={notFound} />
         </Routes>
         </ErrorBoundary>
       </main>

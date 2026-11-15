@@ -51,8 +51,13 @@ describe('route table', () => {
     expect(body).toMatch(marker);
     expect(body).not.toContain('Page not found');
   });
-  it.each(['/business', '/unknown', '/employee', '/help', '/help/'])('%s is a 404', (path) => {
+  it.each(['/unknown', '/business/biz-01/x', '/employees', '/help', '/help/'])('%s is a 404', (path) => {
     expect(main(render(path))[2]).toContain('Page not found');
+  });
+  // #724: the bare paths redirect to the header's account (tests/ui/kit-dom-shell-bare-paths.test.tsx).
+  it.each(['/business', '/business/', '/employee', '/employee/'])('%s is not a 404', (path) => {
+    expect(main(render(path))[2]).not.toContain('Page not found');
+    expect(main(render(path, { status: 'loading' }, { status: 'loading' }))[2]).not.toContain('Page not found');
   });
   it('no MVP 1 page markup on the main paths', () => {
     expect(main(render('/simulator'))[2]).not.toMatch(/class="sp"/);
