@@ -1,4 +1,4 @@
-import { EMPTY_TEXT, type DeliveryRow } from './employeeWorkspaceModel';
+import { EMPTY_TITLE, EMPTY_WHY, type DeliveryRow, type EmptyState } from './employeeWorkspaceModel';
 import { PageLink } from './page/PageLink';
 
 export type DeliveryListProps = {
@@ -6,15 +6,17 @@ export type DeliveryListProps = {
   title: string;
   rows: DeliveryRow[];
   newJobIds?: ReadonlySet<string> | string[];
-  /** Shown when rows is empty; defaults to the assigned-deliveries empty text. */
-  emptyText?: string;
+  /** Shown when rows is empty: what is missing and why. Defaults to the assigned-deliveries text. */
+  empty?: EmptyState;
 };
+
+const ASSIGNED_EMPTY: EmptyState = { title: EMPTY_TITLE, why: EMPTY_WHY };
 
 const has = (ids: DeliveryListProps['newJobIds'], id: string) =>
   !!ids && (Array.isArray(ids) ? ids.includes(id) : ids.has(id));
 
 /** A list of delivery rows (not cards). Renders the model; derives nothing. */
-export function DeliveryList({ id, title, rows, newJobIds, emptyText = EMPTY_TEXT }: DeliveryListProps) {
+export function DeliveryList({ id, title, rows, newJobIds, empty = ASSIGNED_EMPTY }: DeliveryListProps) {
   const headingId = `${id}-heading`;
   return (
     <section className="ew-section" aria-labelledby={headingId}>
@@ -23,7 +25,9 @@ export function DeliveryList({ id, title, rows, newJobIds, emptyText = EMPTY_TEX
         <span className="ew-count ew-mono">{rows.length}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="ew-empty">{emptyText}</p>
+        <p className="ew-empty">
+          <span className="ew-empty-title">{empty.title}</span> {empty.why}
+        </p>
       ) : (
         <ul className="ew-rows">
           {rows.map((r) => (
@@ -56,8 +60,8 @@ export function DeliveryList({ id, title, rows, newJobIds, emptyText = EMPTY_TEX
               </dl>
               <div className="ew-row-links">
                 {/* Router links (#584): the job opens on this page, the simulator without a new document. */}
-                <PageLink to={r.jobHref} data-row-focus="">View job</PageLink>
-                <PageLink to={r.simulatorHref}>Watch in simulator</PageLink>
+                <PageLink to={r.jobHref} data-row-focus="" aria-label={r.jobLinkLabel}>View job</PageLink>
+                <PageLink to={r.simulatorHref} aria-label={r.simulatorLinkLabel}>Watch in simulator</PageLink>
               </div>
             </li>
           ))}

@@ -62,8 +62,9 @@ describe('keyboard walk (#478)', () => {
     const root = page({ ...ready(), newJobIds: [dashboard.assigned[0].job.id] });
     const names = walkTabs(root);
     expect(names[0]).toBe('Edit commute');
-    const rowCount = dashboard.assigned.length + dashboard.completed.length;
-    expect(names.slice(1)).toEqual(Array.from({ length: rowCount }).flatMap(() => ['View job', 'Watch in simulator']));
+    // #882: a row's two links are named after its package, so two rows do not both read "View job".
+    const labels = [...dashboard.assigned, ...dashboard.completed].map((v) => v.shipment.label);
+    expect(names.slice(1)).toEqual(labels.flatMap((l) => [`View job: ${l}`, `Watch in simulator: ${l}`]));
     // Every delivery row is reachable: each has both links.
     for (const row of all(root, (e) => e.attrs.class === 'ew-row')) {
       expect(tabOrder(row).map((e) => textOf(e))).toEqual(['View job', 'Watch in simulator']);
@@ -87,7 +88,8 @@ describe('keyboard walk (#478)', () => {
       'Discard changes',
     ]);
     // The delivery rows follow the editor.
-    expect(names.slice(11, 13)).toEqual(['View job', 'Watch in simulator']);
+    const first = dashboard.assigned[0].shipment.label;
+    expect(names.slice(11, 13)).toEqual([`View job: ${first}`, `Watch in simulator: ${first}`]);
   });
 
   it('address search: labelled combobox, results reached by arrow keys, Esc closes', () => {

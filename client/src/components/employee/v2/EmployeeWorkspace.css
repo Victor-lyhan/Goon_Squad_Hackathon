@@ -52,6 +52,8 @@
 }
 .ew-count { color: var(--muted, #5B6472); }
 .ew-empty { margin: 0; padding: var(--space-3, 12px); color: var(--muted, #5B6472); }
+/* What is missing, in ink; the reason after it stays muted (#882). */
+.ew-empty-title { color: var(--text, #171C24); font-weight: 600; }
 
 /* ---------- Commute ---------- */
 .ew-workplace { margin: 0; padding: var(--space-3, 12px) var(--space-3, 12px) 0; }
@@ -107,8 +109,9 @@
 
 /* ---------- Actions ---------- */
 .ew a { color: var(--accent, #1D5075); }
+/* 36 px like the editor's Close, which takes this button's place (#882). */
 .ew-btn {
-  min-height: 32px;
+  min-height: 36px;
   padding: var(--space-1, 4px) var(--space-3, 12px);
   border: 1px solid var(--accent, #1D5075);
   border-radius: var(--radius, 4px);
@@ -134,7 +137,11 @@
   .ew-trip { grid-template-columns: minmax(0, 1fr); }
   .ew-trip-data { grid-column: 1; }
   .ew-stops { grid-template-columns: minmax(0, 1fr); }
-  .ew-btn { min-height: 40px; }
+  /* 44 px touch targets (#882): the button, and the two links of a row, which were 19 px text links. */
+  .ew-btn { min-height: 44px; }
+  .ew-row { padding-bottom: var(--space-1, 4px); }
+  .ew-row-links { gap: 0 var(--space-4, 16px); margin-top: var(--space-1, 4px); }
+  .ew-row-links a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 @media (max-width: 390px) {
   .ew h1 { font-size: 18px; }

@@ -226,7 +226,7 @@ describe('Employee page in a real DOM: a new job from a later poll', () => {
 describe('Employee page in a real DOM: a job from ?job=', () => {
   it('opens with focus on the job heading, and Back asks the router to drop ?job=', () => {
     const p = setup(ready(), directView.job.id);
-    expect(p.c.textContent).toContain('Loading delivery');
+    expect(p.c.textContent).toContain('Loading this delivery');
     p.send({ type: 'job', job: jobResponseFor(directView) });
     const heading = p.c.querySelector('#job-v2-title')!;
     expect(heading).not.toBeNull();
@@ -277,7 +277,7 @@ describe('Employee page in a real DOM: a job from ?job=', () => {
     const p = setup(ready(), directView.job.id);
     p.send({ type: 'job', job: jobResponseFor(directView) });
     p.setJob(relayView.job.id);
-    expect(p.c.textContent).toContain('Loading delivery');
+    expect(p.c.textContent).toContain('Loading this delivery');
     expect(p.row(relayView.job.id)).toBeNull();
     p.send({ type: 'job', job: jobResponseFor(relayView) });
     expect(document.activeElement).toBe(p.c.querySelector('#job-v2-title'));
