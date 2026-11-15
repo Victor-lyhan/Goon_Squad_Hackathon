@@ -13,7 +13,7 @@ import {
 } from '../../server/api/v2/bodyGuard';
 import {
   BAD_MINUTES, BROKEN_BODIES, HUGE_TEXT, MISSING, NO_BODY, T, WRITE_SPECS, fieldAt, json, rawJson, startSweepApi,
-  validCommute, validDelivery, validGenerate, validImport, withField, withProtoKey, wrongTypeOf,
+  validCommute, validDelivery, validGenerate, validImport, validParseRequest, withField, withProtoKey, wrongTypeOf,
   type Sent, type SweepApi, type SweepContext,
 } from './v2-sweep-helper';
 
@@ -175,6 +175,18 @@ const CONTROL_CASES: Case[] = [
 ];
 
 const generate = validGenerate;
+const sentence = validParseRequest;
+const PARSE_CASES: Case[] = [
+  ['an empty object', () => ({})],
+  ['an empty text', broken(sentence, 'text', '')],
+  ['a text of blanks only', broken(sentence, 'text', ' \n\t ')],
+  ['a 501-character text', broken(sentence, 'text', 's'.repeat(501))],
+  ['a 2,001-character text', broken(sentence, 'text', 's'.repeat(2001))],
+  ...hugeTexts(sentence, ['text']),
+  ['a text that is an object', broken(sentence, 'text', { text: 'Deliver an envelope' })],
+  ['a __proto__ key beside the text', () => withProtoKey(sentence())],
+];
+
 const GENERATE_CASES: Case[] = [
   ['an empty object', () => ({})],
   ['an unknown preset', broken(generate, 'preset', 'huge')],
@@ -434,6 +446,16 @@ describe.each([
 
     it.each(GENERATE_CASES)('refuses %s', async (name, build) => {
       await sweep.refused('POST', '/scenario/generate', asSent(build(sweep.ctx())), [400], name);
+    }, T);
+  });
+
+  describe('POST /parse-request', () => {
+    itOnFresh('refuses the text with the wrong type, null, in a list or left out', async () => {
+      await sweepFields('POST', '/parse-request', sentence(), [400]);
+    }, T);
+
+    it.each(PARSE_CASES)('refuses %s', async (name, build) => {
+      await sweep.refused('POST', '/parse-request', asSent(build(sweep.ctx())), [400], name);
     }, T);
   });
 

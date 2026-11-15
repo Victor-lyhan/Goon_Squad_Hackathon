@@ -1,4 +1,4 @@
-// Typed fetch helpers for the MVP II routes under /api/v2 (route list: shared/v2/api.ts).
+// Typed fetch helpers for the routes under /api/v2 (route lists: shared/v2/api.ts and shared/v2/parseRequest.ts).
 // UI code imports them from 'client/src/api/v2' (not from the index). Timeout, abort and error behaviour
 // come from the one `request` wrapper in ./http.
 // Plain TS + fetch only (no JSX / DOM-only APIs / import.meta.env) so Node tests can typecheck it.
@@ -9,6 +9,7 @@ import type {
   EmployeeDashboard, CommuteResponse, JobResponse, MapResponse, SimulatorResponse,
   CompareResponse, ExportFile, GeocodeResponse, TravelUnavailable,
 } from '../../../shared/v2/api';
+import type { ParseRequestResponse } from '../../../shared/v2/parseRequest';
 import type {
   CreateShipmentRequest, PatchShipmentRequest, PutCommuteRequest,
   SimControlRequest, GenerateScenarioRequest,
@@ -94,3 +95,12 @@ export const importScenario = (run: Run, opts?: RequestOptions) =>
  */
 export const geocode = (q: string, opts?: RequestOptions) =>
   request<GeocodeResponse>('GET', v2(`/geocode?q=${enc(q)}`), undefined, opts);
+/**
+ * Turns one plain-English sentence into an editable draft of a delivery request (docs/mvp4.md F1).
+ * Nothing is stored: show the draft, let the user fix it, then send the confirmed fields with `createShipment`.
+ * `missing` lists the fields the sentence did not fill; `rejected` is a plain sentence when a stop is not a
+ * network business; `source` says who parsed it. An empty or over-long text rejects with a 400 whose
+ * `fieldErrors.text` holds the message.
+ */
+export const parseRequest = (text: string, opts?: RequestOptions) =>
+  request<ParseRequestResponse>('POST', v2('/parse-request'), { text }, opts);
