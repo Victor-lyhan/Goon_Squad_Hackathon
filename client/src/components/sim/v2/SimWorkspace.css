@@ -48,6 +48,14 @@
 }
 .sw-left { width: 320px; border-right: 1px solid var(--border, #E3E3DE); }
 .sw-right { width: 360px; border-left: 1px solid var(--border, #E3E3DE); }
+/* Below 1280 px the panels give the map more room (#907): at 900 px the 320 + 360 px panels left it
+   220 px, so the floating Play/Pause pill broke onto two lines. 288 + 312 px leave it 300 px with the pill
+   on one line; nothing in either panel overflows at Day 2 8:40 AM (the longest statuses), checked in
+   headless Chrome. From 1280 px up the panels keep their full widths. */
+@media (max-width: 1279.98px) {
+  .sw-left { width: 288px; }
+  .sw-right { width: 312px; }
+}
 .sw-panel.is-collapsed { width: 32px; }
 
 .sw-panel-head {

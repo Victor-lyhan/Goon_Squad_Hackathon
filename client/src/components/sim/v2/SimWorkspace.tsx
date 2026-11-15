@@ -15,6 +15,13 @@ export type SimWorkspaceProps = {
   initialPanels?: PanelState;
 };
 
+/**
+ * The page's one `h1` (#907). It is visually hidden: the header's "Simulator" link already names the page
+ * on screen and the map stays the one bold element, but a screen reader's heading list needs the page
+ * title above the panels' `h2` sections.
+ */
+export const SIM_PAGE_TITLE = 'Simulator';
+
 export const LEFT_BODY_ID = 'sim-v2-left-body';
 export const RIGHT_BODY_ID = 'sim-v2-right-body';
 
@@ -105,6 +112,7 @@ export function SimWorkspace({ map, left, right, onClearSelection, journey, init
 
   return (
     <div className="sim-v2">
+      <h1 className="sw-visually-hidden">{SIM_PAGE_TITLE}</h1>
       <div className="sw-frame">
         <Panel side="left" title="Controls" open={panels.leftOpen} bodyId={LEFT_BODY_ID}
           onToggle={() => dispatch({ type: 'toggleLeft' })} toggleRef={leftToggleRef}>
