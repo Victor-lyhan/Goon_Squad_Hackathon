@@ -149,17 +149,38 @@ describe('the Options card after "Read my request"', () => {
       'Next-morning relay through Atlas Books.', 'One carrier takes it tonight.', 'A wider window earns the flexibility discount.',
     ]);
     const facts = (row: Element) => Object.fromEntries([...row.querySelectorAll('dt')].map((dt) => [textOf(dt), textOf(dt.nextElementSibling!)]));
+    // These names ("As requested") do not say the route, so each row has it as a fact, in the badge's words (#956).
     expect(facts(rows[0])).toEqual({
-      Arrives: 'Day 2, 9:05 AM', Route: 'Via Atlas Books', 'Added to commutes': '+17 min · +2.4 mi', 'Carried by': 'Maya Chen, Luis Ortega',
+      Arrives: 'Day 2, 9:05 AM', Route: 'Relay via Atlas Books', 'Added to commutes': '+17 min · +2.4 mi', 'Carried by': 'Maya Chen, Luis Ortega',
     });
     expect(facts(rows[1])).toEqual({
       Arrives: 'Day 1, 6:30 PM', Route: 'Direct', 'Added to commutes': '+9 min · +1.0 mi', 'Carried by': 'Maya Chen',
     });
-    // Prices, arrival times and the extras are data: IBM Plex Mono. The route and the names are not.
+    // A row reads like a departure board (#956). It starts with its line: the option's name behind a small
+    // route line that is hidden from assistive technology (one run, or two with the relay point).
+    const badge = (row: Element) => row.querySelector('.nd-option__line h3 .lb-badge')!;
+    expect(rows.map((r) => textOf(badge(r)))).toEqual(['As requested', 'Ready 30 minutes earlier', 'Deliver by noon']);
+    expect(rows.map((r) => badge(r).className)).toEqual(['lb-badge lb-badge--relay', 'lb-badge lb-badge--direct', 'lb-badge lb-badge--relay']);
+    expect(rows.map((r) => r.className)).toEqual(['nd-option nd-option--relay nd-option--chosen', 'nd-option nd-option--direct', 'nd-option nd-option--relay']);
     for (const row of rows) {
-      expect(row.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(true);
+      const mark = badge(row).querySelector('.lb-mark')!;
+      expect(mark.getAttribute('aria-hidden')).toBe('true');
+      expect(textOf(mark)).toBe('');
+      const relay = badge(row).classList.contains('lb-badge--relay');
+      expect(mark.querySelectorAll('.lb-run')).toHaveLength(relay ? 2 : 1);
+      expect(mark.querySelectorAll('.lb-stop')).toHaveLength(relay ? 3 : 2);
+      expect(mark.querySelectorAll('.lb-stop--relay')).toHaveLength(relay ? 1 : 0);
+      // In the row's order: the line, the option, when it arrives, its price, its button.
+      expect([...row.children].map((c) => c.className)).toEqual([
+        'nd-option__line', 'nd-option__main', 'nd-option__arrives', 'nd-option__price', 'nd-option__foot',
+      ]);
+    }
+    // Arrival times and the extras are data: IBM Plex Mono. The names are not. The price is the row's large
+    // figure in the heading face (the human's direction for this board), so it is not in the mono class.
+    for (const row of rows) {
+      expect(row.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(false);
       const dds = [...row.querySelectorAll('dd')];
-      expect(dds.map((dd) => dd.classList.contains('nd-mono'))).toEqual([true, false, true, false]);
+      expect(dds.map((dd) => dd.classList.contains('nd-mono'))).toEqual([false, true, false, true]); // route, extras, names, arrival
     }
     // The price stands alone (#960). These options carry no tags, so no row has a badge: the page marks no
     // price itself (the badges of a tagged answer: business-v2-dom-advice-tags.test.tsx).

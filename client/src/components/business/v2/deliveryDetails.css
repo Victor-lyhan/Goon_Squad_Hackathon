@@ -1,8 +1,9 @@
-/* Business workspace: delivery details and match result panel.
-   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
-   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
-   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
-   IDs, weights and prices; Inter (--font-sans) for everything else. No pills.
+/* Business workspace: delivery details and match result panel (tracking).
+   Night-shift transit look (#956): the palette is the --ns-* block at the top of page/businessPage.css; each
+   use here is var(--ns-name, fallback) with the property's own value as the fallback. A white sheet with
+   hairlines; the package's name in Archivo; the progress as a route line whose stations fill with ink as
+   the package passes them, with the package's orange on the station it is at. No shadows, no gradients.
+   IBM Plex Mono (--font-mono) for times, IDs, weights and prices; Inter (--font-sans) for everything else.
    Design audit (#881): the title row holds the heading and Close, section headings are sentence case (no
    tracked capitals), every focus ring is the 2 px outline, and the panel fills its column when the page stacks. */
 
@@ -12,15 +13,15 @@
   width: 100%;
   max-width: 440px;
   min-width: 0;
-  background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #E3E3DE);
+  background: var(--ns-sheet, #FFFFFF);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  color: var(--text, #171C24);
+  color: var(--ns-text, #14171F);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
 }
 
-.bd-head { padding: var(--space-4, 16px); border-bottom: 1px solid var(--border, #E3E3DE); }
+.bd-head { padding: var(--space-4, 16px); border-bottom: 1px solid var(--ns-line, #DCD8CE); }
 /* Heading left, Close right, on one row; a long name wraps and Close stays at the top. */
 .bd-head__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2, 8px); }
 .bd-title {
@@ -28,28 +29,31 @@
   min-width: 0;
   margin: 0;
   padding: var(--space-1, 4px) 0; /* centres the first line on the 32 px Close button */
-  font-size: var(--text-lg, 18px);
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--ns-size-title, 20px);
   font-weight: 600;
-  line-height: 1.3;
+  font-variation-settings: 'wght' 720;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
 .bd-title:focus { outline: none; }
-.bd-title:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.bd-title:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; }
 /* Outgoing, Incoming or Relay point: a plain line under the name, not a label above it. */
 .bd-kind { margin: 0 0 var(--space-3, 12px); }
-.bd-eyebrow { color: var(--muted, #5B6472); }
+.bd-eyebrow { color: var(--ns-muted, #5A5F6B); }
 
 .bd-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-size: var(--text-xs, 12px); }
-.bd-muted { color: var(--muted, #5B6472); }
+.bd-muted { color: var(--ns-muted, #5A5F6B); }
 .bd-small { font-size: var(--text-xs, 12px); }
 .bd-num { text-align: right; white-space: nowrap; }
 
 .bd-parties, .bd-facts { display: grid; gap: var(--space-2, 8px); margin: 0; }
 .bd-parties > div, .bd-facts > div { display: grid; grid-template-columns: 140px 1fr; gap: var(--space-2, 8px); min-width: 0; }
-.bd-parties dt, .bd-facts dt { color: var(--muted, #5B6472); }
+.bd-parties dt, .bd-facts dt { color: var(--ns-muted, #5A5F6B); }
 .bd-parties dd, .bd-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
-.bd-result { padding: var(--space-4, 16px); border-bottom: 1px solid var(--border, #E3E3DE); border-left: 2px solid var(--border, #E3E3DE); }
+.bd-result { padding: var(--space-4, 16px); border-bottom: 1px solid var(--ns-line, #DCD8CE); border-left: 2px solid var(--ns-line, #DCD8CE); }
 .bd-result--ok { border-left-color: var(--ok, #2F6B4F); }
 .bd-result--none { border-left-color: var(--warn, #8A5A00); }
 .bd-result__title { margin: 0 0 var(--space-3, 12px); font-size: var(--text-md, 14px); font-weight: 600; }
@@ -58,40 +62,56 @@
 .bd-actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
 .bd-facts + .bd-actions { margin-top: var(--space-3, 12px); }
 
-.bd-section { padding: var(--space-4, 16px); border-bottom: 1px solid var(--border, #E3E3DE); }
+.bd-section { padding: var(--space-4, 16px); border-bottom: 1px solid var(--ns-line, #DCD8CE); }
 .bd-section__title {
   margin: 0 0 var(--space-3, 12px);
   font-size: var(--text-sm, 13px);
   font-weight: 600;
-  color: var(--text, #171C24);
+  color: var(--ns-text, #14171F);
 }
 
-.bd-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2, 8px); }
-.bd-step { display: flex; align-items: center; gap: var(--space-2, 8px); color: var(--muted, #5B6472); }
+/* The progress is a route line read downwards: one station per step, joined by a 2 px line. A station the
+   package has passed is filled with ink, and so is the line that leaves it; the station it is at is the
+   package's orange; the ones ahead are open. The words (and "(done)", "(current)" for a screen reader) say
+   the same. */
+.bd-steps { list-style: none; margin: 0; padding: 0; display: grid; }
+.bd-step { position: relative; display: flex; align-items: center; gap: var(--space-2, 8px); padding: var(--space-1, 4px) 0; color: var(--ns-muted, #5A5F6B); }
 .bd-step__mark {
+  position: relative;
   flex: none;
-  width: 10px;
-  height: 10px;
-  border: 1px solid var(--muted, #5B6472); /* an upcoming step: the hairline colour is too faint for a 10 px box */
-  border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ns-muted, #5A5F6B); /* an upcoming step: the hairline colour is too faint for a 12 px dot */
+  border-radius: var(--radius-lg, 6px);
+  background: var(--ns-sheet, #FFFFFF);
 }
-.bd-step--done { color: var(--text, #171C24); }
-.bd-step--done .bd-step__mark { background: var(--accent, #1D5075); border-color: var(--accent, #1D5075); }
-.bd-step--current { color: var(--text, #171C24); font-weight: 600; }
-.bd-step--current .bd-step__mark { border: 2px solid var(--accent, #1D5075); }
+/* The line to the next station: from this dot's centre to the next one's, behind both dots. */
+.bd-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  width: 2px;
+  height: 100%;
+  background: var(--ns-line, #DCD8CE);
+}
+.bd-step--done { color: var(--ns-text, #14171F); }
+.bd-step--done .bd-step__mark { background: var(--ns-ink, #0B0F17); border-color: var(--ns-ink, #0B0F17); }
+.bd-step--done:not(:last-child)::before { background: var(--ns-ink, #0B0F17); }
+.bd-step--current { color: var(--ns-text, #14171F); font-weight: 600; }
+.bd-step--current .bd-step__mark { border: 2px solid var(--ns-signal, #FF6A1A); background: var(--ns-signal, #FF6A1A); }
 
 .bd-legs { width: 100%; border-collapse: collapse; table-layout: auto; }
 .bd-legs th {
   text-align: left;
   font-size: var(--text-xs, 12px);
   font-weight: 600;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
   padding: 0 var(--space-2, 8px) var(--space-2, 8px) 0;
-  border-bottom: 1px solid var(--border, #E3E3DE);
+  border-bottom: 1px solid var(--ns-line, #DCD8CE);
 }
 .bd-legs th.bd-num { text-align: right; padding-right: 0; }
-.bd-legs td { vertical-align: top; padding: var(--space-2, 8px) var(--space-2, 8px) var(--space-2, 8px) 0; border-bottom: 1px solid var(--border, #E3E3DE); }
+.bd-legs td { vertical-align: top; padding: var(--space-2, 8px) var(--space-2, 8px) var(--space-2, 8px) 0; border-bottom: 1px solid var(--ns-line, #DCD8CE); }
 .bd-legs td.bd-num { padding-right: 0; }
 .bd-legs tr:last-child td { border-bottom: 0; }
 .bd-stops { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1, 4px); }
@@ -106,37 +126,38 @@
 
 .bd-footer { padding: var(--space-4, 16px); }
 
-.bd-link { color: var(--accent, #1D5075); text-decoration: underline; text-underline-offset: 2px; }
-.bd-link:hover { color: var(--accent-dark, #173E5B); }
-.bd-link:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.bd-link { color: var(--ns-text, #14171F); text-decoration: underline; text-underline-offset: 2px; }
+.bd-link:hover { color: var(--ns-ink, #0B0F17); }
+.bd-link:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; }
 
 .bd-btn {
   height: 32px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: var(--ns-sheet, #FFFFFF);
+  color: var(--ns-text, #14171F);
   font: inherit;
   font-size: var(--text-sm, 13px);
   cursor: pointer;
 }
-.bd-btn:hover:not(:disabled) { border-color: var(--accent, #1D5075); }
+.bd-btn:hover:not(:disabled) { border-color: var(--ns-muted, #5A5F6B); }
 .bd-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.bd-btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-.bd-btn--primary { background: var(--accent, #1D5075); border-color: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
-.bd-btn--primary:hover:not(:disabled) { background: var(--accent-dark, #173E5B); }
-.bd-btn--ghost { border-color: transparent; background: transparent; color: var(--muted, #5B6472); }
+.bd-btn:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; }
+/* Try matching again: the panel's main action, in the page's orange with ink text (6.7:1). */
+.bd-btn--primary { background: var(--ns-signal, #FF6A1A); border-color: var(--ns-signal, #FF6A1A); color: var(--ns-ink, #0B0F17); font-weight: 600; }
+.bd-btn--primary:hover:not(:disabled) { background: var(--ns-signal-deep, #E85A0C); border-color: var(--ns-signal-deep, #E85A0C); }
+.bd-btn--ghost { border-color: transparent; background: transparent; color: var(--ns-muted, #5A5F6B); }
 /* A link that looks like the panel's buttons: "View journey", the way on to the simulator. */
 .bd-btn--link {
   display: inline-flex;
   align-items: center;
-  border-color: var(--accent, #1D5075);
-  color: var(--accent-dark, #173E5B);
+  border-color: var(--ns-text, #14171F);
+  color: var(--ns-text, #14171F);
   font-weight: 600;
   text-decoration: none;
 }
-.bd-btn--link:hover { background: var(--accent-soft, #E8EEF1); }
+.bd-btn--link:hover { background: var(--ns-paper, #F4F2EC); }
 
 .bd-visually-hidden {
   position: absolute;
@@ -163,11 +184,11 @@
   .bd-parties > div, .bd-facts > div { grid-template-columns: 1fr; gap: 0; }
   .bd-legs thead { display: none; }
   .bd-legs, .bd-legs tbody, .bd-legs tr, .bd-legs td { display: block; width: 100%; }
-  .bd-legs tr { padding: var(--space-2, 8px) 0; border-bottom: 1px solid var(--border, #E3E3DE); }
+  .bd-legs tr { padding: var(--space-2, 8px) 0; border-bottom: 1px solid var(--ns-line, #DCD8CE); }
   .bd-legs tr:last-child { border-bottom: 0; }
   .bd-legs td { border-bottom: 0; padding: var(--space-1, 4px) 0; }
   .bd-legs td.bd-num { text-align: left; }
-  .bd-legs td.bd-num::before { content: 'Extra '; color: var(--muted, #5B6472); font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif); }
+  .bd-legs td.bd-num::before { content: 'Extra '; color: var(--ns-muted, #5A5F6B); font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif); }
   .bd-btn { flex: 1 1 auto; }
   /* Close stays a small button at the right end of the head row (#714). */
   .bd-head__top .bd-btn { flex: none; }

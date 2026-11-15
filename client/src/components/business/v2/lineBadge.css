@@ -1,0 +1,48 @@
+/* The line badge of a delivery plan (#956): "Direct" or "Relay via <business>" behind a small route line,
+   like the line marks of a transit map. One run in the first carrier's blue for a direct plan; for a relay,
+   the first carrier's run, the relay point as an open station, then the second carrier's run in green.
+   The drawing only adds to the words beside it and is hidden from assistive technology.
+   Colours are the --ns-* palette of page/businessPage.css, each with its own value as the fallback. */
+
+.lb-badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0 var(--space-2, 8px);
+  min-width: 0;
+  vertical-align: top;
+}
+/* As tall as one line of the words, so the drawing sits on their first line when they wrap. */
+.lb-mark { flex: none; display: inline-flex; align-items: center; height: 1.45em; }
+/* A station: an 8 px dot in ink. */
+.lb-stop {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius, 4px);
+  background: var(--ns-ink, #0B0F17);
+}
+/* The relay point: an open station, where the package waits for its second carrier. */
+.lb-stop--relay {
+  border: 2px solid var(--ns-ink, #0B0F17);
+  background: var(--ns-paper, #F4F2EC);
+}
+/* A carrier's run between two stations: 2 px, in that carrier's colour. Both badges are 48 px long. */
+.lb-run { flex: none; width: 12px; height: 2px; background: var(--ns-blue, #3D8BFF); }
+.lb-badge--direct .lb-run { width: 32px; }
+.lb-run--second { background: var(--ns-green, #22C08A); }
+/* The words break between words only (the page lets a long word break anywhere): in a narrow column they
+   move under the drawing whole instead of breaking letter by letter beside it. */
+.lb-text { min-width: 0; overflow-wrap: normal; }
+
+/* Reduced motion (#497): nothing in this file animates or transitions, now or later. */
+@media (prefers-reduced-motion: reduce) {
+  [class*='lb-'],
+  [class*='lb-'] *,
+  [class*='lb-']::before,
+  [class*='lb-']::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

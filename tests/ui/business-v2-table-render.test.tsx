@@ -94,11 +94,18 @@ describe('ShipmentsTable', () => {
     expect(plans).toHaveLength(4);
     // One wrapper element holds the whole value, so the stacked 390 px cell stays label + value.
     for (const p of plans) expect(p).toMatch(/^<div class="bw-plan">(?:(?!<\/?div).)*<\/div>$/);
-    expect(plans).toContain('<div class="bw-plan">Relay <span class="bw-muted">via Atlas Books</span></div>');
+    // A plan is a line badge (#956): a drawn route line, hidden from assistive technology, then the words.
+    const RELAY_MARK = '<span class="lb-mark" aria-hidden="true"><span class="lb-stop"></span><span class="lb-run"></span>'
+      + '<span class="lb-stop lb-stop--relay"></span><span class="lb-run lb-run--second"></span><span class="lb-stop"></span></span>';
+    const DIRECT_MARK = '<span class="lb-mark" aria-hidden="true"><span class="lb-stop"></span><span class="lb-run"></span><span class="lb-stop"></span></span>';
+    expect(plans).toContain(
+      `<div class="bw-plan"><span class="lb-badge lb-badge--relay">${RELAY_MARK}<span class="lb-text">Relay <span class="bw-muted">via Atlas Books</span></span></span></div>`,
+    );
+    const DIRECT = `<div class="bw-plan"><span class="lb-badge lb-badge--direct">${DIRECT_MARK}<span class="lb-text">Direct</span></span></div>`;
     expect(plans).toContain(
       '<div class="bw-plan">No match<span class="bw-reason">No commute passes both businesses before the deadline.</span></div>',
     );
-    expect(plans.filter((p) => p === '<div class="bw-plan">Direct</div>')).toHaveLength(2);
+    expect(plans.filter((p) => p === DIRECT)).toHaveLength(2);
   });
 
   it('the caption and the empty titles can take focus without being tab stops (#609)', () => {

@@ -20,6 +20,11 @@ export type ShipmentsToolbarProps = {
   onNewDelivery: () => void;
   /** Disable the New delivery action (e.g. playback is locked). */
   newDeliveryDisabled?: boolean;
+  /**
+   * New delivery is open below the toolbar (#956). Its own orange button is then the one to press, so this
+   * button, which would only open what is open, is drawn as a plain outline: one orange action at a time.
+   */
+  newDeliveryOpen?: boolean;
 };
 
 const DIRECTIONS: { value: DirectionFilter; label: string }[] = [
@@ -88,7 +93,7 @@ export function ShipmentsToolbar(props: ShipmentsToolbarProps) {
       </div>
       <button
         type="button"
-        className="bw-btn bw-btn--primary bw-toolbar__new"
+        className={props.newDeliveryOpen ? 'bw-btn bw-toolbar__new' : 'bw-btn bw-btn--primary bw-toolbar__new'}
         onClick={props.onNewDelivery}
         disabled={props.newDeliveryDisabled}
       >

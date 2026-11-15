@@ -87,7 +87,12 @@ export function RequestTextBox(p: RequestTextBoxProps) {
       }}>
       <div className="nd-head">
         <h2 className="nd-title" id={id('title')}>New delivery</h2>
-        <p className="nd-from">From {p.origin.name}{p.origin.neighborhood ? ` · ${p.origin.neighborhood}` : ''}</p>
+        {/* The start of a route (#956): the package is at this business, and the line runs on to a stop the
+            sentence has yet to name. The line is decoration. */}
+        <p className="nd-from">
+          <span className="nd-from__text">From {p.origin.name}{p.origin.neighborhood ? ` · ${p.origin.neighborhood}` : ''}</span>
+          <span className="nd-route" aria-hidden="true" />
+        </p>
       </div>
 
       <div className={`nd-field${fieldError ? ' nd-field--invalid' : ''}`}>

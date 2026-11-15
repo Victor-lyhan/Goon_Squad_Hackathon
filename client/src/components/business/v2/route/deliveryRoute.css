@@ -1,6 +1,6 @@
 /* Delivery route map in the Business workspace (#549).
-   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
-   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
+   Night-shift transit look (#956): the palette is the --ns-* block at the top of page/businessPage.css; each
+   use here is var(--ns-name, fallback) with the property's own value as the fallback.
    Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
    IDs, weights and prices; Inter (--font-sans) for everything else.
    The route and legend colours are not in this file: they come from map/layers.ts.
@@ -11,7 +11,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  color: var(--text, #171C24);
+  color: var(--ns-text, #14171F);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
   line-height: 1.45;
@@ -23,9 +23,9 @@
   width: 100%;
   height: 280px;
   overflow: hidden;
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--bg, #F7F7F4);
+  background: var(--ns-paper-deep, #E9E6DC);
 }
 
 /* The shared map (its root is the only child) has its own min-height; here it fills the fixed height. */
@@ -41,7 +41,7 @@
   margin: var(--space-2, 8px) 0 0;
   padding: 0;
   list-style: none;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
   font-size: var(--text-xs, 12px);
 }
 .bdr__legend li {
@@ -57,7 +57,7 @@
 
 .bdr__note {
   margin: var(--space-2, 8px) 0 0;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
   font-size: var(--text-xs, 12px);
 }
 
@@ -65,7 +65,7 @@
   margin: var(--space-2, 8px) 0 0;
   padding: var(--space-2, 8px) 0 0;
   list-style: none;
-  border-top: 1px solid var(--border, #E3E3DE);
+  border-top: 1px solid var(--ns-line, #DCD8CE);
 }
 .bdr__stops li { padding: 2px 0; }
 .bdr__n {
@@ -73,15 +73,15 @@
   min-width: 20px;
   text-align: center;
   border-radius: var(--radius, 4px);
-  background: var(--text, #171C24);
-  color: var(--panel, #FFFFFF);
+  background: var(--ns-ink, #0B0F17);
+  color: var(--ns-paper, #F4F2EC);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
 }
 .bdr__time {
   /* One box: "Day 1, 5:25 PM" moves to the next line whole and is never split after "5:25" (#714). */
   display: inline-block;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
 }

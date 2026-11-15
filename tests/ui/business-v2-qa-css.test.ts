@@ -1,12 +1,18 @@
 // #497: visual QA rules for every stylesheet of the Business workspace: tokens only, no shadows or
 // gradients, works at 390 px. Since #684 the look is MVP III (docs/mvp3.md P4): radius at most 6 px and no
 // MVP II fallback value; business-v2-mvp3-css.test.ts pins the colours, shadows and fonts in full.
+// Since #956 a colour is a property of the page's own palette (the --ns-* block of page/businessPage.css)
+// or a state colour of tokens.css; the rules here are the same for both.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseCss, readTokens, v2CssFiles, type CssRule } from './employee-v2-qa-helpers';
 
 const files = v2CssFiles('client/src/components/business/v2');
-const tokens = readTokens();
+/** The kit's tokens and the page's own palette (#956): the --ns-* block of page/businessPage.css. */
+const tokens = new Map([
+  ...readTokens(),
+  ...[...readTokens('client/src/components/business/v2/page/businessPage.css')].filter(([name]) => name.startsWith('--ns-')),
+]);
 const parsed: Array<[string, CssRule[]]> = files.map((f) => [f, parseCss(readFileSync(f, 'utf8'))]);
 
 const MAX_RADIUS_PX = 6;
@@ -23,11 +29,12 @@ const isFocusSelector = (s: string) => s.split(',').every((p) => /:focus(-visibl
 const reducedMotion = (r: CssRule) => r.media.some((m) => /prefers-reduced-motion:\s*reduce/.test(m));
 
 describe('business v2 CSS QA (#497)', () => {
-  it('covers all six stylesheets', () => {
+  it('covers all seven stylesheets', () => {
     expect(files.map((f) => f.replace(/^.*business\/v2\//, ''))).toEqual(expect.arrayContaining([
-      'businessWorkspace.css', 'deliveryDetails.css', 'newDelivery.css', 'activity/activity.css', 'page/businessPage.css',
-      'route/deliveryRoute.css',
+      'businessWorkspace.css', 'deliveryDetails.css', 'lineBadge.css', 'newDelivery.css', 'activity/activity.css',
+      'page/businessPage.css', 'route/deliveryRoute.css',
     ]));
+    expect(files).toHaveLength(7);
   });
 
   it('border-radius is at most 6 px', () => {
@@ -75,7 +82,7 @@ describe('business v2 CSS QA (#497)', () => {
     for (const [file, rules] of parsed) for (const r of rules) for (const d of r.decls) {
       for (const [, name, fb] of d.value.matchAll(VAR_RE)) {
         const token = tokens.get(name);
-        if (token === undefined) { bad.push(`${where(file, r, d)} (${name} is not in tokens.css)`); continue; }
+        if (token === undefined) { bad.push(`${where(file, r, d)} (${name} is not in tokens.css or the palette)`); continue; }
         if (fb && (COLOR_LITERAL.test(fb) || NAMED_COLOR.test(fb)) && norm(fb) !== norm(token)) {
           bad.push(`${where(file, r, d)} (${name} is ${token}, fallback ${fb})`);
         }
@@ -87,6 +94,7 @@ describe('business v2 CSS QA (#497)', () => {
   it('no colour outside a token', () => {
     const bad: string[] = [];
     for (const [file, rules] of parsed) for (const r of rules) for (const d of r.decls) {
+      if (d.prop.startsWith('--ns-') && r.selector === ':root') continue; // the palette block is where the values are written
       const rest = d.value.replace(VAR_RE, '');
       if (COLOR_LITERAL.test(rest)) bad.push(where(file, r, d));
       else if (COLOR_PROPS.test(d.prop) && NAMED_COLOR.test(rest)) bad.push(where(file, r, d));
@@ -94,12 +102,13 @@ describe('business v2 CSS QA (#497)', () => {
     expect(bad).toEqual([]);
   });
 
-  // Each file styles one class family (bw-, bd-, nd, ba-, bp). The reduced-motion block turns motion off
+  // Each file styles one class family (bw-, bd-, nd, ba-, bp, lb-). The reduced-motion block turns motion off
   // for every element of that family, its descendants and pseudo-elements, so a transition added later
   // anywhere in the file is covered too.
   const PREFIX: Record<string, string> = {
     'businessWorkspace.css': 'bw-', 'deliveryDetails.css': 'bd-', 'newDelivery.css': 'nd',
     'activity/activity.css': 'ba-', 'page/businessPage.css': 'bp', 'route/deliveryRoute.css': 'bdr',
+    'lineBadge.css': 'lb-',
   };
   const short = (f: string) => f.replace(/^.*business\/v2\//, '');
   const SHELL_WIDTH_SELECTOR = '.app-main:has(.bp)';

@@ -179,7 +179,7 @@ describe('the demo walk after the freeze, over the API on one server with no key
     expect(Object.keys(card).sort()).toStrictEqual(['note', 'rows']);
     expect(card.rows).toHaveLength(advice.options.length);
     const times = { readyTime: form.readyTime, deadlineDay: form.deadlineDay, deadlineTime: form.deadlineTime };
-    for (const row of card.rows) expect(row).toMatchObject({ priceText: demo.price, routeText: `Via ${demo.relay_point}`, times });
+    for (const row of card.rows) expect(row).toMatchObject({ priceText: demo.price, kind: 'relay', routeText: `Relay via ${demo.relay_point}`, times });
     expect(card.rows[advice.options.indexOf(pick)].carriersText).toBe(`${demo.evening_carrier}, ${demo.morning_carrier}`);
     expect(chosenKey(card, form)).toBe(card.rows[0].key);
     // #960: the badges are the server's tags, in the card's order, and a row's name leaves their words out.

@@ -1,22 +1,62 @@
 /* Business page (#461): page states, notices and the two-column layout around the merged pieces.
-   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
-   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
-   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
-   IDs, weights and prices; Inter (--font-sans) for everything else.
-   Fluid widths only: works at 390 px.
-   Design pass (#940): the gaps between the page's parts are 8, 16 or 24 px; every button on the page is
-   36 px tall with 16 px at its sides and semibold text; the loading line is plain text, not a box. */
+   Night-shift transit look (#956; the human's direction for this page replaces the MVP III fonts and colours):
+   warm paper for the work surface, ink for text and rules, hairlines between records, package orange as the
+   one signal colour (the main action and the package itself), Archivo for headings and the big numbers,
+   Inter for everything else, IBM Plex Mono for times, IDs, weights and prices.
+   The palette is the block of --ns-* properties below. Every use in the six Business stylesheets and in
+   lineBadge.css is written as var(--ns-name, fallback) with the property's own value as the fallback, so a
+   component drawn without this file (a test, another page) looks the same. Shape, spacing and the body type
+   sizes are still the tokens of client/src/styles/tokens.css. No shadows, no gradients.
+   Fluid widths only: works at 390 px. The gaps between the page's parts are 8, 16 or 24 px; a button is
+   36 px tall with 16 px at its sides and semibold text; the loading line is plain text, not a box (#940). */
+
+:root {
+  /* Grounds */
+  --ns-ink: #0B0F17; /* the sentence box, rules, filled stations, text on orange */
+  --ns-paper: #F4F2EC; /* the page; also the text colour on ink */
+  --ns-paper-deep: #E9E6DC; /* a row under the pointer, the chosen row */
+  --ns-sheet: #FFFFFF; /* fields, and the panels that hold a form or one delivery */
+  /* Text and lines on paper */
+  --ns-text: #14171F;
+  --ns-muted: #5A5F6B;
+  --ns-line: #DCD8CE; /* hairline */
+  /* The one signal colour: the main action, the package, and the Fastest badge of an option (#960).
+     Never text on paper (2.6:1); ink text on it is 6.7:1. */
+  --ns-signal: #FF6A1A;
+  --ns-signal-deep: #E85A0C; /* the same button under the pointer */
+  /* The two carriers of a delivery, as route lines, and the fills of the Recommended (blue) and Cheapest
+     (green) badges of an option (#960). Never the colour of text. */
+  --ns-blue: #3D8BFF;
+  --ns-green: #22C08A;
+  /* On ink */
+  --ns-on-ink-muted: #9BA1AE;
+  --ns-ink-line: #2A303D;
+  --ns-ink-field: #141925;
+  --ns-alert-on-ink: #FF9B8A;
+  /* Archivo comes with the homepage (#955: @fontsource-variable/archivo, loaded once in the client entry).
+     Until then, and wherever it fails to load, the text is Inter at 600, a loaded face. Archivo is drawn
+     heavier through its weight axis (font-variation-settings), which a static font ignores, so no bold is
+     ever faked (#737). */
+  --ns-display: 'Archivo Variable', 'Inter', system-ui, sans-serif;
+  --ns-size-title: 20px; /* a section's heading */
+  --ns-size-sentence: 26px; /* the sentence being typed */
+  --ns-size-figure: 32px; /* an option's price, the sentence box's title */
+  --ns-size-name: 40px; /* the business */
+}
 
 /* The shell's column is 960 px for every page. This page was laid out for 1320 px, so it widens the shell's
    <main> only while a Business page is inside it (#581, DECISIONS pass 60). The rule is local on purpose:
    the shell files stay unchanged and the Employee page and the homepage keep 960 px. */
 .app-main:has(.bp) { max-width: 1320px; }
+/* The same way, the window is paper to its edges only while a Business page is in it. */
+body:has(.bp) { background: var(--ns-paper, #F4F2EC); }
 
 .bp {
   max-width: 1320px;
   margin: 0 auto;
   padding: var(--space-4, 16px);
-  color: var(--text, #171C24);
+  background: var(--ns-paper, #F4F2EC);
+  color: var(--ns-text, #14171F);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
   line-height: 1.45;
@@ -28,35 +68,42 @@
 .bp-state, .bp-missing {
   margin: var(--space-4, 16px) 0;
   padding: var(--space-6, 24px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
+  background: var(--ns-sheet, #FFFFFF);
 }
-.bp-state h1 { font-size: var(--text-lg, 18px); font-weight: 600; margin: 0 0 var(--space-2, 8px); }
+.bp-state h1 {
+  margin: 0 0 var(--space-2, 8px);
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--ns-size-title, 20px);
+  font-weight: 600;
+  font-variation-settings: 'wght' 720;
+  letter-spacing: -0.01em;
+}
 .bp-missing { margin: 0; }
 /* Loading is one quiet line where the page will be, with no box around it. */
-p.bp-state { padding: var(--space-2, 8px) 0; border-color: transparent; background: none; color: var(--muted, #5B6472); }
+p.bp-state { padding: var(--space-2, 8px) 0; border-color: transparent; background: none; color: var(--ns-muted, #5A5F6B); }
 .bp-missing h2 { font-size: var(--text-md, 14px); font-weight: 600; margin: 0 0 var(--space-2, 8px); }
 .bp-state p, .bp-missing p { max-width: 60ch; margin: 0 0 var(--space-2, 8px); }
 .bp-state > :last-child, .bp-missing > :last-child { margin-bottom: 0; }
 .bp-state .bp-links, .bp-missing .bp-links, .bp-state > .bp-btn { margin-top: var(--space-4, 16px); }
 .bp-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-4, 16px); }
-.bp-links a { color: var(--accent, #1D5075); }
-.bp-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); color: var(--muted, #5B6472); }
+.bp-links a { color: var(--ns-text, #14171F); text-underline-offset: 2px; }
+.bp-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); color: var(--ns-muted, #5A5F6B); }
 
 .bp-notices:empty { display: none; }
 .bp-notice {
   margin: var(--space-2, 8px) 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-left: 2px solid var(--accent, #1D5075);
+  border: 1px solid var(--ns-line, #DCD8CE);
+  border-left: 2px solid var(--ns-ink, #0B0F17);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
+  background: var(--ns-sheet, #FFFFFF);
 }
 .bp-problem { border-left-color: var(--danger, #A4322A); }
 /* Held here as the relay point; New delivery closed while the run is locked. */
 .bp-held { border-left-color: var(--warn, #8A5A00); }
-.bp-closed { margin: 0; border-left-color: var(--muted, #5B6472); color: var(--muted, #5B6472); }
+.bp-closed { margin: 0; border-left-color: var(--ns-muted, #5A5F6B); color: var(--ns-muted, #5A5F6B); }
 .bp-state.bp-problem { border-left: 2px solid var(--danger, #A4322A); }
 
 .bp-layout {
@@ -75,17 +122,18 @@ p.bp-state { padding: var(--space-2, 8px) 0; border-color: transparent; backgrou
 .bp-btn {
   min-height: 36px;
   padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: var(--ns-sheet, #FFFFFF);
+  color: var(--ns-text, #14171F);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
-.bp-btn:hover { border-color: var(--muted, #5B6472); }
-.bp-btn:focus-visible, .bp-links a:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-.bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); font-weight: 400; text-decoration: underline; }
+.bp-btn:hover { border-color: var(--ns-muted, #5A5F6B); }
+/* Keyboard focus on paper is an ink ring, 13:1 on the page and on a white sheet. */
+.bp-btn:focus-visible, .bp-links a:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; }
+.bp-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--ns-text, #14171F); font-weight: 400; text-decoration: underline; text-underline-offset: 2px; }
 
 /* One column: the open delivery comes first, then the table, then the notifications.
    Up to 1160 px the 440 px details column would leave the table under about 640 px, so the page stacks.

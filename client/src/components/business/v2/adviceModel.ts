@@ -189,7 +189,9 @@ export type AdviceRow = {
   priceText: string;
   /** `deliveryMin` as "Day 2, 9:40 AM". */
   arrivalText: string;
-  /** "Direct" or "Via <relay point>". */
+  /** One carrier, or two with a relay point between them: which line badge the row gets (#956). */
+  kind: 'direct' | 'relay';
+  /** "Direct" or "Relay via <business>": the words of the row's line badge. */
   routeText: string;
   /** "+12 min · +1.4 mi": what the carriers add to their commutes (a no-break space before each unit). */
   extraText: string;
@@ -258,7 +260,8 @@ function row(raw: unknown, index: number, context: CardContext): AdviceRow | nul
     summary: (tags.includes('recommended') && text(o.reason)) || text(o.summary),
     priceText: formatCents(o.customerPriceCents),
     arrivalText: formatMin(o.deliveryMin),
-    routeText: o.kind === 'direct' ? 'Direct' : `Via ${relay ?? 'a relay point'}`,
+    kind: o.kind,
+    routeText: o.kind === 'direct' ? 'Direct' : `Relay via ${relay ?? 'a relay point'}`,
     extraText: extra.join(' · ') || '—',
     carriersText: carriers.length > 0 ? carriers.join(', ') : null,
     times,
@@ -370,9 +373,19 @@ function listText(parts: string[]): string {
  */
 export function optionName(row: Pick<AdviceRow, 'label' | 'priceText' | 'tags'>, chosen: boolean): string {
   const price = [row.priceText, ...row.tags.map((tag) => ADVICE_COPY[tag].toLowerCase())].join(', ');
+  return `${chosen ? ADVICE_COPY.chosen : ADVICE_COPY.choose}: ${labelParts(row).route}, ${price}`;
+}
+
+/**
+ * An option's name in two parts (#956): what it says before its own price, and the price at its end
+ * (", $9.50"; '' for a name that does not end with it). The two together are the name, unchanged. The card
+ * draws the price as the row's large figure, so it shows the first part and only reads out the second.
+ */
+export function labelParts(row: Pick<AdviceRow, 'label' | 'priceText'>): { route: string; price: string } {
   const ending = `, ${row.priceText}`;
-  const label = row.label.endsWith(ending) ? row.label.slice(0, -ending.length) : row.label;
-  return `${chosen ? ADVICE_COPY.chosen : ADVICE_COPY.choose}: ${label}, ${price}`;
+  return row.label.endsWith(ending) && row.label.length > ending.length
+    ? { route: row.label.slice(0, -ending.length), price: ending }
+    : { route: row.label, price: '' };
 }
 
 /** The row whose times the form holds now (the first one, should two options share their times), or null. */
