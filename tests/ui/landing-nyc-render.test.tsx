@@ -14,9 +14,10 @@ const workspaceLinks = (html: string) =>
   [...html.matchAll(/<a ([^>]*)>(.*?)<\/a>/g)]
     .filter((x) => /class="workspace-entry"/.test(x[1]))
     .map((x) => /href="([^"]*)"/.exec(x[1])?.[1]);
-const summaryOf = (html: string) => /<section class="op-summary"[\s\S]*?<\/section>/.exec(html)![0];
-const text = (html: string) => html.replace(/<[^>]+>/g, '');
-const values = (html: string) => [...html.matchAll(/<span class="op-summary-value">([^<]*)<\/span>/g)].map((x) => x[1]);
+/** The line under the two entries after a failed load; null when the page shows none. */
+const noteOf = (html: string) => /<p class="landing-note" role="status">([^<]*)<\/p>/.exec(html)?.[1] ?? null;
+/** The page's text without the drawing (its only digits would be in the SVG's coordinates, which are attributes anyway). */
+const text = (html: string) => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '');
 
 const ready = nycSummaryFrom(businesses, employees, simulator);
 const unavailable = nycSummaryFromError(new ApiRequestError(503, 'x', undefined, 'http', 'travel_data_missing'));
@@ -24,10 +25,11 @@ const unavailable = nycSummaryFromError(new ApiRequestError(503, 'x', undefined,
 describe('the homepage with sample /api/v2 responses', () => {
   const h = page({ dataset: 'nyc', initialSummary: ready });
 
-  it('shows the stats as one line: businesses, commuters, matched of requested from the metrics', () => {
-    expect(values(h)).toEqual(['5', '3', '19', '24']);
-    expect(text(summaryOf(h))).toBe('5 businesses3 commuters19 of 24 packages matched'); // the dots between are CSS
-    expect(summaryOf(h).match(/<li>/g)).toHaveLength(3);
+  it('shows no stats line and no number of the run: the footer is gone (#833)', () => {
+    expect(h).not.toContain('op-summary');
+    expect(text(h).replace(/\D/g, '')).toBe('123'); // the step numbers of "How it works", nothing counted
+    expect(text(h)).not.toMatch(/businesses|commuters|packages matched/);
+    expect(noteOf(h)).toBeNull();
     expect(h).not.toMatch(/NaN|undefined/);
   });
 
@@ -45,13 +47,13 @@ describe('the homepage with sample /api/v2 responses', () => {
     expect(h).not.toContain('/help');
   });
 
-  it('does not repeat the environment line: the header says it, the page has no footer (#724, was #610)', () => {
+  it('does not say the environment line, and has no footer (#724, #833)', () => {
     expect(h).not.toContain(ENV_LABELS.nyc);
     expect(h).not.toContain('<footer');
-    const intro = /<section class="landing-intro">([\s\S]*?)<\/section>/.exec(h)![1];
-    expect(intro.match(/<h1>/g)).toHaveLength(1);
-    expect(intro).not.toMatch(/<p[ >]/);
-    // in every state, also while the numbers are missing
+    const copy = /<div class="landing-hero-copy">([\s\S]*?)<\/div>/.exec(h)![1];
+    expect(copy.match(/<h1[ >]/g)).toHaveLength(1);
+    expect(copy).not.toMatch(/<p[ >]/);
+    // in every state, also after a failed load
     for (const s of [{ status: 'loading' }, { status: 'error' }, unavailable] as NycSummary[]) {
       expect(page({ initialSummary: s }), s.status).not.toContain(ENV_LABELS.nyc);
     }
@@ -68,13 +70,10 @@ describe('the homepage with sample /api/v2 responses', () => {
 });
 
 describe('the homepage states', () => {
-  it('503: one line, no numbers, no dashes, the button and both entries still visible', () => {
+  it('503: one line under the entries, the button and both entries still visible', () => {
     expect(unavailable).toEqual({ status: 'unavailable' });
     const h = page({ dataset: 'nyc', initialSummary: unavailable });
-    const s = summaryOf(h);
-    expect(s).toContain('NYC travel data is not loaded on this server yet.');
-    expect(text(s)).toBe('NYC travel data is not loaded on this server yet.');
-    expect(s).not.toMatch(/\d|–|NaN|<li/);
+    expect(noteOf(h)).toBe('NYC travel data is not loaded on this server yet.');
     expect(h).not.toMatch(/NaN|undefined/);
     expect(h).toContain('Watch a package');
     expect(h.match(/class="workspace-entry is-disabled"/g)).toHaveLength(2);
@@ -85,17 +84,14 @@ describe('the homepage states', () => {
     const err = nycSummaryFromError(new ApiRequestError(500, 'boom'));
     expect(err).toEqual({ status: 'error' });
     const h = page({ dataset: 'nyc', initialSummary: err });
-    expect(text(summaryOf(h))).toBe('Live numbers unavailable');
+    expect(noteOf(h)).toBe('Accounts unavailable');
     expect(h).not.toContain('NYC travel data is not loaded');
   });
 
-  it('loading: one line of placeholders marked busy, no numbers, Business and Employee not links yet', () => {
+  it('loading: no line, Business and Employee not links yet', () => {
     const loading: NycSummary = { status: 'loading' };
     for (const h of [page({ dataset: 'nyc', initialSummary: loading }), page({ dataset: 'nyc' })]) {
-      expect(h).toContain('aria-busy="true"');
-      expect(h).toContain('is-placeholder');
-      expect(summaryOf(h)).not.toMatch(/\d/);
-      expect(text(summaryOf(h))).toBe('– businesses– commuters– of – packages matched');
+      expect(noteOf(h)).toBeNull();
       expect(workspaceLinks(h)).toEqual([]);
       expect(h.match(/aria-disabled="true"/g)).toHaveLength(2);
     }

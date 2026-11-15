@@ -21,8 +21,8 @@ describe('landing page', () => {
     expect(body).not.toContain('Guided demo');
   });
 
-  it('shows the badge and no how-it-works step cards', () => {
-    expect(html).toContain(BADGE_TEXT);
+  it('shows no environment line on the homepage, header included (#833), and no MVP 1 step cards', () => {
+    expect(html).not.toContain(BADGE_TEXT);
     expect(html).not.toContain('class="panel step"');
   });
 });

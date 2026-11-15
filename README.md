@@ -34,7 +34,7 @@ The main paths:
 
 | Path | Page |
 | --- | --- |
-| `/` | Homepage: one sentence on what Relay does, the **Watch a package** button (it opens the simulator on an example package and plays it), the Business and Employee entries, the link **The numbers** to the study page, and one line with the numbers of the current run. |
+| `/` | Homepage: a dark hero with the title, the **Watch a package** button (it opens the simulator on an example package and plays it), the Business and Employee entries and a drawn map of New York on which a package is relayed in a loop (an illustration, not a run; no map key needed), then **How it works** in three lines with the **See the numbers** button to `/study.html`. |
 | `/business/<id>` | Business workspace, for example `/business/biz-brooklyn-roasting`: the **Shipments** table, **New delivery**, delivery details. |
 | `/employee/<id>` | Employee workspace, for example `/employee/emp-7`: the saved commute, assigned deliveries, earnings. |
 | `/simulator` | Simulator: the whole network, the package list, playback, and the journey of one package. |
@@ -144,7 +144,7 @@ Press **Back to start** in the Simulator before step 2 if a journey or **Play** 
 5. **Simulator**: on the new delivery, "Envelope", choose **Watch in simulator** (or **View journey** in the Business delivery details). Both open `/simulator?package=<shipment ID>&play=1`, and the journey starts playing by itself; it takes about 16 seconds. Elena Rossi leaves work, which is the sender: the package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (an "Overnight at Etsy" card stands in for the wait), and is delivered to Blue Bottle Coffee in the morning, on Reese Green's commute to work. **Pause** stops it where it is, **Play** goes on from there, and **Back to start** rewinds. Let it play to the end before step 6.
 6. The same run is in every workspace: once the journey has played to the end, the delivery reads **Delivered** for the sender (`/business/biz-brooklyn-roasting`) and for the recipient (`/business/biz-blue-bottle-wall`), and **Earnings** on the pages of Elena Rossi and Reese Green (choose each as the **Demo account**) show the reward as **Earned**. Elena Rossi's amount also counts her leg of "Navy Yard grinder burrs", which is delivered by the same minute.
 
-To end on the figures, open `/` and choose **The numbers**: it opens `/study.html`, Relay against a standard next-day courier ([The numbers](#the-numbers-relay-vs-traditional-delivery)).
+To end on the figures, open `/` and choose **See the numbers**, under **How it works**: it opens `/study.html`, Relay against a standard next-day courier ([The numbers](#the-numbers-relay-vs-traditional-delivery)).
 
 Message: Relay turns existing commutes into a coordinated delivery network. This prototype calculates the matches on real NYC travel times and simulates the complete delivery cycle.
 

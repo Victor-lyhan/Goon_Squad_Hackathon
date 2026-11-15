@@ -201,16 +201,22 @@ describe('bareWorkspace', () => {
   });
 });
 
-describe('the homepage says the environment once', () => {
-  it('in the header\'s .shell-env, not in the page: no footer', async () => {
+describe('the homepage does not say the environment (#833)', () => {
+  it('not in the header (no text at its top right), not in the page: no footer, no stats line', async () => {
     api();
     const s = await renderShell('/', [], { initialNycSummary: SUMMARY });
-    expect(count(textOf(s.container), ENV_LABELS.nyc)).toBe(1);
+    expect(count(textOf(s.container), ENV_LABELS.nyc)).toBe(0);
+    expect(s.header().querySelector('.shell-env')).toBeNull();
+    expect(textOf(s.header().querySelector('.shell-tools')!)).toBe('');
+    expect(s.container.querySelector('footer, .landing-footer, .op-summary')).toBeNull();
+    // The page ends with "How it works".
+    expect(s.main().querySelector('.landing')!.lastElementChild!.className).toBe('landing-how');
+  }, T);
+
+  it('every other page keeps the line in the header', async () => {
+    api();
+    const s = await renderShell('/simulator');
     expect(textOf(s.header().querySelector('.shell-env')!)).toBe('Real NYC locations · simulated deliveries');
-    expect(textOf(s.main())).not.toContain(ENV_LABELS.nyc);
-    expect(s.container.querySelector('footer, .landing-footer')).toBeNull();
-    // The page still ends with its stats line.
-    expect(s.main().querySelector('.landing')!.lastElementChild!.className).toBe('op-summary');
   }, T);
 
   it('landing.css has no footer rule left, Landing.tsx no footer', () => {
@@ -224,7 +230,7 @@ describe('keyboard order of / and the header (headless Chrome pass, 1440 px and 
   /** A Tab stop as "<its class> <where it goes>"; the selector as "select". */
   const stop = (el: HTMLElement) => (el instanceof HTMLSelectElement ? 'select' : `${el.classList[0]} ${el.getAttribute('href')}`);
 
-  it('/: Skip, Relay, Business, Employee, Simulator, Watch a package, the two entries, then The numbers (#796)', async () => {
+  it('/: Skip, Relay, Business, Employee, Simulator, Watch a package, the two entries, then See the numbers (#833)', async () => {
     api();
     const s = await renderShell('/', [], { initialNycSummary: SUMMARY });
     const stops = tabOrder(s.container);
@@ -232,9 +238,9 @@ describe('keyboard order of / and the header (headless Chrome pass, 1440 px and 
       'skip-link #main-content', 'shell-wordmark /',
       'shell-nav-link /business/biz-01', 'shell-nav-link /employee/emp-01', 'shell-nav-link /simulator',
       'watch-button /simulator?package=shp-4&play=1', 'workspace-entry /business/biz-01', 'workspace-entry /employee/emp-01',
-      'landing-more-link /study.html',
+      'numbers-button /study.html',
     ]);
-    expect(stops.map((el) => textOf(el).slice(0, 8))).toEqual(['Skip to ', 'Relay', 'Business', 'Employee', 'Simulato', 'Watch a ', 'Business', 'Employee', 'The numb']);
+    expect(stops.map((el) => textOf(el).slice(0, 8))).toEqual(['Skip to ', 'Relay', 'Business', 'Employee', 'Simulato', 'Watch a ', 'Business', 'Employee', 'See the ']);
     expect(stops.every((el) => el.tabIndex === 0)).toBe(true); // document order, no positive tabindex
     // The skip link's target takes focus but is not a Tab stop.
     const main = s.main();

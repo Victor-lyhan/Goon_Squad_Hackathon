@@ -399,8 +399,10 @@ const PAGE_WORDS: [label: string, file: string][] = [
   ['Delivered', 'client/src/components/business/v2/shipmentsTableModel.ts'],
   ['Earnings', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
   ['Earned', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
-  // #815: the demo ends on the homepage's link to the study page (STUDY_LABEL).
-  ['The numbers', 'client/src/pages/Landing.tsx'],
+  // #815: the demo ends on the homepage's link to the study page (STUDY_LABEL). Since the #833 redesign it is
+  // the "See the numbers" button under the "How it works" heading (HOW_TITLE).
+  ['See the numbers', 'client/src/pages/Landing.tsx'],
+  ['How it works', 'client/src/pages/Landing.tsx'],
 ];
 
 describe('README demo steps, in the words of the pages', () => {

@@ -28,11 +28,8 @@ beforeAll(async () => {
 });
 afterAll(async () => { await api?.close(); });
 
-const values = (html: string) => [...html.matchAll(/<span class="op-summary-value">([^<]*)<\/span>/g)].map((x) => x[1]);
-const expectedValues = () => [
-  String(b.businesses.length), String(e.employees.length),
-  String(sim.snapshot.metrics.matched), String(sim.snapshot.metrics.requested),
-];
+/** The page's text without the drawing. Since #833 it shows no number of the run. */
+const pageText = (html: string) => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '');
 /** The default run's story package, by the label the homepage looks for. */
 const storyPackage = () => sim.shipments.filter((s) => s.label === WATCH_PACKAGE_LABEL);
 
@@ -71,7 +68,7 @@ describe('NYC homepage on the real /api/v2', () => {
     });
 
     const html = renderToStaticMarkup(<MemoryRouter><Landing dataset="nyc" initialSummary={summary} /></MemoryRouter>);
-    expect(values(html)).toEqual(expectedValues());
+    expect(pageText(html).replace(/\D/g, '')).toBe('123'); // the step numbers only: no count of the run (#833)
     expect(html).toContain(`href="/employee/${encodeURIComponent(e.employees[0].id)}"`);
     expect(html).toContain(`href="/business/${encodeURIComponent(b.businesses[0].id)}"`);
     expect(forbiddenIn(html)).toEqual([]);
@@ -90,14 +87,17 @@ describe('NYC homepage on the real /api/v2', () => {
     expect(parseSimUrl(href.slice(href.indexOf('?')))).toEqual({ selection: { kind: 'package', id }, mode: 'journey' });
   });
 
-  it('mounted in a real DOM, the page loads the same numbers itself, with no NaN, and the button gets the story link', async () => {
+  it('mounted in a real DOM, the page loads the run itself: Business and Employee become links and the button gets the story link', async () => {
     const m = mount(<MemoryRouter><Landing dataset="nyc" /></MemoryRouter>);
     const button = () => m.container.querySelector('a.watch-button')!;
     expect(button().getAttribute('href')).toBe('/simulator'); // before the answer
-    for (let i = 0; i < 200 && values(m.container.innerHTML).length < 4; i++) await flush();
-    expect(values(m.container.innerHTML)).toEqual(expectedValues());
+    for (let i = 0; i < 200 && m.container.querySelectorAll('a.workspace-entry').length < 2; i++) await flush();
+    expect([...m.container.querySelectorAll('a.workspace-entry')].map((a) => a.getAttribute('href'))).toEqual([
+      `/business/${encodeURIComponent(b.businesses[0].id)}`, `/employee/${encodeURIComponent(e.employees[0].id)}`,
+    ]);
+    expect(pageText(m.container.innerHTML).replace(/\D/g, '')).toBe('123');
     expect(button().getAttribute('href')).toBe(`/simulator?package=${encodeURIComponent(storyPackage()[0].id)}&play=1`);
-    expect(m.container.querySelectorAll('a[href]')).toHaveLength(4); // the button, Business, Employee, The numbers (#796)
+    expect(m.container.querySelectorAll('a[href]')).toHaveLength(4); // the button, Business, Employee, See the numbers (#833)
     expect(m.container.innerHTML).not.toContain('aria-busy="true"');
     expect(forbiddenIn(m.container.innerHTML)).toEqual([]);
     expect(api.googleCalls).toEqual([]);
