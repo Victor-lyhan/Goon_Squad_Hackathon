@@ -42,7 +42,7 @@ Frontend workers call the backend only through `client/src/api/` (owned by victo
 - Test everything: `bash scripts/test.sh` (must pass before any PR)
 - Run locally: `npm run dev` (Vite on 5173, API on 3001, `/api` proxied)
 - State file: `data/state.json` (gitignored). Delete it to reset to the demo city.
-- Env vars needed: none. `PORT` optional.
+- Env vars needed: none. `PORT` optional. Optional, server only, in `.env`: `GEMINI_API_KEY` and `GEMINI_MODEL` (default `gemini-2.5-flash`), read by `server/ai/env.ts` for MVP IV F1; never a `VITE_` variable.
 
 ## Hard rules for this project
 - Time = integer minutes since Day 1 00:00 (Day 2 08:30 = 1950). Distance = meters. Money = integer cents. Weight = grams in data, kg in the form.
