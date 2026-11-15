@@ -1,3 +1,5 @@
+> **MVP IV (7:50 p.m. Sat): read `docs/mvp4.md` (F1 Gemini requests, F2 moving employees, F3 Relay vs traditional study) after `docs/mvp3.md`. F2 by 9:30, F1 and F3 by 10:30.**
+
 > **MVP III (5:15 p.m. Sat): read `docs/mvp3.md` first. It overrides MVP II and the UI redesign doc where they conflict. Feature freeze 9:30 p.m.**
 
 # SPEC: Relay
