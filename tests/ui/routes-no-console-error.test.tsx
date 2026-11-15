@@ -9,6 +9,9 @@
 // temp state file, no key, no network). The poll timers are fake and the requests are real, as in
 // tests/ui/demo-rehearse-twice.test.tsx.
 //
+// The Business, Employee and simulator pages are lazy routes (#885) and are NOT loaded ahead here: the first
+// open of each goes through the shell's loading line, and that must be silent too.
+//
 // A route is checked after its first load, after every poll and retry timer of the app has fired at least
 // once, and after the page is left (unmounted). Any `console.error` or `console.warn` call fails it, and the
 // failure shows the message. So that a blank or broken page cannot pass as "silent", each route must also show
@@ -16,7 +19,7 @@
 //
 // No story ID or name is written here (DECISIONS pass 54): the accounts are the ones the README's
 // ```demo-request block names, and the journey is the package the homepage's "Watch a package" opens.
-import { StrictMode } from 'react';
+import { act, StrictMode } from 'react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import type { SimulatorResponse } from '../../shared/v2/api';
 import type { Employee, NetworkBusiness } from '../../shared/v2/types';
@@ -36,6 +39,7 @@ import {
   type Logged, type RehearsalApi,
 } from './demo-rehearse-twice-helper';
 import { buttons, link, mount, textOf } from './kitDom';
+import { workspacePagesImported } from './lazy-pages-helper';
 
 vi.setConfig({ testTimeout: T, hookTimeout: T });
 
@@ -120,6 +124,9 @@ async function openRoute(url: string, shown: (main: HTMLElement) => void, endsAt
   window.history.replaceState(null, '', url);
   const from = api.log.length;
   const page = mount(<StrictMode><App /></StrictMode>);
+  // A workspace page is a lazy route (#885): the first open of each shows the shell's loading line until the
+  // page's module arrives, as in the browser. The wait is one `act`, so React renders the page inside it.
+  await act(async () => { await workspacePagesImported(); });
   await settle(api);
   expect(logged(), `${url}: the console after the first load`).toStrictEqual([]);
 

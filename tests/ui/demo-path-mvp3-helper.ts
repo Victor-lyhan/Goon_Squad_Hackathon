@@ -24,6 +24,11 @@ import { createCachedProvider } from '../../server/geo/providers';
 import { snapshotAt } from '../../server/domain/v2/simulation';
 import { AppShell } from '../../client/src/App';
 import { mount, type Mounted } from './kitDom';
+import { loadWorkspacePages } from './lazy-pages-helper';
+
+// The simulator page is a lazy route (#885). Every test file that imports this helper has the workspace
+// pages loaded before its first mount, so `mountApp('/simulator...')` shows the page at once.
+await loadWorkspacePages();
 
 // ---------- The real run ----------
 
