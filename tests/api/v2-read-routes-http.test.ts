@@ -297,7 +297,7 @@ describe('a travel error inside a handler becomes the documented 503', () => {
     expect(res.status).toBe(503);
     expect(res.body).toEqual({
       code: 'travel_data_missing',
-      error: 'No route line is cached for biz-studio to biz-cafe. Run npm run fetch:routes and commit fixtures/nyc/.',
+      error: 'A route line is missing on this server. Run npm run fetch:routes and commit fixtures/nyc/ (biz-studio to biz-cafe).',
     });
   });
 

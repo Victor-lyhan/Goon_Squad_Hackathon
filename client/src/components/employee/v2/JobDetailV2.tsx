@@ -3,7 +3,10 @@
 import { useEffect, useRef } from 'react';
 import type { JobResponse } from '../../../../../shared/v2/api';
 import type { NetworkBusiness } from '../../../../../shared/v2/types';
-import { JOB_MISSING_TEXT, JOB_MISSING_TITLE, JOB_OTHER_TEXT, JOB_OTHER_TITLE, jobDetail } from './jobDetailV2Model';
+import {
+  JOB_FAILED_TEXT, JOB_FAILED_TITLE, JOB_MISSING_TEXT, JOB_MISSING_TITLE, JOB_OTHER_TEXT, JOB_OTHER_TITLE,
+  ROW_DONE_SUFFIX, ROW_NOT_DONE_TEXT, jobDetail,
+} from './jobDetailV2Model';
 import { PageLink } from './page/PageLink';
 import './JobDetailV2.css';
 
@@ -41,9 +44,18 @@ export function JobDetailV2({ job, businesses, homeNeighborhood, onBack }: JobDe
         <ol className="job-v2__route">
           {m.route.map((r) => (
             <li key={r.key} className="job-v2__stop" data-kind={r.kind} data-done={r.done ? 'true' : 'false'}>
+              {/* The tick box is a picture of `done` (#882); the words next to it say the same. */}
+              <span className="job-v2__check" aria-hidden="true">
+                {r.done && (
+                  <svg viewBox="0 0 16 16" width="12" height="12" focusable="false">
+                    <path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </span>
               <span className="job-v2__time">{r.time}</span>
               <div className="job-v2__stop-body">
-                <span className="job-v2__action">{r.action}{r.done ? ' (done)' : ''}</span>
+                <span className="job-v2__action">{r.action}{r.done ? ROW_DONE_SUFFIX : ''}</span>
+                {!r.done && <span className="job-v2__sr">{ROW_NOT_DONE_TEXT}</span>}
                 <span className="job-v2__place">{r.place}</span>
                 {r.address && <span className="job-v2__address">{r.address}</span>}
                 {r.instructions && <span className="job-v2__instructions">Instructions: {r.instructions}</span>}
@@ -82,6 +94,23 @@ export function JobV2Missing({ onBack }: { onBack(): void }) {
     <article className="job-v2" role="status">
       <h2 className="job-v2__title" tabIndex={-1} ref={heading}>{JOB_MISSING_TITLE}</h2>
       <p className="job-v2__text">{JOB_MISSING_TEXT}</p>
+      <div className="job-v2__actions">
+        <button type="button" className="job-v2__button" onClick={onBack}>Back to deliveries</button>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * The job's request failed before any answer arrived (#882). The poller asks again every second, so
+ * there is no Retry: the view is replaced by the job as soon as one answer comes.
+ */
+export function JobV2Failed({ onBack }: { onBack(): void }) {
+  const heading = useFocusOnOpen<HTMLHeadingElement>();
+  return (
+    <article className="job-v2" role="status">
+      <h2 className="job-v2__title" tabIndex={-1} ref={heading}>{JOB_FAILED_TITLE}</h2>
+      <p className="job-v2__text">{JOB_FAILED_TEXT}</p>
       <div className="job-v2__actions">
         <button type="button" className="job-v2__button" onClick={onBack}>Back to deliveries</button>
       </div>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '../../client/src/api/v2';
 import {
-  employeeWorkspaceReducer as reduce, initialWorkspaceState as init, TRAVEL_DATA_MISSING_TEXT,
+  CANT_REACH_TEXT, employeeWorkspaceReducer as reduce, initialWorkspaceState as init, TRAVEL_DATA_MISSING_TEXT,
   type EmployeeWorkspaceState, type WorkspaceAction,
 } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
 import { dash, jobResponse } from './employeeV2DataSample';
@@ -96,7 +96,7 @@ describe('employee workspace state: failures', () => {
   it('a network error before the first success is an error view; polling on recovers', () => {
     const s = reduce(listed, fail(network()));
     expect(s.view).toBe('error');
-    expect(s.error).toBe('Failed to fetch');
+    expect(s.error).toBe(CANT_REACH_TEXT); // #882: plain words, never the browser's own text
     expect(reduce(s, fail(network()))).toBe(s);
     expect(reduce(s, ok(1, [])).view).toBe('ready');
   });

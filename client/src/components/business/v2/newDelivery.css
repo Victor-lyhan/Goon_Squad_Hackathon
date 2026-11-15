@@ -122,6 +122,28 @@
 a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing: border-box; text-decoration: none; }
 
 .nd-actions { display: flex; gap: var(--space-2, 8px); }
+/* The form's send bar stays at the bottom of the screen while any part of the form is on it (#880). After a
+   request is read the form opens under the Options card and the request's lines, and its one send button
+   was a screen and a half further down: 780 px at 1440 x 900, 1,150 px at 390 px. The bar spans the panel
+   (it undoes the panel's padding), with a hairline above it; the fields scroll under it. */
+.nd > .nd-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 0 calc(-1 * var(--space-4, 16px)) calc(-1 * var(--space-4, 16px));
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-top: 1px solid var(--border, #E3E3DE);
+  border-radius: 0 0 var(--radius, 4px) var(--radius, 4px);
+  background: var(--panel, #FFFFFF);
+}
+/* `html, body { overflow-x: hidden }` (styles/global.css) makes the body a scroll box of its own that never
+   scrolls, and a sticky box inside it then sticks to nothing. While the form is on the page the body clips
+   sideways overflow instead: nothing scrolls sideways either way, and the window is the bar's scroll box.
+   A browser without :has() keeps the bar under the fields, as before. */
+body:has(.nd) { overflow-x: clip; }
+/* A field that gets the focus by Tab is scrolled clear of the bar, not under it. So is the answer to a
+   press, which the form brings on screen (#719): it sits right above the bar. */
+.nd .nd-input, .nd .nd-btn { scroll-margin-bottom: 76px; }
+.nd .nd-result, .nd .nd-alert { scroll-margin-bottom: 76px; }
 .nd-btn {
   height: 36px;
   padding: 0 var(--space-4, 16px);
@@ -178,6 +200,11 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
 .nd-request__actions { flex-wrap: wrap; }
 .nd-request__read { display: inline-flex; align-items: center; gap: var(--space-2, 8px); }
 
+/* While the request is read: a decorative spinner in the disabled button and one line that says what is
+   happening (#880). The line's region is always in the page; empty, it takes no room. */
+.nd-wait { margin: 0; color: var(--muted, #5B6472); }
+.nd-wait:empty { display: none; }
+
 /* The lines above the prefilled form. With the form right below they read as one card: the note is its top. */
 .nd-parsed {
   display: flex;
@@ -232,17 +259,10 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
   color: var(--text, #171C24);
   font-size: var(--text-sm, 13px);
 }
-.nd-options__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1, 4px) var(--space-3, 12px); }
 .nd-options__title { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; }
-/* "Planned by Gemini, checked by the engine" / "Options computed offline": a small label, not a pill. */
-.nd-options__source {
-  margin: 0;
-  font-size: var(--text-xs, 12px);
-  font-weight: 600;
-  color: var(--muted, #5B6472);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+/* One plain line under the title: what the card waits for, who made the options, or why there are none. */
+.nd-options__status { margin: 0; color: var(--muted, #5B6472); }
+.nd-options__status:empty { display: none; }
 .nd-options__list { display: flex; flex-direction: column; gap: var(--space-2, 8px); margin: 0; padding: 0; list-style: none; }
 .nd-options__hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .nd-options__applied { margin: 0; font-weight: 600; }
@@ -258,13 +278,13 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
   border-left: 3px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
 }
-/* The option the form holds: the accent stripe and tint add to the words "In the form". */
+/* The option the form holds: the accent stripe and tint add to the words "In the form" on its button. */
 .nd-option--chosen { border-color: var(--accent, #1D5075); background: var(--accent-soft, #E8EEF1); }
 .nd-option__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3, 12px); }
 .nd-option__label { margin: 0; min-width: 0; font-size: var(--text-md, 14px); font-weight: 600; overflow-wrap: anywhere; }
 .nd-option__price { display: flex; flex: none; align-items: baseline; gap: var(--space-2, 8px); margin: 0; }
 .nd-option__cents { font-size: var(--text-lg, 18px); font-weight: 600; white-space: nowrap; }
-/* "Cheapest" and "In the form": small words in a token colour, no box around them. */
+/* "Cheapest": a small word in a token colour, no box around it. The word carries it; the colour only adds. */
 .nd-option__tag {
   font-size: var(--text-xs, 12px);
   font-weight: 600;
@@ -280,20 +300,27 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
 .nd-option__fact { min-width: 0; }
 .nd-option__fact dt { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .nd-option__fact dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
-.nd-option__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-3, 12px); }
-.nd-option__choose[aria-pressed='true'] { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
+.nd-option__foot { display: flex; }
+/* The option the form holds: its button says "In the form" and reads as a state, not as one more thing to
+   press. Still a button, so every option is one Tab stop with the same ring. */
+.nd-option__choose[aria-pressed='true'] {
+  border-color: var(--accent, #1D5075);
+  background: var(--accent-soft, #E8EEF1);
+  color: var(--accent, #1D5075);
+}
 
-/* While the options are on their way: three still rows of bars, no motion. */
+/* While the options are on their way: two still rows of bars, no motion. */
 .nd-skeleton { display: block; height: 12px; border-radius: var(--radius, 4px); background: var(--border, #E3E3DE); }
 .nd-skeleton--label { width: 45%; height: 16px; }
 .nd-skeleton--line { width: 80%; }
-.nd-skeleton--short { width: 30%; }
 
 /* 390 px: one column, controls at least 40 px high, full-width actions. */
 @media (max-width: 480px) {
   .nd-options { padding: var(--space-3, 12px); max-width: none; }
   .nd-option__top { flex-wrap: wrap; }
   .nd-option__choose { width: 100%; }
+  /* "In the form" is a state: as wide as its words, so it does not read as the button to press next. */
+  .nd-option__choose[aria-pressed='true'] { width: auto; }
   /* The form sits inside the page's padding, so it keeps all four borders (#714). */
   .nd { padding: var(--space-3, 12px); max-width: none; }
   .nd-row { grid-template-columns: 1fr; }
@@ -301,6 +328,18 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
   .nd-btn--link { min-height: 40px; }
   .nd-actions { flex-direction: column; }
   .nd-actions .nd-btn { width: 100%; }
+  /* The form's send bar: the two buttons side by side, so the bar covers 68 px of a phone screen, not 124. */
+  .nd > .nd-actions {
+    flex-direction: row;
+    margin: 0 calc(-1 * var(--space-3, 12px)) calc(-1 * var(--space-3, 12px));
+    padding: var(--space-3, 12px);
+  }
+  .nd > .nd-actions .nd-btn { width: auto; padding: 0 var(--space-3, 12px); }
+  .nd > .nd-actions .nd-btn--primary { flex: 1; }
+  .nd .nd-input, .nd .nd-btn { scroll-margin-bottom: 84px; }
+  .nd .nd-result, .nd .nd-alert { scroll-margin-bottom: 84px; }
+  /* An option's facts in two columns: four stacked facts made one option 308 px high. */
+  .nd-option__facts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2, 8px) var(--space-3, 12px); }
   .nd-result__actions { flex-direction: column; }
   .nd-result__actions .nd-btn { width: 100%; justify-content: center; }
   .nd-request { padding: var(--space-3, 12px); max-width: none; }

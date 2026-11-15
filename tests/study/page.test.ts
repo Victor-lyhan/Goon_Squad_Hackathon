@@ -2,11 +2,13 @@
 // cache), and the committed client/public/study.html checked against scripts/study/assumptions.ts.
 // No key, no network, nothing written.
 import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ASSUMPTIONS, ASSUMPTION_KEYS } from '../../scripts/study/assumptions';
 import { DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
+import { EMBEDDED_FONTS, embeddedFontCss } from '../../scripts/study/fonts';
 import {
-  CARD_MIN_WIDTH, CHART_TEXT_PX, CHART_WIDTH, RUNS_CSV_HREF, SKIPPED_RUNS_LISTED,
+  CARD_MIN_WIDTH, CHART_TEXT_PX, CHART_WIDTH, RUNS_AXIS, RUNS_CSV_HREF, SKIPPED_RUNS_LISTED, TILE_MIN_WIDTH, TILE_VALUE_PX,
   assumptionValueParts, escapeHtml, headlineTiles, renderStudyPage,
 } from '../../scripts/study/page';
 import { runStudy } from '../../scripts/study/runner';
@@ -54,6 +56,11 @@ function manyRuns(runs: number): StudyResults {
   };
 }
 
+/**
+ * The page with the bytes of its embedded fonts taken out (#887): about 105 KB of base64, in which a check for
+ * a word such as "NaN" would find letters that are not text of the page.
+ */
+const withoutFonts = (html: string): string => html.replace(/(url\(data:font\/woff2;base64,)[A-Za-z0-9+/=]+/g, '$1');
 const text = (html: string): string => html.replace(/<style>[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const charts = (html: string): string[] => [...html.matchAll(/<svg data-chart="([^"]+)"/g)].map(match => match[1]!);
 /** Every `src`, `href`, `action`, `srcset`, `poster` or `data` attribute value, and every CSS `url(...)`. */
@@ -70,8 +77,13 @@ const EMPTY_ICON = '<link rel="icon" href="data:,">';
 
 function expectSelfContained(html: string): void {
   expect(references(html).filter(isExternal)).toEqual([]);
-  expect(html.replace(EMPTY_ICON, '')).not.toMatch(/<script|<link|<img|<iframe|<object|<embed|<video|<audio|@import|@font-face|\sxmlns/i);
+  expect(html.replace(EMPTY_ICON, '')).not.toMatch(/<script|<link|<img|<iframe|<object|<embed|<video|<audio|@import|\sxmlns/i);
   expect(html).not.toMatch(/https?:\/\//i);
+  // A font is only ever in the page itself, as a data: URL (#887): no font file is asked for.
+  for (const face of html.match(/@font-face\{[^}]*\}/g) ?? []) {
+    expect(face).toMatch(/;src:url\(data:font\/woff2;base64,[A-Za-z0-9+/=]+\) format\("woff2"\)\}$/);
+    expect(face.match(/url\(/g)).toHaveLength(1);
+  }
 }
 
 const styleOf = (html: string): string => html.match(/<style>([\s\S]*?)<\/style>/)![1]!;
@@ -109,8 +121,8 @@ describe('the study page', () => {
     expect(head.match(/<title>[^<]+<\/title>/g)).toHaveLength(1);
     expect(page).toContain('<title>Relay vs. a next-day courier: the numbers</title>');
     expect(page.match(/<h1[\s>]/g)).toHaveLength(1);
-    // The headline is the number of simulations; what they compare is the line above it.
-    expect(page).toContain('<p class="eyebrow">Relay vs. a next-day courier: the numbers</p>\n<h1>2 simulations</h1>');
+    // The title is the number of simulations; what they compare is the line next to it.
+    expect(page).toContain('<header class="top">\n<h1>2 simulations</h1>\n<p class="sub">Relay vs. a next-day courier</p>\n</header>');
     expect(renderStudyPage(manyRuns(3024))).toContain('<h1>3,024 simulations</h1>');
     expect(renderStudyPage({ ...sample, totals: { ...sample.totals, runs: 1 } })).toContain('<h1>1 simulation</h1>');
     expect(page).toMatch(/<h2>How we compared<\/h2>\s*<p class="how">/);
@@ -276,8 +288,8 @@ describe('the study page', () => {
       const perBar = [...chart.matchAll(/<title>[^<]*: (\d+) runs?<\/title>/g)].map(match => Number(match[1]));
       expect(perBar.reduce((total, value) => total + value, 0)).toBe(counted);
     }
-    expect(text(page)).toMatch(/Median \$\d+\.\d\d · 10th to 90th percentile \$\d+\.\d\d to \$\d+\.\d\d · Relay ahead in \d of 2 runs/);
-    expect(text(page).match(/Relay ahead in \d of 2 runs/g)).toHaveLength(3);
+    expect(text(page)).toMatch(/Median \$\d+\.\d\d\. 10th to 90th percentile: \$\d+\.\d\d to \$\d+\.\d\d\. Relay ahead in \d of 2 runs\./);
+    expect(text(page).match(/Relay ahead in \d of 2 runs\./g)).toHaveLength(3);
   });
 
   it('has no row per run: the runs are summarised, and every run is one click away as a CSV', () => {
@@ -324,7 +336,7 @@ describe('the study page', () => {
     const withRates = (rates: Array<number | null>): string => renderStudyPage({
       ...sample, grid: { ...sample.grid, employeeCounts: [30, 60, 120] }, runs: groups(rates),
     });
-    const card = (html: string): string => html.match(/<figure class="card"><figcaption>By number of commuting employees<\/figcaption>[\s\S]*?<\/figure>/)![0];
+    const card = (html: string): string => html.match(/<figure class="card"><figcaption>Match rate by employees commuting<\/figcaption>[\s\S]*?<\/figure>/)![0];
 
     const rising = card(withRates([0.374, 0.593, 0.778]));
     expect(rising).toMatch(/<\/svg><p class="note">The match rate rises as more employees join: 37\.4% with 30 employees, 77\.8% with 120\.<\/p><\/figure>$/);
@@ -363,7 +375,9 @@ describe('the study page', () => {
   it('makes no network request: no external src or href, no script, no stylesheet, no web font', () => {
     expectSelfContained(page);
     // The CSV is a link the reader may follow, not something the page loads.
-    expect(references(page).sort()).toEqual(['#assumptions', '/', '/', 'data:,', 'study/runs.csv']);
+    // The four fonts are in the page as data: URLs (their bytes are left out of this list).
+    const font = 'data:font/woff2;base64,';
+    expect(references(withoutFonts(page)).sort()).toEqual(['#assumptions', '#how', '/', '/', 'data:,', font, font, font, font, 'study/runs.csv']);
     // The check itself sees the forms it is meant to catch.
     expect(references('<a href="https://x.test/a"><img src=//cdn.test/b.png><p style="background:url(\'http://y.test\')">').filter(isExternal))
       .toEqual(['https://x.test/a', '//cdn.test/b.png', 'http://y.test']);
@@ -380,7 +394,7 @@ describe('the study page', () => {
   it('never prints NaN, undefined, Infinity or null: for the sample, a study with no run and runs with no match', () => {
     for (const results of [sample, pinned, empty, unmatched, manyRuns(3024)]) {
       const html = renderStudyPage(results);
-      expect(html).not.toMatch(/NaN|undefined|Infinity|\bnull\b|\[object/);
+      expect(withoutFonts(html)).not.toMatch(/NaN|undefined|Infinity|\bnull\b|\[object/);
       expectSelfContained(html);
       expect(charts(html)).toHaveLength(10);
     }
@@ -393,7 +407,7 @@ describe('the study page', () => {
   it('is deterministic: the same results give the same bytes, with no date and no generated id', () => {
     expect(renderStudyPage(sample)).toBe(page);
     expect(renderStudyPage(JSON.parse(JSON.stringify(sample)) as StudyResults)).toBe(page);
-    expect(page).not.toMatch(/\b20\d\d-\d\d-\d\d\b|\bid="(?!assumptions")/);
+    expect(page).not.toMatch(/\b20\d\d-\d\d-\d\d\b|\bid="(?!assumptions"|how")/);
   });
 });
 
@@ -453,13 +467,13 @@ describe('the study page on a laptop and on a phone (#808)', () => {
     }
   });
 
-  it('keeps the axis labels of a run distribution apart: "runs" above the top count, the bin labels below "0"', () => {
+  it('keeps the axis labels of a run distribution apart: "Number of runs" above the top count, the bin labels below "0"', () => {
     // Before: "runs" sat 12 units above the top count label and "0" 13 units above the first bin label,
     // both at the same x, so at 390 px they read as one block.
     const lineGap = CHART_TEXT_PX + 4;
     for (const id of ['runs-cost', 'runs-miles', 'runs-co2']) {
       const texts = chartTexts(chartOf(page, id));
-      const runsTitle = texts.find(t => t.text === 'runs')!;
+      const runsTitle = texts.find(t => t.text === RUNS_AXIS)!;
       const counts = texts.filter(t => t.cls === 'tm num' && t.anchor === 'end');
       const bins = texts.filter(t => t.cls === 'tm num' && t.anchor === 'middle');
       const axisTitle = texts.find(t => t.cls === 'tm' && t.anchor === 'middle')!;
@@ -484,11 +498,13 @@ describe('the study page on a laptop and on a phone (#808)', () => {
 
   it('makes room for a four-digit count left of a run distribution, as a study of thousands of runs has', () => {
     // Before #841: the plot started 30 units in, so "1500" (28.8 units wide, ending 6 before the plot) began left of the chart box.
+    // Since #887 a count has its thousands separator on the axis too ("1,500"), as it has above the tallest column.
     const large = renderStudyPage(manyRuns(3024));
     for (const id of ['runs-cost', 'runs-miles', 'runs-co2']) {
       const texts = chartTexts(chartOf(large, id));
       const counts = texts.filter(t => t.cls === 'tm num' && t.anchor === 'end');
-      expect(Math.max(...counts.map(t => t.text.length)), id).toBe(4);
+      expect(Math.max(...counts.map(t => t.text.length)), id).toBe(5);
+      expect(counts.map(t => t.text).filter(label => label.length === 5).every(label => /^\d,\d{3}$/.test(label)), id).toBe(true);
       for (const t of counts) expect(extent(t).left, `${id} ${t.text}`).toBeGreaterThanOrEqual(0);
       // The count above the tallest column has its thousands separator.
       const peak = texts.filter(t => t.cls === 't num' && t.anchor === 'middle');
@@ -541,8 +557,8 @@ describe('the study page on a laptop and on a phone (#808)', () => {
     // table scrolls inside its own box, not the page (headless Chrome at 390 px, #841).
     expect(rule(css, '.figures td span')).toContain('white-space:nowrap');
     expect(css.slice(css.indexOf('@media (max-width:640px)'))).toContain('.figures.spread td:last-child{white-space:normal}');
-    expect(page).toMatch(/<div class="scroll">\s*<table class="figures detour">/);
-    expect(page).toMatch(/<div class="scroll">\s*<table class="figures spread">/);
+    expect(page).toMatch(/<div class="scroll"[^>]*>\s*<table class="figures detour">/);
+    expect(page).toMatch(/<div class="scroll"[^>]*>\s*<table class="figures spread">/);
     expect(rule(css, '.scroll')).toContain('overflow-x:auto');
     expect(css).not.toContain('.runs');
   });
@@ -570,6 +586,208 @@ describe('the study page on a laptop and on a phone (#808)', () => {
   });
 });
 
+// What the design audit in headless Chrome at 1440 and 390 px changed (#887), one test per finding. jsdom lays
+// nothing out, so each test checks the markup and CSS the finding came from.
+describe('the study page after the design audit (#887)', () => {
+  const css = withoutFonts(styleOf(page));
+  const pinnedPage = renderStudyPage(pinned);
+  /** A study with a share too small to name on the timing bar: 33.4% early, 65.4% on time, 1.2% late. */
+  const withLate = renderStudyPage({ ...sample, totals: { ...sample.totals, matched: 1000, early: 334, onTime: 654, late: 12 } });
+
+  it('opens with the link back to /, the title line and then the headline numbers, before any other text or chart', () => {
+    // Before: a label line, "3,024 simulations" at 30 px and a paragraph came before the results, which were 26 px.
+    const main = page.slice(page.indexOf('<main>'));
+    expect(main.slice(0, main.indexOf('<section class="tiles"'))).toBe(
+      '<main>\n<a class="back" href="/">← Back to Relay</a>\n<header class="top">\n<h1>2 simulations</h1>\n<p class="sub">Relay vs. a next-day courier</p>\n</header>\n\n',
+    );
+    const order = ['<section class="tiles"', '<p class="lede">', '<h2>', '<svg '].map(part => main.indexOf(part));
+    expect(order.every(index => index > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(page).not.toContain('eyebrow');
+    expect(headlineTiles(main.slice(0, order[1]!)).map(tile => tile.label)).toEqual([
+      'Cost to the sender', 'Added vehicle miles', 'CO₂', 'Delivered by the courier’s promised time', 'Match rate',
+    ]);
+  });
+
+  it('makes the headline values the largest text of the page, white on one band of ink', () => {
+    const sizes = [...css.matchAll(/font-size:(\d+(?:\.\d+)?)px/g)].map(match => Number(match[1]));
+    expect(Math.max(...sizes)).toBe(TILE_VALUE_PX);
+    expect(sizes.filter(size => size === TILE_VALUE_PX)).toHaveLength(1);
+    expect(rule(css, '.tile-value')).toContain(`font-size:${TILE_VALUE_PX}px;font-weight:600`);
+    expect(Number(/font-size:(\d+)px/.exec(rule(css, 'h1'))![1])).toBeLessThan(TILE_VALUE_PX);
+    const band = rule(css, '.tiles');
+    expect(band).toContain('background:#171C24');
+    expect(band).toContain('color:#FFFFFF');
+    // No other dark block: ink is a background only there.
+    expect(css.match(/background:#171C24/g)).toHaveLength(1);
+
+    // Five in a row where each tile gets TILE_MIN_WIDTH, three and two below that (never one tile alone on a
+    // row), one column on a phone.
+    expect(band).toContain('grid-template-columns:repeat(5,minmax(0,1fr))');
+    expect(css).toContain(`@media (max-width:${5 * TILE_MIN_WIDTH + 2 * 20 - 1}px){\n.tiles{grid-template-columns:repeat(6,minmax(0,1fr))}\n.tile{grid-column:span 2}\n.tile:nth-child(n+4){grid-column:span 3}\n}`);
+    expect(rule(css, 'main')).toContain('padding:20px 20px 56px');
+    const phone = css.slice(css.indexOf('@media (max-width:640px)'));
+    expect(phone).toContain('.tiles{grid-template-columns:minmax(0,1fr)}\n.tile,.tile:nth-child(n+4){grid-column:auto}');
+
+    // A value stays on one line in the narrowest tile: a third of a 641 px page less the tile's padding. A
+    // figure of IBM Plex Mono is 0.6 em wide, less the letter-spacing of the rule.
+    const tile = /padding:\d+px (\d+)px \d+px (\d+)px/.exec(rule(css, '.tile'))!;
+    const spacing = Number(/letter-spacing:-(0\.\d+)em/.exec(rule(css, '.tile-value'))![1]);
+    const room = (641 - 2 * 20) / 3 - Number(tile[1]) - Number(tile[2]);
+    for (const html of [pinnedPage, renderStudyPage(empty), renderStudyPage({ ...pinned, headline: { ...pinned.headline, milesSavedRate: -0.2 } })]) {
+      for (const { value } of headlineTiles(html)) expect(value.length * TILE_VALUE_PX * (0.6 - spacing), value).toBeLessThanOrEqual(room);
+    }
+  });
+
+  it('carries Inter and IBM Plex Mono in the page itself, in every weight the page uses', () => {
+    // Before: the two fonts were only named, so a machine without them drew the page in its system font
+    // (San Francisco and Menlo in headless Chrome on a Mac) while the rest of the app was in Inter.
+    const faces = [...styleOf(page).matchAll(/@font-face\{font-family:("?)([^;"]+)\1;font-style:normal;font-weight:(\d+);font-display:block;src:url\(data:font\/woff2;base64,([A-Za-z0-9+/=]+)\) format\("woff2"\)\}/g)];
+    const names = ['Inter 400', 'Inter 600', 'IBM Plex Mono 400', 'IBM Plex Mono 600'];
+    expect(faces.map(face => `${face[2]} ${face[3]}`)).toEqual(names);
+    expect(EMBEDDED_FONTS.map(font => `${font.family} ${font.weight}`)).toEqual(names);
+    for (const face of faces) expect(Buffer.from(face[4]!, 'base64').subarray(0, 4).toString('latin1')).toBe('wOF2');
+    expect(styleOf(page).startsWith(embeddedFontCss())).toBe(true);
+    // The same files the app loads (client/src/styles/fonts.css): the Latin subset of each weight.
+    const appFonts = fs.readFileSync(path.resolve(path.dirname(DEFAULT_STUDY_PAGE), '../src/styles/fonts.css'), 'utf8');
+    for (const font of EMBEDDED_FONTS) {
+      const [, family, weight] = /^@fontsource\/([a-z-]+)\/files\/\1-latin-(\d+)-normal\.woff2$/.exec(font.file)!;
+      expect(appFonts).toContain(`@import '@fontsource/${family}/latin-${weight}.css';`);
+    }
+    // No weight without a face, so no bold is faked: the browser's own 700 for <strong> and <th> is set to 600.
+    expect([...new Set([...css.matchAll(/font-weight:(\d+)/g)].map(match => match[1]))].sort()).toEqual(['400', '600']);
+    expect(css).not.toMatch(/font-weight:(?:bold|bolder|lighter)/);
+    expect(rule(css, 'strong,b,th,dd')).toBe('font-weight:600');
+    // Text in Inter, numbers in IBM Plex Mono, each with the system fonts behind it.
+    expect(rule(css, 'body')).toMatch(/font-family:Inter,system-ui,[^;]*sans-serif/);
+    expect(rule(css, '.num,code,.tile-value,.figures td')).toMatch(/^font-family:"IBM Plex Mono",ui-monospace,[^;]*monospace$/);
+    expect(pinnedPage).toMatch(/<td class="value"><b class="num">/);
+    expect(pinnedPage).toMatch(/<dd class="num">/);
+    // With its fonts the page is still far below 150 KB.
+    expect(Buffer.byteLength(page)).toBeGreaterThan(100_000);
+    expect(Buffer.byteLength(page)).toBeLessThan(150_000);
+  });
+
+  it('gives every chart a title that names what is measured, and its unit', () => {
+    const figures = pinnedPage.match(/<figure class="card">[\s\S]*?<\/figure>/g)!;
+    expect(figures).toHaveLength(10);
+    expect(figures.map(figure => /^<figure class="card"><figcaption>([^<]+)<\/figcaption><svg data-chart="([^"]+)"/.exec(figure)!.slice(1, 3).reverse())).toEqual([
+      ['cost', 'Cost to the sender per package, dollars'], ['miles', 'Added vehicle miles per package'], ['co2', 'CO₂ per package, kg'],
+      ['runs-cost', 'Cost saved per package'], ['runs-miles', 'Miles saved per package'], ['runs-co2', 'CO₂ saved per package'],
+      // Before: "By number of commuting employees", which did not say what the bars measure.
+      ['match-employees', 'Match rate by employees commuting'], ['match-packages', 'Match rate by packages requested'], ['match-detour', 'Match rate by detour limit per commute'],
+      ['timing', `${sample.totals.matched} matched packages, by arrival`],
+    ]);
+
+    // Per package: the unit is at the tip of each bar.
+    const tips = (id: string): string[] => chartTexts(chartOf(pinnedPage, id)).filter(t => t.cls === 't num').map(t => t.text);
+    expect(tips('cost')).toEqual(['$10.00', '$15.99']);
+    expect(tips('miles')).toEqual(['1.3 mi', '5.2 mi']);
+    expect(tips('co2')).toEqual(['0.52 kg', '2.07 kg']);
+
+    // Run distributions: both axes have a title, the value axis with its unit.
+    for (const [id, axis] of [['runs-cost', 'Saved per package, dollars'], ['runs-miles', 'Saved per package, miles'], ['runs-co2', 'Saved per package, kg of CO₂']] as const) {
+      const texts = chartTexts(chartOf(pinnedPage, id));
+      expect(texts.filter(t => t.cls === 'tm').map(t => [t.text, t.anchor])).toEqual([[axis, 'middle'], [RUNS_AXIS, 'start']]);
+    }
+    expect(RUNS_AXIS).toBe('Number of runs');
+
+    // Match rates: the scale of the track in percent under the last row, at its start, middle and end.
+    for (const id of ['match-employees', 'match-packages', 'match-detour']) {
+      const svg = chartOf(pinnedPage, id);
+      const track = /<rect class="f-track" x="([\d.]+)" y="[\d.]+" width="([\d.]+)"/.exec(svg)!;
+      const scale = chartTexts(svg).filter(t => t.cls === 'tm num' && t.anchor === 'middle');
+      expect(scale.map(t => t.text)).toEqual(['0%', '50%', '100%']);
+      expect(scale.map(t => t.x)).toEqual([Number(track[1]), Number(track[1]) + Number(track[2]) / 2, Number(track[1]) + Number(track[2])]);
+      const rows = chartTexts(svg).filter(t => t.cls === 't');
+      expect(Math.min(...scale.map(t => t.y))).toBeGreaterThan(Math.max(...rows.map(t => t.y)) + CHART_TEXT_PX);
+      for (const value of chartTexts(svg).filter(t => t.cls === 't num')) expect(value.text).toMatch(/^\d+\.\d%$/);
+    }
+  });
+
+  it('names every series in words next to its mark, so nothing is read from colour alone', () => {
+    // Per package: each bar has its name in front of it, and the key above the three charts says both in words.
+    for (const id of ['cost', 'miles', 'co2']) {
+      expect(chartTexts(chartOf(pinnedPage, id)).filter(t => t.cls === 't').map(t => t.text)).toEqual(['Relay', 'Courier']);
+    }
+    expect(text(pinnedPage)).toContain('Relay, on a commute Next-day courier, dedicated trip');
+
+    // Timing. Before: the blocks carried only "33.4%" and "66.6%" in white (4.4:1 on the on-time green, below
+    // the 4.5:1 of small text) and which block was which was read from the swatches of the key.
+    const timing = chartOf(withLate, 'timing');
+    const blocks = [...timing.matchAll(/<rect class="(f-[a-z]+)" x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)]
+      .map(match => ({ cls: match[1]!, x: Number(match[2]), y: Number(match[3]), width: Number(match[4]), height: Number(match[5]) }));
+    expect(blocks.map(block => block.cls)).toEqual(['f-relay', 'f-ontime', 'f-late']);
+    const texts = chartTexts(timing);
+    expect(texts.map(t => [t.cls, t.text])).toEqual([['t', 'A day early'], ['t num', '33.4%'], ['t', 'On time'], ['t num', '65.4%']]);
+    for (const [index, block] of blocks.slice(0, 2).entries()) {
+      const [name, share] = [texts[index * 2]!, texts[index * 2 + 1]!];
+      expect([name.x, share.x]).toEqual([block.x, block.x]); // both start where the block starts
+      expect(name.y).toBeLessThan(block.y); // the name above the block
+      expect(share.y - CHART_TEXT_PX * 0.8).toBeGreaterThan(block.y + block.height); // the share below it
+      expect(extent(name).right).toBeLessThanOrEqual(block.x + block.width); // and no wider than it
+    }
+    // The 1.2% block is too narrow for "Late": the key under the chart names it, with its count and share.
+    expect(blocks[2]!.width).toBeLessThan(CHART_TEXT_PX * 2);
+    const key = withLate.match(/<svg data-chart="timing"[\s\S]*?<\/svg><ul class="legend">([\s\S]*?)<\/ul>/)![1]!;
+    expect([...key.matchAll(/<li><span class="swatch" style="background:(#[0-9A-F]{6})"><\/span>([^<]*)<\/li>/g)].map(match => [match[1], match[2]])).toEqual([
+      ['#1D5075', 'A day early, delivered the day it was sent: 334 (' + /\((\d+\.\d%)\)/.exec(key)![1] + ')'],
+      ['#0F8A5F', expect.stringMatching(/^On time, the next day by 10:30 a\.m\.: 654 \(65\.4%\)$/)],
+      ['#A4322A', expect.stringMatching(/^Late, after 10:30 a\.m\.: 12 \(\d+\.\d%\)$/)],
+    ]);
+    // No text is drawn on a colour anywhere: chart text is ink or the muted grey, on the white card.
+    expect(css).not.toContain('.t-on');
+    for (const html of [page, pinnedPage, withLate]) expect(html).not.toMatch(/class="t-on/);
+    expect(rule(css, '.t')).toBe('fill:#171C24');
+    expect(rule(css, '.tm')).toBe('fill:#5B6472');
+  });
+
+  it('shows the results before the method: how we compared comes after the last chart, in four short paragraphs', () => {
+    // Before: one paragraph of nine lines stood between the headline and the first chart.
+    const order = ['<svg data-chart="cost"', '<svg data-chart="timing"', '<section id="how">\n<h2>How we compared</h2>', '<section id="assumptions">'].map(part => page.indexOf(part));
+    expect(order.every(index => index > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const how = page.slice(order[2]!, order[3]!);
+    expect(how.match(/<p class="how">/g)).toHaveLength(4);
+    expect(how).toContain('<dl class="facts">');
+    // The one line under the headline names the baseline and leads to the method.
+    expect(rule(css, '.lede a')).toBe('white-space:nowrap'); // at 390 px the link broke after "How"
+    expect(page).toMatch(/<\/section>\n<p class="lede">Each package sent two ways: on a commute an employee already drives, or on a dedicated trip by a standard next-day courier\. \d+ packages compared\. <a href="#how">How we compared<\/a><\/p>/);
+  });
+
+  it('keeps a paragraph to about 80 characters a line and joins no text with a middle dot', () => {
+    // Before: 760 px at 15 px, about 105 characters a line at 1440 px.
+    for (const selector of ['.lede', '.intro', '.how']) expect(rule(css, selector)).toContain('max-width:640px');
+    for (const html of [page, pinnedPage, withLate, renderStudyPage(empty)]) expect(text(html)).not.toContain('·');
+  });
+
+  it('lets a table of figures be scrolled with the keyboard, and keeps the detour limit in view on a phone', () => {
+    expect(page).toContain('<div class="scroll" tabindex="0" role="region" aria-label="Results by detour limit">\n<table class="figures detour">');
+    expect(page).toContain('<div class="scroll" tabindex="0" role="region" aria-label="Spread across runs">\n<table class="figures spread">');
+    expect(rule(css, 'a:focus-visible,summary:focus-visible,.scroll:focus-visible')).toBe('outline:2px solid #1D5075;outline-offset:2px');
+    // At 390 px the detour table is 510 px wide in a 356 px box: its first column stays while the rest scrolls.
+    const phone = css.slice(css.indexOf('@media (max-width:640px)'));
+    expect(phone).toMatch(/\.figures\.detour tbody th,\.figures\.detour thead th:first-child\{position:sticky;left:0;[^}]*background:#FFFFFF;[^}]*\}/);
+  });
+
+  it('draws the timing chart at the size of the other charts, next to its explanation', () => {
+    // Before: its card was half the page at 1440 px, so its text was 16.8 px next to 13.6 px in every other chart.
+    expect(rule(css, '.grid2')).toContain(`grid-template-columns:minmax(${CARD_MIN_WIDTH}px,1fr) minmax(0,2fr)`);
+    expect(page).toMatch(/<div class="grid2">\n<figure class="card"><figcaption>[^<]*<\/figcaption><svg data-chart="timing"/);
+    expect(css).toMatch(/@media \(max-width:860px\)\{\n\.grid2\{grid-template-columns:minmax\(0,1fr\)\}/);
+  });
+
+  it('changes no number: the headline tiles, the figures of both tables and the totals are what they were', () => {
+    expect(headlineTiles(pinnedPage)).toEqual([
+      { label: 'Cost to the sender', value: '37.4% less', detail: 'Relay $10.00 vs courier $15.99 per package' },
+      { label: 'Added vehicle miles', value: '74.8% less', detail: 'Relay 1.3 mi vs courier 5.2 mi per package' },
+      { label: 'CO₂', value: '75.1% less', detail: 'Relay 0.52 kg vs courier 2.07 kg per package' },
+      { label: 'Delivered by the courier’s promised time', value: '98.8%', detail: '32.2% a day early, 1.3% late' },
+      { label: 'Match rate', value: '53.4%', detail: '1,211 of 2,268 packages found a commute' },
+    ]);
+  });
+});
+
 describe('the committed client/public/study.html', () => {
   const committed = fs.readFileSync(DEFAULT_STUDY_PAGE, 'utf8');
 
@@ -587,7 +805,7 @@ describe('the committed client/public/study.html', () => {
 
   it('is self-contained, complete and free of NaN', () => {
     expectSelfContained(committed);
-    expect(committed).not.toMatch(/NaN|undefined|Infinity|\bnull\b/);
+    expect(withoutFonts(committed)).not.toMatch(/NaN|undefined|Infinity|\bnull\b/);
     expect(committed).toContain('<title>Relay vs. a next-day courier: the numbers</title>');
     expect(committed).toContain('<a class="back" href="/">');
     expect(charts(committed)).toHaveLength(10);

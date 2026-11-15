@@ -54,6 +54,8 @@ export function PlaybackControls({ button, status = '', error = null, resetDisab
         {/* #725: `aria-disabled`, not `disabled`. A press of either button makes the run busy for a moment,
             and a focused button that turns `disabled` drops keyboard focus to <body>. These stay in the Tab
             order (their note says why they do nothing) and have no click handler while disabled. */}
+        {/* #889: its name is its state ("Play" / "Pause"), so it has no aria-pressed as well, which would
+            read "Pause, pressed". No aria-keyshortcuts: no key hints (DECISIONS pass 63, docs/mvp3.md). */}
         <button type="button" className="ctl-btn ctl-primary" aria-disabled={disabled || undefined}
           aria-describedby={button.note ? noteId : undefined} title={button.note ?? undefined}
           onClick={disabled ? undefined : onToggle}>

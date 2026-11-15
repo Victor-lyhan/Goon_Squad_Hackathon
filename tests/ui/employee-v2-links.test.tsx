@@ -21,6 +21,10 @@ import type { EmployeeDashboard, JobResponse } from '../../shared/v2/api';
 import { T, jobResponseFor } from './employee-v2-dom-helpers';
 import { businesses, dashboard, directView, relayView } from './employee-v2-workspace-sample';
 import { button, deferred, flush, link, mount, textOf } from './kitDom';
+import { loadWorkspacePages } from './lazy-pages-helper';
+
+// The workspace pages are lazy routes (#885): load them first, so a render shows the page, not the loading line.
+await loadWorkspacePages();
 
 // The simulator is another module; a one-line page is enough to see that the route was opened.
 vi.mock('../../client/src/pages/v2/SimulatorV2', () => ({

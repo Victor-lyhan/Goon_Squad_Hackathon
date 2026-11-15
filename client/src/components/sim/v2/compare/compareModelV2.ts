@@ -10,7 +10,8 @@ export const COMPARE_INTRO = 'Compare matching with and without relay points.';
 /** Under the section's Details toggle (#832), with PROJECTION_NOTE. */
 export const RELAY_POINT_NOTE = 'A relay point is a network business that holds a package overnight.';
 export const NO_GAIN_LINE = 'Relay points add no matches in this scenario';
-export const NO_REQUESTS_LINE = 'No delivery requests in this scenario yet';
+/** The empty state (#883): a run with no packages has nothing to compare, so no table of zeros. */
+export const NO_REQUESTS_LINE = 'Nothing to compare yet: this run has no packages.';
 export const PROJECTION_NOTE = 'Projection only. Comparing does not change the live plan.';
 export const DIRECT_HEADING = 'Direct only';
 export const RELAY_HEADING = 'With relay points';
@@ -56,10 +57,14 @@ export function compareRows(response: CompareResponse): CompareRow[] {
 
 const deliveries = (n: number) => `${n} ${n === 1 ? 'delivery' : 'deliveries'}`;
 
+/** True when the run has no delivery requests: the section shows NO_REQUESTS_LINE alone. */
+export function nothingToCompare(response: CompareResponse): boolean {
+  return (whole(response.withRelay.metrics.requested) ?? 0) === 0;
+}
+
 /** The headline: the difference between the two matched counts shown in the table. */
 export function compareSummary(response: CompareResponse): CompareSummary {
-  const requested = whole(response.withRelay.metrics.requested) ?? 0;
-  if (requested === 0) return { line: NO_REQUESTS_LINE, tone: 'neutral' };
+  if (nothingToCompare(response)) return { line: NO_REQUESTS_LINE, tone: 'neutral' };
   const delta = (whole(response.withRelay.metrics.matched) ?? 0) - (whole(response.directOnly.metrics.matched) ?? 0);
   if (delta > 0) return { line: `+${delta} matched with relay points`, tone: 'gain' };
   if (delta === 0) return { line: NO_GAIN_LINE, tone: 'neutral' };

@@ -84,7 +84,7 @@ describe('POST /api/v2/matches/compare', () => {
     expect(res.status).toBe(503);
     expect(res.body).toEqual({
       code: 'travel_data_missing',
-      error: `No travel time is cached for ${MISSING_PAIR.from} to ${MISSING_PAIR.to}. Run npm run fetch:routes and commit fixtures/nyc/.`,
+      error: `A travel time is missing on this server. Run npm run fetch:routes and commit fixtures/nyc/ (${MISSING_PAIR.from} to ${MISSING_PAIR.to}).`,
     });
     // No partial answer: neither side, no plans, no metrics.
     expect(res.text).not.toMatch(/directOnly|withRelay|plans|metrics|computeMs/);

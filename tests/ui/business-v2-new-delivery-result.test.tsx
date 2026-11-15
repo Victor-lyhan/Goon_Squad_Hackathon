@@ -265,7 +265,7 @@ describe('retry after "No matching commute yet"', () => {
     expect(f.matchShipment).toHaveBeenCalledTimes(1);
     expect(f.primary().disabled).toBe(true);
     expect(textOf(f.primary())).toBe('Matching…');
-    expect(f.status()).toContain('Looking for a matching commute again');
+    expect(f.status()).toContain('Finding a delivery match again');
     click(f.primary());
     answer.resolve(unmatched('shp-42', 'Still no commute.'));
     await flush();

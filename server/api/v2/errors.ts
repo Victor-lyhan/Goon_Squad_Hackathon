@@ -1,6 +1,8 @@
 // 503 bodies for MVP II (SPEC "MVP II" rule 2): a missing key or missing travel data is a clear error
 // the UI can show. Travel times are never invented, and no message here can hold a key: every message
-// is built from fixed text, place IDs and Google's status code, never from an upstream error message.
+// is built from fixed text and place IDs, never from an upstream error message.
+// Copy (#888): each text starts with one plain sentence a page can show. A setup error then names the
+// command or the .env key for the person running the server; place IDs come only after that command.
 import type express from 'express';
 import type { TravelUnavailable } from '../../../shared/v2/api';
 import { TravelDataMissingError } from '../../../shared/v2/types';
@@ -8,6 +10,10 @@ import { GoogleApiError, GoogleKeyMissingError } from '../../geo/googleClient';
 
 export const TRAVEL_NOT_LOADED_MESSAGE =
   'NYC travel data is not loaded. Run npm run fetch:routes and commit fixtures/nyc/.';
+
+export const GOOGLE_KEY_MISSING_MESSAGE =
+  'The Google Maps server key is not set. Add GOOGLE_MAPS_SERVER_KEY to .env and restart the server.';
+export const GOOGLE_UNAVAILABLE_MESSAGE = 'Google Maps is not answering right now, so try again in a moment.';
 
 export function travelUnavailable(code: TravelUnavailable['code'], message: string): TravelUnavailable {
   return { error: message, code };
@@ -19,18 +25,15 @@ export function travelErrorBody(err: unknown): TravelUnavailable | null {
     const what = err.what === 'polyline' ? 'route line' : 'travel time';
     return travelUnavailable(
       'travel_data_missing',
-      `No ${what} is cached for ${err.from} to ${err.to}. Run npm run fetch:routes and commit fixtures/nyc/.`,
+      `A ${what} is missing on this server. Run npm run fetch:routes and commit fixtures/nyc/ (${err.from} to ${err.to}).`,
     );
   }
   if (err instanceof GoogleKeyMissingError) {
-    return travelUnavailable(
-      'google_key_missing',
-      'The Google Maps server key is not set. Add GOOGLE_MAPS_SERVER_KEY to .env and restart the server.',
-    );
+    return travelUnavailable('google_key_missing', GOOGLE_KEY_MISSING_MESSAGE);
   }
   if (err instanceof GoogleApiError) {
-    const detail = err.status === 0 ? 'no response' : `HTTP ${err.status}`;
-    return travelUnavailable('google_unavailable', `Google Maps is unavailable right now (${detail}). Try again in a moment.`);
+    // Google's status code stays out of the text: a page shows this sentence as it is.
+    return travelUnavailable('google_unavailable', GOOGLE_UNAVAILABLE_MESSAGE);
   }
   return null;
 }

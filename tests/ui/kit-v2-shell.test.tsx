@@ -8,6 +8,10 @@ import * as shellModel from '../../client/src/ui/shellModel';
 import { activeDestination, DESTINATIONS } from '../../client/src/ui/shellModel';
 import type { V2BusinessDirectory, V2Directory } from '../../client/src/ui/shell';
 import { parseCss } from './employee-v2-qa-helpers';
+import { loadWorkspacePages } from './lazy-pages-helper';
+
+// The workspace pages are lazy routes (#885): load them first, so a render shows the page, not the loading line.
+await loadWorkspacePages();
 
 const businesses = [{ id: 'biz-01', name: 'Brooklyn Roasters' }, { id: 'biz-02', name: 'Hudson Print Co' }];
 const employees = [{ id: 'emp-01', name: 'Maya Chen' }];

@@ -84,7 +84,7 @@ describe('PackageList', () => {
     // One line per package: the route line is in the page, hidden until Details is opened.
     expect(html.match(/<span class="sw-pkg-route" data-details-body="" hidden="">/g)).toHaveLength(2);
     expect(html).toContain('Design proofs');
-    expect(html).toContain('<span class="sw-pkg-status sw-mono">At relay point</span>');
+    expect(html).toContain('<span class="sw-pkg-status">At relay point</span>');
     expect(html).toContain('LIC Bakery → Chelsea Office');
   });
 

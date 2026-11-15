@@ -27,7 +27,7 @@ const expectTravelMissing = (reply: Reply, from: string, to: string) => {
   expect(reply.status).toBe(503);
   expect(reply.body).toEqual({
     code: 'travel_data_missing',
-    error: `No travel time is cached for ${from} to ${to}. Run npm run fetch:routes and commit fixtures/nyc/.`,
+    error: `A travel time is missing on this server. Run npm run fetch:routes and commit fixtures/nyc/ (${from} to ${to}).`,
   });
 };
 
@@ -111,7 +111,7 @@ describe('a travel provider that cannot reach Google: the router answers the 503
 
     expect(reply.status).toBe(503);
     expect(reply.body).toEqual({
-      code: 'google_unavailable', error: 'Google Maps is unavailable right now (HTTP 403). Try again in a moment.',
+      code: 'google_unavailable', error: 'Google Maps is not answering right now, so try again in a moment.',
     });
     expect(reply.text).not.toContain(FAKE_KEY);
     expectUntouched(app, before);

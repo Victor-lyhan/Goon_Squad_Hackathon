@@ -152,7 +152,9 @@ export function createEmployeePoller(
     if (!live() || jobId === null || jobId !== watched) return;
     if (job.status === 'fulfilled' && job.value) dispatch({ type: 'job', job: job.value });
     else if (job.status === 'rejected' && is404(job.reason)) dispatch({ type: 'jobMissing' });
-    // Other job failures keep the last job; the dashboard state already shows reconnecting.
+    // Other job failures keep the last job (the dashboard state already shows reconnecting). With no job
+    // to keep, the state says the request failed, so the page does not read "Loading" for good (#882).
+    else if (job.status === 'rejected' && !isAbortError(job.reason)) dispatch({ type: 'jobFailed' });
   }
 
   function schedule(delay: number) {

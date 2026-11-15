@@ -3,6 +3,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { AppShell } from '../../client/src/App';
 import { switchIdentityPath } from '../../client/src/ui/shell';
+import { loadWorkspacePages } from './lazy-pages-helper';
+
+// The workspace pages are lazy routes (#885): load them first, so a render shows the page, not the loading line.
+await loadWorkspacePages();
 
 describe('switchIdentityPath', () => {
   it('keeps the portal type and drops nothing but the id', () => {

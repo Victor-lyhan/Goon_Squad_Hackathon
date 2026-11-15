@@ -7,7 +7,7 @@ import { ApiRequestError, isTravelUnavailable, type RequestOptions, type TravelU
 import type { AddressResult, SearchFn } from '../addressSearchModel';
 import { unavailableMessage } from '../commuteFormModel';
 import { COMMUTE_SAVE_TIMEOUT_MS } from '../live/useEmployeeWorkspace';
-import { TRAVEL_DATA_MISSING_TEXT, type EmployeeWorkspaceState } from '../live/employeeWorkspaceState';
+import { SERVER_ERROR_TEXT, TRAVEL_DATA_MISSING_TEXT, type EmployeeWorkspaceState } from '../live/employeeWorkspaceState';
 
 // ---------- Screens ----------
 
@@ -21,30 +21,35 @@ export type PageScreen =
   | { kind: 'job_loading' }
   | { kind: 'job' }
   | { kind: 'job_missing' }
+  /** The job's request failed and no earlier answer is on screen (#882); the poller keeps asking. */
+  | { kind: 'job_failed' }
   /** The job belongs to another employee; `employeeId` is its owner. */
   | { kind: 'job_other'; employeeId: string };
 
 export const NOT_FOUND_TITLE = 'This employee is not in the current city';
 export const NOT_FOUND_TEXT = 'The city was changed, so this link is out of date.';
 export const NO_EMPLOYEES_TEXT = 'There are no employees in the current city yet.';
-export const LOADING_TEXT = 'Loading your workspace…';
-export const JOB_LOADING_TEXT = 'Loading delivery…';
-export const ERROR_TITLE = 'The workspace could not be loaded';
+// #882: the loading and error states name what the page holds (the commute and the deliveries), not
+// "your workspace", and the job's loading text is a whole phrase like the page's.
+export const LOADING_TEXT = 'Loading your commute and deliveries…';
+export const JOB_LOADING_TEXT = 'Loading this delivery…';
+export const ERROR_TITLE = 'Your commute and deliveries could not be loaded';
 
-type ScreenInput = Pick<EmployeeWorkspaceState, 'view' | 'dashboard' | 'job' | 'jobMissing' | 'unavailable' | 'error' | 'fallbackEmployeeId'>;
+type ScreenInput = Pick<EmployeeWorkspaceState, 'view' | 'dashboard' | 'job' | 'jobMissing' | 'unavailable' | 'error' | 'fallbackEmployeeId'>
+  & Partial<Pick<EmployeeWorkspaceState, 'jobFailed'>>;
 
 export function pageScreen(s: ScreenInput, jobId: string | null): PageScreen {
   switch (s.view) {
     case 'loading': return { kind: 'loading' };
     case 'not_found': return { kind: 'not_found', fallbackEmployeeId: s.fallbackEmployeeId };
     case 'unavailable': return { kind: 'unavailable', text: s.unavailable?.message ?? TRAVEL_DATA_MISSING_TEXT };
-    case 'error': return { kind: 'error', text: s.error ?? 'Request failed' };
+    case 'error': return { kind: 'error', text: s.error ?? SERVER_ERROR_TEXT };
     case 'ready': break;
   }
   if (!s.dashboard) return { kind: 'loading' };
   if (!jobId) return { kind: 'workspace' };
   if (s.jobMissing) return { kind: 'job_missing' };
-  if (!s.job || s.job.job.id !== jobId) return { kind: 'job_loading' };
+  if (!s.job || s.job.job.id !== jobId) return s.jobFailed ? { kind: 'job_failed' } : { kind: 'job_loading' };
   if (s.job.job.employeeId !== s.dashboard.employee.id) return { kind: 'job_other', employeeId: s.job.job.employeeId };
   return { kind: 'job' };
 }

@@ -201,18 +201,15 @@ describe('#832: the right panel', () => {
     expect(isShown(address)).toBe(true);
   }, T);
 
-  it('employee: a leg is one line; the id and each leg\'s stops are under Details', () => {
+  it('employee: a leg is one line; each leg\'s stops are under Details, and no ID anywhere (#883)', () => {
     const { container: c } = mountBody(new FakeSimServer(readyState(1000)), { kind: 'employee', id: 'emp-2' });
-    const ident = c.querySelector('[data-testid="insp-def-ident"]')!;
-    expect(textOf(ident.querySelector('dt')!)).toBe('ID');
-    expect(textOf(ident.querySelector('dd .insp-mono')!)).toBe('EMP-2');
-    expect(isShown(ident)).toBe(false);
+    expect(c.querySelector('[data-testid="insp-def-ident"]')).toBeNull();
+    expect(rightBody(c).textContent).not.toMatch(/emp-2/i);
     const stops = c.querySelector('.insp-stops')!;
     expect(isShown(stops)).toBe(false);
     const leg = c.querySelector('.insp-leg')!;
     click(toggles(leg)[0]);
     expect(isShown(stops)).toBe(true);
     expect(isShown(leg.querySelector('.insp-leg-nums')!)).toBe(true);
-    expect(isShown(ident)).toBe(false);
   }, T);
 });

@@ -94,7 +94,7 @@ describe('the real NYC cache', () => {
     expect(refused).toStrictEqual({
       status: 400,
       body: {
-        error: 'A commute trip in this file drives between places this server has no travel time for, so it was not loaded.',
+        error: 'A commute in this file has no travel time, so it was not loaded.',
         fieldErrors: { 'trips.0.destinationPlaceId': 'No travel time' },
       },
     });
