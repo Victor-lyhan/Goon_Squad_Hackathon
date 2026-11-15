@@ -137,7 +137,13 @@ export function createSimPageHandlers(d: SimPageHandlerDeps): SimPageHandlers {
       if (d.view.view !== 'ready') return;
       switch (pagePlayButton(d.view, d.play ?? PLAY_IDLE).action) {
         case 'play_journey':
-        case 'play_network': d.journeyPlay?.play(); return;
+        case 'play_network':
+          // Issue 923: a new Play takes the last failed action's message away, as every other control does
+          // (the hook clears it when a control starts). Play only sends seeks, which are quiet, so without
+          // this the red box of a step that failed while the server was away stayed to the end of the journey.
+          d.sim.dismissActionError();
+          d.journeyPlay?.play();
+          return;
         case 'pause_journey': d.journeyPlay?.pause(); return;
         case 'pause_clock': void d.sim.control(PAUSE_REQUEST); return;
         case null: return;

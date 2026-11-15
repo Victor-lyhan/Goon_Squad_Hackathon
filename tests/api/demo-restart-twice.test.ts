@@ -208,14 +208,23 @@ async function pagesSee() {
 }
 type PagesSee = Awaited<ReturnType<typeof pagesSee>>;
 
-/** The same answers with every `version` set to `version`: the one field a clean stop changes. */
+/**
+ * The run's version counter in the answers the pages read: each answer's own `version` and its `snapshot.version`
+ * (the simulator answer has both). Only these two places are rewritten by `atVersion`, so a `version` field that
+ * some nested object gets one day is compared as it is and a real change in it is not hidden.
+ */
+const isVersionCounter = (path: string[]) =>
+  path.length >= 2 && path[path.length - 1] === 'version' && (path.length === 2 || (path.length === 3 && path[1] === 'snapshot'));
+
+/** The same answers with the run's version counter set to `version`: the one thing a clean stop changes. */
 function atVersion(seen: PagesSee, version: number): PagesSee {
-  const set = <V>(value: V): V => {
-    if (Array.isArray(value)) return value.map(set) as V;
+  const set = <V>(value: V, path: string[]): V => {
+    if (Array.isArray(value)) return value.map((item, i) => set(item, [...path, String(i)])) as V;
     if (typeof value !== 'object' || value === null) return value;
-    return Object.fromEntries(Object.entries(value).map(([key, v]) => [key, key === 'version' ? version : set(v)])) as V;
+    return Object.fromEntries(Object.entries(value).map(([key, v]) =>
+      [key, isVersionCounter([...path, key]) ? version : set(v, [...path, key])])) as V;
   };
-  return set(seen);
+  return set(seen, []);
 }
 
 /** The row of a job on its carrier's Employee page (assigned, or completed once its last stop is handled). */
