@@ -106,7 +106,7 @@ describe('employeeInspector', () => {
     const m = employeeInspector(EMP.maya, sim, map)!;
     expect(m.legs.map((l) => [l.jobId, l.legLabel])).toEqual([
       ['plan-shp-1-L0', 'Direct'],
-      ['plan-shp-2-L1', 'Relay leg 2 of 2'],
+      ['plan-shp-2-L1', 'Relay · carrier B'],
     ]);
     const [direct] = m.legs;
     expect(direct.packageLabel).toBe('Menu proofs');
@@ -135,7 +135,7 @@ describe('employeeInspector', () => {
   it('marks the relay drop as the last stop of relay leg 1', () => {
     const m = employeeInspector(EMP.jordan, sim, map)!;
     expect(m.legs).toHaveLength(1);
-    expect(m.legs[0].legLabel).toBe('Relay leg 1 of 2');
+    expect(m.legs[0].legLabel).toBe('Relay · carrier A');
     expect(m.legs[0].stops.map((s) => s.isRelay)).toEqual([false, true]);
     expect(m.legs[0].stops[1].kindLabel).toBe('Drop at relay point');
   });

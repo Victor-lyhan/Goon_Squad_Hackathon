@@ -11,7 +11,7 @@
 //
 // Each route also carries its hover label (`MapRoute.label`, the tooltip's first line; the role
 // "Delivery route" / "Normal commute" is the second). The words are those of `hoverText` in
-// networkModel.ts, minus the role: "Ceramic samples · leg 2 of 2 · carried by Li Chen", "Li Chen · morning".
+// networkModel.ts, minus the role: "Ceramic samples · B · Li Chen", "Li Chen · morning".
 import { decodePath } from '../../../map/layers';
 import type { MapPlace, MapRoute } from '../../../map/types';
 import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
@@ -51,10 +51,24 @@ export function commuteLabel(employeeName: string | null | undefined, tripIdOfCo
   return joinParts(name, when);
 }
 
+/** The journey's carrier letter (DECISIONS pass 67): "A" for the first carrier of a plan, "B" for the second. */
+export const carrierLetter = (legIndex: number): 'A' | 'B' => (legIndex === 0 ? 'A' : 'B');
+
 /**
- * A delivery line's label in the network view: package name, "leg n of m" for a relay, "carried by <name>".
- * A missing package name reads "Package"; a missing carrier leaves its part out. undefined when neither
- * name is known, so the map keeps its generic text.
+ * Who carries one part of a delivery, in the journey timeline's words (DECISIONS pass 67, #917):
+ * a relay names its carriers "A · Sam Rivera" / "B · Li Chen" ("carrier A" without a name); a direct
+ * package reads "carried by Maya Ortiz" (null without a name). Never "leg n of m".
+ */
+export function carrierPart(carrierName: string | null | undefined, legIndex: number, legCount: number): string | null {
+  const carrier = clean(carrierName);
+  if (legCount > 1) return carrier ? `${carrierLetter(legIndex)} · ${carrier}` : `carrier ${carrierLetter(legIndex)}`;
+  return carrier ? `carried by ${carrier}` : null;
+}
+
+/**
+ * A delivery line's label in the network view: package name, then `carrierPart`.
+ * A missing package name reads "Package"; a missing carrier leaves "carried by" out. undefined when
+ * neither name is known, so the map keeps its generic text.
  */
 export function deliveryLabel(
   packageName: string | null | undefined,
@@ -65,16 +79,17 @@ export function deliveryLabel(
   const pkg = clean(packageName);
   const carrier = clean(carrierName);
   if (!pkg && !carrier) return undefined;
-  return joinParts(pkg || 'Package', legCount > 1 && `leg ${legIndex + 1} of ${legCount}`, carrier && `carried by ${carrier}`);
+  return joinParts(pkg || 'Package', carrierPart(carrier, legIndex, legCount));
 }
 
 /**
- * A leg line's label in a package journey (the map shows one package, so it is not named again):
- * "Leg 1 · carried by Cy Lam", in the journey legend's words. Without a carrier name, just "Leg 1".
+ * A carried line's label in a package journey (the map shows one package, so it is not named again):
+ * "A · Cy Lam", the journey timeline's carrier line. Without a carrier name, "Carrier A".
  */
 export function journeyLegLabel(carrierName: string | null | undefined, legIndex: number): string {
   const carrier = clean(carrierName);
-  return joinParts(`Leg ${legIndex + 1}`, carrier && `carried by ${carrier}`);
+  const letter = carrierLetter(legIndex);
+  return carrier ? `${letter} · ${carrier}` : `Carrier ${letter}`;
 }
 
 // ---------- Static part: depends only on MapResponse, cached per response object ----------

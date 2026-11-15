@@ -87,14 +87,14 @@ describe('inspector static renders', () => {
     // #883: the panels never show a raw ID (it was under the header's Details).
     expect(text).not.toContain('EMP-1');
     expect(text).toContain('Astoria');
-    expect(text).toContain('Relay leg 2 of 2');
+    expect(text).toContain('Relay · carrier B');
     expect(text).toContain('Day 2, 7:42 AM · LIC Bookshop Pickup at relay point Relay point');
     expect(text).toContain('+7 min');
     expect(text).toContain('$5.20');
     expect(text).toContain('Earned $4.50');
     expect(text).toContain('Total reward $9.70');
     // #832: the leg is one line and its stops are under its own Details toggle.
-    expect(text).toContain('Author galleys Relay leg 2 of 2 · Assigned + Details Day 2, 7:42 AM');
+    expect(text).toContain('Author galleys Relay · carrier B · Assigned + Details Day 2, 7:42 AM');
     expect(html).toContain('>Focus on this employee</button>');
     expect(html).toContain('aria-label="Inspect business Dumbo Print Studio"');
   });

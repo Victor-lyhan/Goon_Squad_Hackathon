@@ -7,7 +7,7 @@
 // poll only redoes the plan legs and movers. Responses must be treated as immutable.
 import type { MapItem, MapMover, MapPlace, MapRoute } from '../../../map/types';
 import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
-import { buildIndex, byId, planBusinessIds, shipmentsCarriedBy, shipmentsOfBusiness } from './networkIndex';
+import { buildIndex, byId, carrierPart, planBusinessIds, shipmentsCarriedBy, shipmentsOfBusiness } from './networkIndex';
 import type { NetworkIndex } from './networkIndex';
 import { selectedIdsFromIndex } from './selectionModel';
 import type { Selection } from './selectionModel';
@@ -228,8 +228,9 @@ export function hoverText(item: MapItem, map: MapResponse, sim: SimulatorRespons
       const legIndex = r.legIndex ?? -1;
       const label = idx.shipments.get(plan.shipmentId)?.label || 'Package';
       const carrier = idx.employees.get(r.employeeId)?.name;
-      const which = plan.legs.length > 1 && legIndex >= 0 ? `leg ${legIndex + 1} of ${plan.legs.length}` : null;
-      return join(label, 'Delivery route', which, carrier && `carried by ${carrier}`);
+      // #917: "B · Li Chen" for a relay (the journey's carrier line), "carried by Maya Ortiz" for a direct one.
+      const legCount = legIndex >= 0 ? plan.legs.length : 1;
+      return join(label, 'Delivery route', carrierPart(carrier, Math.max(legIndex, 0), legCount));
     }
     default: return fallback;
   }
