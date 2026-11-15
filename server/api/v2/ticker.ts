@@ -5,6 +5,10 @@ import type { Run } from '../../../shared/v2/types';
 import { advanceClock } from '../../clock';
 import type { Store } from '../../store';
 
+// Thrown inside store.mutate to drop a step: a throwing mutation leaves the run untouched, so there is
+// no version bump and no file write.
+class StepDropped extends Error {}
+
 export function startV2ClockTicker(
   store: Store<Run>,
   opts: { intervalMs?: number; now?: () => number } = {},
@@ -39,11 +43,17 @@ export function startV2ClockTicker(
     pending = true;
     store
       .mutate((run) => {
+        // The clock was playing when this tick read it, but a control queued before this step has stopped
+        // it since (#747): `store.get()` shows a control only once its state write is done. That control
+        // has answered, or will, with the run as it left it, so this step must not change the run at all,
+        // not even its version.
+        if (!run.clock.playing) throw new StepDropped();
         // +0.5 speed-ms keeps floor() inside advanceClock exact despite float error.
         const ms = (minutes * 1000 + 0.5) / run.clock.speed;
         run.clock = advanceClock(run.clock, ms, run.scenario.settings);
       })
       .catch((e) => {
+        if (e instanceof StepDropped) return; // the minutes are not owed: the clock stopped before them
         // The run did not move (a throwing mutation leaves the state untouched), so the minutes are still owed.
         if (store.get().clock.playing) carry += minutes * 1000;
         console.warn('[v2 ticker] mutate failed:', e);
