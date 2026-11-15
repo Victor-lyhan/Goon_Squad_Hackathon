@@ -115,27 +115,25 @@ function firstCandidateText(json: unknown): string | null {
   return text.trim() === '' ? null : text;
 }
 
-/**
- * Asks Gemini for a JSON answer that follows `responseSchema` and returns it parsed. The caller validates the
- * value (it is `unknown`): the schema guides the model, it is not a guarantee.
- * Throws GeminiUnavailable (see GeminiUnavailableReason) and nothing else.
- */
-export async function generateJson(opts: GenerateJsonOptions): Promise<unknown> {
-  const { systemText, userText, responseSchema, timeoutMs = DEFAULT_GEMINI_TIMEOUT_MS, fetchImpl = fetch } = opts;
-  const apiKey = typeof opts.apiKey === 'string' ? opts.apiKey.trim() : '';
-  if (apiKey === '') throw new GeminiUnavailable('no_key');
-  if (typeof opts.model !== 'string' || opts.model.trim() === '') throw new GeminiUnavailable('no_model');
+/** What every `generateContent` call shares: the key, the model, the time limit and the injected `fetch`. */
+interface CallSettings {
+  apiKey: string | null;
+  model: string;
+  timeoutMs?: number;
+  fetchImpl?: FetchLike;
+}
 
-  const thinkingConfig = thinkingConfigFor(opts.model);
-  const body = JSON.stringify({
-    ...(systemText.trim() === '' ? {} : { systemInstruction: { parts: [{ text: systemText }] } }),
-    contents: [{ role: 'user', parts: [{ text: userText }] }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema,
-      ...(thinkingConfig === null ? {} : { thinkingConfig }),
-    },
-  });
+/**
+ * POSTs `body` to the model's `generateContent` and returns the parsed response JSON. The one place that sends
+ * the key (in the `x-goog-api-key` header), enforces the time limit and turns every failure into a GeminiUnavailable.
+ */
+async function postGenerateContent(settings: CallSettings, body: Record<string, unknown>): Promise<unknown> {
+  const { timeoutMs = DEFAULT_GEMINI_TIMEOUT_MS, fetchImpl = fetch } = settings;
+  const apiKey = typeof settings.apiKey === 'string' ? settings.apiKey.trim() : '';
+  if (apiKey === '') throw new GeminiUnavailable('no_key');
+  if (typeof settings.model !== 'string' || settings.model.trim() === '') throw new GeminiUnavailable('no_model');
+  if (!(timeoutMs > 0)) throw new GeminiUnavailable('timeout', { timeoutMs: 0 });
+  const payload = JSON.stringify(body);
 
   const controller = new AbortController();
   let timedOut = false;
@@ -153,10 +151,10 @@ export async function generateJson(opts: GenerateJsonOptions): Promise<unknown> 
     let status: number;
     let text: string;
     try {
-      const res = await fetchImpl(generateContentUrl(opts.model), {
+      const res = await fetchImpl(generateContentUrl(settings.model), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body,
+        body: payload,
         signal: controller.signal,
       });
       status = res.status;
@@ -166,15 +164,8 @@ export async function generateJson(opts: GenerateJsonOptions): Promise<unknown> 
       throw new GeminiUnavailable(timedOut ? 'timeout' : 'network', { timeoutMs });
     }
     if (!(status >= 200 && status < 300)) throw new GeminiUnavailable('http', { status });
-    let answer: string | null;
     try {
-      answer = firstCandidateText(JSON.parse(text));
-    } catch {
-      throw new GeminiUnavailable('bad_json');
-    }
-    if (answer === null) throw new GeminiUnavailable('empty');
-    try {
-      return JSON.parse(answer) as unknown;
+      return JSON.parse(text) as unknown;
     } catch {
       throw new GeminiUnavailable('bad_json');
     }
@@ -185,4 +176,97 @@ export async function generateJson(opts: GenerateJsonOptions): Promise<unknown> 
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** `generationConfig.thinkingConfig` when the model takes one, else nothing. */
+function thinkingFields(model: string): Record<string, unknown> {
+  const thinkingConfig = thinkingConfigFor(model);
+  return thinkingConfig === null ? {} : { thinkingConfig };
+}
+
+/**
+ * Asks Gemini for a JSON answer that follows `responseSchema` and returns it parsed. The caller validates the
+ * value (it is `unknown`): the schema guides the model, it is not a guarantee.
+ * Throws GeminiUnavailable (see GeminiUnavailableReason) and nothing else.
+ */
+export async function generateJson(opts: GenerateJsonOptions): Promise<unknown> {
+  const { systemText, userText, responseSchema } = opts;
+  const json = await postGenerateContent(opts, {
+    ...(systemText.trim() === '' ? {} : { systemInstruction: { parts: [{ text: systemText }] } }),
+    contents: [{ role: 'user', parts: [{ text: userText }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema,
+      ...thinkingFields(opts.model),
+    },
+  });
+  const answer = firstCandidateText(json);
+  if (answer === null) throw new GeminiUnavailable('empty');
+  try {
+    return JSON.parse(answer) as unknown;
+  } catch {
+    throw new GeminiUnavailable('bad_json');
+  }
+}
+
+// ---------- Function calling (the AI advisor, #862) ----------
+
+/** One turn of a function-calling conversation, in the API's shape. Model turns are sent back exactly as received. */
+export type GeminiContent = { role: 'user' | 'model'; parts: Record<string, unknown>[] };
+
+/** A function the model may call: name, description and its OpenAPI-style `parameters` schema. */
+export type GeminiFunctionDeclaration = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+};
+
+/** A function call of the model's turn. `args` is `unknown` on purpose: the caller validates every argument. */
+export type GeminiFunctionCall = { name: string; args: unknown };
+
+export interface GenerateWithToolsOptions extends CallSettings {
+  systemText: string;
+  /** The conversation so far: the user's turn, then model turns and the `functionResponse` turns that answer them. */
+  contents: GeminiContent[];
+  functions: GeminiFunctionDeclaration[];
+  /** 'ANY': the model must call one of the functions (no free text). Defaults to 'AUTO'. */
+  mode?: 'AUTO' | 'ANY';
+}
+
+export type ToolTurn = {
+  /** The model's turn, to append to `contents` before the function responses. */
+  content: GeminiContent;
+  /** Its function calls, in order. Empty when the model only wrote text. */
+  calls: GeminiFunctionCall[];
+  /** Its text parts joined ("thought" parts left out); '' when there is none. */
+  text: string;
+};
+
+/**
+ * One model turn with function calling. Same rules as `generateJson`: the key only in the header, one attempt,
+ * a hard time limit, nothing logged. Throws GeminiUnavailable ('empty' when the first candidate has no parts).
+ */
+export async function generateWithTools(opts: GenerateWithToolsOptions): Promise<ToolTurn> {
+  const json = await postGenerateContent(opts, {
+    ...(opts.systemText.trim() === '' ? {} : { systemInstruction: { parts: [{ text: opts.systemText }] } }),
+    contents: opts.contents,
+    tools: [{ functionDeclarations: opts.functions }],
+    toolConfig: { functionCallingConfig: { mode: opts.mode ?? 'AUTO' } },
+    generationConfig: { ...thinkingFields(opts.model) },
+  });
+  if (!isRecord(json) || !Array.isArray(json.candidates)) throw new GeminiUnavailable('empty');
+  const candidate: unknown = json.candidates[0];
+  if (!isRecord(candidate) || !isRecord(candidate.content) || !Array.isArray(candidate.content.parts)) {
+    throw new GeminiUnavailable('empty');
+  }
+  const parts = candidate.content.parts.filter(isRecord);
+  if (parts.length === 0) throw new GeminiUnavailable('empty');
+  const calls: GeminiFunctionCall[] = [];
+  let text = '';
+  for (const part of parts) {
+    const fc = part.functionCall;
+    if (isRecord(fc) && typeof fc.name === 'string') calls.push({ name: fc.name, args: fc.args ?? {} });
+    if (typeof part.text === 'string' && part.thought !== true) text += part.text;
+  }
+  return { content: { role: 'model', parts }, calls, text: text.trim() };
 }

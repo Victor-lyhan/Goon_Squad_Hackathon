@@ -49,6 +49,10 @@ const commuteBase = {
 const commuteReq = { ...commuteBase, home: { lat: 40.6722, lng: -73.9772, neighborhood: 'Park Slope' } };
 const generateReq = { preset: 'random' as const, seed: 7, employees: 40 };
 const run = { runId: 'run-1', version: 3 } as unknown as Run;
+const adviseDraft = {
+  originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', label: 'L', category: 'envelope' as const,
+  description: null, weightKg: null, readyMin: 960, deadlineMin: 2040,
+};
 
 type Case = {
   /** `METHOD path` exactly as documented in shared/v2/api.ts. */
@@ -79,6 +83,7 @@ const cases: Record<string, Case> = {
   importScenario: { route: 'POST /api/v2/scenario/import', call: (s) => v2.importScenario(run, opts(s)), body: run },
   geocode: { route: 'GET /api/v2/geocode?q=', call: (s) => v2.geocode(QUERY, opts(s)) },
   parseRequest: { route: 'POST /api/v2/parse-request', call: (s) => v2.parseRequest(SENTENCE, opts(s)), body: { text: SENTENCE } },
+  advise: { route: 'POST /api/v2/advise', call: (s) => v2.advise(adviseDraft, opts(s)), body: { draft: adviseDraft } },
 };
 
 /** The concrete URL a case must request: `:id` filled in encoded, and the encoded query after `?q=`. */
