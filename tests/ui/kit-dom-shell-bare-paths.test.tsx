@@ -224,7 +224,7 @@ describe('keyboard order of / and the header (headless Chrome pass, 1440 px and 
   /** A Tab stop as "<its class> <where it goes>"; the selector as "select". */
   const stop = (el: HTMLElement) => (el instanceof HTMLSelectElement ? 'select' : `${el.classList[0]} ${el.getAttribute('href')}`);
 
-  it('/: Skip, Relay, Business, Employee, Simulator, Watch a package, then the two entries', async () => {
+  it('/: Skip, Relay, Business, Employee, Simulator, Watch a package, the two entries, then The numbers (#796)', async () => {
     api();
     const s = await renderShell('/', [], { initialNycSummary: SUMMARY });
     const stops = tabOrder(s.container);
@@ -232,8 +232,9 @@ describe('keyboard order of / and the header (headless Chrome pass, 1440 px and 
       'skip-link #main-content', 'shell-wordmark /',
       'shell-nav-link /business/biz-01', 'shell-nav-link /employee/emp-01', 'shell-nav-link /simulator',
       'watch-button /simulator?package=shp-4&play=1', 'workspace-entry /business/biz-01', 'workspace-entry /employee/emp-01',
+      'landing-more-link /study.html',
     ]);
-    expect(stops.map((el) => textOf(el).slice(0, 8))).toEqual(['Skip to ', 'Relay', 'Business', 'Employee', 'Simulato', 'Watch a ', 'Business', 'Employee']);
+    expect(stops.map((el) => textOf(el).slice(0, 8))).toEqual(['Skip to ', 'Relay', 'Business', 'Employee', 'Simulato', 'Watch a ', 'Business', 'Employee', 'The numb']);
     expect(stops.every((el) => el.tabIndex === 0)).toBe(true); // document order, no positive tabindex
     // The skip link's target takes focus but is not a Tab stop.
     const main = s.main();

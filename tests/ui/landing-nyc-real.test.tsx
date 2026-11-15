@@ -97,7 +97,7 @@ describe('NYC homepage on the real /api/v2', () => {
     for (let i = 0; i < 200 && values(m.container.innerHTML).length < 4; i++) await flush();
     expect(values(m.container.innerHTML)).toEqual(expectedValues());
     expect(button().getAttribute('href')).toBe(`/simulator?package=${encodeURIComponent(storyPackage()[0].id)}&play=1`);
-    expect(m.container.querySelectorAll('a[href]')).toHaveLength(3); // the button, Business, Employee
+    expect(m.container.querySelectorAll('a[href]')).toHaveLength(4); // the button, Business, Employee, The numbers (#796)
     expect(m.container.innerHTML).not.toContain('aria-busy="true"');
     expect(forbiddenIn(m.container.innerHTML)).toEqual([]);
     expect(api.googleCalls).toEqual([]);

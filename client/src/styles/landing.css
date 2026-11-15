@@ -101,6 +101,23 @@ a.workspace-entry:focus-visible {
 .op-summary-value.is-placeholder { color: var(--muted, #5B6472); }
 .op-summary-note { margin: 0; }
 
+/* 4. "The numbers": a text link to the study page, under the two entries and above the stats line
+   (MVP IV F3). The padding makes the tap area taller than the 13px text. */
+.landing-more { margin: var(--space-2, 8px) 0 0; font-size: var(--text-sm, 13px); }
+.landing-more-link {
+  display: inline-block;
+  padding: var(--space-2, 8px) 0;
+  color: var(--accent, #1D5075);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.landing-more-link:hover { color: var(--accent-dark, #163F5C); }
+.landing-more-link:focus-visible {
+  outline: 2px solid var(--accent, #1D5075);
+  outline-offset: 2px;
+  border-radius: var(--radius, 4px);
+}
+
 /* Projector widths: the button is taller, wider and set larger than the two entries under it (#714). */
 @media (min-width: 600px) {
   .watch-button { min-width: 320px; min-height: 64px; font-size: 20px; }

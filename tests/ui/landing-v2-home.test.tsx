@@ -58,7 +58,7 @@ describe('homepage content (docs/mvp3.md P4)', () => {
       expect(text(links[i].body)).toBe(`${t}${WORKSPACES[i].text}→`);
       expect(WORKSPACES[i].text.length).toBeLessThanOrEqual(40);
     });
-    expect(html.match(/<a /g)).toHaveLength(3); // the button and the two entries, nothing else
+    expect(html.match(/<a /g)).toHaveLength(4); // the button, the two entries and "The numbers" (#796), nothing else
   });
 
   it('contains none of the removed content or broken values', () => {

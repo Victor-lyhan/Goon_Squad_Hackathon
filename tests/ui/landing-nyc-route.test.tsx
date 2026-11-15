@@ -55,12 +55,13 @@ describe('/', () => {
     expect(main(html)).toContain('landing-nyc');
     expect(main(html)).toMatch(marker);
     expect(main(html)).not.toContain('href="/help"');
-    expect(hrefs(main(html))).toEqual(['/simulator']); // the button works before and without the answer
+    // the button works before and without the answer; so does the link to the static study page (#796)
+    expect(hrefs(main(html))).toEqual(['/simulator', '/study.html']);
     noPreviewLinks(html);
   });
   it('through the router, the button opens the story package of the run and plays it (#652)', () => {
     const body = main(render('/', nycSummaryFrom(v2b, v2e, storySimulator)));
-    expect(hrefs(body)).toEqual(['/simulator?package=shp-3&amp;play=1', `/business/${firstBiz}`, `/employee/${firstEmp}`]);
+    expect(hrefs(body)).toEqual(['/simulator?package=shp-3&amp;play=1', `/business/${firstBiz}`, `/employee/${firstEmp}`, '/study.html']);
   });
   it('Landing has no link to /help', () => {
     const h = renderToStaticMarkup(<MemoryRouter><Landing dataset="nyc" initialSummary={ready} /></MemoryRouter>);
