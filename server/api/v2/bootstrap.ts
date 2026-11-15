@@ -16,6 +16,7 @@
 // - The key goes to the travel service and to the address search only. This file logs nothing.
 import type express from 'express';
 import type { Run as RunV2, Snapshot } from '../../../shared/v2/types';
+import { DEFAULT_GEMINI_MODEL } from '../../ai/env';
 import { snapshotAt } from '../../domain/v2/simulation';
 import { buildTimeline } from '../../domain/v2/timeline';
 import type { FetchLike } from '../../geo/googleClient';
@@ -41,6 +42,19 @@ export type V2RuntimeOptions = {
   key: string | null | undefined;
   /** Passed to the Google clients instead of the global `fetch`. Tests give a fake, so nothing touches the network. */
   fetch?: FetchLike;
+  /**
+   * Gemini for POST /parse-request (docs/mvp4.md F1): `geminiKey(env)` and `geminiModel(env)` of
+   * server/ai/env.ts. Left out, or with a null or blank key: every sentence is parsed offline and nothing is
+   * sent. `fetch` defaults to the `fetch` above; `log` (default `console.warn`) gets one fixed line per
+   * request that fell back although a key is set, never the key or Gemini's text.
+   */
+  gemini?: {
+    apiKey: string | null | undefined;
+    model?: string;
+    timeoutMs?: number;
+    fetch?: FetchLike;
+    log?: (line: string) => void;
+  };
 };
 
 export type V2Runtime = {
@@ -131,7 +145,18 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       travelPairs: travel,
     });
     // Reads the run's businesses and clock; it never changes the run (docs/mvp4.md F1).
-    registerParseRequestRoutes(router, { store });
+    // Gemini first when a key was given, else (and on any failure) the offline parser.
+    const { gemini } = options;
+    registerParseRequestRoutes(router, {
+      store,
+      gemini: gemini && {
+        apiKey: gemini.apiKey,
+        model: gemini.model ?? DEFAULT_GEMINI_MODEL,
+        timeoutMs: gemini.timeoutMs,
+        fetchImpl: gemini.fetch ?? options.fetch,
+      },
+      log: gemini?.log ?? ((line) => console.warn(line)),
+    });
     router.get('/geocode', getGeocode({
       key: () => (key === '' ? null : key),
       fetchImpl: options.fetch,

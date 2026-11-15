@@ -10,7 +10,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import polyline from '@mapbox/polyline';
 import { createApp } from '../../server/index';
-import { createV2Runtime, type V2Runtime } from '../../server/api/v2/bootstrap';
+import { createV2Runtime, type V2Runtime, type V2RuntimeOptions } from '../../server/api/v2/bootstrap';
 import { writeTravelFiles } from '../../server/geo/cache';
 import { GEOCODE_URL, ROUTES_URL, ROUTE_MATRIX_URL, type FetchLike } from '../../server/geo/googleClient';
 import type { Run as RunV2 } from '../../shared/v2/types';
@@ -117,6 +117,8 @@ export type BootstrapApiOptions = {
   cache: CacheKind;
   key?: string | null;
   fetch?: FetchLike;
+  /** Gemini for POST /parse-request (a fake key and a fake `fetch`). Left out: every sentence is parsed offline. */
+  gemini?: V2RuntimeOptions['gemini'];
   /** Use an existing temp repo (a "restart" on the same files). It is then not removed by `close`. */
   repo?: TempRepo;
 };
@@ -131,6 +133,7 @@ export async function startBootstrapApi(opts: BootstrapApiOptions) {
     statePath: repo.statePath,
     key: opts.key ?? null,
     fetch: opts.fetch ?? noNetwork().fetch,
+    gemini: opts.gemini,
   });
 
   const app = createApp({ clientDist: path.join(repo.root, 'no-dist'), v2: runtime.deps });
