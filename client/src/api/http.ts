@@ -40,6 +40,25 @@ export interface RequestOptions {
   timeoutMs?: number;
 }
 
+/**
+ * The sentences this layer writes itself, for the cases where the server sent no text of its own (#909).
+ * Each is one plain sentence that says what to do: no milliseconds, no status number, no browser wording.
+ * A page may show `error.message` as it is. Text the server sent in `error` is never replaced by these.
+ * Not exported: pages branch on `status`, `kind` and `code`, not on the wording.
+ */
+const API_ERROR_TEXT = {
+  /** fetch itself failed: server down, connection refused, offline. */
+  network: "Can't reach the Relay server, so check it's running and try again.",
+  /** No answer within the time limit. */
+  timeout: 'The Relay server took too long to answer, so try again in a moment.',
+  /** The caller's own signal ended the call. Pages stay silent on this one (see isAbortError). */
+  abort: 'This was cancelled before the Relay server answered, so try again.',
+  /** A 2xx whose body is empty or not JSON (an HTML page, another program on the port). */
+  badReply: "The Relay server's answer couldn't be read, so reload the page and try again.",
+  /** A non-2xx with no `error` text in its body (a proxy's reply when the server is down, a crash page). */
+  noErrorText: "The Relay server had a problem, so check it's running and try again.",
+} as const;
+
 export const DEFAULT_TIMEOUT_MS = 8000;
 /** Mutable settings; tests set `apiConfig.timeoutMs` and restore DEFAULT_TIMEOUT_MS afterwards. */
 export const apiConfig = { timeoutMs: DEFAULT_TIMEOUT_MS };
@@ -58,11 +77,15 @@ export const request = async function ApiRequest<T>(method: string, path: string
   if (signal?.aborted) controller.abort();
   else signal?.addEventListener('abort', onAbort, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
-  const fail = (e: unknown): never => {
+  // `answered`: fetch gave a 2xx and the failure came from reading its body.
+  const fail = (e: unknown, answered = false): never => {
     if (e instanceof ApiRequestError) throw e;
-    if (timedOut) throw new ApiRequestError(0, `Request timed out after ${timeoutMs} ms`, undefined, 'timeout');
-    if (signal?.aborted) throw new ApiRequestError(0, 'Request aborted', undefined, 'abort');
-    throw new ApiRequestError(0, e instanceof Error ? e.message : 'Network error', undefined, 'network');
+    if (timedOut) throw new ApiRequestError(0, API_ERROR_TEXT.timeout, undefined, 'timeout');
+    if (signal?.aborted) throw new ApiRequestError(0, API_ERROR_TEXT.abort, undefined, 'abort');
+    // The browser's or the JSON parser's own text is never passed on. A SyntaxError on a body means it was
+    // empty or not JSON; any other failure means no answer came, or it broke off on the way.
+    const unreadable = answered && e instanceof Error && e.name === 'SyntaxError';
+    throw new ApiRequestError(0, unreadable ? API_ERROR_TEXT.badReply : API_ERROR_TEXT.network, undefined, 'network');
   };
   try {
     let res: Response;
@@ -78,16 +101,17 @@ export const request = async function ApiRequest<T>(method: string, path: string
       return fail(e);
     }
     if (!res.ok) {
-      let message = `Request failed (${res.status})`;
+      let message: string = API_ERROR_TEXT.noErrorText;
       let fieldErrors: Record<string, string> | undefined;
       let code: string | undefined;
       try {
         const data = (await res.json()) as { error?: unknown; fieldErrors?: Record<string, string>; code?: unknown };
-        if (typeof data?.error === 'string') message = data.error;
+        // The server's own sentence goes through as it is; an empty one is no text.
+        if (typeof data?.error === 'string' && data.error.trim() !== '') message = data.error;
         fieldErrors = data?.fieldErrors;
         if (typeof data?.code === 'string') code = data.code;
       } catch {
-        /* non-JSON error body: keep the default message */
+        /* empty or non-JSON error body: keep the default sentence */
       }
       if (timedOut) return fail(new Error('timeout'));
       if (signal?.aborted) return fail(new Error('aborted'));
@@ -97,7 +121,7 @@ export const request = async function ApiRequest<T>(method: string, path: string
       if (extra.ignoreBody) { await res.arrayBuffer(); return undefined as T; }
       return (await res.json()) as T;
     } catch (e) {
-      return fail(e);
+      return fail(e, true);
     }
   } finally {
     clearTimeout(timer);
