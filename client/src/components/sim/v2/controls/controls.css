@@ -1,5 +1,6 @@
-/* Simulator left-panel playback block (#648): one Play/Pause button and "Back to start".
-   Built for the 320px left column: everything shrinks to the column, nothing scrolls sideways.
+/* Simulator playback block (#648): one Play/Pause button and "Back to start". Since #831 the page floats
+   it at the bottom center of the map (compose.css `.spc-playbar`), 300px wide or the map's width if less:
+   everything shrinks to its box, nothing scrolls sideways.
    MVP III look (docs/mvp3.md P4, #701): token colours, hairline borders, radius 4px, no gradients,
    no shadow except the 1px focus ring. */
 

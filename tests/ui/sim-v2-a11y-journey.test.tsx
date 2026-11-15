@@ -283,7 +283,7 @@ describe('keyboard: Play/Pause, Back to start and the Tab order (#725)', () => {
     expect(playPause(c).disabled).toBe(false);
   });
 
-  it('Tab reaches Play/Pause, Back to start, the package list, Compare and the Inspector in visual order', async () => {
+  it('Tab reaches the package list, Compare, Play/Pause and Back to start on the map (#831), and the Inspector in visual order', async () => {
     const { c } = await openStory();
     const order = tabOrder(c);
     const at = (el: Element | null | undefined, what: string) => {
@@ -295,11 +295,12 @@ describe('keyboard: Play/Pause, Back to start and the Tab order (#725)', () => {
     const packages = c.querySelector('section[aria-labelledby="sw-section-packages"]')!;
     const positions = [
       at(button(c, /Controls/), 'the Controls panel toggle'),
-      at(playPause(c), 'Play/Pause'),
-      at(backToStart(c), 'Back to start'),
       at(packages.querySelector('input'), 'the package search'),
       at(packages.querySelector('ul[aria-label="Packages"] button'), 'the first package row'),
       at(button(c, 'Compare'), 'Compare'),
+      // #831: the playback group floats on the map, between the two panels, and is the map region's first stops.
+      at(playPause(c), 'Play/Pause'),
+      at(backToStart(c), 'Back to start'),
       at(button(c, /Inspector/), 'the Inspector panel toggle'),
       at(steps(c)[0], 'the first journey step'),
       at(right.querySelector('.spc-back'), 'Back to network in the Inspector'),

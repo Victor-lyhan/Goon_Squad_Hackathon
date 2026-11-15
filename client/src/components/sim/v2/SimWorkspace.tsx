@@ -60,7 +60,7 @@ export function SimWorkspace({ map, left, right, onClearSelection, journey, init
   const inJourney = !!journey;
 
   // #631: the journey timeline lives only in the right panel, so entering a journey opens a collapsed
-  // Inspector (the one Play/Pause button is in the left panel since #648). Adjusted during render, so
+  // Inspector (the one Play/Pause button floats on the map since #831). Adjusted during render, so
   // no frame shows the journey without its timeline.
   // Only the step from no journey to a journey opens it: another package, or a panel the user
   // collapses during the journey, is left as it is. The width change is the usual toggle's, so the
