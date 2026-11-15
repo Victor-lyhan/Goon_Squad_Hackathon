@@ -1,8 +1,9 @@
 import type { CompareResponse } from '../../../../../../shared/v2/api';
 import { Button } from '../../../../ui/Button';
+import { Details } from '../Details';
 import { PanelSection } from '../PanelSection';
 import {
-  COMPARE_INTRO, DIRECT_HEADING, PROJECTION_NOTE, RELAY_HEADING, compareRows, compareSummary,
+  COMPARE_INTRO, DIRECT_HEADING, PROJECTION_NOTE, RELAY_HEADING, RELAY_POINT_NOTE, compareRows, compareSummary,
 } from './compareModelV2';
 import './compare.css';
 
@@ -15,6 +16,16 @@ export type CompareSectionProps = {
   onRun(): void;
   disabled?: boolean;
 };
+
+/** The long explanations, under the Details toggle (#832). */
+function CompareNotes() {
+  return (
+    <Details about="comparison">
+      <p className="cmp-note">{RELAY_POINT_NOTE}</p>
+      <p className="cmp-note">{PROJECTION_NOTE}</p>
+    </Details>
+  );
+}
 
 function CompareTable({ response }: { response: CompareResponse }) {
   const rows = compareRows(response);
@@ -41,7 +52,7 @@ function CompareTable({ response }: { response: CompareResponse }) {
           ))}
         </tbody>
       </table>
-      <p className="cmp-note">{PROJECTION_NOTE}</p>
+      <CompareNotes />
     </>
   );
 }
@@ -52,7 +63,7 @@ export function CompareSection({ response, loading, error, onRun, disabled = fal
   if (loading) {
     body = (
       <>
-        <p className="cmp-text">Comparing direct only with relay points…</p>
+        <p className="cmp-text">Comparing…</p>
         <Button variant="secondary" className="cmp-run" loading disabled>Compare</Button>
       </>
     );
@@ -74,6 +85,7 @@ export function CompareSection({ response, loading, error, onRun, disabled = fal
     body = (
       <>
         <p className="cmp-text">{COMPARE_INTRO}</p>
+        <CompareNotes />
         <Button variant="secondary" className="cmp-run" onClick={onRun} disabled={disabled}>Compare</Button>
       </>
     );

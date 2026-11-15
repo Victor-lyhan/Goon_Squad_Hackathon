@@ -193,13 +193,12 @@
 }
 .sw-pkg:hover { background: var(--bg, #F7F7F4); }
 .sw-pkg.is-selected { border-left-color: var(--accent, #1D5075); background: var(--bg, #F7F7F4); }
-/* The name keeps its own line when name and status do not fit side by side (#718: in the 320 px panel
-   the status squeezed "Navy Yard grinder burrs" to "Navy Yard grind…"); the status then wraps under it.
-   Side by side, the growing name pushes the status to the right. The ellipsis is left for a name longer
-   than the whole row. */
-.sw-pkg-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px var(--space-2, 8px); }
+/* One line per package (#832): the name, then the status word ("Scheduled", "At relay point"), which
+   never wraps. The status is short now (the kind and the relay point are on the detail line), so in the
+   320 px panel "Navy Yard grinder burrs" fits beside it (#718); the ellipsis is left for a longer name. */
+.sw-pkg-top { display: flex; flex-wrap: nowrap; align-items: baseline; justify-content: space-between; gap: var(--space-2, 8px); }
 .sw-pkg-label { flex: 1 1 auto; max-width: 100%; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sw-pkg-status { flex: 0 0 auto; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.sw-pkg-status { flex: 0 0 auto; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); white-space: nowrap; }
 .sw-pkg-route { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .sw-empty { margin: 0; padding: var(--space-3, 12px) 0; color: var(--muted, #5B6472); }
 
@@ -218,6 +217,33 @@
 .sw-summary-row dd { margin: 0; font-size: 15px; color: var(--text, #171C24); }
 /* Numbers and the package row's status column: IBM Plex Mono, digits of one width. */
 .sw-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-variant-numeric: tabular-nums; }
+
+/* ---------- The "Details" toggle of both panels (#832) ----------
+   One line per item; the secondary detail is under a real button, closed by default (Details.tsx). */
+.sw-details { display: grid; gap: var(--space-1, 4px); min-width: 0; }
+.sw-details-toggle {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  min-height: 24px;
+  margin: 0;
+  padding: 0 var(--space-2, 8px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  background: var(--panel, #FFFFFF);
+  color: var(--muted, #5B6472);
+  font: inherit;
+  font-size: var(--text-xs, 12px);
+  cursor: pointer;
+}
+.sw-details-toggle:hover,
+.sw-details-toggle[aria-expanded='true'] { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
+.sw-details-toggle:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 1px; }
+.sw-details-icon { display: inline-block; width: 1ch; line-height: 1; text-align: center; }
+.sw-details-body { display: grid; gap: var(--space-1, 4px); min-width: 0; }
+/* Folded content keeps its own display (flex, grid) when shown, so `hidden` has to win when closed. */
+[data-details-body][hidden] { display: none !important; }
 
 /* ---------- Narrow screens: desktop-only message ---------- */
 .sw-narrow { display: none; }

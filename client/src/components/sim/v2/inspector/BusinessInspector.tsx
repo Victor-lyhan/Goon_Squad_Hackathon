@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Details } from '../Details';
 import type { BusinessInspectorModel, PackageRow, PlaceRef } from './inspectorModel';
 import './inspector.css';
 
@@ -68,18 +69,13 @@ function PackageRowItem({ row, h }: { row: PackageRow; h: RowHandlers }) {
         onClick={() => h.onSelectPackage(row.shipmentId)}
       >
         <span className="insp-row-title">{row.label}</span>
-        <span className="insp-row-meta">
-          {meta}
-          {row.timeLabel && (
-            <>
-              {' · '}
-              <span className="insp-mono">{row.timeLabel}</span>
-            </>
-          )}
-        </span>
+        <span className="insp-row-meta">{meta}</span>
       </button>
+      {/* #832: the row is one line; the time, the money, the minutes, the links and the reason are details. */}
+      <Details about={row.label}>
       <div className="insp-row-figs" data-testid={`insp-figs-${row.shipmentId}`}>
         <span className="insp-row-role">{row.role}</span>
+        {row.timeLabel && <span className="insp-fig insp-mono">{row.timeLabel}</span>}
         {row.noMatchLabel ? (
           <span className="insp-nomatch">{row.noMatchLabel}</span>
         ) : (
@@ -119,6 +115,7 @@ function PackageRowItem({ row, h }: { row: PackageRow; h: RowHandlers }) {
         ))}
       </div>
       {row.reason && <p className="insp-reason">{row.reason}</p>}
+      </Details>
     </li>
   );
 }
@@ -155,11 +152,13 @@ export function BusinessInspector({ model, onFocus, onClear, ...h }: BusinessIns
       <InspectorHeader ident={model.ident} name={model.name} kind="business" onClear={onClear} />
       <DefRows
         rows={[
-          { key: 'address', label: 'Address', value: model.address },
           { key: 'area', label: 'Neighborhood', value: `${model.neighborhood}, ${model.borough}` },
-          { key: 'commuters', label: 'Commuters', value: model.commutersLabel },
+          { key: 'commuters', label: 'Commuters', value: <span className="insp-mono">{model.commuters}</span> },
         ]}
       />
+      <Details about={model.name}>
+        <DefRows rows={[{ key: 'address', label: 'Address', value: model.address }]} />
+      </Details>
       <div className="insp-actions">
         <button type="button" className="insp-btn" aria-label={`Focus on this business: ${model.name}`} onClick={() => onFocus(model.id)}>
           Focus on this business
@@ -168,10 +167,10 @@ export function BusinessInspector({ model, onFocus, onClear, ...h }: BusinessIns
       <PackageList title="Sent" testId="insp-sent" rows={model.sent} empty="No packages sent." h={h} />
       <PackageList title="Received" testId="insp-received" rows={model.received} empty="No packages received." h={h} />
       <PackageList
-        title="Held overnight as relay point"
+        title="Held overnight"
         testId="insp-held"
         rows={model.held}
-        empty="No package stays here overnight."
+        empty="No packages held."
         h={h}
       />
     </div>

@@ -105,13 +105,17 @@ export function filterPackageRows(rows: PackageRow[], filters: PackageFilters): 
   });
 }
 
-/** The frame's list items. `statusLabel` carries the kind and the status; an unmatched row adds the reason. */
+/**
+ * The frame's list items (#832). `statusLabel` is the one word or two next to the name: the status
+ * ("Scheduled"), or "No match" for an unmatched package. `routeLabel` is the line under the list's
+ * Details toggle: the kind ("Direct", "Relay via <business name>"), sender and recipient, and the
+ * server's reason of an unmatched row.
+ */
 export function toListItems(rows: PackageRow[]): PackageListItem[] {
   return rows.map((r) => {
-    const statusLabel = r.kind === 'none' && r.status === 'unmatched'
-      ? r.kindLabel
-      : `${r.kindLabel} · ${r.statusLabel}`;
-    const routeLabel = r.reason ? `${r.routeLabel} · ${r.reason}` : r.routeLabel;
+    const noMatch = r.kind === 'none' && r.status === 'unmatched';
+    const statusLabel = noMatch ? r.kindLabel : r.statusLabel;
+    const routeLabel = [noMatch ? null : r.kindLabel, r.routeLabel, r.reason].filter(Boolean).join(' · ');
     return { id: r.id, label: r.label, statusLabel, routeLabel };
   });
 }

@@ -45,8 +45,11 @@ describe('buildPackageRows', () => {
       ['shp-4', 'direct', null, 'Status unavailable'],
     ]);
     expect(toListItems(noStatus).map((i) => i.statusLabel)).toEqual([
-      'Direct · Status unavailable', 'Relay via Front Street Café · Status unavailable',
-      'No match · Status unavailable', 'Direct · Status unavailable',
+      'Status unavailable', 'Status unavailable', 'Status unavailable', 'Status unavailable',
+    ]);
+    // The kind is on the detail line (#832), "No match" too when the status is not "unmatched".
+    expect(toListItems(noStatus).map((i) => i.routeLabel.split(' · ')[0])).toEqual([
+      'Direct', 'Relay via Front Street Café', 'No match', 'Direct',
     ]);
     // Such a row is under "All" only and passes no status filter.
     expect(statusFilters(noStatus)).toEqual([{ value: 'all', label: 'All', count: 4 }]);
@@ -127,12 +130,12 @@ describe('filterPackageRows', () => {
 });
 
 describe('toListItems', () => {
-  it('statusLabel carries kind and status; the unmatched row shows the reason', () => {
+  it('statusLabel is the status alone; the detail line has the kind, the route and the reason', () => {
     expect(toListItems(rows)).toEqual([
-      { id: 'shp-1', label: 'Brand proofs', statusLabel: 'Direct · Picked up', routeLabel: 'Dumbo Design Studio → Midtown Ad Agency' },
-      { id: 'shp-2', label: 'Gift box', statusLabel: 'Relay via Front Street Café · At relay point', routeLabel: 'Vernon Bakery → Chelsea Office' },
+      { id: 'shp-1', label: 'Brand proofs', statusLabel: 'Picked up', routeLabel: 'Direct · Dumbo Design Studio → Midtown Ad Agency' },
+      { id: 'shp-2', label: 'Gift box', statusLabel: 'At relay point', routeLabel: 'Relay via Front Street Café · Vernon Bakery → Chelsea Office' },
       { id: 'shp-3', label: 'Signed lease', statusLabel: 'No match', routeLabel: `Chelsea Office → Dumbo Design Studio · ${UNMATCHED_REASON}` },
-      { id: 'shp-4', label: 'Spare keys', statusLabel: 'Direct · Picked up', routeLabel: 'Midtown Ad Agency → Unknown place' },
+      { id: 'shp-4', label: 'Spare keys', statusLabel: 'Picked up', routeLabel: 'Direct · Midtown Ad Agency → Unknown place' },
     ]);
   });
 });
