@@ -41,7 +41,8 @@ const RESTORE = 'Restore the folder fixtures/nyc from the repository (git checko
 const TRAVEL_UNUSABLE = `MISSING  NYC travel data: the files in fixtures/nyc are there, but the run cannot be built from them, so the app has no deliveries to show. ${RESTORE}`;
 const RUN_ABSENT = 'OK       Saved run: data/state-v2.json is not there, so the server starts with the fresh run.';
 const RUN_AT_START = 'OK       Saved run: data/state-v2.json is at the start of the day (Day 1, 3:30 PM, the 24 deliveries of the fresh run).';
-const RESET = 'Stop the server, delete data/state-v2.json, start.';
+// #965: npm run dev removes the saved run by itself (scripts/fresh-run.mjs); npm start opens it.
+const RESET = 'npm run dev starts fresh (it removes data/state-v2.json). For npm start: stop the server, delete data/state-v2.json, start.';
 const runNotAtStart = (why: string) => `WARN     Saved run: data/state-v2.json is not at the start of the day (${why}). ${RESET}`;
 const RUN_UNUSABLE = `WARN     Saved run: data/state-v2.json is not a run the server can use. ${RESET}`;
 const BUILD_OK = 'OK       Built client: client/dist is there.';
@@ -336,7 +337,7 @@ describe('demo check: the saved run', () => {
     const { lines, code } = check(repo);
     expect(lines).toStrictEqual([
       GEMINI_OK, BROWSER_OK, SERVER_OK, TRAVEL_OK,
-      'WARN     Saved run: data/state-v2.json is not at the start of the day (its clock is at Day 2, 8:30 AM, not Day 1, 3:30 PM). Stop the server, delete data/state-v2.json, start.',
+      'WARN     Saved run: data/state-v2.json is not at the start of the day (its clock is at Day 2, 8:30 AM, not Day 1, 3:30 PM). npm run dev starts fresh (it removes data/state-v2.json). For npm start: stop the server, delete data/state-v2.json, start.',
       BUILD_WITH_KEY,
       'Ready for the demo, with 1 warning: read the WARN line above.',
     ]);
@@ -410,7 +411,7 @@ describe('demo check: the saved run', () => {
 
     // The default file is absent, the QA one is mid-day.
     expect(check(repo).lines[4]).toBe(RUN_ABSENT);
-    const qa = 'WARN     Saved run: qa/state-v2.json is not at the start of the day (its clock is at Day 2, 8:30 AM, not Day 1, 3:30 PM). Stop the server, delete qa/state-v2.json, start.';
+    const qa = 'WARN     Saved run: qa/state-v2.json is not at the start of the day (its clock is at Day 2, 8:30 AM, not Day 1, 3:30 PM). npm run dev starts fresh (it removes qa/state-v2.json). For npm start: stop the server, delete qa/state-v2.json, start.';
     expect(check(repo, { RELAY_STATE_PATH: other }).lines[4]).toBe(qa);
     fs.writeFileSync(repo.envPath, `RELAY_STATE_PATH=${other}\n`);
     expect(check(repo).lines[4]).toBe(qa);

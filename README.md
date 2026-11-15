@@ -28,6 +28,8 @@ npm run dev
 ```
 `npm run dev` starts the API on **http://localhost:3001** and Vite on **http://localhost:5173**; Vite proxies `/api` to the API. Open http://localhost:5173 and choose **Watch a package** ([30-second demo](#30-second-demo)).
 
+`npm run dev` starts on the fresh run, the 24 story deliveries: before the servers start it removes the saved run and prints "Fresh run: removed the saved run" or "Fresh run: nothing saved". To keep the saved run, start with `npm run dev:keep`; `npm start` always keeps it ([State file and reset](#state-file-and-reset)).
+
 `npm run dev` needs ports 3001 and 5173 free. Do not set `PORT` for it, in the shell or in `.env`: Vite sends `/api` to port 3001 whatever `PORT` says, so with another port every API call of the page fails. If the server says a port is already in use, stop the other server.
 
 The main paths:
@@ -65,7 +67,7 @@ bash scripts/test.sh   # typecheck + tests + build (must pass before any PR)
 The tests need no key and no network: they run on the committed cache or on a fake travel provider.
 
 ## State file and reset
-The run is saved in `data/state-v2.json` (gitignored, written by the server). A restart restores it, paused. **To reset, stop the server, delete `data/state-v2.json` and start it again**: the server then builds the default run from `fixtures/nyc/`.
+The run is saved in `data/state-v2.json` (gitignored, written by the server). A restart with `npm start` or `npm run dev:keep` restores it, paused; `npm run dev` removes it first ([Setup and run](#setup-and-run)). **To reset, stop the server, delete `data/state-v2.json` and start it again**: the server then builds the default run from `fixtures/nyc/`.
 
 The file is written at the first change of the run (a new delivery, a played journey, a saved commute) and when `npm start` is stopped with Ctrl-C. On a fresh clone where nothing was changed yet there may be no such file: then there is nothing to delete and the run is the default one. Leave `data/state-v2.source.json` where it is.
 
