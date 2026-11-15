@@ -77,7 +77,7 @@ export function registerPlanningRoutes(router: express.Router, deps: PlanningRou
       }
     };
 
-  // "Start new planning cycle": allowed in any phase, it is the way out of `locked`.
+  // "Start new planning cycle": allowed in any phase. It unlocks too, with a new run (the app's own way out is "Back to start", #734).
   // Neither this nor recompute has options: a body that is a list is a 400 and starts nothing.
   router.post('/planning/reset', takesNoOptions, route(async (_req, res) => {
     // `draft` is the store's own copy of the newest run, so nothing here aliases the stored run.

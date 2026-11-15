@@ -103,7 +103,7 @@ describe('planCreateShipment: invalid (400)', () => {
 describe('planCreateShipment: locked (409)', () => {
   it('refuses a valid request while the run is locked', () => {
     expect(create(createBody(), lockedRun)).toEqual({ kind: 'locked', status: 409, error: { error: SHIPMENTS_LOCKED } });
-    expect(SHIPMENTS_LOCKED).toBe('Start a new planning cycle to change deliveries');
+    expect(SHIPMENTS_LOCKED).toBe('The simulation is playing. Press Back to start in the simulator to change deliveries.');
   });
 
   it('the lock comes before the business checks', () => {

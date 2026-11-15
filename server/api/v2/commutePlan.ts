@@ -14,7 +14,8 @@ import { buildTrips } from '../../domain/v2/trips';
 export const NYC_BOUNDS = { south: 40.4774, west: -74.2591, north: 40.9176, east: -73.7002 } as const;
 
 export const EMPLOYEE_NOT_FOUND = 'Employee not found';
-export const COMMUTE_LOCKED = 'Start a new planning cycle to edit commutes';
+export const COMMUTE_LOCKED =
+  'The simulation is playing. Press Back to start in the simulator to edit commutes.';
 export const INVALID_COMMUTE = 'Invalid commute';
 export const UNKNOWN_BUSINESS = 'Unknown business';
 export const UNKNOWN_HOME = 'Unknown home';

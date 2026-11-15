@@ -187,7 +187,11 @@ describe('v2 clock ticker: the end of the run', () => {
     const { store } = fileStore(runWith({ playing: true, timeMin: 2100, speed: 600 }));
     start(store, 100);
     await step(clock, store, 100, 3);
+    // Reaching the end did not unlock; "Back to start" does (#734), and the ticker leaves the paused run alone.
+    expect(store.get().clock).toEqual({ phase: 'locked', playing: false, timeMin: 2160, speed: 600 });
     await control(store, { action: 'reset_playback' });
+    await step(clock, store, 100, 2);
+    expect(store.get().clock).toEqual({ phase: 'planning', playing: false, timeMin: 930, speed: 600 });
     await control(store, { action: 'play' });
     await step(clock, store, 100, 1);
     expect(store.get().clock).toEqual({ phase: 'locked', playing: true, timeMin: 990, speed: 600 });
