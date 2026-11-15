@@ -1,6 +1,7 @@
 // #833: the homepage's hero map. A stylized dark NYC drawn in inline SVG (no map service, no tiles, no
 // request), two commute lines in the carrier colors, the orange package riding the first, changing hands at
 // the relay point's diamond and riding the second, in a loop; under prefers-reduced-motion the last frame.
+// Since #869 it has no frame and covers the hero's right half (the box's rules: landing-nyc-css.test.ts).
 // Checked in headless Chrome at 1440 and 390 px; this file keeps what a later edit could undo.
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -130,7 +131,7 @@ describe('the drawing (LandingHeroMap)', () => {
     expect(map.indexOf('class="hero-package"')).toBeGreaterThan(map.lastIndexOf('class="hero-badge-letter"'));
   });
 
-  it('has a key in words under the map: letters and shapes, not color alone', () => {
+  it('has a key in words at the bottom of the map: letters and shapes, not color alone', () => {
     const key = /<ul class="hero-legend">([\s\S]*?)<\/ul>/.exec(svg)![1];
     expect(key.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '|')).toBe('|Commuter A||Commuter B||Relay point||Package|');
     expect(key.match(/<svg class="hero-key"[^>]*aria-hidden="true"/g)).toHaveLength(4);
@@ -140,11 +141,18 @@ describe('the drawing (LandingHeroMap)', () => {
     expect(key).toContain('class="hero-key-package"');
   });
 
-  it('is in the hero of the page, after the text', () => {
+  it('is in the hero of the page, after the text and outside the text\'s column (#869)', () => {
     const page = renderToStaticMarkup(<MemoryRouter><Landing initialSummary={{ status: 'loading' }} /></MemoryRouter>);
     const hero = /<section class="landing-hero"[^>]*>([\s\S]*?)<\/section>/.exec(page)![1];
     expect(hero).toContain(svg);
     expect(hero.indexOf('class="landing-hero-copy"')).toBeLessThan(hero.indexOf('class="landing-hero-map"'));
+    // The last thing in the hero and a child of the hero itself: the column's width and padding do not hold
+    // it, so it reaches the hero's top, bottom and right edge.
+    expect(hero.endsWith(svg)).toBe(true);
+    expect(hero.slice(0, hero.length - svg.length).endsWith('</div></div>')).toBe(true); // the text, the column
+    // No wrapper of its own around the drawing and its key: nothing that could be a frame.
+    expect(svg.startsWith('<div class="landing-hero-map"><svg class="hero-map" ')).toBe(true);
+    expect(svg.match(/<div/g)).toHaveLength(1);
   });
 });
 

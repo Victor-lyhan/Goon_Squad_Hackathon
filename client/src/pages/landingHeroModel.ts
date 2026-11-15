@@ -9,6 +9,8 @@ export const HERO_VIEWBOX = { width: 800, height: 600 } as const;
 /**
  * The part of the view box that stays visible in every box the hero gives the map: a box 2.3 times as wide
  * as tall crops the top and bottom to this, a box 0.57 times as wide as tall crops the sides to it.
+ * The map is the right half of the hero, or lies under the text (#869). landing.css keeps both boxes in
+ * that range: an upright window gets the map under the text, and that map has a least height.
  */
 export const HERO_SAFE_BOX = { x0: 230, y0: 150, x1: 570, y1: 450 } as const;
 /**

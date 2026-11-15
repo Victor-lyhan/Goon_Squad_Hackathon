@@ -152,9 +152,11 @@ function useNycSummary(initial?: NycSummary): NycSummary {
  * The homepage (#833): a dark hero with the title (the logo is its R, #853), the large "Watch a package"
  * button (it opens the simulator on the story package and plays it), Business and Employee as two smaller
  * entries, and a stylized NYC map on which a package is relayed in a loop; under it "How it works" in three
- * lines with the "See the numbers" button to the study page. The hero's text and map sit in one centered
- * column, and "How it works" has the same width (#853). No stats line and no footer. The header shows no
- * environment line on this page (App.tsx).
+ * lines with the "See the numbers" button to the study page. The hero fills the window under the header, so
+ * "How it works" starts below the fold. Its text sits in the left half of a centered column, which "How it
+ * works" shares (#853); the map has no frame and covers the hero's right half from edge to edge, or lies
+ * under the text on a phone (#869). No stats line and no footer. The header shows no environment line on
+ * this page (App.tsx).
  */
 export default function Landing({ initialSummary }: {
   /**
@@ -169,7 +171,8 @@ export default function Landing({ initialSummary }: {
   return (
     <div className="landing landing-nyc">
       <section className="landing-hero" aria-labelledby="landing-title">
-        {/* The dark ground runs edge to edge; the text and the map are in a centered column on it (#853). */}
+        {/* The dark ground runs edge to edge. The text is in the left half of a centered column (#853); the
+            map is outside that column, so it can run to the hero's top, bottom and right edge (#869). */}
         <div className="landing-hero-inner">
           <div className="landing-hero-copy">
             <LandingTitle />
@@ -177,8 +180,8 @@ export default function Landing({ initialSummary }: {
             <WorkspaceEntries paths={nycWorkspacePaths(summary, readIdentity())} />
             <LoadNote status={summary.status} />
           </div>
-          <LandingHeroMap />
         </div>
+        <LandingHeroMap />
       </section>
       <HowItWorks />
     </div>
