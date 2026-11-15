@@ -2,7 +2,7 @@
 
 Relay turns existing employee commutes into a coordinated B2B delivery network. A business describes a package, the backend matches it to an employee who already drives past the pickup and the drop-off, either directly or through a **relay point** (another business of the network that holds the package overnight), and a simulator plays the whole delivery cycle on a map of New York City.
 
-**Real NYC locations, simulated deliveries.** The businesses are real, well-known NYC businesses. The driving times, distances and route lines between them come from Google; they were fetched once and are committed in `fixtures/nyc/`. The employees, their homes (made-up points, shown by neighborhood only) and the deliveries are simulated by the backend. The default run has 18 businesses, 60 employees and 24 packages.
+**Real NYC locations, simulated deliveries.** The businesses are real, well-known NYC businesses. The driving times, distances and route lines between them come from Google; they were fetched once and are committed in `fixtures/nyc/`. The employees, their homes (made-up points, shown by neighborhood only) and the deliveries are simulated by the backend. The default run has 18 businesses, 120 employees and 24 packages. The 24 packages are planned on the first 60 employees; the other 60 start with both commutes free and are asked only when those 60 have no free commute for a request.
 
 ## What works with and without a key
 You need no key to run the app or the demo. Two optional Google keys add the map and live Google calls ([Google setup](#google-setup-keys-and-travel-data)). A third optional key lets Gemini read a delivery request written as a sentence ([Requests in plain English (Gemini)](#requests-in-plain-english-gemini)).
@@ -69,12 +69,12 @@ The run is saved in `data/state-v2.json` (gitignored, written by the server). A 
 
 The file is written at the first change of the run (a new delivery, a played journey, a saved commute) and when `npm start` is stopped with Ctrl-C. On a fresh clone where nothing was changed yet there may be no such file: then there is nothing to delete and the run is the default one. Leave `data/state-v2.source.json` where it is.
 
-A changed story or default limit starts a fresh run at the next restart: if `businesses.json`, `neighborhoods.json` or `demoStory.json` in `fixtures/nyc/`, or the default detour limit, changed since the run was saved, the server builds the default run from the current files, prints one line saying so, and keeps the old run as `data/state-v2.json.stale-<n>` (never deleted; remove it by hand when you no longer need it). It knows by a fingerprint of those inputs in `data/state-v2.source.json`; the travel cache is not part of it, so a saved commute does not reset the run.
+A changed story or default limit starts a fresh run at the next restart: if `businesses.json`, `neighborhoods.json` or `demoStory.json` in `fixtures/nyc/`, or the default employee count or detour limit, changed since the run was saved, the server builds the default run from the current files, prints one line saying so, and keeps the old run as `data/state-v2.json.stale-<n>` (never deleted; remove it by hand when you no longer need it). It knows by a fingerprint of those inputs in `data/state-v2.source.json`; the travel cache is not part of it, so a saved commute does not reset the run.
 
-So expect this on the first start after a `git pull` that changed the story, also on the demo machine. The line comes before the one about the built client:
+So expect this on the first start after a `git pull` that changed the story or the default employee count (as the change from 60 to 120 employees did), also on the demo machine. The line comes before the one about the built client:
 
 ```
-The NYC story files, the default detour limit or the default prices changed since data/state-v2.json was saved. Started from the new default run; the old run is kept as data/state-v2.json.stale-1.
+The NYC story files, the default employee count, the default detour limit or the default prices changed since data/state-v2.json was saved. Started from the new default run; the old run is kept as data/state-v2.json.stale-1.
 ```
 
 It is not an error. The deliveries made before the pull are in the `.stale-<n>` file and no longer in the app; the number goes up with every run that is set aside.
@@ -137,7 +137,7 @@ The package name is "Envelope" because the offline parser names a delivery by it
 
 With a Gemini key in `.env`, check the key once before the demo: `npx tsx scripts/gemini-check.ts "<sentence>"` prints `source: gemini` and exits with code 0 when Gemini wrote the draft, or `source: offline` with the reason (`reason: no key`, for example) and code 1 when the offline parser did ([Requests in plain English (Gemini)](#requests-in-plain-english-gemini)). Gemini may give the package another name than "Envelope"; the pages of the later steps then show that name.
 
-Rehearsing and the demo share one run. Use a fresh run for the real demo: the request is planned on commutes that are still free, and a rehearsal that chose **Find a delivery match** uses them up, so reset the run after it ([State file and reset](#state-file-and-reset)). One run arranges the request as the block says once: sent a second time it comes with other carriers than the block names, and a third time it is not matched ("Every matching commute is already carrying a package"). A rehearsal of only **Play**, **Back to start** and a package's journey adds no delivery and needs no reset.
+Rehearsing and the demo share one run. Use a fresh run for the real demo: the request is planned on commutes that are still free, and a rehearsal that chose **Find a delivery match** uses them up, so reset the run after it ([State file and reset](#state-file-and-reset)). One run arranges the request as the block says once: sent again it comes with other carriers than the block names, and the fifth time it is not matched ("Every matching commute is already carrying a package"). A rehearsal of only **Play**, **Back to start** and a package's journey adds no delivery and needs no reset.
 
 Press **Back to start** in the Simulator before step 2 if a journey or **Play** was watched earlier, the 30-second demo included: it leaves the clock on Day 2, and the offline parser then reads "ready at 4 p.m." as 4 p.m. of Day 2, which is outside the run. The card still holds 16:00 and the match is the same, but "Ready for pickup (Day 1)" is marked "Check this: not in your request". An earlier **Play** does not close **New delivery**. Should the Business page say "Locked" all the same, **Back to start** reopens it ([State file and reset](#state-file-and-reset)).
 

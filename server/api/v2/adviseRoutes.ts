@@ -18,7 +18,7 @@ import type express from 'express';
 import { z } from 'zod';
 import type { AdviseResponse } from '../../../shared/v2/api';
 import type { ApiError } from '../../../shared/v2/schemas';
-import type { Run as RunV2, Shipment, TravelProvider } from '../../../shared/v2/types';
+import type { DeliveryPlan, Run as RunV2, Shipment, TravelProvider } from '../../../shared/v2/types';
 import { PARSE_TEXT_MAX } from '../../../shared/v2/parseRequest';
 import {
   advise, KINDS, type AdviseDraft, type AdvisorEngine, type AdvisorGeminiSettings, type CandidateAnswer, type PlanKind,
@@ -29,6 +29,7 @@ import { assignShipments, generateCandidates, rankCandidates, type MatchContext 
 import { pairKey } from '../../../shared/v2/types';
 import type { Store } from '../../store';
 import { matchContext } from './pipeline';
+import { matchTiers } from './storyFirst';
 import {
   DEADLINE_BEFORE_READY, DEADLINE_OUTSIDE_WINDOW, READY_OUTSIDE_WINDOW, SAME_BUSINESS, UNKNOWN_BUSINESS,
 } from './shipmentOps';
@@ -157,7 +158,9 @@ export function flexWindowOf(settings: RunV2['scenario']['settings']): number {
  * The advisor's read-only view of the run. `candidates` lists every plan `generateCandidates` builds for a
  * throwaway shipment with the draft's businesses and the given times (direct and relay, every relay point and
  * carrier pair that fits) whose trips are all free in the run's current plans, in the matcher's own allocation
- * order (`rankCandidates`): p1 is the plan POST /shipments would pick, and on a tie the advisor prefers it. A kind
+ * order (`rankCandidates`): p1 is the plan POST /shipments would pick, and on a tie the advisor prefers it. On the
+ * default run the plans are those on the story's 60 employees while they have a free one, as POST /shipments
+ * matches (storyFirst.ts, #966); the added employees' plans are listed only when the story's have none. A kind
  * with no free plan gets the reason of `bestPlansByKind` (#954); no plan at all gets the matcher's own reason
  * (`assignShipments`). Nothing of `run` is changed.
  */
@@ -165,7 +168,7 @@ export function advisorEngine(run: RunV2, travel: TravelProvider, draft: AdviseD
   const { scenario } = run;
   const employees = new Map(scenario.employees.map((e) => [e.id, e.name]));
   const businesses = new Map(scenario.businesses.map((b) => [b.id, b.name]));
-  const ctx = memoized(matchContext(run, travel));
+  const tiers = matchTiers(memoized(matchContext(run, travel)), scenario);
   const reserved = new Set(run.assignments.plans.flatMap((plan) => plan.legs.map((leg) => leg.tripId)));
   return {
     draft,
@@ -175,8 +178,18 @@ export function advisorEngine(run: RunV2, travel: TravelProvider, draft: AdviseD
     flexWindowMin: flexWindowOf(scenario.settings),
     candidates(readyMin, deadlineMin): CandidateAnswer {
       const shipment = adviceShipment(draft, readyMin, deadlineMin);
-      const plans = rankCandidates(generateCandidates(shipment, ctx, 'with_relay'), ctx.settings)
-        .filter((plan) => plan.legs.every((leg) => !reserved.has(leg.tripId)));
+      // The order POST /shipments matches in (storyFirst.ts, #966): the story's employees, then everyone. The
+      // options and the reasons come from the first of the two that has a free plan, or from everyone.
+      let ctx = tiers[tiers.length - 1];
+      let plans: DeliveryPlan[] = [];
+      for (const tier of tiers) {
+        plans = rankCandidates(generateCandidates(shipment, tier, 'with_relay'), tier.settings)
+          .filter((plan) => plan.legs.every((leg) => !reserved.has(leg.tripId)));
+        if (plans.length > 0) {
+          ctx = tier;
+          break;
+        }
+      }
       const reasons: Partial<Record<PlanKind, string>> = {};
       const missing = KINDS.filter((kind) => !plans.some((plan) => plan.kind === kind));
       if (missing.length > 0) {

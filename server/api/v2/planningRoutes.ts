@@ -15,7 +15,7 @@ import type { Store } from '../../store';
 import { takesNoOptions } from './bodyGuard';
 import { sendTravelError, travelUnavailable } from './errors';
 import { createInitialRun } from './initialRun';
-import { matchPending, type PipelineDeps } from './pipeline';
+import { matchEverything, type PipelineDeps } from './pipeline';
 import {
   beginNewCycle, clearForRecompute, exportRun, nextRunId, parseImportedRun, planGenerate,
   type GenerateInputs, type TravelPairs,
@@ -48,11 +48,13 @@ const fileSafe = (runId: string) => runId.replace(/[^A-Za-z0-9._-]/g, '_');
  * Matches every package of an emptied run again (QUESTIONS pass 6). The notifications of the run it
  * replaces are the basis for the pipeline's reconcile step, so a plan that keeps its ID keeps its
  * notification IDs and `createdSeq` with the text rewritten, and the rest are dropped (pass 12).
+ * The match is story first (#966, storyFirst.ts): on the default run the 24 story plans come back as they
+ * were, and the employees added to the story's 60 carry only requests that were sent since.
  * A missing travel pair throws TravelDataMissingError and nothing is stored.
  */
 function rematchAll(emptied: Run, previous: Notification[], deps: PipelineDeps): Run {
   emptied.notifications = previous;
-  matchPending(emptied, emptied.scenario.shipments.map((s) => s.id), deps);
+  matchEverything(emptied, deps);
   return emptied;
 }
 

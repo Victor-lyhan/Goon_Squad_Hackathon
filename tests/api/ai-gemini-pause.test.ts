@@ -25,7 +25,7 @@ import type { AdviseResponse } from '../../shared/v2/api';
 import type { ParseRequestResponse } from '../../shared/v2/parseRequest';
 import type { Run as RunV2, Shipment, TravelProvider } from '../../shared/v2/types';
 import { ownOrigin } from './own-origin-helper';
-import { T, startBootstrapApi, tempRepo, type BootstrapApi, type BootstrapApiOptions, type TempRepo } from './v2-bootstrap-helper';
+import { T, startBootstrapApi, tempRepo, useStoryOnlyRun, type BootstrapApi, type BootstrapApiOptions, type TempRepo } from './v2-bootstrap-helper';
 
 // Not a real key. It starts with `AQ` like a new AI Studio key.
 const KEY = 'AQ.FAKE_pause-key-3c9e';
@@ -147,7 +147,7 @@ async function start(mode: Mode, gemini: Partial<GeminiOptions> = {}) {
   const store = api.store as Store<RunV2>;
   const travel = api.runtime.deps.travel as TravelProvider;
   const run = store.get();
-  // shp-7 of the sample run has one plan as typed (tests/api/v2-advise.test.ts); shp-8 has none.
+  // shp-7 of the sample run has one plan as typed (tests/api/v2-advise.test.ts); shp-8 has none on the story's 60 employees.
   const draft = draftOf(run, 'shp-7');
   return {
     gemini: fake.state, pause, store, run, draft,
@@ -289,7 +289,8 @@ describe('one failed parse-request call pauses parse-request; advise has no paus
 
   it('a request with no plan asks Gemini nothing: the offline note, and no pause', async () => {
     const s = await start('good');
-    const unmatched = draftOf(s.run, 'shp-8');
+    // On the story's 60 employees alone; on the default run an added employee has a free commute (#966).
+    const unmatched = draftOf(await useStoryOnlyRun(api as BootstrapApi), 'shp-8');
 
     const answer = (await advise(unmatched)).body;
 

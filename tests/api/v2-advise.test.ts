@@ -17,7 +17,7 @@ import type { Store } from '../../server/store';
 import type { AdviseResponse } from '../../shared/v2/api';
 import type { Run as RunV2, Shipment, TravelProvider } from '../../shared/v2/types';
 import { candidatePlanOf, expectEnginePrices, withFlexWindow } from './v2-advise-pricing-helper';
-import { T, startBootstrapApi, type BootstrapApi } from './v2-bootstrap-helper';
+import { T, startBootstrapApi, useStoryOnlyRun, type BootstrapApi } from './v2-bootstrap-helper';
 
 const KEY = 'AQ.FAKE_advise-route-77e2';
 const MODEL = 'gemini-2.5-flash';
@@ -201,17 +201,19 @@ describe('POST /api/v2/advise without a Gemini key', () => {
         for (const leg of plan.legs) expect(reserved.has(leg.tripId)).toBe(false);
       }
     }
-    // shp-5's own plan holds the only commutes that fit it as typed: the first what-if with a plan is offered.
-    const draft = draftOf(run, 'shp-5');
+    // On the story's 60 employees alone, shp-5's own plan holds the only commutes that fit it as typed: the
+    // first what-if with a plan is offered. (On the default run an added employee has a free one, #966.)
+    const storyOnly = await useStoryOnlyRun(api as BootstrapApi);
+    const draft = draftOf(storyOnly, 'shp-5');
     const body = await adviseOk(draft);
     expect(body.note).toBe('As typed, every matching commute is already carrying a package.');
     expect(body.options.map((o) => o.changes)).toStrictEqual([{ readyMin: draft.readyMin - 120 }]);
-    expectEngineNumbers(run, travel, draft, body);
+    expectEngineNumbers(storyOnly, travel, draft, body);
   }, T);
 
   it('a draft no what-if can match either: 200 with no options and a note', async () => {
-    const { store } = await start();
-    const body = await adviseOk(draftOf(store.get(), 'shp-8'));
+    await start();
+    const body = await adviseOk(draftOf(await useStoryOnlyRun(api as BootstrapApi), 'shp-8'));
     expect(body).toStrictEqual({
       options: [], source: 'offline',
       note: 'Even with more time, every matching commute is already carrying a package.',
@@ -417,8 +419,8 @@ describe('POST /api/v2/advise with a Gemini key', () => {
   }, T);
 
   it('no plan, a draft still missing a field, and a refused draft ask Gemini nothing; each has its one line', async () => {
-    const { store, sent, lines } = await start({ turns: [] });
-    const run = store.get();
+    const { sent, lines } = await start({ turns: [] });
+    const run = await useStoryOnlyRun(api as BootstrapApi); // shp-8 has no plan on the story's 60 employees
     await adviseOk(draftOf(run, 'shp-8'), SENTENCE);
     await adviseOk({ ...draftOf(run, 'shp-1'), destinationBusinessId: null });
     expect((await advise({ ...draftOf(run, 'shp-1'), readyMin: 100 })).status).toBe(400);
