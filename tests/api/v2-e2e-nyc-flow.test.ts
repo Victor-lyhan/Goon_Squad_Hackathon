@@ -281,8 +281,12 @@ describe('MVP II demo flow on the committed NYC cache, no key', () => {
     const refused = await api.post<{ error: string }>('/shipments', deliveryRequest('e2e-nyc-flow-after-play', created.shipment.originBusinessId, created.shipment.destinationBusinessId, city.settings));
     expect(refused.status).toBe(409);
     expect(refused.body.error).toEqual(expect.any(String));
+    // Pause is final (#747): the ticker is still running, and the run is the one the pause answered with.
+    // Read once on purpose: a ticker step that lands after the answer is a server fault, not a slow test
+    // (tests/api/v2-pause-final.test.ts forces that order).
     const after = await api.simulator();
     expect(after.version).toBe(paused.version);
+    expect(after.clock).toStrictEqual(paused.clock);
     expect(after.shipments).toStrictEqual(planned.shipments);
     expect(after.plans).toStrictEqual(planned.plans);
   }, T);

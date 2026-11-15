@@ -274,16 +274,37 @@ describe('v2 clock ticker: one mutation at a time', () => {
     expect(gated.stats.maxInFlight).toBe(1);
   }, T);
 
-  it('a pause that lands before a queued tick wins: the clock does not move after it', async () => {
+  it('a pause that lands before a queued tick wins: neither the clock nor the version moves after it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const gated = gatedStore(runWith({ playing: true, timeMin: 930, speed: 600 }));
     start(gated.store, 100);
     const paused = control(gated.store, { action: 'pause' }); // queued first
     clock.advance(100);
     vi.advanceTimersByTime(100); // the tick still saw playing: true and queued 60 minutes
     await gated.release();
-    await paused;
+    const answered = await paused;
     await gated.release();
     expect(gated.store.get().clock).toEqual({ phase: 'locked', playing: false, timeMin: 930, speed: 600 });
+    // #747: the queued step is dropped whole. The run is the one the pause answered with, version included,
+    // and a dropped step is not reported as a failed write.
+    expect(gated.store.get()).toBe(answered);
+    expect(answered.version).toBe(12 + 1);
+    expect(warn).not.toHaveBeenCalled();
+
+    // Later ticks see the paused clock and queue nothing; the next Play owes none of the dropped minutes.
+    for (let i = 0; i < 3; i++) {
+      clock.advance(100);
+      vi.advanceTimersByTime(100);
+    }
+    expect(gated.waiting()).toBe(0);
+    const playing = control(gated.store, { action: 'play' });
+    await gated.release();
+    await playing;
+    clock.advance(100);
+    vi.advanceTimersByTime(100);
+    await gated.release();
+    expect(gated.store.get().clock.timeMin).toBe(930 + 60); // this tick only
+    expect(gated.store.get().version).toBe(12 + 3); // pause, play, one step
   }, T);
 });
 
