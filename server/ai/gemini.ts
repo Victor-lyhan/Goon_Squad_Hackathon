@@ -6,6 +6,7 @@
 // - every error is a GeminiUnavailable built from fixed text (plus an HTTP status number or the time limit):
 //   never the key, the response body or the text of a thrown error (which can quote a header, and so the key);
 // - one attempt, no retry, and a hard time limit, so the caller can fall back fast;
+// - thinking is turned off for the 2.5 Flash models (`thinkingConfigFor`), so an answer fits that limit;
 // - this file logs nothing and never reads the environment (the caller does, with server/ai/env.ts).
 import type { FetchLike } from '../geo/googleClient';
 
@@ -79,9 +80,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** The model id as the API names it: trimmed, without a leading `models/`. */
+function modelId(model: string): string {
+  return model.trim().replace(/^models\//, '');
+}
+
 /** The `generateContent` URL of a model. The name is encoded, so it can never add a query string. */
 export function generateContentUrl(model: string): string {
-  return `${GEMINI_MODELS_URL}/${encodeURIComponent(model.trim().replace(/^models\//, ''))}:generateContent`;
+  return `${GEMINI_MODELS_URL}/${encodeURIComponent(modelId(model))}:generateContent`;
+}
+
+/** Model ids that start with this take a thinking budget of 0: `gemini-2.5-flash` and `gemini-2.5-flash-lite`. */
+export const NO_THINKING_MODEL_PREFIX = 'gemini-2.5-flash';
+
+/**
+ * The `generationConfig.thinkingConfig` of a model, or null when none is sent.
+ * 2.5 Flash thinks by default, which can push an answer past the 6 s limit (PR #793), so its budget is set
+ * to 0: thinking off. Every other model gets no `thinkingConfig` and keeps its default: `gemini-2.5-pro`
+ * cannot turn thinking off (a budget of 0 is an HTTP 400 there), and other model families take other settings.
+ */
+export function thinkingConfigFor(model: string): { thinkingBudget: 0 } | null {
+  return modelId(model).toLowerCase().startsWith(NO_THINKING_MODEL_PREFIX) ? { thinkingBudget: 0 } : null;
 }
 
 /** The text of the first candidate: its text parts joined, "thought" parts left out. Null when there is none. */
@@ -107,10 +126,15 @@ export async function generateJson(opts: GenerateJsonOptions): Promise<unknown> 
   if (apiKey === '') throw new GeminiUnavailable('no_key');
   if (typeof opts.model !== 'string' || opts.model.trim() === '') throw new GeminiUnavailable('no_model');
 
+  const thinkingConfig = thinkingConfigFor(opts.model);
   const body = JSON.stringify({
     ...(systemText.trim() === '' ? {} : { systemInstruction: { parts: [{ text: systemText }] } }),
     contents: [{ role: 'user', parts: [{ text: userText }] }],
-    generationConfig: { responseMimeType: 'application/json', responseSchema },
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema,
+      ...(thinkingConfig === null ? {} : { thinkingConfig }),
+    },
   });
 
   const controller = new AbortController();

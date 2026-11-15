@@ -7,7 +7,9 @@ import path from 'node:path';
 import { inspect } from 'node:util';
 import { DEFAULT_GEMINI_MODEL, GEMINI_KEY_NAME, GEMINI_MODEL_NAME, geminiKey, geminiModel, loadDotEnv } from '../../server/ai/env';
 import { loadDotEnv as geoLoadDotEnv } from '../../server/geo/env';
-import { DEFAULT_GEMINI_TIMEOUT_MS, GEMINI_MODELS_URL, GeminiUnavailable, generateContentUrl, generateJson } from '../../server/ai/gemini';
+import {
+  DEFAULT_GEMINI_TIMEOUT_MS, GEMINI_MODELS_URL, GeminiUnavailable, NO_THINKING_MODEL_PREFIX, generateContentUrl, generateJson, thinkingConfigFor,
+} from '../../server/ai/gemini';
 import type { GenerateJsonOptions } from '../../server/ai/gemini';
 import type { FetchInitLike, FetchLike } from '../../server/geo/googleClient';
 
@@ -178,8 +180,40 @@ describe('generateJson: the request', () => {
     expect(JSON.parse(calls[0].init?.body ?? '')).toEqual({
       systemInstruction: { parts: [{ text: 'Turn the request into a delivery draft.' }] },
       contents: [{ role: 'user', parts: [{ text: 'Deliver an envelope from Etsy to Brooklyn Roasting by 10 a.m. tomorrow.' }] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA },
+      // MODEL is gemini-2.5-flash: its thinking is turned off.
+      generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, thinkingConfig: { thinkingBudget: 0 } },
     });
+  });
+
+  it('turns thinking off for every gemini-2.5-flash model: a thinking budget of 0 in generationConfig', async () => {
+    for (const model of [
+      'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash-preview-09-2025', 'gemini-2.5-flash-lite-preview-06-17',
+      'models/gemini-2.5-flash', '  gemini-2.5-flash-lite\n', 'Gemini-2.5-Flash',
+    ]) {
+      const { calls, fetchImpl } = fakeFetch(() => ({ status: 200, body: answerWith('{}') }));
+      await generateJson(options(fetchImpl, { model }));
+      expect(calls, model).toHaveLength(1);
+      expect(JSON.parse(calls[0].init?.body ?? '').generationConfig, model).toEqual({
+        responseMimeType: 'application/json', responseSchema: SCHEMA, thinkingConfig: { thinkingBudget: 0 },
+      });
+      expect(thinkingConfigFor(model), model).toEqual({ thinkingBudget: 0 });
+    }
+    expect(NO_THINKING_MODEL_PREFIX).toBe('gemini-2.5-flash');
+  });
+
+  it('sends no thinkingConfig for any other model (gemini-2.5-pro cannot turn thinking off)', async () => {
+    for (const model of [
+      'gemini-2.5-pro', 'models/gemini-2.5-pro', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.5-flas', 'gemini-3-flash-preview',
+      'my-gemini-2.5-flash',
+    ]) {
+      const { calls, fetchImpl } = fakeFetch(() => ({ status: 200, body: answerWith('{}') }));
+      await generateJson(options(fetchImpl, { model }));
+      expect(calls, model).toHaveLength(1);
+      const sent = JSON.parse(calls[0].init?.body ?? '');
+      expect(sent.generationConfig, model).toEqual({ responseMimeType: 'application/json', responseSchema: SCHEMA });
+      expect(calls[0].init?.body, model).not.toContain('thinking');
+      expect(thinkingConfigFor(model), model).toBeNull();
+    }
   });
 
   it('sends no system instruction when the system text is blank', async () => {
