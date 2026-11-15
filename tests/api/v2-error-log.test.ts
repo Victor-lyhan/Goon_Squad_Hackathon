@@ -82,7 +82,7 @@ let base: string;
 beforeAll(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v2-error-log-'));
   const app = createApp({ clientDist: path.join(dir, 'no-dist'), v2: { travel: fakeTravel, store: fakeStore, extraRoutes: testRoutes } });
-  server = app.listen(0);
+  server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }, T);

@@ -29,8 +29,8 @@ let onHungRequest: (() => void) | undefined;
 const hungRequestArrives = () => new Promise<void>((resolve) => { onHungRequest = resolve; });
 
 beforeAll(async () => {
-  server = createApp().listen(0);
-  hung = http.createServer(() => { onHungRequest?.(); /* never answers */ }).listen(0);
+  server = createApp().listen(0, '127.0.0.1');
+  hung = http.createServer(() => { onHungRequest?.(); /* never answers */ }).listen(0, '127.0.0.1');
   await Promise.all([server, hung].map((s) => new Promise((r) => s.once('listening', r))));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   hungBase = `http://127.0.0.1:${(hung.address() as AddressInfo).port}`;
@@ -87,7 +87,7 @@ describe('probeHealth', () => {
   }, TIMEOUT);
 
   it('is false on a non-2xx reply', async () => {
-    const bad = http.createServer((_q, r) => { r.statusCode = 503; r.end('down'); }).listen(0);
+    const bad = http.createServer((_q, r) => { r.statusCode = 503; r.end('down'); }).listen(0, '127.0.0.1');
     await new Promise((r) => bad.once('listening', r));
     target = () => `http://127.0.0.1:${(bad.address() as AddressInfo).port}`;
     expect(await api.probeHealth()).toBe(false);

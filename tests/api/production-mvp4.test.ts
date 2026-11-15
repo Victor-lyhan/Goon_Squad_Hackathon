@@ -16,13 +16,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import type { AddressInfo } from 'node:net';
 import { CLIENT_SERVED_LINE, startServer, type RelayServer } from '../../server/index';
 import { DEFAULT_V2_STATE_PATH } from '../../server/api/v2/bootRun';
 import { GEMINI_KEY_NAME } from '../../server/ai/env';
 import type { BusinessesResponse } from '../../shared/v2/api';
 import type { ParseRequestResponse } from '../../shared/v2/parseRequest';
 import { T, tempRepo, type TempRepo } from './v2-bootstrap-helper';
+import { ownAddress } from './own-origin-helper';
 
 const INDEX = '<!doctype html><html><head><title>Relay</title></head><body><div id="root">relay-shell</div></body></html>';
 /** The committed study page (`npm run study` writes it, #787). `npm run build` copies it into client/dist. */
@@ -39,7 +39,7 @@ const FAKE_GEMINI_KEY = 'FAKE-gemini-key-4c1d';
 
 // ---------- the server ----------
 
-type Started = { server: RelayServer; repo: TempRepo; port: number; lines: string[] };
+type Started = { server: RelayServer; repo: TempRepo; host: string; port: number; lines: string[] };
 const started: Started[] = [];
 
 /** `npm start` on a temp repo whose client/dist holds index.html and a copy of the study page. */
@@ -60,13 +60,14 @@ async function boot(env: Record<string, string> = {}): Promise<Started> {
     statePath: repo.statePath,
     exit: () => undefined,
   });
-  const one: Started = { server, repo, port: 0, lines };
+  const one: Started = { server, repo, host: '', port: 0, lines };
   started.push(one);
   await new Promise<void>((resolve, reject) => {
     server.once('listening', () => resolve());
     server.once('error', reject);
   });
-  one.port = (server.address() as AddressInfo).port;
+  // Not 127.0.0.1:<port> unasked: another program may answer there (own-origin-helper.ts). Over node:http, so the spy sees nothing.
+  ({ host: one.host, port: one.port } = await ownAddress(server));
   return one;
 }
 
@@ -77,7 +78,7 @@ function request(one: Started, method: string, url: string, opts: { json?: unkno
   const payload = opts.json === undefined ? null : Buffer.from(JSON.stringify(opts.json));
   return new Promise<Answer>((resolve, reject) => {
     const req = http.request({
-      host: '127.0.0.1', port: one.port, method, path: url, agent: false,
+      host: one.host, port: one.port, method, path: url, agent: false,
       headers: { ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': String(payload.length) } : {}), ...opts.headers },
     }, (res) => {
       const chunks: Buffer[] = [];
