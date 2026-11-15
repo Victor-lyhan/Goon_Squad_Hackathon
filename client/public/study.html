@@ -24,23 +24,26 @@ strong,b,th,dd{font-weight:600}
 .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 12px;margin:14px 0 0}
 h1{font-size:22px;line-height:1.3;margin:0;font-weight:600;letter-spacing:-0.01em}
 .sub{margin:0;color:#5B6472}
-h2{font-size:19px;line-height:1.3;margin:44px 0 4px;font-weight:600}
+h2{font-size:20px;line-height:1.3;margin:64px 0 6px;font-weight:600;letter-spacing:-0.01em}
 p{margin:0 0 12px}
-.lede{font-size:17px;color:#5B6472;max-width:640px;margin:20px 0 0}
+.lede{font-size:17px;color:#5B6472;max-width:640px;margin:24px 0 0}
 .lede a{white-space:nowrap}
 .intro{color:#5B6472;max-width:640px}
-.after{margin-top:20px}
+.after{margin-top:32px}
 .how{max-width:640px}
-.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));column-gap:0;row-gap:0;margin:12px 0 0;background:#171C24;color:#FFFFFF;border-radius:6px;overflow:hidden}
-.tile{display:grid;grid-row:span 3;grid-template-rows:subgrid;row-gap:0;margin:-1px 0 0 -1px;padding:17px 16px 16px 17px;border:solid #3A414D;border-width:1px 0 0 1px}
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));column-gap:0;row-gap:0;margin:16px 0 0;background:#171C24;color:#FFFFFF;border-radius:6px;overflow:hidden}
+.tile{display:grid;grid-column:span 2;grid-row:span 3;grid-template-rows:subgrid;row-gap:0;margin:-1px 0 0 -1px;padding:24px 16px 24px 17px;border:solid #3A414D;border-width:1px 0 0 1px}
+.tile:nth-child(n+4){grid-column:span 3;padding-top:14px;padding-bottom:14px}
 .tile p{margin:0}
-.tile-label{font-size:13px;color:#C3C8D0;align-self:end}
-.tile-value{font-size:28px;font-weight:600;line-height:1.25;letter-spacing:-0.02em;margin:2px 0 4px}
-.tile-detail{font-size:13px;color:#C3C8D0}
-.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,314px),1fr));gap:12px;margin-top:12px}
-.grid2{display:grid;grid-template-columns:minmax(314px,1fr) minmax(0,2fr);gap:12px 24px;align-items:start;margin-top:12px}
-.card{margin:0;padding:14px 16px 12px;background:#FFFFFF;border:solid #E3E3DE;border-width:1px;border-radius:6px;min-width:0}
-figcaption{font-size:14px;font-weight:600;margin-bottom:10px}
+.tile-label{font-size:14px;color:#C3C8D0;align-self:end}
+.tile-value{font-size:40px;font-weight:600;line-height:1.2;letter-spacing:-0.02em;margin:4px 0 6px}
+.tile:nth-child(n+4) .tile-value{font-size:20px;line-height:1.3;margin:2px 0}
+.tile-detail{font-size:14px;color:#C3C8D0}
+.tile:nth-child(n+4) .tile-label,.tile:nth-child(n+4) .tile-detail{font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,314px),1fr));gap:16px;margin-top:16px}
+.grid2{display:grid;grid-template-columns:minmax(314px,1fr) minmax(0,2fr);gap:16px 32px;align-items:start;margin-top:16px}
+.card{margin:0;padding:18px 16px 16px;background:#FFFFFF;border:solid #E3E3DE;border-width:1px;border-radius:6px;min-width:0}
+figcaption{font-size:14px;font-weight:600;margin-bottom:14px}
 svg{display:block;width:100%;height:auto;max-width:392px}
 svg text{font-size:12px}
 .t{fill:#171C24}
@@ -51,23 +54,26 @@ svg text{font-size:12px}
 .f-track{fill:#E8EEF1}
 .f-ontime{fill:#0F8A5F}
 .f-late{fill:#A4322A}
-.legend{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:10px 0 0;padding:0;font-size:13px;color:#5B6472}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:12px 0 0;padding:0;font-size:13px;color:#5B6472}
 .legend li{display:flex;align-items:baseline;gap:6px}
 .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;flex:none}
-.note{font-size:13px;color:#5B6472;margin:10px 0 0}
-.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 20px;margin:16px 0 0;max-width:640px}
-.facts div{border-top:1px solid #E3E3DE;padding-top:6px}
+.note{font-size:13px;color:#5B6472;margin:12px 0 0}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 24px;margin:24px 0 0;max-width:640px}
+.facts div{border-top:1px solid #E3E3DE;padding-top:8px}
 .facts dt{font-size:13px;color:#5B6472}
 .facts dd{margin:0}
-.scroll{overflow-x:auto;margin-top:12px;background:#FFFFFF;border:1px solid #E3E3DE;border-radius:6px}
+.scroll{overflow-x:auto;margin-top:16px;background:#FFFFFF;border:1px solid #E3E3DE;border-radius:6px}
 table{border-collapse:collapse;width:100%;font-size:14px}
-th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid #E3E3DE}
+th,td{text-align:left;vertical-align:top;padding:12px 16px;border-top:1px solid #E3E3DE}
 thead th{border-top:0;font-size:12px;color:#5B6472;white-space:nowrap}
-.assumptions tbody th{width:26%}
-.assumptions .value{width:24%}
-.assumptions code{display:block;margin-top:2px;font-size:12px;color:#5B6472;overflow-wrap:anywhere}
+.assumptions th,.assumptions td{padding:14px 16px}
+.assumptions tbody th{width:27%}
+.assumptions .value{width:21%;font-size:13px;color:#5B6472}
+.assumptions .value b{display:block;font-size:16px;line-height:1.4;color:#171C24}
+.assumptions td:last-child{color:#5B6472}
+.assumptions code{display:block;margin-top:2px;font-size:12px;font-weight:400;color:#5B6472;overflow-wrap:anywhere}
 .figures{font-size:13px;font-variant-numeric:tabular-nums}
-.figures th,.figures td{padding:8px 12px;white-space:nowrap}
+.figures th,.figures td{padding:10px 14px;white-space:nowrap}
 .figures td{text-align:right}
 .figures thead th{text-align:right;white-space:normal;vertical-align:bottom}
 .figures thead th:first-child,.figures.spread thead th:nth-child(2){text-align:left}
@@ -79,11 +85,9 @@ thead th{border-top:0;font-size:12px;color:#5B6472;white-space:nowrap}
 details{margin-top:12px}
 summary{cursor:pointer;font-weight:600;color:#1D5075;padding:6px 0}
 .skipped{font-size:13px;color:#5B6472;padding-left:20px}
-footer{margin-top:44px;padding-top:12px;border-top:1px solid #E3E3DE;font-size:13px;color:#5B6472}
-@media (max-width:1079px){
-.tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
-.tile{grid-column:span 2}
-.tile:nth-child(n+4){grid-column:span 3}
+footer{margin-top:64px;padding-top:16px;border-top:1px solid #E3E3DE;font-size:13px;color:#5B6472}
+@media (min-width:641px) and (max-width:879px){
+.tile-value{font-size:28px}
 }
 @media (max-width:860px){
 .grid2{grid-template-columns:minmax(0,1fr)}
@@ -91,13 +95,15 @@ footer{margin-top:44px;padding-top:12px;border-top:1px solid #E3E3DE;font-size:1
 }
 @media (max-width:640px){
 main{padding:12px 16px 40px}
+h2{margin-top:48px}
+.tile{padding-top:20px;padding-bottom:20px}
 .tiles{grid-template-columns:minmax(0,1fr)}
 .tile,.tile:nth-child(n+4){grid-column:auto}
 .figures th,.figures td{padding:6px}
 .figures.spread td:last-child{white-space:normal}
 .figures.detour tbody th,.figures.detour thead th:first-child{position:sticky;left:0;padding-right:10px;background:#FFFFFF;box-shadow:inset -1px 0 0 #E3E3DE}
 .assumptions thead{display:none}
-.assumptions tr{display:block;padding:12px 14px;border-top:1px solid #E3E3DE}
+.assumptions tr{display:block;padding:14px 16px;border-top:1px solid #E3E3DE}
 .assumptions tbody tr:first-child{border-top:0}
 .assumptions th,.assumptions td{display:block;width:auto!important;padding:0;border:0}
 .assumptions .value{margin:4px 0}
@@ -134,7 +140,7 @@ main{padding:12px 16px 40px}
 
 <section>
 <h2>Spread across runs</h2>
-<p class="intro">The average is over all 49,254 matched packages. The median and the percentiles are over the 3,013 runs that matched a package, one per-package value per run: 8 in 10 runs lie between the 10th and the 90th percentile. 11 runs matched no package and are not shown.</p>
+<p class="intro">Averages are over all 49,254 matched packages. Medians and percentiles are over the 3,013 runs that matched a package, one value per run; 8 in 10 runs fall between the 10th and the 90th percentile. 11 runs matched no package and are not shown.</p>
 <div class="scroll" tabindex="0" role="region" aria-label="Spread across runs">
 <table class="figures spread">
 <thead><tr><th scope="col">Per package</th><th scope="col">Sent with</th><th scope="col">Average</th><th scope="col">Median</th><th scope="col">10th to 90th percentile</th></tr></thead>
@@ -148,7 +154,7 @@ main{padding:12px 16px 40px}
 </tbody>
 </table>
 </div>
-<p class="intro after">What Relay saved per matched package, run by run. Each column counts the runs in that range; a value below zero means the courier was ahead in that run.</p>
+<p class="intro after">What Relay saved per package, run by run. Each column counts the runs in that range. Below zero, the courier was ahead.</p>
 <div class="grid3">
 <figure class="card"><figcaption>Cost saved per package</figcaption><svg data-chart="runs-cost" viewBox="0 0 280 192" role="img" aria-label="Runs by cost saved per package: 3,013 runs, from $4.50 to $12.00"><line class="grid" x1="44" x2="256" y1="148" y2="148"/><text class="tm num" x="38" y="152" text-anchor="end">0</text><line class="grid" x1="44" x2="256" y1="108" y2="108"/><text class="tm num" x="38" y="112" text-anchor="end">500</text><line class="grid" x1="44" x2="256" y1="68" y2="68"/><text class="tm num" x="38" y="72" text-anchor="end">1,000</text><line class="grid" x1="44" x2="256" y1="28" y2="28"/><text class="tm num" x="38" y="32" text-anchor="end">1,500</text><g><title>$4.00 to $5.00: 16 runs</title><path class="f-relay" d="M45.25 148v0a1.28 1.28 0 0 1 1.28 -1.28h21.44a1.28 1.28 0 0 1 1.28 1.28v0z"/></g><g><title>$5.00 to $6.00: 17 runs</title><path class="f-relay" d="M71.75 148v0a1.36 1.36 0 0 1 1.36 -1.36h21.28a1.36 1.36 0 0 1 1.36 1.36v0z"/></g><g><title>$6.00 to $7.00: 95 runs</title><path class="f-relay" d="M98.25 148v-3.6a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v3.6z"/></g><g><title>$7.00 to $8.00: 472 runs</title><path class="f-relay" d="M124.75 148v-33.76a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v33.76z"/></g><g><title>$8.00 to $9.00: 1,246 runs</title><path class="f-relay" d="M151.25 148v-95.68a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v95.68z"/></g><text class="t num" x="163.25" y="43.32" text-anchor="middle">1,246</text><g><title>$9.00 to $10.00: 950 runs</title><path class="f-relay" d="M177.75 148v-72a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v72z"/></g><g><title>$10.00 to $11.00: 182 runs</title><path class="f-relay" d="M204.25 148v-10.56a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v10.56z"/></g><g><title>$11.00 to $12.00: 35 runs</title><path class="f-relay" d="M230.75 148v0a2.8 2.8 0 0 1 2.8 -2.8h18.4a2.8 2.8 0 0 1 2.8 2.8v0z"/></g><line class="grid" x1="44" x2="44" y1="148" y2="152"/><text class="tm num" x="44" y="168" text-anchor="middle">$4</text><line class="grid" x1="70.5" x2="70.5" y1="148" y2="152"/><line class="grid" x1="97" x2="97" y1="148" y2="152"/><text class="tm num" x="97" y="168" text-anchor="middle">$6</text><line class="grid" x1="123.5" x2="123.5" y1="148" y2="152"/><line class="grid" x1="150" x2="150" y1="148" y2="152"/><text class="tm num" x="150" y="168" text-anchor="middle">$8</text><line class="grid" x1="176.5" x2="176.5" y1="148" y2="152"/><line class="grid" x1="203" x2="203" y1="148" y2="152"/><text class="tm num" x="203" y="168" text-anchor="middle">$10</text><line class="grid" x1="229.5" x2="229.5" y1="148" y2="152"/><line class="grid" x1="256" x2="256" y1="148" y2="152"/><text class="tm num" x="256" y="168" text-anchor="middle">$12</text><text class="tm" x="150" y="186" text-anchor="middle">Saved per package, dollars</text><text class="tm" x="0" y="12">Number of runs</text></svg><p class="note">Median $8.72. 10th to 90th percentile: $7.56 to $9.79. Relay ahead in 3,013 of 3,013 runs.</p></figure>
 <figure class="card"><figcaption>Miles saved per package</figcaption><svg data-chart="runs-miles" viewBox="0 0 280 192" role="img" aria-label="Runs by miles saved per package: 3,013 runs, from −7.2 mi to 8.3 mi"><line class="grid" x1="44" x2="256" y1="148" y2="148"/><text class="tm num" x="38" y="152" text-anchor="end">0</text><line class="grid" x1="44" x2="256" y1="88" y2="88"/><text class="tm num" x="38" y="92" text-anchor="end">1,000</text><line class="grid" x1="44" x2="256" y1="28" y2="28"/><text class="tm num" x="38" y="32" text-anchor="end">2,000</text><g><title>−8.0 mi to −6.0 mi: 1 run</title><path class="f-relay" d="M45 148v0a0.06 0.06 0 0 1 0.06 -0.06h21.44a0.06 0.06 0 0 1 0.06 0.06v0z"/></g><g><title>−6.0 mi to −4.0 mi: 1 run</title><path class="f-relay" d="M68.56 148v0a0.06 0.06 0 0 1 0.06 -0.06h21.44a0.06 0.06 0 0 1 0.06 0.06v0z"/></g><g><title>−4.0 mi to −2.0 mi: 1 run</title><path class="f-relay" d="M92.11 148v0a0.06 0.06 0 0 1 0.06 -0.06h21.44a0.06 0.06 0 0 1 0.06 0.06v0z"/></g><g><title>−2.0 mi to 0.0 mi: 7 runs</title><path class="f-relay" d="M115.67 148v0a0.42 0.42 0 0 1 0.42 -0.42h20.72a0.42 0.42 0 0 1 0.42 0.42v0z"/></g><g><title>0.0 mi to 2.0 mi: 183 runs</title><path class="f-relay" d="M139.22 148v-6.98a4 4 0 0 1 4 -4h13.56a4 4 0 0 1 4 4v6.98z"/></g><g><title>2.0 mi to 4.0 mi: 1,571 runs</title><path class="f-relay" d="M162.78 148v-90.26a4 4 0 0 1 4 -4h13.56a4 4 0 0 1 4 4v90.26z"/></g><text class="t num" x="173.56" y="48.74" text-anchor="middle">1,571</text><g><title>4.0 mi to 6.0 mi: 1,193 runs</title><path class="f-relay" d="M186.33 148v-67.58a4 4 0 0 1 4 -4h13.56a4 4 0 0 1 4 4v67.58z"/></g><g><title>6.0 mi to 8.0 mi: 52 runs</title><path class="f-relay" d="M209.89 148v0a3.12 3.12 0 0 1 3.12 -3.12h15.32a3.12 3.12 0 0 1 3.12 3.12v0z"/></g><g><title>8.0 mi to 10.0 mi: 4 runs</title><path class="f-relay" d="M233.44 148v0a0.24 0.24 0 0 1 0.24 -0.24h21.08a0.24 0.24 0 0 1 0.24 0.24v0z"/></g><line class="grid" x1="44" x2="44" y1="148" y2="152"/><text class="tm num" x="44" y="168" text-anchor="middle">−8</text><line class="grid" x1="67.56" x2="67.56" y1="148" y2="152"/><text class="tm num" x="67.56" y="168" text-anchor="middle">−6</text><line class="grid" x1="91.11" x2="91.11" y1="148" y2="152"/><text class="tm num" x="91.11" y="168" text-anchor="middle">−4</text><line class="grid" x1="114.67" x2="114.67" y1="148" y2="152"/><text class="tm num" x="114.67" y="168" text-anchor="middle">−2</text><line class="grid" x1="138.22" x2="138.22" y1="148" y2="152"/><text class="tm num" x="138.22" y="168" text-anchor="middle">0</text><line class="grid" x1="161.78" x2="161.78" y1="148" y2="152"/><text class="tm num" x="161.78" y="168" text-anchor="middle">2</text><line class="grid" x1="185.33" x2="185.33" y1="148" y2="152"/><text class="tm num" x="185.33" y="168" text-anchor="middle">4</text><line class="grid" x1="208.89" x2="208.89" y1="148" y2="152"/><text class="tm num" x="208.89" y="168" text-anchor="middle">6</text><line class="grid" x1="232.44" x2="232.44" y1="148" y2="152"/><text class="tm num" x="232.44" y="168" text-anchor="middle">8</text><line class="grid" x1="256" x2="256" y1="148" y2="152"/><text class="tm num" x="256" y="168" text-anchor="middle">10</text><text class="tm" x="150" y="186" text-anchor="middle">Saved per package, miles</text><text class="tm" x="0" y="12">Number of runs</text></svg><p class="note">Median 3.8 mi. 10th to 90th percentile: 2.3 mi to 5.0 mi. Relay ahead in 3,003 of 3,013 runs.</p></figure>
@@ -186,7 +192,7 @@ main{padding:12px 16px 40px}
 <p class="intro">The courier promises delivery by 10:30 a.m. on the next business day and is assumed to always keep that promise. Each matched package is early, on time or late against it.</p>
 <div class="grid2">
 <figure class="card"><figcaption>49,254 matched packages, by arrival</figcaption><svg data-chart="timing" viewBox="0 0 280 64" role="img" aria-label="Relay delivery time against the courier’s promise: A day early 16,467, On time 32,787, Late 0"><g><title>A day early: 16,467 (33.4%)</title><rect class="f-relay" x="0" y="18" width="92.94" height="28" rx="4"/></g><text class="t" x="0" y="12">A day early</text><text class="t num" x="0" y="60">33.4%</text><g><title>On time: 32,787 (66.6%)</title><rect class="f-ontime" x="94.94" y="18" width="185.06" height="28" rx="4"/></g><text class="t" x="94.94" y="12">On time</text><text class="t num" x="94.94" y="60">66.6%</text></svg><ul class="legend"><li><span class="swatch" style="background:#1D5075"></span>A day early, delivered the day it was sent: 16,467 (33.4%)</li><li><span class="swatch" style="background:#0F8A5F"></span>On time, the next day by 10:30 a.m.: 32,787 (66.6%)</li><li><span class="swatch" style="background:#A4322A"></span>Late, after 10:30 a.m.: 0 (0.0%)</li></ul></figure>
-<div class="how"><p>On average a Relay package arrives 6 h 51 min before the courier’s promised time.</p><p>Why nothing is late here: Relay only accepts a package it can deliver by the sender’s deadline. The simulated packages were ready from Day 1, 4:00 p.m. and every deadline was at or before Day 2, 10:00 a.m., which is no later than the courier’s promise (Day 2, 10:30 a.m.), so a matched package cannot be late. The price of that rule is the match rate above, not lateness.</p></div>
+<div class="how"><p>On average a Relay package arrives 6 h 51 min before the courier’s promised time.</p><p>Why nothing is late: Relay only accepts a package it can deliver by the sender’s deadline, and every simulated deadline is at or before Day 2, 10:00 a.m., no later than the courier’s promise (Day 2, 10:30 a.m.). The cost of that rule shows in the match rate, not in lateness.</p></div>
 </div>
 </section>
 
@@ -205,7 +211,7 @@ Every number that is not travel data or simulation output is in the <a href="#as
 
 <section id="assumptions">
 <h2>Assumptions</h2>
-<p class="intro">Every number the comparison uses that is not travel data or simulation output, with the reason for its value and the side it favours.</p>
+<p class="intro">Every number we chose rather than measured or simulated, with the reason for it and the side it favours.</p>
 <div class="scroll">
 <table class="assumptions">
 <thead><tr><th scope="col">Assumption</th><th scope="col">Value</th><th scope="col">Why this value</th></tr></thead>
@@ -231,7 +237,7 @@ Every number that is not travel data or simulation output is in the <a href="#as
 
 <section>
 <h2>Every run</h2>
-<p class="intro">One row per run: its seed, employees, packages and detour limit, what Relay matched, and the totals of both sides over the matched packages. A skipped run is in the file with its reason.</p>
+<p class="intro">One row per run: seed, employees, packages, detour limit, what Relay matched and the totals of both sides. A skipped run is listed with its reason.</p>
 <p><a class="download" href="study/runs.csv" download>Download every run (CSV)</a></p>
 </section>
 
