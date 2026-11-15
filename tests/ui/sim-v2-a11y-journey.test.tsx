@@ -152,8 +152,10 @@ describe('screen readers: what the journey announces (#725)', () => {
     expect(said.slice(0, n).map((t) => /^Step (\d+) of (\d+) next: /.exec(t)?.slice(1).map(Number))).toEqual(
       Array.from({ length: n }, (_, i) => [i + 1, n]),
     );
-    expect(said.slice(n)).toHaveLength(1);
-    expect(said[n]).toMatch(/^Journey complete: /);
+    // #780: while the last carrier drives on after the delivery the line says so; "Journey complete" only at the end.
+    expect(said.slice(n)).toHaveLength(2);
+    expect(said[n]).toMatch(/^Delivered to recipient at .+\. .+ (is heading home|is heading to work|is home|is at work)\.$/);
+    expect(said[n + 1]).toMatch(/^Journey complete: /);
     // The page polled many times meanwhile, and no poll was read out.
     expect(server.requests.filter(POLL).length - polls).toBeGreaterThan(said.length);
     // Only the step line and the overnight slot spoke: no other region (map, package count, banners).

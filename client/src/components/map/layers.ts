@@ -126,6 +126,16 @@ export const PACKAGE_BADGE_OUTLINE_WIDTH = 2;
  * screen is negative): on the marker's upper-right rim, so the carrier's letter stays readable.
  */
 export const PACKAGE_BADGE_OFFSET: [number, number] = [11, -11];
+/** Network view (#780): the glyph where a package waits overnight (relay diamond) or was delivered (flag). */
+export const WAITING_GLYPH: Record<NonNullable<MapMover['waiting']>, string> = { overnight: '\u25C6', delivered: '\u2691' };
+/** Font size in pixels of a network waiting glyph: smaller than a journey symbol, larger than a business dot. */
+export const WAITING_SYMBOL_SIZE = 20;
+/** The label next to the relay diamond while packages wait there for the night (network view). */
+export const OVERNIGHT_TEXT = 'Overnight';
+/** "Overnight" for one package, "Overnight · 3 packages" when several wait at one relay point. */
+export function overnightLabel(count: number): string {
+  return count > 1 ? `${OVERNIGHT_TEXT} · ${count} packages` : OVERNIGHT_TEXT;
+}
 /** A straight line for an uncached place pair: dashes this long (metres) ... */
 export const DASH_M = 120;
 /** ... with gaps this long between them. */
@@ -386,6 +396,9 @@ type Group = {
  * empty layers are omitted. Then `movers-vehicle-badge`: the letter on each badged vehicle, and (network
  * view) `movers-package-badge`: each carried package as a small orange badge on its carrier's marker.
  * A `dashed` route (an uncached place pair) is drawn as dash pieces in its usual layer.
+ * Network view (no stops, #780): a package with `waiting` gets `movers-package-waiting` (the relay diamond
+ * where packages wait overnight, the flag where they were delivered; one per business and reason), its dot
+ * on the glyph's rim, and `movers-package-label` ("Overnight", placed with the names).
  * Then `labels-places`: the `alwaysLabelIds` places, and with `labelBusinesses` the businesses that are
  * not dimmed, as many as `placeNames` fits at `zoom` (homes, vehicles and packages get no name).
  * Journey stops come next, are never dimmed and ignore `visible`: numbered stops (`stops`,
@@ -520,9 +533,18 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const groupsOfStops = stopGroups(allStops.filter((s) => !s.symbol));
   const symbols = allStops.filter((s) => s.symbol).sort((a, b) => a.n - b.n);
   const journey = allStops.length > 0;
+  const zoom = input.zoom ?? NYC_ZOOM;
+  // Network view (#780): a package waiting overnight at its relay point or delivered at its recipient
+  // gets the diamond or the flag at that business, with the package dot on the glyph's rim.
+  const waiting = journey || !visible.packages ? [] : waitingGroups(packages);
   // With journey stops the package is drawn after them (a ring), so it never hides under a stop.
   if (!journey) {
-    groups.push({ key: 'packages', build: scatterSpec('movers-package', packages, visible.packages, PACKAGE_FILL, 5) });
+    const drawn = packages.map((m) => {
+      if (!m.waiting || !Number.isFinite(m.lat) || !Number.isFinite(m.lng)) return m;
+      const [lng, lat] = offsetByPx([m.lng, m.lat], PACKAGE_BADGE_OFFSET[0], PACKAGE_BADGE_OFFSET[1], zoom);
+      return { ...m, lng, lat };
+    });
+    groups.push({ key: 'packages', build: scatterSpec('movers-package', drawn, visible.packages, PACKAGE_FILL, 5) });
   }
 
   const nonEmpty = (s: LayerSpec | null): s is LayerSpec => s !== null && s.data.length > 0;
@@ -531,16 +553,23 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const stops = [...stopSpecs(groupsOfStops, hoveredId), ...symbolSpecs(symbols)];
   const ring = journey && visible.packages ? packageRingSpecs(packages, groupsOfStops, symbols, hoveredId) : [];
   const riders = visible.packages
-    ? packageBadgeSpecs(riding, vehicleById, input.zoom ?? NYC_ZOOM, hoveredId, (m) =>
+    ? packageBadgeSpecs(riding, vehicleById, zoom, hoveredId, (m) =>
         !journey && hasSelection && !selected.has(m.id) && !selected.has(m.carrierId!))
     : [];
+  // A waiting group is dimmed with a selection that holds none of its packages nor its business.
+  const groupDimmed = (g: WaitingGroup) =>
+    hasSelection && !g.packageIds.some((id) => selected.has(id)) && !places.some((p) => selected.has(p.id) && samePlace([p.lng, p.lat], g.position));
+  const waitGlyphs = waitingSymbolSpecs(waiting, groupDimmed);
+  const waitLabels: NameCandidate[] = waiting
+    .filter((g) => g.kind === 'overnight' && !groupDimmed(g))
+    .map((g) => ({ id: `waiting-${g.packageIds[0]}`, text: overnightLabel(g.packageIds.length), lng: g.position[0], lat: g.position[1], gap: WAITING_SYMBOL_SIZE / 2 + 4, always: true }));
   const names = (alreadyNamed: ReadonlySet<string>) =>
-    nameSpecs(input, groupsOfStops, symbols, alreadyNamed, (id) => !hasSelection || selected.has(id));
+    nameSpecs(input, groupsOfStops, symbols, alreadyNamed, (id) => !hasSelection || selected.has(id), waitLabels);
   if (!hasSelection) {
     const n = names(new Set());
     return journey
       ? [...base, ...badges, ...n.places, ...stops, ...n.symbols, ...ring, ...riders]
-      : [...base, ...badges, ...riders, ...n.places, ...stops, ...n.symbols, ...ring];
+      : [...base, ...waitGlyphs, ...badges, ...riders, ...n.places, ...n.waiting, ...stops, ...n.symbols, ...ring];
   }
 
   const top = groups
@@ -565,7 +594,57 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const n = names(new Set(labels.map((l) => l.id)));
   return journey
     ? [...base, ...top, ...badges, ...labelSpec, ...n.places, ...stops, ...n.symbols, ...ring, ...riders]
-    : [...base, ...top, ...badges, ...riders, ...labelSpec, ...n.places, ...stops, ...n.symbols, ...ring];
+    : [...base, ...top, ...waitGlyphs, ...badges, ...riders, ...labelSpec, ...n.places, ...n.waiting, ...stops, ...n.symbols, ...ring];
+}
+
+/** Network packages waiting at one business for one reason (overnight or delivered), in package ID order. */
+type WaitingGroup = { kind: NonNullable<MapMover['waiting']>; position: [number, number]; packageIds: string[] };
+
+function waitingGroups(packages: MapMover[]): WaitingGroup[] {
+  const groups: WaitingGroup[] = [];
+  for (const m of packages) {
+    if (!m.waiting || !Number.isFinite(m.lat) || !Number.isFinite(m.lng)) continue;
+    const position: [number, number] = [m.lng, m.lat];
+    const g = groups.find((x) => x.kind === m.waiting && samePlace(x.position, position));
+    if (g) g.packageIds.push(m.id);
+    else groups.push({ kind: m.waiting, position, packageIds: [m.id] });
+  }
+  for (const g of groups) g.packageIds.sort();
+  return groups;
+}
+
+/**
+ * Network view (#780): `movers-package-waiting`, the relay diamond where packages wait overnight and
+ * the flag where they were delivered, one glyph per business and reason, in ink with a white outline.
+ * Not pickable: the business underneath and the package dot keep their tooltips.
+ */
+function waitingSymbolSpecs(groups: WaitingGroup[], dimmed: (g: WaitingGroup) => boolean): TextSpec[] {
+  if (groups.length === 0) return [];
+  const data: TextDatum[] = groups.map((g) => ({
+    id: `waiting-${g.packageIds[0]}`,
+    position: g.position,
+    text: WAITING_GLYPH[g.kind],
+    color: dimmed(g) ? dim(RELAY_INK) : RELAY_INK,
+  }));
+  return [
+    {
+      type: 'text',
+      id: 'movers-package-waiting',
+      data,
+      props: {
+        sizeUnits: 'pixels',
+        getSize: WAITING_SYMBOL_SIZE,
+        getTextAnchor: 'middle',
+        getAlignmentBaseline: 'center',
+        fontFamily: MAP_FONT_FAMILY,
+        characterSet: Object.values(WAITING_GLYPH),
+        outlineWidth: 3,
+        outlineColor: [255, 255, 255, 255],
+        fontSettings: { sdf: true },
+        pickable: false,
+      },
+    },
+  ];
 }
 
 /**
@@ -610,7 +689,8 @@ function nameSpecs(
   symbols: MapStop[],
   alreadyNamed: ReadonlySet<string>,
   keep: (id: string) => boolean,
-): { places: TextSpec[]; symbols: TextSpec[] } {
+  waitLabels: NameCandidate[] = [],
+): { places: TextSpec[]; symbols: TextSpec[]; waiting: TextSpec[] } {
   const always = new Set(input.alwaysLabelIds ?? []);
   const symbolsAt = (pos: [number, number]) => symbols.filter((s) => samePlace([s.lng, s.lat], pos));
   const gapAt = (pos: [number, number]) => {
@@ -632,12 +712,14 @@ function nameSpecs(
     .filter((p) => !alreadyNamed.has(p.id) && !namedBySymbol(p))
     .filter((p) => always.has(p.id) || (input.labelBusinesses && input.visible.businesses && p.kind === 'business' && keep(p.id)))
     .map((p) => ({ id: p.id, text: p.label, lng: p.lng, lat: p.lat, gap: gapAt([p.lng, p.lat]), always: always.has(p.id) }));
-  const candidates = [...symbolCandidates, ...placeCandidates];
-  if (candidates.length === 0) return { places: [], symbols: [] };
+  const candidates = [...symbolCandidates, ...waitLabels, ...placeCandidates];
+  if (candidates.length === 0) return { places: [], symbols: [], waiting: [] };
   const placed = placeNames(candidates, input.zoom ?? NYC_ZOOM);
   const symbolIds = new Set(symbols.map((s) => s.id));
   const datum = (n: PlacedName): TextDatum => ({ id: n.id, position: n.position, text: n.text, color: LABEL, offset: n.offset });
-  const placeData = placed.filter((n) => !symbolIds.has(n.id)).map(datum);
+  const waitIds = new Set(waitLabels.map((c) => c.id));
+  const placeData = placed.filter((n) => !symbolIds.has(n.id) && !waitIds.has(n.id)).map(datum);
+  const waitData = placed.filter((n) => waitIds.has(n.id)).map(datum);
   // Symbol labels in stop order, whatever order they were placed in.
   const symbolData = symbols.flatMap((s) => placed.filter((n) => n.id === s.id).map(datum));
   return {
@@ -651,6 +733,17 @@ function nameSpecs(
             id: 'stops-label',
             data: symbolData,
             // `auto`: the labels carry "·" and names with accents, outside deck.gl's default ASCII set.
+            props: { ...NAME_TEXT_PROPS, getAlignmentBaseline: 'center', fontWeight: MAP_BOLD_WEIGHT, characterSet: 'auto' },
+          },
+        ]
+      : [],
+    // Network view (#780): "Overnight" next to the relay diamond, placed with the names so none overlap.
+    waiting: waitData.length
+      ? [
+          {
+            type: 'text',
+            id: 'movers-package-label',
+            data: waitData,
             props: { ...NAME_TEXT_PROPS, getAlignmentBaseline: 'center', fontWeight: MAP_BOLD_WEIGHT, characterSet: 'auto' },
           },
         ]

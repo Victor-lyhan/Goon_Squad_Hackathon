@@ -89,6 +89,12 @@ export type Journey = {
   carriers: JourneyCarrier[];
   /** One per leg, for Play (`playPlan`). */
   commutes: JourneyCommute[];
+  /**
+   * Where the last leg's carrier ends its commute after the delivery: `home` on an evening trip, `work`
+   * on a morning trip (the last of `Leg.placeIds` is the carrier's home or business); null when unknown.
+   * The step line says the carrier is heading there while Play still runs after the delivery (#780).
+   */
+  endOfCommute: 'home' | 'work' | null;
   places: MapPlace[];
   routes: MapRoute[];
   stops: MapStop[];
@@ -239,6 +245,13 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
     };
   });
 
+  // ---- Where the delivering carrier drives on to: the last place of its leg, its home or its work ----
+  const lastLeg = plan.legs[plan.legs.length - 1];
+  const lastEmployee = employees.get(lastLeg.employeeId);
+  const lastPlace = lastLeg.placeIds[lastLeg.placeIds.length - 1];
+  const endOfCommute = !lastEmployee || !lastPlace ? null
+    : lastPlace === lastEmployee.homeId ? 'home' : lastPlace === lastEmployee.businessId ? 'work' : null;
+
   // ---- Places: sender, recipient, relay business, carrier homes. Nothing else. ----
   const places: MapPlace[] = [];
   const seen = new Set<string>();
@@ -310,6 +323,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
     steps,
     carriers,
     commutes,
+    endOfCommute,
     places,
     routes,
     stops,

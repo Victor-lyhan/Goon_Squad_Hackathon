@@ -25,14 +25,14 @@ describe('MapLegend', () => {
     expect(html).toContain(`id="${controls}"`);
     expect(html).not.toMatch(/\bhidden=""/);
     expect(html).toMatch(/<ul class="ml__list">/);
-    expect(items(html)).toBe(6);
+    expect(items(html)).toBe(8);
     const t = text(html);
     for (const s of ['Network business · every one is a relay point', 'Home neighborhood', 'Carrier · letter = first name', 'Package · rides on its carrier, or waits at a business', 'Normal commute', 'Delivery route']) {
       expect(t).toContain(s);
     }
     // Swatches are drawn with CSS from the map constants and hidden from screen readers.
     expect(html).toContain(`background:${cssColor(PACKAGE_FILL)}`);
-    expect(html.match(/class="ml__swatch-box" aria-hidden="true"/g)).toHaveLength(6);
+    expect(html.match(/class="ml__swatch-box" aria-hidden="true"/g)).toHaveLength(8);
     assertClean(html);
   });
 
@@ -44,7 +44,7 @@ describe('MapLegend', () => {
 
   it('adds the dimmed row with a selection', () => {
     const html = renderToStaticMarkup(<MapLegend mode="network" hasSelection />);
-    expect(items(html)).toBe(7);
+    expect(items(html)).toBe(9);
     expect(text(html)).toContain('Dimmed: not part of the selection');
   });
 
@@ -57,7 +57,7 @@ describe('MapLegend', () => {
   it('network rows are unchanged, with no numbered-stop swatch', () => {
     const html = renderToStaticMarkup(<MapLegend mode="network" />);
     expect(html.match(/class="ml__row ml__row--(\w+)"/g)!.map((m) => m.split('--')[1].slice(0, -1)))
-      .toEqual(['business', 'home', 'vehicle', 'package', 'baseline', 'route']);
+      .toEqual(['business', 'home', 'vehicle', 'package', 'overnight', 'delivered', 'baseline', 'route']);
     expect(html).toMatch(/height:4px/);
     expect(html).toMatch(/height:2px/);
     expect(html).not.toContain('ml__swatch--numbered');

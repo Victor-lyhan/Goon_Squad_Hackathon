@@ -27,6 +27,9 @@ const NETWORK: Record<string, { color: L.RGBA; width?: number }> = {
   home: { color: L.HOME_FILL },
   vehicle: { color: L.VEHICLE_FILL },
   package: { color: L.PACKAGE_FILL },
+  // #780: the network map's waiting glyphs, in the relay ink.
+  overnight: { color: L.RELAY_INK },
+  delivered: { color: L.RELAY_INK },
   baseline: { color: L.BASELINE, width: L.BASELINE_WIDTH },
   // Network routes carry no tone; the map draws them in the leg 1 color.
   route: { color: L.toneColor(undefined), width: L.LEG_WIDTH },
