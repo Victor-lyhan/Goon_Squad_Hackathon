@@ -33,18 +33,18 @@ describe('homeIdForCoords', () => {
 describe('resolveCommute', () => {
   it('unknown employee: 404', () => {
     expect(resolveCommute(sampleRun(), 'emp-99', commuteBody())).toEqual({
-      ok: false, status: 404, error: 'Employee not found',
+      ok: false, status: 404, error: 'This employee is no longer listed, so refresh the page and choose again.',
     });
-    expect(EMPLOYEE_NOT_FOUND).toBe('Employee not found');
+    expect(EMPLOYEE_NOT_FOUND).toBe('This employee is no longer listed, so refresh the page and choose again.');
   });
 
   it('locked run: 409, even for a valid request', () => {
     const run = sampleRun();
     run.clock.phase = 'locked';
     expect(resolveCommute(run, 'emp-1', commuteBody())).toEqual({
-      ok: false, status: 409, error: 'The simulation is playing. Press Back to start in the simulator to edit commutes.',
+      ok: false, status: 409, error: 'Playback has started, so press Back to start in the simulator to edit commutes.',
     });
-    expect(COMMUTE_LOCKED).toBe('The simulation is playing. Press Back to start in the simulator to edit commutes.');
+    expect(COMMUTE_LOCKED).toBe('Playback has started, so press Back to start in the simulator to edit commutes.');
   });
 
   it('an unknown employee is a 404 in a locked run too', () => {
@@ -56,31 +56,31 @@ describe('resolveCommute', () => {
   it('unknown businessId: 400 with fieldErrors.businessId only', () => {
     const result = resolveCommute(sampleRun(), 'emp-1', commuteBody({ businessId: 'biz-nowhere' }));
     expect(result).toEqual({
-      ok: false, status: 400, error: 'Invalid commute', fieldErrors: { businessId: 'Unknown business' },
+      ok: false, status: 400, error: 'Fix the missing or wrong commute details, then save again.', fieldErrors: { businessId: 'Choose a workplace from the list' },
     });
   });
 
   it('a home ID is not a business ID', () => {
     const result = resolveCommute(sampleRun(), 'emp-1', commuteBody({ businessId: HOME_1 }));
-    expect(result).toMatchObject({ ok: false, status: 400, fieldErrors: { businessId: 'Unknown business' } });
+    expect(result).toMatchObject({ ok: false, status: 400, fieldErrors: { businessId: 'Choose a workplace from the list' } });
   });
 
   it('home.homeId that is not in scenario.homes: 400 with fieldErrors.home only', () => {
     const result = resolveCommute(sampleRun(), 'emp-1', commuteBody({ home: { homeId: 'home-120' } }));
     expect(result).toEqual({
-      ok: false, status: 400, error: 'Invalid commute', fieldErrors: { home: 'Unknown home' },
+      ok: false, status: 400, error: 'Fix the missing or wrong commute details, then save again.', fieldErrors: { home: 'Choose a home from the list, or search for an address' },
     });
   });
 
   it('a business ID is not a home ID', () => {
     const result = resolveCommute(sampleRun(), 'emp-1', commuteBody({ home: { homeId: CAFE } }));
-    expect(result).toMatchObject({ ok: false, status: 400, fieldErrors: { home: 'Unknown home' } });
+    expect(result).toMatchObject({ ok: false, status: 400, fieldErrors: { home: 'Choose a home from the list, or search for an address' } });
   });
 
   it('reports both field errors at once', () => {
     const result = resolveCommute(sampleRun(), 'emp-1', commuteBody({ businessId: 'biz-nowhere', home: { homeId: 'home-120' } }));
     expect(result).toMatchObject({
-      ok: false, status: 400, fieldErrors: { businessId: 'Unknown business', home: 'Unknown home' },
+      ok: false, status: 400, fieldErrors: { businessId: 'Choose a workplace from the list', home: 'Choose a home from the list, or search for an address' },
     });
   });
 
@@ -151,7 +151,7 @@ describe('resolveCommute', () => {
   ])('outside the NYC box (%s): 400 with fieldErrors.home', (_side, point) => {
     const result = resolveCommute(sampleRun(), 'emp-1', commuteBody(newHome(point)));
     expect(result).toEqual({
-      ok: false, status: 400, error: 'Invalid commute', fieldErrors: { home: 'Choose a home inside New York City' },
+      ok: false, status: 400, error: 'Fix the missing or wrong commute details, then save again.', fieldErrors: { home: 'Choose a home inside New York City' },
     });
   });
 

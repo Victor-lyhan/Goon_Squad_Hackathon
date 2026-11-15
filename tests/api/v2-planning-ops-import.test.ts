@@ -75,7 +75,7 @@ describe('parseImportedRun: round trip', () => {
 describe('parseImportedRun: files that are not MVP II runs', () => {
   it('refuses a run whose scenario has schemaVersion 1 as a synthetic-city file', () => {
     const body = { ...structuredClone(lockedRun), scenario: { ...structuredClone(lockedRun.scenario), schemaVersion: 1 } };
-    const error = expectInvalid(deepFreeze(body), /^This file is from the synthetic-city version/);
+    const error = expectInvalid(deepFreeze(body), /^This file is from an older version of Relay, so it was not loaded\.$/);
     expect(error).toStrictEqual({ error: MVP1_FILE });
   });
 
@@ -135,35 +135,35 @@ describe('parseImportedRun: references', () => {
   it('refuses a dangling homeId', () => {
     const body = runWith((run) => { run.scenario.employees[0].homeId = 'home-999'; });
     expect(expectInvalid(body)).toStrictEqual({
-      error: 'An employee in this file refers to a home that is not in the file, so it was not loaded.',
-      fieldErrors: { 'scenario.employees.0.homeId': 'Unknown home' },
+      error: 'This file names a home it does not list, so it was not loaded.',
+      fieldErrors: { 'scenario.employees.0.homeId': 'Not in this file' },
     });
     // The same when the home itself was cut out of the file.
     const cut = runWith((run) => { run.scenario.homes = run.scenario.homes.filter((home) => home.id !== 'home-002'); });
-    expect(expectInvalid(cut).fieldErrors).toStrictEqual({ 'scenario.employees.2.homeId': 'Unknown home' });
+    expect(expectInvalid(cut).fieldErrors).toStrictEqual({ 'scenario.employees.2.homeId': 'Not in this file' });
   });
 
   it('refuses every other reference that does not resolve', () => {
     const cases: [(run: Run) => void, string, string][] = [
-      [(run) => { run.scenario.employees[1].businessId = 'biz-gone'; }, 'scenario.employees.1.businessId', 'Unknown business'],
-      [(run) => { run.scenario.shipments[2].originBusinessId = 'biz-gone'; }, 'scenario.shipments.2.originBusinessId', 'Unknown business'],
-      [(run) => { run.scenario.shipments[0].destinationBusinessId = 'home-001'; }, 'scenario.shipments.0.destinationBusinessId', 'Unknown business'],
-      [(run) => { run.trips[3].employeeId = 'emp-9'; }, 'trips.3.employeeId', 'Unknown employee'],
-      [(run) => { run.assignments.plans[1].shipmentId = 'shp-9'; }, 'assignments.plans.1.shipmentId', 'Unknown delivery'],
-      [(run) => { run.assignments.plans[0].relayBusinessId = 'hub-1'; }, 'assignments.plans.0.relayBusinessId', 'Unknown business'],
-      [(run) => { run.assignments.plans[0].legs[1].employeeId = 'emp-9'; }, 'assignments.plans.0.legs.1.employeeId', 'Unknown employee'],
-      [(run) => { run.assignments.unmatched[0].shipmentId = 'shp-9'; }, 'assignments.unmatched.0.shipmentId', 'Unknown delivery'],
-      [(run) => { run.jobs[2].planId = 'plan-shp-9'; }, 'jobs.2.planId', 'Unknown delivery plan'],
-      [(run) => { run.jobs[0].shipmentId = 'shp-9'; }, 'jobs.0.shipmentId', 'Unknown delivery'],
-      [(run) => { run.jobs[1].employeeId = 'emp-9'; }, 'jobs.1.employeeId', 'Unknown employee'],
-      [(run) => { run.events[4].jobId = 'plan-shp-9-L0'; }, 'events.4.jobId', 'Unknown job'],
+      [(run) => { run.scenario.employees[1].businessId = 'biz-gone'; }, 'scenario.employees.1.businessId', 'Not in this file'],
+      [(run) => { run.scenario.shipments[2].originBusinessId = 'biz-gone'; }, 'scenario.shipments.2.originBusinessId', 'Not in this file'],
+      [(run) => { run.scenario.shipments[0].destinationBusinessId = 'home-001'; }, 'scenario.shipments.0.destinationBusinessId', 'Not in this file'],
+      [(run) => { run.trips[3].employeeId = 'emp-9'; }, 'trips.3.employeeId', 'Not in this file'],
+      [(run) => { run.assignments.plans[1].shipmentId = 'shp-9'; }, 'assignments.plans.1.shipmentId', 'Not in this file'],
+      [(run) => { run.assignments.plans[0].relayBusinessId = 'hub-1'; }, 'assignments.plans.0.relayBusinessId', 'Not in this file'],
+      [(run) => { run.assignments.plans[0].legs[1].employeeId = 'emp-9'; }, 'assignments.plans.0.legs.1.employeeId', 'Not in this file'],
+      [(run) => { run.assignments.unmatched[0].shipmentId = 'shp-9'; }, 'assignments.unmatched.0.shipmentId', 'Not in this file'],
+      [(run) => { run.jobs[2].planId = 'plan-shp-9'; }, 'jobs.2.planId', 'Not in this file'],
+      [(run) => { run.jobs[0].shipmentId = 'shp-9'; }, 'jobs.0.shipmentId', 'Not in this file'],
+      [(run) => { run.jobs[1].employeeId = 'emp-9'; }, 'jobs.1.employeeId', 'Not in this file'],
+      [(run) => { run.events[4].jobId = 'plan-shp-9-L0'; }, 'events.4.jobId', 'Not in this file'],
       // A plan was cut out, its jobs were not.
-      [(run) => { run.assignments.plans = run.assignments.plans.slice(1); }, 'jobs.0.planId', 'Unknown delivery plan'],
+      [(run) => { run.assignments.plans = run.assignments.plans.slice(1); }, 'jobs.0.planId', 'Not in this file'],
       // A delivery was cut out, its plan was not.
-      [(run) => { run.scenario.shipments = run.scenario.shipments.slice(1); }, 'assignments.plans.0.shipmentId', 'Unknown delivery'],
+      [(run) => { run.scenario.shipments = run.scenario.shipments.slice(1); }, 'assignments.plans.0.shipmentId', 'Not in this file'],
     ];
     for (const [edit, path, label] of cases) {
-      const error = expectInvalid(runWith(edit), / in this file refers to an? [a-z ]+ that is not in the file, so it was not loaded\.$/);
+      const error = expectInvalid(runWith(edit), /^This file names an? [a-z ]+ it does not list, so it was not loaded\.$/);
       expect(error.fieldErrors, path).toStrictEqual({ [path]: label });
     }
   });
@@ -172,39 +172,39 @@ describe('parseImportedRun: references', () => {
     // A new planning cycle and Recompute match the stored trips again; a place the file does not hold has
     // no travel time, so such a file used to be stored and then lock both actions in a 503 (#570).
     const cases: [(run: Run) => void, string, string][] = [
-      [(run) => { run.trips[0].originPlaceId = 'place-not-in-the-file'; }, 'trips.0.originPlaceId', 'Unknown place'],
-      [(run) => { run.trips[3].destinationPlaceId = 'emp-2'; }, 'trips.3.destinationPlaceId', 'Unknown place'],
-      [(run) => { run.assignments.plans[0].legs[1].placeIds[1] = 'hub-1'; }, 'assignments.plans.0.legs.1.placeIds.1', 'Unknown place'],
-      [(run) => { run.assignments.plans[1].legs[0].stops[1].placeId = 'home-999'; }, 'assignments.plans.1.legs.0.stops.1.placeId', 'Unknown place'],
-      [(run) => { run.jobs[1].pickup.placeId = 'biz-gone'; }, 'jobs.1.pickup.placeId', 'Unknown place'],
-      [(run) => { run.jobs[2].dropoff.placeId = 'shp-2'; }, 'jobs.2.dropoff.placeId', 'Unknown place'],
-      [(run) => { run.events[1].relayBusinessId = 'home-001'; }, 'events.1.relayBusinessId', 'Unknown business'],
+      [(run) => { run.trips[0].originPlaceId = 'place-not-in-the-file'; }, 'trips.0.originPlaceId', 'Not in this file'],
+      [(run) => { run.trips[3].destinationPlaceId = 'emp-2'; }, 'trips.3.destinationPlaceId', 'Not in this file'],
+      [(run) => { run.assignments.plans[0].legs[1].placeIds[1] = 'hub-1'; }, 'assignments.plans.0.legs.1.placeIds.1', 'Not in this file'],
+      [(run) => { run.assignments.plans[1].legs[0].stops[1].placeId = 'home-999'; }, 'assignments.plans.1.legs.0.stops.1.placeId', 'Not in this file'],
+      [(run) => { run.jobs[1].pickup.placeId = 'biz-gone'; }, 'jobs.1.pickup.placeId', 'Not in this file'],
+      [(run) => { run.jobs[2].dropoff.placeId = 'shp-2'; }, 'jobs.2.dropoff.placeId', 'Not in this file'],
+      [(run) => { run.events[1].relayBusinessId = 'home-001'; }, 'events.1.relayBusinessId', 'Not in this file'],
       // The home was cut out of the file; nobody lives there any more, but a trip still ends there.
       [(run) => {
         run.scenario.employees[0].homeId = 'home-003';
         run.scenario.homes = run.scenario.homes.filter((home) => home.id !== 'home-001');
-      }, 'trips.0.destinationPlaceId', 'Unknown place'],
+      }, 'trips.0.destinationPlaceId', 'Not in this file'],
     ];
     // As uploaded: in the sample run a job and its plan share stop objects, in a file they never do.
     const uploaded = asUploaded(lockedRun) as Run;
     for (const [edit, path, label] of cases) {
-      const error = expectInvalid(runWith(edit, uploaded), / in this file refers to an? [a-z ]+ that is not in the file, so it was not loaded\.$/);
+      const error = expectInvalid(runWith(edit, uploaded), /^This file names an? [a-z ]+ it does not list, so it was not loaded\.$/);
       expect(error.fieldErrors, path).toStrictEqual({ [path]: label });
     }
     expect(expectInvalid(runWith((run) => { run.trips[0].originPlaceId = 'place-not-in-the-file'; }))).toStrictEqual({
-      error: 'A commute trip in this file refers to a place that is not in the file, so it was not loaded.',
-      fieldErrors: { 'trips.0.originPlaceId': 'Unknown place' },
+      error: 'This file names a place it does not list, so it was not loaded.',
+      fieldErrors: { 'trips.0.originPlaceId': 'Not in this file' },
     });
   });
 
   it('refuses an ID that is listed twice', () => {
     const twice = runWith((run) => { run.scenario.employees[2].id = 'emp-1'; });
     expect(expectInvalid(twice)).toStrictEqual({
-      error: 'This file lists the same employee ID twice, so it was not loaded.',
-      fieldErrors: { 'scenario.employees.2.id': 'Duplicate ID' },
+      error: 'This file lists the same employee twice, so it was not loaded.',
+      fieldErrors: { 'scenario.employees.2.id': 'Listed twice' },
     });
     const twoHomes = runWith((run) => { run.scenario.homes.push({ ...run.scenario.homes[0] }); });
-    expect(expectInvalid(twoHomes).fieldErrors).toStrictEqual({ 'scenario.homes.4.id': 'Duplicate ID' });
+    expect(expectInvalid(twoHomes).fieldErrors).toStrictEqual({ 'scenario.homes.4.id': 'Listed twice' });
   });
 
   it('never repeats text from the file in the reason', () => {
@@ -225,7 +225,7 @@ describe('parseImportedRun: travel cache', () => {
       kind: 'unavailable', status: 503, code: 'travel_data_missing', missingPlaces: 1,
       error: {
         code: 'travel_data_missing',
-        error: 'Travel times are not cached on this server for 1 place in this file, so it was not loaded.',
+        error: 'This file has 1 place without travel times, so it was not loaded.',
       },
     });
   });
@@ -237,7 +237,7 @@ describe('parseImportedRun: travel cache', () => {
     const two = parseImportedRun(lockedRun, travelWithout(['home-001', 'home-story-ana']).travel);
     expect(two).toMatchObject({ kind: 'unavailable', code: 'travel_data_missing', missingPlaces: 2 });
     expect(two.kind === 'unavailable' && two.error.error).toBe(
-      'Travel times are not cached on this server for 2 places in this file, so it was not loaded.',
+      'This file has 2 places without travel times, so it was not loaded.',
     );
     expect(parseImportedRun(lockedRun, { has: () => false })).toMatchObject({ kind: 'unavailable', missingPlaces: 3 });
   });
@@ -260,7 +260,7 @@ describe('parseImportedRun: travel cache', () => {
     expect(plan).toStrictEqual({
       kind: 'invalid', status: 400,
       error: {
-        error: 'A commute trip in this file drives between places this server has no travel time for, so it was not loaded.',
+        error: 'A commute in this file has no travel time, so it was not loaded.',
         fieldErrors: { 'trips.0.destinationPlaceId': 'No travel time' },
       },
     });
@@ -288,7 +288,7 @@ describe('parseImportedRun: travel cache', () => {
     expect(parseImportedRun(odd, travelWithout(['home-003']).travel)).toStrictEqual({
       kind: 'invalid', status: 400,
       error: {
-        error: 'A delivery plan in this file drives between places this server has no travel time for, so it was not loaded.',
+        error: 'A delivery in this file has no travel time, so it was not loaded.',
         fieldErrors: { 'assignments.plans.0.legs.0.placeIds.2': 'No travel time' },
       },
     });

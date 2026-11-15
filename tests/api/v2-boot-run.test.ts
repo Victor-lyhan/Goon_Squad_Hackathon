@@ -132,7 +132,7 @@ describe('bootV2Run without usable travel data', () => {
     const reason = notLoaded(result!);
     expect(reason).toContain('biz-etsy');
     expect(reason).toContain('home-story-astoria-1');
-    expect(reason).toBe('No travel time is cached for biz-etsy to home-story-astoria-1. Run npm run fetch:routes and commit fixtures/nyc/.');
+    expect(reason).toBe('A travel time is missing on this server. Run npm run fetch:routes and commit fixtures/nyc/ (biz-etsy to home-story-astoria-1).');
     expect((await request(v2DepsFrom(result!), '/businesses')).status).toBe(503);
   });
 

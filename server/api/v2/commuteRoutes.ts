@@ -17,7 +17,7 @@ import { PutCommuteRequest, type ApiError } from '../../../shared/v2/schemas';
 import type { LatLng, Run as RunV2, TravelProvider } from '../../../shared/v2/types';
 import type { Store } from '../../store';
 import {
-  INVALID_COMMUTE, applyCommute, changedTripIds, dropPlansOnTrips, dropUnusedHomes, pairsToEnsure, resolveCommute,
+  COMMUTE_FIELD_COPY, COMMUTE_FIELD_FALLBACK, INVALID_COMMUTE, applyCommute, changedTripIds, dropPlansOnTrips, dropUnusedHomes, pairsToEnsure, resolveCommute,
   type CommuteResolution, type PlacePair,
 } from './commutePlan';
 import { matchPending, type PipelineDeps } from './pipeline';
@@ -58,12 +58,14 @@ function refusal({ error, fieldErrors }: CommuteFailure): ApiError {
   return fieldErrors ? { error, fieldErrors } : { error };
 }
 
-// Zod's messages name the field and the rule, never the value that was sent.
-function bodyErrors(issues: readonly { path: PropertyKey[]; message: string }[]): Record<string, string> {
+// One fixed text per field (COMMUTE_FIELD_COPY, #888): Zod's own message is never sent, so no text names
+// a JavaScript type or a contract field, and none can hold the value that was sent.
+function bodyErrors(issues: readonly { path: PropertyKey[] }[]): Record<string, string> {
   const fieldErrors: Record<string, string> = {};
   for (const issue of issues) {
     const key = issue.path.map(String).join('.') || 'body';
-    fieldErrors[key] ??= issue.message;
+    const field = String(issue.path[0] ?? 'body');
+    fieldErrors[key] ??= Object.hasOwn(COMMUTE_FIELD_COPY, field) ? COMMUTE_FIELD_COPY[field] : COMMUTE_FIELD_FALLBACK;
   }
   return fieldErrors;
 }
