@@ -170,8 +170,12 @@ describe('landing.css at 390 px', () => {
     // is for a browser that does not know dvh.
     const heights = [...hero.matchAll(/min-height: ([^;]+);/g)].map((m) => m[1]);
     expect(heights).toEqual(['calc(100vh - var(--app-header-h, 48px))', 'calc(100dvh - var(--app-header-h, 48px))']);
-    // 48 px is the header's height on one row (ui/shell.css). On two rows the hero ends below the fold, never above.
-    expect(readFileSync('client/src/ui/shell.css', 'utf8')).toMatch(/\.shell-header \{[^}]*min-height: 48px;/);
+    // --app-header-h is the header's height on one row: ui/shell.css sets it (64 px since #868; the 48px
+    // above is only the fallback) and gives the bar's row that height. On two rows the hero ends below the
+    // fold, never above. (#878: this line still asked for the `min-height: 48px` that #868 removed.)
+    const shell = readFileSync('client/src/ui/shell.css', 'utf8');
+    expect(shell).toMatch(/:root \{ --app-header-h: 64px; \}/);
+    expect(shell).toMatch(/\.shell-header \{[^}]*grid-template-rows: minmax\(calc\(var\(--app-header-h, 64px\) - 1px\), auto\);/);
     // No narrower rule makes the hero shorter, and nothing of "How it works" is pulled up into it.
     expect(css.match(/min-height: calc\(100dvh/g)).toHaveLength(1);
     expect(css.replace(hero, '')).not.toMatch(/\.landing-hero \{[^}]*(min-)?height/);
