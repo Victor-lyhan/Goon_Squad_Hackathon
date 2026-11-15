@@ -223,20 +223,34 @@ const noWorse = (kept: AdviseOption | Matched, other: AdviseOption | Matched) =>
 
 const changeCount = (v: Variant) => Object.keys(v.changes).length;
 
-/** The note when the request as typed finds no carrier. */
+/**
+ * The matcher's reason as the end of a sentence: no full stop, and a small first letter
+ * ("No commute can arrive before the deadline" -> "no commute can arrive before the deadline").
+ */
+function reasonClause(reason: string): string {
+  const text = cleanText(reason, 160).replace(/[.!?]+$/, '') || 'no carrier can take it';
+  return /^\p{Lu}\p{Ll}/u.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+}
+
+/**
+ * The note when the request as typed finds no carrier: one plain sentence (#898), the matcher's own reason
+ * with a few words in front that say what was tried.
+ *   "As typed, no commute can arrive before the deadline."          (another option below does match)
+ *   "Even with more time, every matching commute is already carrying a package."   (no option matches)
+ */
 function unmatchedNote(outcomes: readonly VariantOutcome[]): string | undefined {
   const original = outcomes.find((o) => changeCount(o) === 0);
   if (original && !original.matched) {
     const anyMatched = outcomes.some((o) => o.matched);
-    return anyMatched
-      ? cleanText(`As typed, no carrier can take it: ${original.reason}.`, 200)
-      : cleanText(`No carrier can take it, even with an earlier ready time or a later deliver-by: ${original.reason}.`, 240);
+    return cleanText(`${anyMatched ? 'As typed' : 'Even with more time'}, ${reasonClause(original.reason)}.`, 200);
   }
   if (outcomes.length > 0 && outcomes.every((o) => !o.matched)) {
-    return cleanText(`No carrier can take it: ${(outcomes[0] as { reason: string }).reason}.`, 200);
+    return cleanText(`${capitalised(reasonClause((outcomes[0] as { reason: string }).reason))}.`, 200);
   }
   return undefined;
 }
+
+const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /**
  * The offline variants, in this order: the request as typed; ready 2 h earlier (not before the clock);

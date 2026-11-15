@@ -224,12 +224,12 @@ describe('POST /api/v2/parse-request', () => {
     const { store } = await start();
 
     const home = expectDraft(await post({ text: 'Deliver an envelope from Etsy to my home by noon' }), store.get());
-    expect(home.rejected).toBe('Relay delivers only between network businesses. "my home" is not one of them.');
+    expect(home.rejected).toBe('Relay delivers only between network businesses, and "my home" is not one.');
     expect(home.draft).toMatchObject({ originBusinessId: 'biz-etsy', destinationBusinessId: null });
     expect(home.missing).toContain('destinationBusinessId');
 
     const address = expectDraft(await post({ text: 'Send a box from 350 5th Avenue to JetBlue' }), store.get());
-    expect(address.rejected).toBe('Relay delivers only between network businesses. "350 5th Avenue" is not one of them.');
+    expect(address.rejected).toBe('Relay delivers only between network businesses, and "350 5th Avenue" is not one.');
     expect(address.draft).toMatchObject({ originBusinessId: null, destinationBusinessId: 'biz-jetblue' });
     expect(address.missing).toContain('originBusinessId');
   }, T);
@@ -252,7 +252,7 @@ describe('POST /api/v2/parse-request', () => {
 
     const gone = expectDraft(await post({ text: 'A box from Etsy to JetBlue by noon' }), store.get());
     expect(gone.draft.originBusinessId).toBeNull();
-    expect(gone.rejected).toBe('Relay delivers only between network businesses. "Etsy" is not one of them.');
+    expect(gone.rejected).toBe('Relay delivers only between network businesses, and "Etsy" is not one.');
     expectUntouched(store, before);
   }, T);
 

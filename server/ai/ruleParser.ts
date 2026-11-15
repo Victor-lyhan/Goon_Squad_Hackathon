@@ -10,10 +10,15 @@
 //   of the name, when no other business starts with them and they are more than a place or a generic word:
 //   "Brooklyn Roasting" yes, "Brooklyn" no). "from X" is the sender and "to Y" the recipient, in either
 //   order; a business named without from/to takes the role that is still open ("for Y": the recipient first).
-// - A stop after from/to that is not a network business (a home, a street address, an unknown name) is never
-//   guessed: the field stays null and `rejected` says so in one plain sentence.
+// - A network business may also be named by its own street address after from/to (#898): the house number
+//   and the street, in any case and with the usual short forms ("to 1 Wall St", "from 200 flushing ave"); the
+//   city, borough and ZIP may follow or be left out. Another number or another street is not that business.
+// - A stop after from/to that is not a network business (a home, another street address, an unknown name) is
+//   never guessed: the field stays null and `rejected` says so in one plain sentence.
 // - Times: minutes since Day 1 00:00; "today" is Day 1 and "tomorrow" is Day 2 (DECISIONS pass 80).
-//   A time without a day is its next occurrence after the run clock. "tomorrow morning" = by Day 2 10:00.
+//   A time without a day is its next occurrence after the run clock. "tomorrow morning" and "next morning"
+//   = by Day 2 10:00. "this evening" and "tonight" are Day 1, and make "8" 8 p.m.; alone they are no time
+//   ("this evening" has no hour), so the deliver-by stays null and is listed in `missing`.
 //   The ready time is "ready at 4 pm"; without the "at" it must be an exact time ("ready 4pm", "pickup 16:00").
 // - Category, a package name, a description ("a box of coffee samples") and a weight ("1.5 kg") from words.
 //   Without a package word, what is sent names the package and is its description ("Send coffee beans to
@@ -24,7 +29,7 @@ import type { NetworkBusiness, PackageCategory } from '../../shared/v2/types';
 
 export type ParseContext = {
   /** `run.scenario.businesses`: the only stops a draft may name. */
-  businesses: readonly (Pick<NetworkBusiness, 'id' | 'name'> & Partial<Pick<NetworkBusiness, 'neighborhood' | 'borough'>>)[];
+  businesses: readonly (Pick<NetworkBusiness, 'id' | 'name'> & Partial<Pick<NetworkBusiness, 'address' | 'neighborhood' | 'borough'>>)[];
   /** The run clock's minute (`run.clock.timeMin`). */
   nowMin: number;
 };
@@ -35,6 +40,18 @@ const LAST_MIN = 2 * DAY_MIN;
 export const TOMORROW_MORNING_MIN = DAY_MIN + 600;
 
 export const NOT_A_NETWORK_BUSINESS = 'Relay delivers only between network businesses.';
+
+/**
+ * The refusal of one or two stops that are not network businesses, as the sender typed them: one plain
+ * sentence (#898). 'Relay delivers only between network businesses, and "my home" is not one.'
+ * Also the wording of server/ai/geminiParser.ts, so the card reads the same whoever wrote the draft.
+ */
+export function notNetworkSentence(first: string, second?: string): string {
+  const rule = NOT_A_NETWORK_BUSINESS.replace(/\.$/, '');
+  return second === undefined
+    ? `${rule}, and "${first}" is not one.`
+    : `${rule}, and "${first}" and "${second}" are not.`;
+}
 
 const EMPTY_DRAFT: ParseDraft = {
   originBusinessId: null, destinationBusinessId: null, label: null, category: null,
@@ -70,7 +87,42 @@ const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(
 
 // ---------- business names ----------
 
-type Alias = { words: string[]; businessId: string; full: boolean };
+/** `address`: the words are a street address ("1 wall st"), compared in the one spelling of `streetWord`. */
+type Alias = { words: string[]; businessId: string; full: boolean; address?: true };
+
+/** One spelling for the words of a street address: "Street" and "St", "West" and "W", "Ninth" and "9th". */
+const STREET_WORDS: Record<string, string> = {
+  street: 'st', avenue: 'ave', av: 'ave', boulevard: 'blvd', road: 'rd', drive: 'dr', place: 'pl', lane: 'ln',
+  court: 'ct', square: 'sq', plaza: 'plz', parkway: 'pkwy', north: 'n', south: 's', east: 'e', west: 'w',
+  first: '1st', second: '2nd', third: '3rd', fourth: '4th', fifth: '5th', sixth: '6th', seventh: '7th',
+  eighth: '8th', ninth: '9th', tenth: '10th',
+};
+const STREET_TYPES = new Set(['st', 'ave', 'blvd', 'rd', 'dr', 'pl', 'ln', 'ct', 'sq', 'plz', 'pkwy']);
+/** A house number written as a word: "One Wall Street". */
+const HOUSE_NUMBER_WORDS: Record<string, string> = {
+  one: '1', two: '2', three: '3', four: '4', five: '5', six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
+};
+
+/** `first`: the word is where the house number stands. */
+const streetWord = (norm: string, first: boolean): string =>
+  (first ? HOUSE_NUMBER_WORDS[norm] : undefined) ?? STREET_WORDS[norm] ?? norm;
+
+/**
+ * The street address of each business as a name for it: the part before the first comma ("1 Wall Street" of
+ * "1 Wall Street, New York, NY 10005"), which must start with the house number. An address two businesses
+ * share names neither of them.
+ */
+function addressAliases(businesses: ParseContext['businesses']): Alias[] {
+  const byStreet = new Map<string, Alias | null>();
+  for (const business of businesses) {
+    const street = typeof business.address === 'string' ? business.address.split(',')[0] : '';
+    const words = tokenize(street).map((token, i) => streetWord(token.norm, i === 0));
+    if (words.length < 2 || !/^\d/.test(words[0])) continue;
+    const key = words.join(' ');
+    byStreet.set(key, byStreet.has(key) ? null : { words, businessId: business.id, full: true, address: true });
+  }
+  return [...byStreet.values()].filter((alias): alias is Alias => alias !== null);
+}
 
 /** Words that say where, not who. A short form made only of these (and of GENERIC_WORDS) names no business. */
 const PLACE_WORDS = [
@@ -116,6 +168,7 @@ function buildAliases(businesses: ParseContext['businesses']): Alias[] {
       aliases.push({ words: prefix, businessId: name.id, full: false });
     }
   }
+  aliases.push(...addressAliases(businesses));
   return aliases.sort((a, b) => b.words.length - a.words.length);
 }
 
@@ -127,12 +180,17 @@ function aliasAt(tokens: Token[], at: number, aliases: Alias[]): Alias | null {
   for (const alias of aliases) {
     const { words } = alias;
     if (at + words.length > tokens.length) continue;
-    // The last word may carry an "s": "Etsy's envelope".
+    // The last word of a name may carry an "s": "Etsy's envelope".
     const fits = words.every((word, k) => {
       const typed = tokens[at + k].norm;
+      if (alias.address) return streetWord(typed, k === 0) === word;
       return typed === word || (k === words.length - 1 && typed === `${word}s`);
     });
-    if (fits) return alias;
+    if (!fits) continue;
+    // "1 Wall Street Court" is another street than "1 Wall Street".
+    const next = tokens[at + words.length];
+    if (alias.address && next && STREET_TYPES.has(streetWord(next.norm, false))) continue;
+    return alias;
   }
   return null;
 }
@@ -156,6 +214,9 @@ function findBusinesses(text: string, tokens: Token[], aliases: Alias[]): Hit[] 
     const alias = aliasAt(tokens, at, aliases);
     if (!alias) continue;
     const role = roleBefore(tokens, at);
+    // An address names a stop only right after from/to. After the business's own name it is a part of that
+    // name ("Etsy, 117 Adams Street"); anywhere else it is left alone, so no role is ever guessed from one.
+    if (alias.address && role === null && hits[hits.length - 1]?.businessId !== alias.businessId) continue;
     // "an envelope for X": a hint, weaker than from/to ("a box for Etsy to JetBlue" goes to JetBlue).
     const forIt = role === null && wordBefore(tokens, at) === 'for';
     // One common word ("blue", "print") names a business only after from/to or written as a name.
@@ -266,16 +327,17 @@ function resolveStops(text: string, tokens: Token[], hits: Hit[]): Stops {
   const [first, second] = refused;
   let rejected: string | null = null;
   if (first !== undefined && (second === undefined || second.toLowerCase() === first.toLowerCase())) {
-    rejected = `${NOT_A_NETWORK_BUSINESS} "${first}" is not one of them.`;
+    rejected = notNetworkSentence(first);
   } else if (first !== undefined) {
-    rejected = `${NOT_A_NETWORK_BUSINESS} "${first}" and "${second}" are not among them.`;
+    rejected = notNetworkSentence(first, second);
   }
   return { originBusinessId: stop.origin, destinationBusinessId: stop.destination, rejected };
 }
 
 // ---------- times ----------
 
-const DAY = String.raw`(?:today|tonight|tomorrow|day\s?[12])`;
+// A day in words. "next morning" and "the next day" are tomorrow; "this evening" is today, like "tonight".
+const DAY = String.raw`(?:today|tonight|tomorrow|(?:the\s+)?next\s+(?:day|morning)|this\s+(?:morning|afternoon|evening)|day\s?[12])`;
 const DAY_PART = String.raw`(?:(?:morning|afternoon|evening)\s+)?`;
 // "10", "10:30", "10 a.m.", "5pm", "17:00", "noon". The groups h, mm, mer and word are read by `clockMinutes`.
 const CLOCK = String.raw`(?:(?<h>\d{1,2})(?!\d)(?:[:.](?<mm>\d{2})(?!\d))?(?:\s*(?<mer>a\.?m\b\.?|p\.?m\b\.?))?|(?<word>noon|midday|midnight)\b)`;
@@ -289,6 +351,8 @@ const DEADLINE_KEYED = new RegExp(
 const DEADLINE_DAY_AT = new RegExp(String.raw`\b(?<d1>${DAY})\s+${DAY_PART}at\s+${CLOCK}`, 'g');
 /** "at 10 am tomorrow". Without the day, "at 5" could be anything. */
 const DEADLINE_AT_DAY = new RegExp(String.raw`\bat\s+${CLOCK}\s+(?:on\s+)?(?<d3>${DAY})\b`, 'g');
+/** "tomorrow 10am", "tomorrow morning 10:00": a day and an exact time, with am/pm or a colon. "today 2 boxes" is no time. */
+const DEADLINE_DAY_CLOCK = new RegExp(String.raw`\b(?<d1>${DAY})\s+${DAY_PART}${CLOCK}`, 'g');
 /**
  * "ready at 4 pm", "available from 4:30 today", "pick up after 9 tomorrow". Without the small word the time
  * must be exact, with am/pm or a colon ("ready 4pm", "pickup 16:00", "ready noon"): "pick up 2 boxes" is no time.
@@ -298,12 +362,23 @@ const READY = new RegExp(
   + String.raw`(?:(?<d2>${DAY})\s+)?${CLOCK}${DAY_AFTER}`, 'g');
 
 /** After a bare number ("by 10"), what may follow for it to be a time: the end, punctuation or a small word. */
-const AFTER_BARE_HOUR = /^\s*(?:$|[,;!?)]|\.(?:\s|$)|(?:on|at|from|to|for|and|please|sharp)\b)/;
+const AFTER_BARE_HOUR = /^\s*(?:$|[,;!?)]|\.(?:\s|$)|(?:on|at|from|to|for|and|please|sharp|in\s+the\s+(?:morning|afternoon|evening))\b)/;
+/** The part of the day right after a time: "by 8 tomorrow evening", "by 7 in the morning". */
+const PART_AFTER = /^\s+(?:in\s+the\s+)?(?<part>morning|evening)\b/;
 
 type TimeGroups = Partial<Record<'h' | 'mm' | 'mer' | 'word' | 'd1' | 'd2' | 'd3' | 'prep', string>>;
 
-/** Minutes after midnight, or null for "25:00" and "10:75". Without am/pm, 1 to 7 is the afternoon. */
-function clockMinutes(g: TimeGroups, tonight: boolean): number | null {
+/** What the words around a time say about it, for a time without am/pm: "8 this evening" is 8 p.m. */
+type Part = 'morning' | 'evening' | null;
+
+/** Whether an exact time is written: am/pm, "noon", or minutes after a colon. A bare "10" or "10.30" is not. */
+const isExact = (g: TimeGroups, typed: string) => Boolean(g.mer || g.word || (g.mm && typed.includes(':')));
+
+/**
+ * Minutes after midnight, or null for "25:00" and "10:75". Without am/pm, 1 to 7 is the afternoon; in the
+ * evening ("tonight", "this evening") 1 to 11 is, and in the morning nothing is ("by 7 tomorrow morning").
+ */
+function clockMinutes(g: TimeGroups, part: Part): number | null {
   if (g.word) return g.word === 'midnight' ? DAY_MIN : 720; // midnight = the end of that day
   let hour = Number(g.h);
   const minutes = g.mm ? Number(g.mm) : 0;
@@ -313,7 +388,8 @@ function clockMinutes(g: TimeGroups, tonight: boolean): number | null {
     hour = (hour % 12) + (g.mer.startsWith('p') ? 12 : 0);
   } else {
     if (hour > 23) return null;
-    if ((hour >= 1 && hour <= 7) || (tonight && hour >= 1 && hour < 12)) hour += 12;
+    const afternoon = part === 'evening' ? hour >= 1 && hour < 12 : part === null && hour >= 1 && hour <= 7;
+    if (afternoon) hour += 12;
   }
   return hour * 60 + minutes;
 }
@@ -325,14 +401,18 @@ function clockMinutes(g: TimeGroups, tonight: boolean): number | null {
 function minuteOf(match: RegExpMatchArray, lower: string, nowMin: number, mayBeNow: boolean): number | null {
   const g: TimeGroups = match.groups ?? {};
   const day = g.d1 ?? g.d2 ?? g.d3;
-  const minutes = clockMinutes(g, day === 'tonight');
+  const after = lower.slice((match.index ?? 0) + match[0].length);
+  // The part of the day is in the phrase itself ("tomorrow evening at 8", "by 8 tonight") or right after it.
+  const said = /\b(?:tonight|evening)\b/.test(match[0]) ? 'evening' : /\bmorning\b/.test(match[0]) ? 'morning' : null;
+  const part: Part = said ?? (PART_AFTER.exec(after)?.groups?.part as Part | undefined) ?? null;
+  const minutes = clockMinutes(g, part);
   if (minutes === null) return null;
   const bareHour = !g.word && !g.mer && !g.mm;
-  if (bareHour && !g.d3 && !AFTER_BARE_HOUR.test(lower.slice((match.index ?? 0) + match[0].length))) return null;
+  if (bareHour && !g.d3 && !AFTER_BARE_HOUR.test(after)) return null;
 
   let value: number;
   if (day) {
-    value = (/tomorrow|2/.test(day) ? DAY_MIN : 0) + minutes;
+    value = (/tomorrow|next|2/.test(day) ? DAY_MIN : 0) + minutes;
   } else {
     const later = (v: number) => (mayBeNow ? v >= nowMin : v > nowMin);
     value = later(minutes) ? minutes : DAY_MIN + minutes;
@@ -347,14 +427,24 @@ function findDeadline(lower: string, nowMin: number): number | null {
       if (value !== null) return value;
     }
   }
-  return /\btomorrow\s+morning\b/.test(lower) ? TOMORROW_MORNING_MIN : null;
+  // A day and an exact time with no "by" or "at": the deliver-by only when the sentence has one such time.
+  // With two ("Day 1 16:00 to Day 2 10:00") nothing says which one is meant, so neither is taken.
+  const dayTimes = new Set<number>();
+  for (const match of lower.matchAll(DEADLINE_DAY_CLOCK)) {
+    if (!isExact(match.groups ?? {}, match[0])) continue;
+    const value = minuteOf(match, lower, nowMin, false);
+    if (value !== null) dayTimes.add(value);
+  }
+  if (dayTimes.size === 1) return [...dayTimes][0];
+  // A morning without an hour is the decided one (by Day 2 10:00). An evening without an hour is no time.
+  return /\b(?:tomorrow|next)\s+morning\b/.test(lower) ? TOMORROW_MORNING_MIN : null;
 }
 
 /** The ready time the sentence states and the sentence without that phrase, so it is not read as the deadline. */
 function findReady(lower: string, nowMin: number): { readyMin: number | null; rest: string } {
   for (const match of lower.matchAll(READY)) {
     const g: TimeGroups = match.groups ?? {};
-    if (!g.prep && !g.mer && !g.word && !(g.mm && match[0].includes(':'))) continue;
+    if (!g.prep && !isExact(g, match[0])) continue;
     const value = minuteOf(match, lower, nowMin, true);
     const start = match.index ?? 0;
     if (value !== null) return { readyMin: value, rest: blank(lower, start, start + match[0].length) };
