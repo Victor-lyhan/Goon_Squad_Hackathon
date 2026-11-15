@@ -4,6 +4,10 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  NETWORK_FINISHED_TEXT, NETWORK_PLAYING_TEXT, PAUSED_TEXT, PLAY_IDLE, playButtonView, stepAnnouncement,
+} from '../../client/src/components/sim/v2/compose/journeyPlay';
+import { FINISHED_REASON } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { DEFAULT_GRID, gridRuns } from '../../scripts/study/grid';
 import { DEFAULT_STUDY_CSV, DEFAULT_STUDY_OUT, DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
 import { DEFAULT_GEMINI_MODEL, GEMINI_KEY_NAME, GEMINI_MODEL_NAME, geminiKey } from '../../server/ai/env';
@@ -114,6 +118,79 @@ describe('README: Requests in plain English (Gemini)', () => {
     // The sentence is the example of docs/mvp4.md.
     expect(read('docs/mvp4.md')).toContain(parsed.success ? parsed.data.text : 'no sentence');
     for (const source of ['gemini', 'offline']) expect(section).toContain(`\`"source":"${source}"\``);
+  });
+});
+
+// #850: the README after the MVP IV UI batch (#831 Play bar on the map, #832 one-line panels with Details,
+// #842 the two-line step line). Each quoted line is built by the page's own code or read from its source,
+// so a reworded page fails here.
+describe('README: the simulator Play bar and panels after the UI batch', () => {
+  const state = sectionOf('## State file and reset');
+  const watch = sectionOf('## 30-second demo');
+  const demo = sectionOf('## 2-minute demo');
+  /** A journey as far as the step line reads it: four steps, the first `done` of them done. */
+  const journey = (done: number, recipient: string) => ({
+    steps: [['Pickup at sender', 'Blue Bottle Coffee'], ['Drop at relay point', 'Etsy'], ['Pickup at relay point', 'Etsy'], ['Delivered to recipient', recipient]]
+      .map(([label, placeName], i) => ({ n: i + 1, label, placeName, legIndex: i < 2 ? 0 : 1, state: i < done ? 'done' : i === done ? 'current' : 'upcoming' })),
+    carriers: [], commutes: [], endOfCommute: null,
+  }) as never;
+
+  it('says where Play, Pause and Back to start are: one bar at the bottom center of the map', () => {
+    // The bar is centred on the map's bottom edge by the page's CSS (#831), in the map, not in a panel.
+    const bar = /\.spc-playbar \{[^}]*\}/.exec(read('client/src/components/sim/v2/compose/compose.css'))?.[0] ?? '';
+    for (const rule of ['position: absolute', 'left: 50%', 'bottom: 32px', 'transform: translateX(-50%)']) expect(bar).toContain(rule);
+    expect(read('client/src/components/sim/v2/compose/SimPageBody.tsx')).toMatch(/<div className="spc-map">\s*(\{\/\*[\s\S]*?\*\/\}\s*)?<div className="spc-playbar"/);
+    const play = state.split('\n').find((line) => line.startsWith('In the Simulator, **Play** with no package picked')) ?? '';
+    expect(play).toMatch(/\*\*Play\*\* and \*\*Back to start\*\* sit in one small bar at the bottom center of the map, the Play bar/);
+    expect(watch).toMatch(/The controls are in the Play bar, a small bar at the bottom center of the map\./);
+    expect(demo.split('\n').find((line) => line.startsWith('5. **Simulator**')) ?? '').toMatch(/The controls are at the bottom center of the map:/);
+  });
+
+  it('quotes the Play bar lines of network Play as the page prints them', () => {
+    const play = state.split('\n').find((line) => line.startsWith('In the Simulator, **Play** with no package picked')) ?? '';
+    for (const text of [NETWORK_PLAYING_TEXT, FINISHED_REASON, NETWORK_FINISHED_TEXT]) expect(play, text).toContain(`"${text}"`);
+    expect(play.indexOf(`"${NETWORK_PLAYING_TEXT}"`)).toBeLessThan(play.indexOf(`"${FINISHED_REASON}"`));
+    // At the end of the run the button has nothing left to play: it is disabled, with FINISHED_REASON as its note.
+    const atEnd = playButtonView({ packagePicked: false, journey: null, play: PLAY_IDLE, clock: { playing: false, timeMin: 2160 }, busy: false, simEndMin: 2160 });
+    expect(atEnd).toEqual({ label: 'Play', action: null, note: FINISHED_REASON });
+    expect(play).toMatch(/\*\*Play\*\* is greyed out/);
+  });
+
+  it('quotes the step line of a journey: a step, paused, and the end, for both demos', () => {
+    expect(stepAnnouncement(journey(1, 'Brooklyn Roasting Company'))).toBe('Step 2 of 4 next: Drop at relay point at Etsy.');
+    expect(watch).toContain('"Step 2 of 4 next: Drop at relay point at Etsy."');
+    expect(watch).toContain(`"${PAUSED_TEXT}"`);
+    expect(watch).toContain(`step line reads "${stepAnnouncement(journey(4, 'Brooklyn Roasting Company'))}"`);
+    // The 2-minute demo's journey ends at the recipient of its request block.
+    const recipient = /^recipient: (.+)$/m.exec(demo)?.[1] ?? 'no recipient in the block';
+    const end = stepAnnouncement(journey(4, recipient));
+    expect(end).toBe(`Journey complete: Delivered to recipient at ${recipient}.`);
+    expect(demo.split('\n').find((line) => line.startsWith('5. **Simulator**')) ?? '').toContain(`the line under the buttons then reads "${end}"`);
+    // #842: the shown line is capped at two lines and its whole text is its title (hover).
+    expect(read('client/src/components/sim/v2/controls/controls.css')).toMatch(/\.ctl-line \{[^}]*line-clamp: 2;/);
+    expect(read('client/src/components/sim/v2/controls/PlaybackControls.tsx')).toContain('<p className="ctl-line" aria-hidden="true" title={status}>{status}</p>');
+    expect(watch).toMatch(/never takes more than two lines/);
+    // The sentence from before #831, when the buttons were in the left panel, is gone.
+    expect(readme).not.toContain(`The line under the buttons then reads "${FINISHED_REASON}"`);
+  });
+
+  it('names the right panel and its Details button as the page does, with the four step labels', () => {
+    expect(read('client/src/components/sim/v2/SimWorkspace.tsx')).toContain('<Panel side="right" title="Inspector"');
+    expect(read('client/src/components/sim/v2/Details.tsx')).toContain("DETAILS_LABEL = 'Details'");
+    const panel = watch.split('\n').find((line) => line.includes('The **Inspector** panel on the right')) ?? '';
+    const model = read('client/src/components/sim/v2/journey/journeyModel.ts');
+    const labels = ['Pickup at sender', 'Drop at relay point', 'Pickup at relay point', 'Delivered to recipient'];
+    for (const label of labels) {
+      expect(model).toContain(`'${label}'`);
+      expect(panel).toContain(`"${label}"`);
+    }
+    expect(labels.map((label) => panel.indexOf(`"${label}"`))).toEqual(labels.map((label) => panel.indexOf(`"${label}"`)).sort((a, b) => a - b));
+    // #832: the carriers' minutes and reward are under the timeline's Details toggle, closed at first.
+    expect(panel).toMatch(/\*\*Details\*\*, the button just above the first step, adds each carrier's home neighborhood, extra minutes and reward/);
+    const timeline = read('client/src/components/sim/v2/journey/JourneyTimeline.tsx');
+    expect(timeline).toMatch(/<ul id=\{legsId\} className="jt__legs" aria-label="Carriers" data-details-body="" hidden=\{!detailsOpen\}>/);
+    expect(timeline).toContain('const [detailsOpen, setDetailsOpen] = useState(false);');
+    expect(watch).not.toMatch(/both carriers with their extra minutes and reward/);
   });
 });
 
