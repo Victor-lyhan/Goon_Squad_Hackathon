@@ -110,15 +110,15 @@ async function expectLocked(locked: SimulatorResponse, clientRequestId: string, 
 
 describe('the three locked 409 texts', () => {
   it('name "Back to start", the control the simulator has, and no control it lost', () => {
-    expect(SHIPMENTS_LOCKED).toBe('The simulation is playing. Press Back to start in the simulator to change deliveries.');
-    expect(COMMUTE_LOCKED).toBe('The simulation is playing. Press Back to start in the simulator to edit commutes.');
-    expect(RECOMPUTE_LOCKED).toBe('The simulation is playing. Press Back to start in the simulator to recompute.');
+    expect(SHIPMENTS_LOCKED).toBe('Playback has started, so press Back to start in the simulator to change deliveries.');
+    expect(COMMUTE_LOCKED).toBe('Playback has started, so press Back to start in the simulator to edit commutes.');
+    expect(RECOMPUTE_LOCKED).toBe('Playback has started, so press Back to start in the simulator to match again.');
     for (const text of [SHIPMENTS_LOCKED, COMMUTE_LOCKED, RECOMPUTE_LOCKED]) {
       expect(text).not.toMatch(/planning cycle/i);
       expect(text).not.toMatch(/reset/i);
     }
     // The words are the button's own label, and the button sends the control that unlocks.
-    for (const text of [SHIPMENTS_LOCKED, COMMUTE_LOCKED, RECOMPUTE_LOCKED]) expect(text).toContain(`Press ${RESET_LABEL} in the simulator`);
+    for (const text of [SHIPMENTS_LOCKED, COMMUTE_LOCKED, RECOMPUTE_LOCKED]) expect(text).toContain(`press ${RESET_LABEL} in the simulator`);
     expect(RESET_REQUEST).toStrictEqual({ action: 'reset_playback' });
   });
 });

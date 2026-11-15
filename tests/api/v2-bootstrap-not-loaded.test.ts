@@ -132,7 +132,7 @@ describe('bootstrap with travel data it cannot use', () => {
     const { originBusinessId, destinationBusinessId } = sample.fixtures.storyFile.shipments[0];
     delete sample.files.matrix.pairs[pairKey(originBusinessId, destinationBusinessId)];
     writeTravelFiles(repo.fixturesDir, sample.files);
-    expectNotLoaded(repo, new RegExp(`No travel time is cached for ${originBusinessId} to ${destinationBusinessId}`));
+    expectNotLoaded(repo, new RegExp(`A travel time is missing on this server\\..*\\(${originBusinessId} to ${destinationBusinessId}\\)`));
   }, T);
 
   it('a missing NYC fixture file is not loaded, and the reason names the file', () => {

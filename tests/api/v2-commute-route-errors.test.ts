@@ -122,7 +122,7 @@ describe('PUT /api/v2/employees/:id/commute: 4xx, each with no call to the trave
 
     expect(res.status).toBe(400);
     expect(ApiError.parse(res.body)).toEqual({
-      error: INVALID_COMMUTE, fieldErrors: { businessId: 'Unknown business', home: 'Unknown home' },
+      error: INVALID_COMMUTE, fieldErrors: { businessId: 'Choose a workplace from the list', home: 'Choose a home from the list, or search for an address' },
     });
     expect(app.places.calls).toEqual([]);
     expectUntouched(app, before, copy);
@@ -304,7 +304,7 @@ describe('PUT /api/v2/employees/:id/commute: the run changes while Google answer
     const res = await pending;
 
     expect(res.status).toBe(400);
-    expect(ApiError.parse(res.body)).toEqual({ error: INVALID_COMMUTE, fieldErrors: { businessId: 'Unknown business' } });
+    expect(ApiError.parse(res.body)).toEqual({ error: INVALID_COMMUTE, fieldErrors: { businessId: 'Choose a workplace from the list' } });
     expectUntouched(app, replaced, copy);
   });
 

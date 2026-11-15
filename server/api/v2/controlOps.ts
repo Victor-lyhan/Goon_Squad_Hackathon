@@ -10,8 +10,21 @@ export type ControlPlan =
   | { kind: 'invalid'; status: 400; error: string; fieldErrors: Record<string, string> }
   | { kind: 'apply'; clock: Clock };
 
+// Copy (#888): the simulator shows `error` beside Play, so it is one plain sentence. A page only gets it
+// when it sends something the server does not know, which a reload fixes.
+export const INVALID_CONTROL = 'The simulator did not understand that control, so reload the page and try again.';
+export const SEEK_OUTSIDE_RUN = 'Choose a time inside the simulation hours';
+// One fixed text per field. Zod's own texts name JavaScript types and list the contract's action names.
+const CONTROL_COPY: Record<string, string> = {
+  body: 'Choose a playback control',
+  action: 'Choose a playback control',
+  speed: 'Choose one of the listed speeds',
+  timeMin: SEEK_OUTSIDE_RUN,
+};
+const CONTROL_FALLBACK = 'This value is not valid';
+
 const invalid = (fieldErrors: Record<string, string>): ControlPlan =>
-  ({ kind: 'invalid', status: 400, error: 'Invalid simulator control', fieldErrors });
+  ({ kind: 'invalid', status: 400, error: INVALID_CONTROL, fieldErrors });
 
 /** Body of the 400 answer for an `invalid` plan. */
 export const controlError = (plan: Extract<ControlPlan, { kind: 'invalid' }>): ApiError =>
@@ -28,7 +41,8 @@ export function planControl(run: Pick<Run, 'clock' | 'events' | 'scenario'>, bod
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
     for (const issue of parsed.error.issues) {
-      fieldErrors[issue.path.join('.') || 'body'] ??= issue.message;
+      const field = String(issue.path[0] ?? 'body');
+      fieldErrors[issue.path.join('.') || 'body'] ??= Object.hasOwn(CONTROL_COPY, field) ? CONTROL_COPY[field] : CONTROL_FALLBACK;
     }
     return invalid(fieldErrors);
   }
@@ -36,7 +50,7 @@ export function planControl(run: Pick<Run, 'clock' | 'events' | 'scenario'>, bod
   const req = parsed.data;
   // A seek outside the run is refused, not clamped: "Play journey" needs exact seeks (DECISIONS pass 46).
   if (req.action === 'seek' && (req.timeMin < settings.simStartMin || req.timeMin > settings.simEndMin)) {
-    return invalid({ timeMin: `Must be between ${settings.simStartMin} and ${settings.simEndMin}` });
+    return invalid({ timeMin: SEEK_OUTSIDE_RUN });
   }
   return { kind: 'apply', clock: applyControl(run.clock, req, run.events, settings) };
 }

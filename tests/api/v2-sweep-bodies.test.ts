@@ -594,8 +594,8 @@ describe('POST /scenario/import: a place that is not in the file', () => {
       'POST', '/scenario/import', json(withField(run, 'trips.0.originPlaceId', 'place-not-in-the-file')), [400], 'a trip from nowhere',
     );
     expect(error).toStrictEqual({
-      error: 'A commute trip in this file refers to a place that is not in the file, so it was not loaded.',
-      fieldErrors: { 'trips.0.originPlaceId': 'Unknown place' },
+      error: 'This file names a place it does not list, so it was not loaded.',
+      fieldErrors: { 'trips.0.originPlaceId': 'Not in this file' },
     });
   }, T);
 
