@@ -378,7 +378,7 @@ describe('revealAnswer: the answer to a press is brought on screen (#719)', () =
     f.fill();
     expect(names(f)).toEqual([]);
     click(f.send());
-    expect(f.status()).toContain('Sending request');
+    expect(f.status()).toContain('Finding a delivery match for your request');
     expect(names(f)).toEqual([]);
 
     answer.resolve(matchedAnswer());
@@ -408,7 +408,7 @@ describe('revealAnswer: the answer to a press is brought on screen (#719)', () =
     expect(names(f)).toEqual(['button', 'result']);
 
     click(button(f.container, 'Try matching again'));
-    expect(names(f)).toEqual([]); // "Looking for a matching commute again…" is not an answer
+    expect(names(f)).toEqual([]); // "Finding a delivery match again…" is not an answer
     await flush();
     expect(f.onMatch).toHaveBeenCalledTimes(1);
     expect(f.status()).toContain(REASON);

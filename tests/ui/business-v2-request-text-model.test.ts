@@ -79,6 +79,7 @@ describe('parsedRequest: what the page shows for an answer', () => {
       },
       needsInput: [],
       sourceLabel: 'Parsed by Gemini',
+      sourceLine: null, // only an offline answer gets the plain line (#880)
       senderNote: null,
       rejected: null,
     });
@@ -88,6 +89,7 @@ describe('parsedRequest: what the page shows for an answer', () => {
   it('an offline draft with missing fields: they keep the form\'s defaults and are listed in screen order', () => {
     const p = parsedRequest(answer({ originBusinessId: null, label: null, description: null, weightKg: null }, { source: 'offline' }), CONTEXT, SENTENCE);
     expect(p.sourceLabel).toBe('Parsed offline');
+    expect(p.sourceLine).toBe('Read by Relay’s built-in rules, with no AI model.');
     expect(p.needsInput).toEqual(['label', 'weightKg', 'description']);
     expect(p.draft).toMatchObject({ recipientId: BAKERY.id, label: '', weightKg: emptyDraft().weightKg, description: '' });
     expect(p.senderNote).toBeNull(); // no sender in the sentence: it is the signed-in business, nothing to say

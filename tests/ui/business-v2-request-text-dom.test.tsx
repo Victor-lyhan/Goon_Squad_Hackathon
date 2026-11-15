@@ -573,9 +573,13 @@ describe('without a stub the page asks the server', () => {
     for (let i = 0; i < 20 && !m.container.querySelector('form.nd'); i++) await flush();
     await flush();
     // One read. The call after it asks for the Options card (#863, business-v2-dom-advice.test.tsx); this
-    // fake answers it with the draft again, which holds no option, so no card is drawn.
+    // fake answers it with the draft again, which is no advise answer: the card holds no option and says so
+    // in one sentence (#880; before it the card was not drawn).
     expect(fetchMock.mock.calls.map(([called]) => called)).toEqual(['/api/v2/parse-request', '/api/v2/advise']);
-    expect(m.container.querySelector('.nd-options')).toBeNull();
+    expect(m.container.querySelector('.nd-option')).toBeNull();
+    expect(textOf(m.container.querySelector('.nd-options')!)).toBe(
+      'OptionsOptions could not be loaded. You can still send your request: press Find a delivery match.',
+    );
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('/api/v2/parse-request');
     expect(init!.method).toBe('POST');
