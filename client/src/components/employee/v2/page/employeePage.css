@@ -53,22 +53,30 @@
   margin-bottom: var(--space-2, 8px);
 }
 .ep-editor-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
+/* In the editor the form and the address search are as wide as the card (#882): on their own they stop
+   at 640 and 560 px, which left Close hanging past their right edge. */
+.ep-form .cf, .ep-form .addr-search { max-width: none; }
 /* The page banner says it; the form's own message would repeat it. */
 .ep-form--quiet .cf-message { display: none; }
 
+/* Close and Retry look like Edit commute and Change (#882): one secondary button on the page, in the
+   accent, 600. Before, these two had a grey border and regular weight. */
 .ep-btn {
   min-height: 36px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--muted, #5B6472);
+  border: 1px solid var(--accent, #1D5075);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  color: var(--accent, #1D5075);
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
+.ep-btn:hover:not(:disabled) { background: var(--bg, #F7F7F4); }
 .ep-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .ep-btn:focus-visible, .ep-links a:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-.ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); text-decoration: underline; }
+.ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); font-weight: 400; text-decoration: underline; }
+.ep-btn-link:hover:not(:disabled) { background: none; }
 
 /* The employee's name above a job screen (#634): the same heading as the workspace's. */
 .ep-name { margin: 0; padding: var(--space-4, 16px) var(--space-4, 16px) 0; font-size: 20px; font-weight: 600; line-height: 1.2; }
@@ -80,7 +88,12 @@
 .ep-route-note { margin: var(--space-3, 12px) 0 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
 .ep-route-note.ep-problem { color: var(--danger, #A4322A); }
 
-@media (max-width: 390px) {
+/* Phone rules from 480 px down (#882), like the workspace's, so a 412 or 430 px phone gets them. */
+@media (max-width: 480px) {
+  /* 44 px touch targets: Close, Retry, the links of the not-found state and the links inside a note. */
+  .ep-btn { min-height: 44px; }
+  .ep-links { gap: 0 var(--space-4, 16px); }
+  .ep-links a, .ep-btn-link { display: inline-flex; align-items: center; min-height: 44px; }
   .ep-state { margin: var(--space-2, 8px); padding: var(--space-3, 12px); }
   .ep-notices, .ep-job, .ep-name { padding-left: var(--space-2, 8px); padding-right: var(--space-2, 8px); }
   .ep-name { font-size: 18px; }

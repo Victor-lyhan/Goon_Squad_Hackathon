@@ -212,9 +212,18 @@
   color: var(--danger, #A4322A);
 }
 
-@media (max-width: 390px) {
+/* Phone rules from 480 px down (#882): one column, and every control a 44 px touch target. */
+@media (max-width: 480px) {
   .cf {
     gap: 14px;
+  }
+  .cf select,
+  .cf input[type='time'],
+  .cf input[type='number'],
+  .cf-detour input[type='range'],
+  .cf-check,
+  .cf-btn {
+    min-height: 44px;
   }
   .cf-row {
     grid-template-columns: 1fr;

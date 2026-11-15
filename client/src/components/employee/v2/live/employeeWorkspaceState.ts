@@ -10,6 +10,12 @@ import { ApiRequestError, isTravelUnavailable, type TravelUnavailableCode } from
 export const TRAVEL_DATA_MISSING_TEXT = 'NYC travel data is not loaded on this server yet.';
 export const RECONNECTING_TEXT = 'Reconnecting…';
 export const RUN_CHANGED_NOTE = 'The city changed, so your workspace was reloaded.';
+// The first load failed (#882). Plain words for the three ways it fails, never the browser's or the
+// HTTP client's own text ("Failed to fetch", "Request failed (500)"). "Can't reach the Relay server" is
+// the sentence the header banner and the simulator use.
+export const CANT_REACH_TEXT = "Can't reach the Relay server. Check that it is running, then press Retry.";
+export const TOO_SLOW_TEXT = 'The Relay server took too long to answer. Press Retry.';
+export const SERVER_ERROR_TEXT = 'The Relay server answered with an error. Press Retry; if it keeps failing, restart the server.';
 
 export type WorkspaceView = 'loading' | 'ready' | 'not_found' | 'unavailable' | 'error';
 
@@ -20,6 +26,11 @@ export type EmployeeWorkspaceState = {
   businessesLoaded: boolean;
   job: JobResponse | null;
   jobMissing: boolean;
+  /**
+   * The watched job's request failed (not a 404) and there is no earlier answer to keep on screen (#882).
+   * Cleared by the next answer, a 404, another job or another run. The poller asks again every second.
+   */
+  jobFailed: boolean;
   view: WorkspaceView;
   unavailable: { code: TravelUnavailableCode; message: string } | null;
   reconnecting: boolean;
@@ -41,11 +52,12 @@ export type WorkspaceAction =
   | { type: 'businesses'; businesses: NetworkBusiness[] }
   | { type: 'job'; job: JobResponse }
   | { type: 'jobMissing' }
+  | { type: 'jobFailed' }
   | { type: 'jobCleared' }
   | { type: 'seen'; jobId: string };
 
 export const initialWorkspaceState: EmployeeWorkspaceState = {
-  dashboard: null, businesses: [], businessesLoaded: false, job: null, jobMissing: false, view: 'loading', unavailable: null,
+  dashboard: null, businesses: [], businessesLoaded: false, job: null, jobMissing: false, jobFailed: false, view: 'loading', unavailable: null,
   reconnecting: false, newJobIds: [], runChanged: false, error: null, fallbackEmployeeId: null, baseline: null,
 };
 
@@ -56,7 +68,22 @@ export function unavailableText(code: TravelUnavailableCode, serverMessage: stri
   return code === 'travel_data_missing' ? TRAVEL_DATA_MISSING_TEXT : serverMessage;
 }
 
-const errorText = (e: unknown) => (e instanceof Error && e.message ? e.message : 'Request failed');
+/** The HTTP client's own wording: a status with no message from the server, or the browser's fetch error. */
+const CLIENT_WORDING = /^(Request failed|Request timed out|Failed to fetch|Network error|Load failed|NetworkError)/i;
+
+/**
+ * Why the first load failed, in plain words. A sentence the server wrote itself (an error body with a
+ * message) is shown as it is; everything else maps to one of the three fixed sentences.
+ */
+export function loadErrorText(e: unknown): string {
+  if (e instanceof ApiRequestError) {
+    if (e.kind === 'timeout') return TOO_SLOW_TEXT;
+    if (e.status === 0) return CANT_REACH_TEXT;
+    const own = e.message.trim();
+    return own && !CLIENT_WORDING.test(own) ? own : SERVER_ERROR_TEXT;
+  }
+  return SERVER_ERROR_TEXT;
+}
 
 function onDashboard(s: EmployeeWorkspaceState, d: EmployeeDashboard, runId: string | null): EmployeeWorkspaceState {
   const b = s.baseline;
@@ -98,7 +125,7 @@ function onDashboard(s: EmployeeWorkspaceState, d: EmployeeDashboard, runId: str
     // The note is for a workspace that was on screen when the city changed.
     runChanged: (runChanged && s.businessesLoaded) || s.runChanged,
     // A changed run drops the old run's job and its missing flag; the poller refetches it.
-    ...(runChanged ? { job: null, jobMissing: false } : {}),
+    ...(runChanged ? { job: null, jobMissing: false, jobFailed: false } : {}),
     baseline: { runId: runId ?? b?.runId ?? null, employeeId: d.employee.id, jobIds: knownIds },
   };
 }
@@ -116,7 +143,7 @@ function onFailure(s: EmployeeWorkspaceState, e: unknown): EmployeeWorkspaceStat
     return { ...s, view: 'unavailable', unavailable, error: null };
   }
   if (hadData) return s.reconnecting && s.unavailable === null ? s : { ...s, reconnecting: true, unavailable: null };
-  const error = errorText(e);
+  const error = loadErrorText(e);
   if (s.view === 'error' && s.error === error) return s;
   return { ...s, view: 'error', error, unavailable: null };
 }
@@ -143,12 +170,16 @@ export function employeeWorkspaceReducer(s: EmployeeWorkspaceState, a: Workspace
         view: s.view === 'loading' && s.dashboard !== null ? 'ready' : s.view,
       };
     case 'job':
-      if (s.job !== null && !s.jobMissing && JSON.stringify(s.job) === JSON.stringify(a.job)) return s;
-      return { ...s, job: a.job, jobMissing: false };
+      if (s.job !== null && !s.jobMissing && !s.jobFailed && JSON.stringify(s.job) === JSON.stringify(a.job)) return s;
+      return { ...s, job: a.job, jobMissing: false, jobFailed: false };
     case 'jobMissing':
-      return s.jobMissing && s.job === null ? s : { ...s, job: null, jobMissing: true };
+      return s.jobMissing && s.job === null && !s.jobFailed ? s : { ...s, job: null, jobMissing: true, jobFailed: false };
+    case 'jobFailed':
+      // An earlier answer stays on screen (the notices say "Reconnecting…" when the dashboard fails too);
+      // a job that was never loaded, or is known to be gone, has nothing to keep.
+      return s.job !== null || s.jobMissing || s.jobFailed ? s : { ...s, jobFailed: true };
     case 'jobCleared':
-      return s.job === null && !s.jobMissing ? s : { ...s, job: null, jobMissing: false };
+      return s.job === null && !s.jobMissing && !s.jobFailed ? s : { ...s, job: null, jobMissing: false, jobFailed: false };
     case 'seen':
       return s.newJobIds.includes(a.jobId) ? { ...s, newJobIds: s.newJobIds.filter((id) => id !== a.jobId) } : s;
   }

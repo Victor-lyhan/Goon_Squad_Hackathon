@@ -3,7 +3,9 @@ import type { EmployeeDashboard } from '../../../../../shared/v2/api';
 import type { NetworkBusiness } from '../../../../../shared/v2/types';
 import { CommuteSummary } from './CommuteSummary';
 import { DeliveryList } from './DeliveryList';
-import { LOCKED_TEXT, commuteSummary, deliveryRows, earnings, newJobAnnouncements } from './employeeWorkspaceModel';
+import {
+  COMPLETED_EMPTY, LOCKED_TEXT, assignedEmpty, commuteSummary, deliveryRows, earnings, newJobAnnouncements,
+} from './employeeWorkspaceModel';
 import './EmployeeWorkspace.css';
 
 export type EmployeeWorkspaceProps = {
@@ -59,7 +61,13 @@ export function EmployeeWorkspace({
 
       {editor ?? <CommuteSummary model={summary} onEdit={onEditCommute} editDisabled={locked} />}
 
-      <DeliveryList id="ew-assigned" title="Assigned deliveries" rows={assigned} newJobIds={newJobIds} />
+      <DeliveryList
+        id="ew-assigned"
+        title="Assigned deliveries"
+        rows={assigned}
+        newJobIds={newJobIds}
+        empty={assignedEmpty(summary)}
+      />
 
       <section className="ew-section" aria-labelledby="ew-earnings-heading">
         <div className="ew-section-head">
@@ -81,7 +89,7 @@ export function EmployeeWorkspace({
         id="ew-completed"
         title="Completed deliveries"
         rows={completed}
-        emptyText="No completed deliveries yet."
+        empty={COMPLETED_EMPTY}
       />
 
       {announce && <NewJobAnnouncer dashboard={dashboard} newJobIds={newJobIds} />}

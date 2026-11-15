@@ -72,7 +72,7 @@ describe('EmployeeWorkspace static render', () => {
 describe('EmployeeWorkspace states', () => {
   it('empty deliveries', () => {
     const html = renderToStaticMarkup(<EmployeeWorkspace dashboard={emptyDashboard} businesses={businesses} />);
-    expect(html).toContain(EMPTY_TEXT);
+    expect(text(html)).toContain(EMPTY_TEXT); // #882: the title is its own element, the sentence after it
     expect(html).toContain('No completed deliveries yet.');
     expect(text(html)).toContain('Earned $0.00');
     expectClean(html);

@@ -15,6 +15,16 @@ export const JOB_MISSING_TITLE = 'This delivery is no longer assigned to you';
 export const JOB_MISSING_TEXT = 'It was re-matched or the run changed. Your current deliveries are on your page.';
 export const JOB_OTHER_TITLE = 'This delivery is assigned to another carrier';
 export const JOB_OTHER_TEXT = 'Your current deliveries are on your page.';
+// The job's request failed before any answer arrived (#882). The page asks again every second, so the
+// text says so and offers the way back; it never shows the HTTP client's own error.
+export const JOB_FAILED_TITLE = 'This delivery could not be loaded';
+export const JOB_FAILED_TEXT = 'The request to the Relay server failed. Trying again every second.';
+
+// The route is a checklist (#882): each row has a tick box drawn by CSS, and its state in words for
+// people who do not see the box. A done row keeps " (done)" after its action (#781); a row that is not
+// done says so in text only a screen reader gets.
+export const ROW_DONE_SUFFIX = ' (done)';
+export const ROW_NOT_DONE_TEXT = 'Not done yet';
 
 export type RouteRow = {
   key: string;
