@@ -358,7 +358,7 @@ describe('journey.css: MVP III tokens only', () => {
 describe('the no-key panel: "Google Maps key missing." is not heavier than the loaded Inter', () => {
   it('renders the lead line in a <strong> inside .map-v2__panel', () => {
     const html = renderToStaticMarkup(<MapKeyMissing />);
-    expect(html).toMatch(/^<div class="map-v2__panel" role="alert"><strong>Google Maps key missing\.<\/strong>/);
+    expect(html).toMatch(/^<div class="map-v2__panel" role="status"><strong>Google Maps key missing\.<\/strong>/);
     expect(KEY_MISSING_TEXT).toBe('Google Maps key missing.');
   });
 

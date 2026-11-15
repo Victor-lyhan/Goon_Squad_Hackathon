@@ -24,9 +24,18 @@ afterEach(() => {
 describe('the no-key card (MapKeyMissing)', () => {
   it('says what to do under npm run dev and under the production build', () => {
     const m = mount(<MapKeyMissing />);
-    const alert = m.container.querySelector('[role="alert"]')!;
-    expect(textOf(alert)).toBe(`${KEY_MISSING_TEXT} ${NO_KEY_ADVICE}`);
-    expect(codes(alert)).toEqual(['VITE_GOOGLE_MAPS_BROWSER_KEY', '.env', 'npm run dev', 'npm run build', 'npm start']);
+    const card = m.container.querySelector('.map-v2__panel')!;
+    expect(textOf(card)).toBe(`${KEY_MISSING_TEXT} ${NO_KEY_ADVICE}`);
+    expect(codes(card)).toEqual(['VITE_GOOGLE_MAPS_BROWSER_KEY', '.env', 'npm run dev', 'npm run build', 'npm start']);
+  });
+
+  it('is a calm notice: role="status" (polite), not an alert (#767)', () => {
+    const m = mount(<MapKeyMissing />);
+    const card = m.container.querySelector('.map-v2__panel')!;
+    expect(card.getAttribute('role')).toBe('status');
+    // role="status" implies aria-live="polite"; an explicit value must not make it assertive.
+    expect(card.getAttribute('aria-live') ?? 'polite').toBe('polite');
+    expect(m.container.querySelector('[role="alert"], [aria-live="assertive"]')).toBeNull();
   });
 
   it('keeps "Google Maps key missing." as the lead line, in the one <strong>', () => {
@@ -38,9 +47,12 @@ describe('the no-key card (MapKeyMissing)', () => {
   it('is what GoogleBaseMap shows without a browser key, with no map canvas', () => {
     vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '');
     const m = mount(<GoogleBaseMap places={[]} routes={[]} movers={[]} visible={visible} />);
-    const alerts = m.container.querySelectorAll('[role="alert"]');
-    expect(alerts).toHaveLength(1);
-    expect(textOf(alerts[0])).toBe(`${KEY_MISSING_TEXT} ${NO_KEY_ADVICE}`);
+    const cards = m.container.querySelectorAll('.map-v2__panel');
+    expect(cards).toHaveLength(1);
+    expect(cards[0].getAttribute('role')).toBe('status');
+    expect(textOf(cards[0])).toBe(`${KEY_MISSING_TEXT} ${NO_KEY_ADVICE}`);
+    // Nothing in the no-key map interrupts a screen reader (#767).
+    expect(m.container.querySelector('[role="alert"], [aria-live="assertive"]')).toBeNull();
     expect(m.container.querySelector('.map-v2__canvas')).toBeNull();
   });
 });
@@ -48,7 +60,8 @@ describe('the no-key card (MapKeyMissing)', () => {
 describe('the key-rejected card (MapAuthError)', () => {
   it('its last paragraph names both modes too; the lines above it are unchanged', () => {
     const m = mount(<MapAuthError origin="http://localhost:3001" />);
-    const alert = m.container.querySelector('[role="alert"]')!;
+    // Still an alert: Google refusing the key is a failure to act on (#767 changed only the no-key card).
+    const alert = m.container.querySelector('.map-v2__panel[role="alert"]')!;
     const paragraphs = [...alert.querySelectorAll('p')];
     expect(paragraphs).toHaveLength(2);
     expect(textOf(paragraphs[1])).toBe(REJECTED_ADVICE);

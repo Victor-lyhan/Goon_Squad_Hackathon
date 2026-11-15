@@ -130,12 +130,14 @@ function toDeckLayer(spec: LayerSpec, mod: DeckLayersModule) {
 }
 
 /**
- * The no-key message. An alert, so it is announced without looking at the map area. Vite reads the key
+ * The no-key message. A calm notice (role="status", which implies aria-live="polite"), not an alert: it
+ * is there on every page load without a browser key and must not interrupt a screen reader (#767). The
+ * load error and the rejected key below stay alerts: they are failures to act on. Vite reads the key
  * when `npm run dev` starts and when `npm run build` runs, so the advice names both (#737).
  */
 export function MapKeyMissing() {
   return (
-    <div className="map-v2__panel" role="alert">
+    <div className="map-v2__panel" role="status">
       <strong>{KEY_MISSING_TEXT}</strong> Add <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code> to <code>.env</code>, then
       restart <code>npm run dev</code>, or run <code>npm run build</code> again before <code>npm start</code> (the
       key is read at build time).
@@ -143,7 +145,7 @@ export function MapKeyMissing() {
   );
 }
 
-/** The load-error message with Retry. An alert, like the no-key message. */
+/** The load-error message with Retry. An alert: the map failed and Retry is the way out. */
 export function MapLoadError({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="map-v2__panel" role="alert">
@@ -157,7 +159,7 @@ export function MapLoadError({ onRetry }: { onRetry: () => void }) {
 }
 
 /**
- * Google rejected the browser key (gm_authFailure). An alert, like the no-key message, with what to
+ * Google rejected the browser key (gm_authFailure). An alert, like the load error, with what to
  * check. Never shows the key, the script URL or Google's error text; only this page's origin.
  */
 export function MapAuthError({ origin }: { origin: string }) {
