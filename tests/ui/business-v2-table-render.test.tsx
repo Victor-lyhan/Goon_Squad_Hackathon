@@ -26,8 +26,9 @@ describe('ShipmentsTable', () => {
   it('renders a real table with caption, aria-sort and the selected row', () => {
     const html = table();
     expect(html).toContain('<table');
-    expect(html).toMatch(/<caption[^>]*>Shipments/);
-    expect(html).toContain('4 shipments');
+    // The caption holds the list's h2 "Deliveries" and the count; "deliveries" is for a screen reader only (#881).
+    expect(html).toMatch(/<caption[^>]*><h2 class="bw-table__title">Deliveries<\/h2>/);
+    expect(html).toContain('<span class="bw-table__count">4<span class="bw-visually-hidden"> deliveries</span></span>');
     expect(html.match(/aria-sort=/g)).toHaveLength(1);
     expect(html).toMatch(/<th[^>]*aria-sort="ascending"[^>]*><button[^>]*>Deadline/);
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
@@ -49,7 +50,10 @@ describe('ShipmentsTable', () => {
 
   it('puts IDs, times and money in mono cells and labels every cell for stacked rows', () => {
     const html = table();
-    expect(html).toMatch(/<td data-label="Shipment ID" class="bw-mono bw-col--drop2">shp-1<\/td>/);
+    // The raw ID is the row's key in the markup, never on screen (#881): the cell and its header are `hidden`.
+    expect(html).toMatch(/<td data-label="Shipment ID" class="bw-mono bw-col--drop2" hidden="">shp-1<\/td>/);
+    expect(html).toMatch(/<th scope="col" class="bw-col--drop2" hidden="">/);
+    expect(html.match(/hidden=""/g)).toHaveLength(5); // one header and four cells, nothing else
     expect(html).toMatch(/<td data-label="Deadline" class="bw-mono bw-col--drop1">Day 2, 1:00 AM<\/td>/);
     expect(html).toMatch(/<td data-label="Price" class="bw-mono bw-num">\$18.00<\/td>/);
     const cells = html.match(/<td /g)!.length;
@@ -62,7 +66,7 @@ describe('ShipmentsTable', () => {
     const drop = (label: string) => {
       const th = new RegExp(`<th scope="col"(?: class="([^"]*)")?[^>]*>(?:<button[^>]*>)?${label}<`).exec(html);
       expect(th, label).not.toBeNull();
-      const tds = [...html.matchAll(new RegExp(`<td data-label="${label}"(?: class="([^"]*)")?>`, 'g'))];
+      const tds = [...html.matchAll(new RegExp(`<td data-label="${label}"(?: class="([^"]*)")?(?: hidden="")?>`, 'g'))];
       expect(tds).toHaveLength(4);
       const cls = (c: string | undefined) => (c ?? '').split(' ').filter((x) => x.startsWith('bw-col--drop')).join(' ');
       for (const td of tds) expect(cls(td[1]), label).toBe(cls(th![1]));
@@ -81,7 +85,7 @@ describe('ShipmentsTable', () => {
   });
 
   it('shows "x of y" when filtered', () => {
-    expect(table({ rows: rows.slice(0, 2) })).toContain('2 of 4 shipments');
+    expect(table({ rows: rows.slice(0, 2) })).toContain('<span class="bw-table__count">2 of 4<span class="bw-visually-hidden"> deliveries</span></span>');
   });
 
   it('keeps the Plan cell to one child: relay point and unmatched reason sit inside it (#609)', () => {
@@ -92,20 +96,20 @@ describe('ShipmentsTable', () => {
     for (const p of plans) expect(p).toMatch(/^<div class="bw-plan">(?:(?!<\/?div).)*<\/div>$/);
     expect(plans).toContain('<div class="bw-plan">Relay <span class="bw-muted">via Atlas Books</span></div>');
     expect(plans).toContain(
-      '<div class="bw-plan">—<span class="bw-reason">No commute passes both businesses before the deadline.</span></div>',
+      '<div class="bw-plan">No match<span class="bw-reason">No commute passes both businesses before the deadline.</span></div>',
     );
     expect(plans.filter((p) => p === '<div class="bw-plan">Direct</div>')).toHaveLength(2);
   });
 
   it('the caption and the empty titles can take focus without being tab stops (#609)', () => {
     expect(table()).toMatch(/<caption class="bw-table__caption" tabindex="-1">/);
-    expect(table({ rows: [], totalCount: 4 })).toMatch(/<p class="bw-empty__title" tabindex="-1">No shipments match/);
-    expect(table({ rows: [], totalCount: 0 })).toMatch(/<p class="bw-empty__title" tabindex="-1">No shipments yet/);
+    expect(table({ rows: [], totalCount: 4 })).toMatch(/<h2 class="bw-empty__title" tabindex="-1">No deliveries match/);
+    expect(table({ rows: [], totalCount: 0 })).toMatch(/<h2 class="bw-empty__title" tabindex="-1">No deliveries yet/);
   });
 
-  it('empty state: no shipments yet, with New delivery', () => {
+  it('empty state: no deliveries yet, with New delivery', () => {
     const html = table({ rows: [], totalCount: 0 });
-    expect(html).toContain('No shipments yet');
+    expect(html).toContain('No deliveries yet');
     expect(html).toContain('New delivery');
     expect(html).not.toContain('<table');
     expect(html).not.toContain('disabled');
@@ -116,9 +120,9 @@ describe('ShipmentsTable', () => {
 
   it('empty state: no rows match the filters, with Clear filters', () => {
     const html = table({ rows: [], totalCount: 4 });
-    expect(html).toContain('No shipments match the filters');
+    expect(html).toContain('No deliveries match the filters');
     expect(html).toContain('Clear filters');
-    expect(html).toContain('4 shipments in total.');
+    expect(html).toContain('4 deliveries in total.');
     expectClean(html);
   });
 });

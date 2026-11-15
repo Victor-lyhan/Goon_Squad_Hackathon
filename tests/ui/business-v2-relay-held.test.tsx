@@ -129,7 +129,7 @@ describe('a business that is only the relay point of a package', () => {
     const p = open(`/business/${ATLAS.id}`);
     await p.until(() => p.notes().length === 1, 'the notification');
     // The dashboard lists no delivery of its own, and nothing was read for a closed page.
-    expect(p.text()).toContain('No shipments yet');
+    expect(p.text()).toContain('No deliveries yet');
     expect(textOf(p.notes()[0].querySelector('.ba-note__time')!)).toBe('—');
     expect(textOf(p.notes()[0])).toContain('Relay point');
     expect(shipmentReads('shp-8')).toBe(0);
@@ -150,8 +150,8 @@ describe('a business that is only the relay point of a package', () => {
     // The normal details: package, both businesses, both carriers and their stops.
     const d = textOf(p.details()!);
     expect(d).toContain(RELAY.shipment.label);
-    expect(d).toContain('shp-8');
-    expect(textOf(p.details()!.querySelector('.bd-parties')!)).toBe(`From${ACME.name} · ${ACME.neighborhood}To${BAKERY.name} · ${BAKERY.neighborhood}`);
+    expect(d).not.toContain('shp-8'); // no raw ID in the panel's text (#881)
+    expect(textOf(p.details()!.querySelector('.bd-parties')!)).toBe(`From${ACME.name}, ${ACME.neighborhood}To${BAKERY.name}, ${BAKERY.neighborhood}`);
     for (const e of EMPLOYEES) expect(d).toContain(e.name);
     expect(p.details()!.querySelectorAll('.bd-legs tbody tr')).toHaveLength(2);
     expect(d).toContain(`Relay point: ${ATLAS.name}`);

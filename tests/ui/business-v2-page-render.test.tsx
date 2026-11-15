@@ -130,7 +130,7 @@ describe('workspace', () => {
 
   it('an empty business shows the empty table with New delivery', () => {
     const h = render(ready({ ...DASHBOARD, outgoing: [], incoming: [], notifications: [] }));
-    expect(text(h)).toContain('No shipments yet');
+    expect(text(h)).toContain('No deliveries yet');
   });
 });
 

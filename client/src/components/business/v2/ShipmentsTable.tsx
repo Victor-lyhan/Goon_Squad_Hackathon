@@ -1,12 +1,29 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react';
-import type { ShipmentRow, SortDir, SortKey } from './shipmentsTableModel';
-import { shipmentCountText } from './shipmentsTableModel';
+import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import type { ListLoadKind, ShipmentRow, SortDir, SortKey } from './shipmentsTableModel';
+import {
+  LIST_EMPTY_TEXT, LIST_EMPTY_TITLE, LIST_ERROR_TEXT, LIST_ERROR_TITLE, LIST_FILTERED_TITLE, LIST_LOADING_TEXT,
+  LIST_RETRYING_LABEL, LIST_RETRY_LABEL, LIST_STALE_TEXT, LIST_TITLE, shipmentCountText,
+} from './shipmentsTableModel';
 import './businessWorkspace.css';
+
+/**
+ * What the list shows instead of, or above, its rows (#881). `loading`: no rows yet. `error`: the deliveries
+ * could not be read or updated; rows already loaded stay on screen under a line that says so, with the retry.
+ */
+export type ShipmentsListLoad = { kind: Exclude<ListLoadKind, 'error'> } | { kind: 'error'; onRetry: () => void | Promise<void> };
+
+const LIST_READY: ShipmentsListLoad = { kind: 'ready' };
+
+/**
+ * The list's load state, set by the page around the workspace (pages/v2/BusinessV2.tsx), so the view between
+ * them passes nothing through. Without a provider the list is `ready`. The `load` prop wins over it.
+ */
+export const ShipmentsListLoadContext = createContext<ShipmentsListLoad>(LIST_READY);
 
 export type ShipmentsTableProps = {
   /** Rows to show, already filtered and sorted by the model. */
   rows: ShipmentRow[];
-  /** Number of rows before filtering (tells "no shipments yet" from "no match"). */
+  /** Number of rows before filtering (tells "no deliveries yet" from "no match"). */
   totalCount: number;
   sort: { key: SortKey; dir: SortDir };
   onSort: (key: SortKey) => void;
@@ -16,14 +33,20 @@ export type ShipmentsTableProps = {
   /** Disable the empty state's New delivery button (the run is locked), like the toolbar's. */
   newDeliveryDisabled?: boolean;
   onClearFilters: () => void;
+  /** Loading / error state of the list; default: the page's ShipmentsListLoadContext, else ready. */
+  load?: ShipmentsListLoad;
 };
 
-/** `drop`: the column is hidden when the table's box is narrow, 1 first (businessWorkspace.css, #581). */
-type Column = { key: SortKey | null; label: string; mono?: boolean; numeric?: boolean; drop?: 1 | 2 | 3 };
+/**
+ * `drop`: the column is hidden when the table's box is narrow, 1 first (businessWorkspace.css, #581).
+ * `hidden`: never on screen. The shipment ID is a raw ID (#881): it stays in the markup as the row's key
+ * (the search still finds a delivery by it), but no width shows it and assistive technology skips it.
+ */
+type Column = { key: SortKey | null; label: string; mono?: boolean; numeric?: boolean; drop?: 1 | 2 | 3; hidden?: boolean };
 
 const COLUMNS: Column[] = [
   { key: 'label', label: 'Package' },
-  { key: 'id', label: 'Shipment ID', mono: true, drop: 2 },
+  { key: 'id', label: 'Shipment ID', mono: true, drop: 2, hidden: true },
   { key: null, label: 'Direction', drop: 3 },
   { key: 'counterpart', label: 'Business' },
   { key: 'status', label: 'Status' },
@@ -43,10 +66,30 @@ const cls = (...names: (string | false | undefined)[]) => names.filter(Boolean).
 
 const ariaSort = (dir: SortDir) => (dir === 'asc' ? 'ascending' : 'descending');
 
+/** "Try again": disabled with "Trying again…" until the retry settles, so a second press sends nothing. */
+function RetryButton({ onRetry }: { onRetry: () => void | Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const retry = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await onRetry(); } catch { /* the list's state says what happened */ } finally { if (alive.current) setBusy(false); }
+  };
+  return (
+    // Not a primary button: New delivery in the toolbar above stays the page's one filled button.
+    <button type="button" className="bw-btn" onClick={() => { void retry(); }} disabled={busy}>
+      {busy ? LIST_RETRYING_LABEL : LIST_RETRY_LABEL}
+    </button>
+  );
+}
+
 export function ShipmentsTable(props: ShipmentsTableProps) {
+  const fromPage = useContext(ShipmentsListLoadContext);
+  const load = props.load ?? fromPage;
   const lastSelected = useRef(props.selectedId);
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
-  /** The caption, or the title of an empty state: where focus goes when the closed delivery has no row. */
+  /** The caption, or the title of a state box: where focus goes when the closed delivery has no row. */
   const headingRef = useRef<HTMLElement | null>(null);
   const setHeading = (el: HTMLElement | null) => { headingRef.current = el; };
 
@@ -65,41 +108,62 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
     // Only a change of the selection moves focus; a poll that brings new rows does not.
   }, [props.selectedId]);
 
+  /** One box for every state without rows: a heading (the list's h2 in that state), one line, one action. */
+  const stateBox = (title: string, text: string | null, action: ReactNode, role: 'status' | 'alert' = 'status') => (
+    <div className="bw-empty" role={role}>
+      <h2 className="bw-empty__title" tabIndex={-1} ref={setHeading}>{title}</h2>
+      {text && <p className="bw-empty__text">{text}</p>}
+      {action}
+    </div>
+  );
+
+  if (load.kind === 'loading') return stateBox(LIST_LOADING_TEXT, null, null);
+  // Nothing was ever loaded: only the error. With rows on screen the error is the line above them (below).
+  if (load.kind === 'error' && props.totalCount === 0) {
+    return stateBox(LIST_ERROR_TITLE, LIST_ERROR_TEXT, <RetryButton onRetry={load.onRetry} />, 'alert');
+  }
+  const stale = load.kind === 'error' && (
+    <p className="bw-stale" role="status">
+      <span>{LIST_STALE_TEXT}</span>
+      <RetryButton onRetry={load.onRetry} />
+    </p>
+  );
+
   if (props.totalCount === 0) {
-    return (
-      <div className="bw-empty" role="status">
-        <p className="bw-empty__title" tabIndex={-1} ref={setHeading}>No shipments yet</p>
-        <p className="bw-empty__text">Create a delivery request and Relay matches it to an employee commute.</p>
-        <button type="button" className="bw-btn bw-btn--primary" onClick={props.onNewDelivery} disabled={props.newDeliveryDisabled}>
-          New delivery
-        </button>
-      </div>
-    );
+    return stateBox(LIST_EMPTY_TITLE, LIST_EMPTY_TEXT, (
+      <button type="button" className="bw-btn bw-btn--primary" onClick={props.onNewDelivery} disabled={props.newDeliveryDisabled}>
+        New delivery
+      </button>
+    ));
   }
   if (props.rows.length === 0) {
     return (
-      <div className="bw-empty" role="status">
-        <p className="bw-empty__title" tabIndex={-1} ref={setHeading}>No shipments match the filters</p>
-        <p className="bw-empty__text">{shipmentCountText(props.totalCount)} in total.</p>
-        <button type="button" className="bw-btn" onClick={props.onClearFilters}>Clear filters</button>
-      </div>
+      <>
+        {stale}
+        {stateBox(LIST_FILTERED_TITLE, `${shipmentCountText(props.totalCount)} in total.`, (
+          <button type="button" className="bw-btn" onClick={props.onClearFilters}>Clear filters</button>
+        ))}
+      </>
     );
   }
 
   const sortedCol = COLUMNS.find((c) => c.key === props.sort.key);
   const onRowKey = (e: KeyboardEvent<HTMLTableRowElement>, id: string) => {
-    if (e.key === 'Enter') { e.preventDefault(); props.onSelect(id); }
+    // Enter and Space open the delivery, like a button; Space must not scroll the page instead.
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onSelect(id); }
   };
 
   return (
     <div className="bw-table-wrap">
+      {stale}
       <table className="bw-table">
         <caption className="bw-table__caption" tabIndex={-1} ref={setHeading}>
-          Shipments
+          {/* The list's heading: h1 business, then h2 Deliveries, the open delivery and Notifications. */}
+          <h2 className="bw-table__title">{LIST_TITLE}</h2>{' '}
+          {/* "Deliveries 4", like "Notifications 5" beside it; the word is there for a screen reader only. */}
           <span className="bw-table__count">
-            {props.rows.length === props.totalCount
-              ? shipmentCountText(props.totalCount)
-              : `${props.rows.length} of ${shipmentCountText(props.totalCount)}`}
+            {props.rows.length === props.totalCount ? props.totalCount : `${props.rows.length} of ${props.totalCount}`}
+            <span className="bw-visually-hidden"> {props.totalCount === 1 ? 'delivery' : 'deliveries'}</span>
           </span>
           {sortedCol && (
             <span className="bw-visually-hidden">, sorted by {sortedCol.label}, {ariaSort(props.sort.dir)}</span>
@@ -115,6 +179,7 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                   scope="col"
                   className={cls(c.numeric && 'bw-num', dropClass(c.label))}
                   aria-sort={sorted ? ariaSort(props.sort.dir) : undefined}
+                  hidden={c.hidden}
                 >
                   {c.key === null ? c.label : (
                     <button type="button" className="bw-sort" onClick={() => props.onSort(c.key as SortKey)}>
@@ -142,7 +207,7 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                 onKeyDown={(e) => onRowKey(e, r.id)}
               >
                 <td data-label="Package" className="bw-cell--primary">{r.label}</td>
-                <td data-label="Shipment ID" className={cls('bw-mono', dropClass('Shipment ID'))}>{r.id}</td>
+                <td data-label="Shipment ID" className={cls('bw-mono', dropClass('Shipment ID'))} hidden>{r.id}</td>
                 <td data-label="Direction" className={cls(dropClass('Direction'))}>{r.directionLabel}</td>
                 <td data-label="Business">{r.counterpart}</td>
                 <td data-label="Status">

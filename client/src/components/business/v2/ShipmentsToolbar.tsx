@@ -40,14 +40,14 @@ export function ShipmentsToolbar(props: ShipmentsToolbarProps) {
   const selectValue = props.status === 'all' || selectedIndex === -1 ? 'all' : String(selectedIndex);
 
   return (
-    <div className="bw-toolbar" role="search" aria-label="Shipments">
+    <div className="bw-toolbar" role="search" aria-label="Deliveries">
       <div className="bw-toolbar__field bw-toolbar__search">
         <label htmlFor={searchId} className="bw-toolbar__label">Search</label>
         <input
           id={searchId}
           type="search"
           className="bw-input"
-          placeholder="Package, ID, business or relay point"
+          placeholder="Package, business or relay point"
           value={query}
           onChange={(e) => { setQuery(e.target.value); props.onQueryChange(e.target.value); }}
           autoComplete="off"

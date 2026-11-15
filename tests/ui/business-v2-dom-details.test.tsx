@@ -72,13 +72,13 @@ describe('shipments table cells in a real DOM (#609)', () => {
     expect(textOf(plan.children[0])).toBe(`Relay via ${ATLAS.name}`);
   }, T);
 
-  it('an unmatched row: the dash and the reason are one element in the Plan cell', () => {
+  it('an unmatched row: "No match" and the reason are one element in the Plan cell', () => {
     const plan = cell(setup().row(UNMATCHED_ID), 'Plan');
     expect(plan.children).toHaveLength(1);
     expect(plan.childNodes).toHaveLength(1);
     const reason = plan.children[0].querySelector('.bw-reason')!;
     expect(textOf(reason)).toBe(UNMATCHED_REASON);
-    expect(textOf(plan.children[0])).toBe(`—${UNMATCHED_REASON}`);
+    expect(textOf(plan.children[0])).toBe(`No match${UNMATCHED_REASON}`);
   }, T);
 });
 
@@ -146,7 +146,7 @@ describe('delivery details keyboard and focus in a real DOM (#609)', () => {
     expect(p.panel()).toBeNull();
     const caption = p.container.querySelector('caption')!;
     expect(document.activeElement).toBe(caption);
-    expect(textOf(caption)).toMatch(/^Shipments/);
+    expect(textOf(caption)).toMatch(/^Deliveries/);
     expect(caption.getAttribute('tabindex')).toBe('-1');
   }, T);
 
@@ -155,7 +155,7 @@ describe('delivery details keyboard and focus in a real DOM (#609)', () => {
     expect(p.rows()).toHaveLength(0);
     click(button(p.panel()!, 'Close'));
     expect(p.panel()).toBeNull();
-    expect(textOf(document.activeElement!)).toBe('No shipments match the filters');
+    expect(textOf(document.activeElement!)).toBe('No deliveries match the filters');
   }, T);
 
   it('focus that is somewhere else on the page stays there when the delivery is cleared', () => {
