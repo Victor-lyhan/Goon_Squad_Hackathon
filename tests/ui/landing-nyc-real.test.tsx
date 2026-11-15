@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { BusinessesResponse, EmployeesResponse, SimulatorResponse } from '../../shared/v2/api';
 import { getBusinesses, getEmployees, getSimulator } from '../../client/src/api/v2';
-import Landing from '../../client/src/pages/Landing';
+import Landing, { STUDY_FIGURE, STUDY_FIGURE_TEXT, STUDY_NOTE } from '../../client/src/pages/Landing';
 import { WATCH_PACKAGE_LABEL, startNycSummary, watchPackageHref, type NycSummary } from '../../client/src/pages/landingModel';
 import { parseSimUrl } from '../../client/src/components/sim/v2/page/urlState';
 import { T, forbiddenIn, startRealApi, type RealApi } from './business-v2-real-helper';
@@ -30,6 +30,8 @@ afterAll(async () => { await api?.close(); });
 
 /** The page's text without the drawing. Since #833 it shows no number of the run. */
 const pageText = (html: string) => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '');
+/** The only digits on the page (#955): the study's figure, the 2 of CO2 and the line under it. They are copy, the same for every run. */
+const STUDY_DIGITS = `${STUDY_FIGURE}${STUDY_FIGURE_TEXT}${STUDY_NOTE}`.replace(/\D/g, '');
 /** The default run's story package, by the label the homepage looks for. */
 const storyPackage = () => sim.shipments.filter((s) => s.label === WATCH_PACKAGE_LABEL);
 
@@ -64,7 +66,7 @@ describe('NYC homepage on the real /api/v2', () => {
     });
 
     const html = renderToStaticMarkup(<MemoryRouter><Landing dataset="nyc" initialSummary={summary} /></MemoryRouter>);
-    expect(pageText(html).replace(/\D/g, '')).toBe('123'); // the step numbers only: no count of the run (#833)
+    expect(pageText(html).replace(/\D/g, '')).toBe(STUDY_DIGITS); // the study's figure only: no count of the run (#833)
     expect(html).toContain(`href="/employee/${encodeURIComponent(e.employees[0].id)}"`);
     expect(html).toContain(`href="/business/${encodeURIComponent(b.businesses[0].id)}"`);
     expect(forbiddenIn(html)).toEqual([]);
@@ -91,7 +93,7 @@ describe('NYC homepage on the real /api/v2', () => {
     expect([...m.container.querySelectorAll('a.workspace-entry')].map((a) => a.getAttribute('href'))).toEqual([
       `/business/${encodeURIComponent(b.businesses[0].id)}`, `/employee/${encodeURIComponent(e.employees[0].id)}`,
     ]);
-    expect(pageText(m.container.innerHTML).replace(/\D/g, '')).toBe('123');
+    expect(pageText(m.container.innerHTML).replace(/\D/g, '')).toBe(STUDY_DIGITS);
     expect(button().getAttribute('href')).toBe(`/simulator?package=${encodeURIComponent(storyPackage()[0].id)}&play=1`);
     expect(m.container.querySelectorAll('a[href]')).toHaveLength(4); // the button, Business, Employee, See the numbers (#833)
     expect(m.container.innerHTML).not.toContain('aria-busy="true"');

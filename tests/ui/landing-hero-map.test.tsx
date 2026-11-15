@@ -222,14 +222,27 @@ describe('the colors and the motion (landing.css)', () => {
   const rule = (selector: string) => new RegExp(`(?:^|\\})\\s*${selector.replace(/[.:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';
   const keyframes = (name: string) => new RegExp(`@keyframes ${name} \\{((?:[^{}]*\\{[^{}]*\\})*)\\s*\\}`).exec(css)![1];
 
-  it('uses the carrier colors, blue for A and green for B, and the package orange of docs/mvp3.md', () => {
+  it('uses the carrier colors, blue for A and green for B, and the package orange of the #955 direction', () => {
     const hero = rule('.landing-hero');
-    expect(hero).toMatch(/--hero-carrier-a: #4C9BD6;/); // the doc's blue, lightened for the dark ground
-    expect(hero).toMatch(/--hero-carrier-b: #2DBE85;/); // the doc's green, lightened
-    expect(hero).toMatch(/--hero-package: #E8590C;/);
-    expect(rule('.hero-line-a')).toMatch(/stroke: var\(--hero-carrier-a, #4C9BD6\)/);
-    expect(rule('.hero-line-b')).toMatch(/stroke: var\(--hero-carrier-b, #2DBE85\)/);
-    expect(rule('.hero-package')).toMatch(/fill: var\(--hero-package, #E8590C\)/);
+    // The direction's own tokens (styles/tokens.css), retinted to the ink ground; each fallback is the token's value.
+    expect(hero).toMatch(/--hero-ground: var\(--ink, #0B0F17\);/);
+    expect(hero).toMatch(/--hero-carrier-a: var\(--carrier-a, #3D8BFF\);/);
+    expect(hero).toMatch(/--hero-carrier-b: var\(--carrier-b, #22C08A\);/);
+    expect(hero).toMatch(/--hero-package: var\(--signal, #FF6A1A\);/);
+    const tokens = readFileSync('client/src/styles/tokens.css', 'utf8');
+    for (const pair of ['--ink: #0B0F17;', '--carrier-a: #3D8BFF;', '--carrier-b: #22C08A;', '--signal: #FF6A1A;']) expect(tokens).toContain(pair);
+    expect(rule('.hero-line-a')).toMatch(/stroke: var\(--hero-carrier-a, #3D8BFF\)/);
+    expect(rule('.hero-line-b')).toMatch(/stroke: var\(--hero-carrier-b, #22C08A\)/);
+    expect(rule('.hero-package')).toMatch(/fill: var\(--hero-package, #FF6A1A\)/);
+    // The land, its streets and the park are dark steps of the ink: none is lighter than the lines on them.
+    const lum = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((s) => (s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i]!, 0);
+    for (const name of ['land', 'shore', 'street', 'avenue', 'park']) {
+      const hex = new RegExp(`--hero-${name}: (#[0-9A-F]{6});`).exec(hero)![1]!;
+      expect(lum(hex), name).toBeGreaterThan(lum('#0B0F17'));
+      expect(lum(hex), name).toBeLessThan(lum('#3D8BFF') / 3);
+    }
   });
 
   it('the package rides line A to the relay point, waits there, rides line B, rests, and loops', () => {
@@ -303,10 +316,10 @@ describe('the colors and the motion (landing.css)', () => {
     expect([...moved].sort()).toEqual(['offset-distance', 'opacity', 'stroke-dashoffset', 'transform']);
     expect(css.match(/@keyframes /g)).toHaveLength(7);
     // The glow is in the carrier colors and the package orange only.
-    expect(rule('.hero-node-halo-a')).toMatch(/fill: var\(--hero-carrier-a, #4C9BD6\)/);
-    expect(rule('.hero-node-halo-b')).toMatch(/fill: var\(--hero-carrier-b, #2DBE85\)/);
-    expect(rule('.hero-trail')).toMatch(/fill: var\(--hero-package, #E8590C\)/);
-    expect(rule('.hero-relay-ring')).toMatch(/stroke: var\(--hero-package, #E8590C\)/);
+    expect(rule('.hero-node-halo-a')).toMatch(/fill: var\(--hero-carrier-a, #3D8BFF\)/);
+    expect(rule('.hero-node-halo-b')).toMatch(/fill: var\(--hero-carrier-b, #22C08A\)/);
+    expect(rule('.hero-trail')).toMatch(/fill: var\(--hero-package, #FF6A1A\)/);
+    expect(rule('.hero-relay-ring')).toMatch(/stroke: var\(--hero-package, #FF6A1A\)/);
     expect(rule('.hero-glow')).not.toMatch(/stroke:/); // its color is its line's (.hero-line-a / -b)
   });
 

@@ -59,7 +59,7 @@ describe('the homepage in the app shell, on the real NYC run (#824)', () => {
     expect(watch.contains(numbers) || numbers.contains(watch)).toBe(false);
     expect(watch.closest('.landing-hero')).not.toBeNull();
     expect(numbers.closest('.landing-hero')).toBeNull();
-    expect(numbers.closest('.landing-how')).not.toBeNull();
+    expect(numbers.closest('.landing-numbers')).not.toBeNull(); // under the study's figure (#955)
   }, T);
 });
 
@@ -70,18 +70,18 @@ describe('landing.css keeps what the browser check found (#824)', () => {
   it('each link of the page has a solid focus ring of 2 px or more, set off from its box', () => {
     for (const selector of ['.watch-button:focus-visible', 'a.workspace-entry:focus-visible', '.numbers-button:focus-visible']) {
       const ring = rule(selector);
-      const width = /outline: (\d+)px solid var\(--(?:text|panel), #[0-9A-F]{6}\)/.exec(ring);
+      const width = /outline: (\d+)px solid var\(--(?:paper-text|hero-light), #[0-9A-F]{6}\)/.exec(ring);
       expect(width, selector).not.toBeNull();
       expect(Number(width![1]), selector).toBeGreaterThanOrEqual(2);
       expect(Number(/outline-offset: (\d+)px/.exec(ring)?.[1]), selector).toBeGreaterThanOrEqual(2);
     }
-    // In the dark hero the rings are light: the button is light itself, so its ring sits 3 px off it, on the
-    // dark ground. "See the numbers" is filled with the accent on the light page, so its ring is ink.
-    expect(rule('.watch-button')).toMatch(/background: var\(--panel, #FFFFFF\)/);
-    expect(rule('.watch-button:focus-visible')).toMatch(/outline: 3px solid var\(--panel, #FFFFFF\)/);
-    expect(rule('a.workspace-entry:focus-visible')).toMatch(/outline: 2px solid var\(--panel, #FFFFFF\)/);
-    expect(rule('.numbers-button')).toMatch(/background: var\(--accent, #1D5075\)/);
-    expect(rule('.numbers-button:focus-visible')).toMatch(/outline: 3px solid var\(--text, #171C24\)/);
+    // In the ink hero the rings are light: the button is orange, and its ring sits 3 px off it, on the ink.
+    // "See the numbers" is filled with ink on the paper, so its ring is ink, 3 px off it too (#955).
+    expect(rule('.watch-button')).toMatch(/background: var\(--hero-package, #FF6A1A\)/);
+    expect(rule('.watch-button:focus-visible')).toMatch(/outline: 3px solid var\(--hero-light, #F4F2EC\)/);
+    expect(rule('a.workspace-entry:focus-visible')).toMatch(/outline: 2px solid var\(--hero-light, #F4F2EC\)/);
+    expect(rule('.numbers-button')).toMatch(/background: var\(--paper-text, #14171F\)/);
+    expect(rule('.numbers-button:focus-visible')).toMatch(/outline: 3px solid var\(--paper-text, #14171F\)/);
     expect(css).not.toMatch(/outline(-width|-style)?:\s*(none|0)\b/);
   });
 
@@ -92,8 +92,21 @@ describe('landing.css keeps what the browser check found (#824)', () => {
       .map((m) => ({ selector: m[1].trim(), body: m[2] }));
     const MAP = /^\.(landing-hero-map|hero-[a-z-]+)(, \.hero-[a-z-]+)*$/;
     const outOfFlow = /(^|[;\s])(position|float|transform|translate|z-index|inset|clip-path|contain|top|left|right|bottom|overflow(-x|-y)?)\s*:/;
-    const hits = rules.filter((r) => outOfFlow.test(r.body) && !MAP.test(r.selector)).map((r) => r.selector);
-    expect(hits).toEqual([]);
+    // #955: the route line's marks are drawn as ::before and ::after of a step or a section. They hold no
+    // link and are placed inside their own box, which stays in the flow (position: relative and nothing
+    // else). The hero's column is in the flow too; it is only drawn over the map (z-index), because the
+    // title's long line ends on the map's faded edge.
+    const MARK = /::(before|after)$/;
+    const hits = rules.filter((r) => outOfFlow.test(r.body) && !MAP.test(r.selector) && !MARK.test(r.selector));
+    expect(hits.map((r) => r.selector)).toEqual(['.landing-hero-inner', '.landing-steps li', '.landing-numbers']);
+    for (const r of hits) {
+      const placed = [...r.body.matchAll(/(?:^|[;\s])(position|float|transform|translate|z-index|inset|clip-path|contain|top|left|right|bottom|overflow(?:-x|-y)?)\s*:\s*([^;]+);/g)].map((m) => `${m[1]}: ${m[2]}`);
+      expect(placed, r.selector).toEqual(r.selector === '.landing-hero-inner' ? ['position: relative', 'z-index: 1'] : ['position: relative']);
+    }
+    // A mark is as small as a station or as thin as a line, and never over a link: the steps and the
+    // figure's heading have none, and the section's line lies in its top padding.
+    for (const r of rules.filter((x) => MARK.test(x.selector))) expect(r.selector).toMatch(/^\.landing-(steps li|numbers)/);
+    expect(readFileSync('client/src/pages/Landing.tsx', 'utf8')).toMatch(/<ol className="landing-steps">\s*\{HOW_STEPS\.map\(\(step\) => \(\s*<li key=\{step\}>\s*<span className="landing-step-text">\{step\}<\/span>\s*<\/li>/);
     expect(rules.filter((r) => /overflow(-x|-y)?:\s*(hidden|clip)/.test(r.body)).map((r) => r.selector)).toEqual(['.landing-hero-map']);
     expect(css).not.toMatch(/overflow(-x|-y)?:\s*(scroll|auto)/);
     expect(css).not.toMatch(/margin[a-z-]*:[^;]*[\s:]-\d/); // no negative margin (the - of a token name does not count)
@@ -101,9 +114,9 @@ describe('landing.css keeps what the browser check found (#824)', () => {
     expect(map).not.toMatch(/<a[\s>]|<Link|<button|tabIndex|href/);
   });
 
-  it('"See the numbers" keeps its own row with room around it: under the steps, with a gap', () => {
-    expect(rule('.landing-steps')).toMatch(/margin: 0 0 var\(--space-6, 24px\)/);
+  it('"See the numbers" keeps its own row with room around it: under the figure\'s line, with a gap', () => {
+    expect(rule('.landing-numbers-note')).toMatch(/margin: var\(--space-6, 24px\) 0;/);
     expect(rule('.numbers-button')).toMatch(/display: inline-flex/);
-    expect(rule('.numbers-button')).toMatch(/min-height: 44px/);
+    expect(rule('.numbers-button')).toMatch(/min-height: 48px/);
   });
 });

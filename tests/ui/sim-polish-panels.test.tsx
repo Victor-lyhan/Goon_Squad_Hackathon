@@ -53,11 +53,11 @@ const METRICS: Metrics = {
   projectedPlatformContributionCents: 1200,
 } as Metrics;
 
-describe('#883 the panels start right under the 64px header', () => {
+describe('#883 the panels start right under the header (72px since #955)', () => {
   const SHELL_H = read('client/src/ui/shell.css').match(/:root\s*\{\s*--app-header-h:\s*(\d+px);\s*\}/)?.[1];
 
-  it('the shell defines the variable as the 64px header height (PR #875)', () => {
-    expect(SHELL_H).toBe('64px');
+  it('the shell defines the variable as the 72px header height (#955; 64px in PR #875)', () => {
+    expect(SHELL_H).toBe('72px');
   });
 
   it('SimWorkspace.css reads var(--app-header-h); its fallback is the header\'s own height, not the stale 48px', () => {

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import Landing from '../../client/src/pages/Landing';
+import Landing, { STUDY_FIGURE, STUDY_FIGURE_TEXT, STUDY_NOTE } from '../../client/src/pages/Landing';
 import { nycSummaryFrom, nycSummaryFromError, type NycSummary } from '../../client/src/pages/landingModel';
 import { ApiRequestError } from '../../client/src/api/v2';
 import { businesses, employees, simulator } from './landing-nyc-sample';
@@ -29,7 +29,8 @@ describe('the homepage with sample /api/v2 responses', () => {
 
   it('shows no stats line and no number of the run: the footer is gone (#833)', () => {
     expect(h).not.toContain('op-summary');
-    expect(text(h).replace(/\D/g, '')).toBe('123'); // the step numbers of "How it works", nothing counted
+    // The only digits are the study's figure, the 2 of CO2 and the line under it (#955): copy, nothing counted from the run.
+    expect(text(h).replace(/\D/g, '')).toBe(`${STUDY_FIGURE}${STUDY_FIGURE_TEXT}${STUDY_NOTE}`.replace(/\D/g, ''));
     expect(text(h)).not.toMatch(/businesses|commuters|packages matched/);
     expect(noteOf(h)).toBeNull();
     expect(h).not.toMatch(/NaN|undefined/);
@@ -54,8 +55,10 @@ describe('the homepage with sample /api/v2 responses', () => {
     expect(h).not.toContain('<footer');
     const copy = /<div class="landing-hero-copy">([\s\S]*?)<\/div>/.exec(h)![1];
     expect(copy.match(/<h1[ >]/g)).toHaveLength(1);
-    // The one paragraph is the line under the button, which only a window below 900 px shows (#908).
-    expect(copy.match(/<p[ >]/g)).toEqual(['<p ']);
+    // Two paragraphs: the sentence under the title (#955) and the line under the button, which only a
+    // window below 900 px shows (#908).
+    expect(copy.match(/<p[ >]/g)).toEqual(['<p ', '<p ']);
+    expect(copy).toContain('<p class="landing-sub">');
     expect(copy).toContain('<p class="watch-note" ');
     // in every state, also after a failed load
     for (const s of [{ status: 'loading' }, { status: 'error' }, unavailable] as NycSummary[]) {

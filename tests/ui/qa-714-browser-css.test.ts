@@ -20,25 +20,36 @@ describe('shell.css (#714)', () => {
   it('has no rule left for the Help link (deleted in #623)', () => {
     expect(css).not.toContain('shell-help');
   });
-  it('the active nav item is underlined by a straight bar: the link has no rounded corner (#868: it is as high as the bar)', () => {
+  it('the active nav item is underlined by a straight line: the link has no rounded corner (#868: it is as high as the bar)', () => {
     const all = rules('client/src/ui/shell.css');
     expect(value(all, '.shell-nav-link', 'border-radius')).toBeUndefined();
-    expect(value(all, '.shell-nav-link', 'border-width')).toBe('2px 0');
-    expect(value(all, ".shell-nav a.shell-nav-link[aria-current='page']", 'border-bottom-color')).toBe('var(--accent, #1D5075)');
     expect(value(all, ".shell-nav a.shell-nav-link[aria-current='page']", 'border-radius')).toBeUndefined();
+    // #955: the line is a 2 px route line under the word, in the word's own colour, and it starts at a
+    // small ring (a station). The ring is the only round thing; the link's box has no border at all.
+    expect(value(all, '.shell-nav-link', 'border-width')).toBeUndefined();
+    const LINE = ".shell-nav a.shell-nav-link[aria-current='page']::after";
+    const RING = ".shell-nav a.shell-nav-link[aria-current='page']::before";
+    expect(value(all, LINE, 'border-top')).toBe('2px solid currentColor');
+    expect(value(all, LINE, 'left')).toBe(value(all, RING, 'left'));
+    expect(value(all, RING, 'border')).toBe('2px solid currentColor');
+    expect(value(all, RING, 'box-sizing')).toBe('border-box');
+    // 10 px wide with a 6 px corner: a circle.
+    expect([value(all, RING, 'width'), value(all, RING, 'height'), value(all, RING, 'border-radius')]).toEqual(['10px', '10px', 'var(--radius-lg, 6px)']);
   });
 });
 
 describe('landing.css (#714)', () => {
   const all = rules('client/src/styles/landing.css');
   it('at projector widths the Watch button is bigger than an entry under it', () => {
-    // Since #879 these are the button's base rule, not one for 600 px and up: it is 72 px high (it was 64)
-    // and as wide as the entries wherever 320 px fit.
-    expect(value(all, '.watch-button', 'min-height')).toBe('72px');
-    expect(value(all, '.watch-button', 'min-width')).toBe('min(320px, 100%)');
-    expect(value(all, '.watch-button', 'font-size')).toBe('20px');
-    // An entry: 2 × 8 px padding and two lines of text, so about 59 px high.
+    // Since #879 these are the button's base rule, not one for 600 px and up. #955: 64 px high and at
+    // least 300 px wide wherever 300 px fit, set in Archivo at 19 px.
+    expect(value(all, '.watch-button', 'min-height')).toBe('64px');
+    expect(value(all, '.watch-button', 'min-width')).toBe('min(300px, 100%)');
+    expect(value(all, '.watch-button', 'font-size')).toBe('19px');
+    // An entry: 2 × 8 px padding and two lines of text (15 px and 13 px at 1.4), so about 57 px high.
     expect(value(all, '.workspace-entry', 'padding')).toBe('var(--space-2, 8px) var(--space-4, 16px)');
+    expect(value(all, '.workspace-body', 'line-height')).toBe('1.4');
+    expect(value(all, '.workspace-title', 'font-size')).toBe('15px');
   });
 });
 

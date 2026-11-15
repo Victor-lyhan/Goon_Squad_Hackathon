@@ -40,6 +40,68 @@ const contrast = (a: string, b: string) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
+/**
+ * The "night-shift transit ops" direction (#955, the humans' bold redesign): the values the issue gives for
+ * the header and the homepage, and for the Business and Employee pages after them (#956, #957). The MVP III
+ * tokens above them stay as they are, so the pages not yet redrawn do not change.
+ */
+const NIGHT_SHIFT: Record<string, string> = {
+  '--ink': '#0B0F17',
+  '--ink-line': '#262D3A',
+  '--on-ink': '#F4F2EC',
+  '--on-ink-muted': '#A3A9B5',
+  '--danger-on-ink': '#FF9B8E',
+  '--paper': '#F4F2EC',
+  '--paper-text': '#14171F',
+  '--paper-muted': '#5A5F6B',
+  '--paper-line': '#DCD8CE',
+  '--signal': '#FF6A1A',
+  '--signal-hover': '#FF8748',
+  '--carrier-a': '#3D8BFF',
+  '--carrier-b': '#22C08A',
+  '--font-display': '"Archivo Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif',
+};
+
+describe('the "night-shift transit ops" tokens (#955)', () => {
+  it('have the issue\'s values: ink, paper, text and secondary on paper, hairline, orange, the carriers\' blue and green', () => {
+    for (const [name, value] of Object.entries(NIGHT_SHIFT)) expect(token(name), name).toBe(value);
+    expect(token('--on-ink')).toBe(token('--paper')); // the light on ink is the paper itself
+  });
+
+  it('text is readable on both grounds: 4.5:1 or more', () => {
+    for (const [fg, bg] of [
+      ['--on-ink', '--ink'], ['--on-ink-muted', '--ink'], ['--danger-on-ink', '--ink'],
+      ['--paper-text', '--paper'], ['--paper-muted', '--paper'],
+      // The primary button: ink text on the orange, also under the pointer. The second one: paper on ink text.
+      ['--ink', '--signal'], ['--ink', '--signal-hover'], ['--paper', '--paper-text'], ['--paper', '--ink-line'],
+    ]) expect(contrast(token(fg), token(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+    // White on the orange would not do (under 3:1), which is why the button's text is ink.
+    expect(contrast('#FFFFFF', token('--signal'))).toBeLessThan(3);
+  });
+
+  it('the orange and the two carriers stand out on ink (3:1 for a mark or a line); on paper they only decorate', () => {
+    for (const fg of ['--signal', '--carrier-a', '--carrier-b']) expect(contrast(token(fg), token('--ink')), fg).toBeGreaterThanOrEqual(3);
+    // On paper the issue's blue and green are under 3:1 (2.96 and about 2.2). So nothing on paper is told
+    // by them alone: the homepage's route line has its stations in the text's ink, and the steps are text.
+    for (const fg of ['--carrier-a', '--carrier-b']) expect(contrast(token(fg), token('--paper')), fg).toBeLessThan(3);
+    const steps = read('client/src/styles/landing.css');
+    expect(steps).toMatch(/\.landing-steps li::before \{[^}]*border: 2px solid var\(--paper-text, #14171F\);/);
+  });
+
+  it('the hairlines are quiet on their ground, but not the ground itself', () => {
+    for (const [line, bg] of [['--ink-line', '--ink'], ['--paper-line', '--paper']]) {
+      const c = contrast(token(line), token(bg));
+      expect(c, line).toBeLessThan(1.6);
+      expect(c, line).toBeGreaterThan(1.1);
+    }
+  });
+
+  it('--signal-hover is --signal at 80% over white', () => {
+    const want = rgb(token('--signal')).map((c) => c * 0.8 + 255 * 0.2);
+    rgb(token('--signal-hover')).forEach((c, i) => expect(Math.abs(c - want[i]!), 'channel').toBeLessThanOrEqual(1));
+  });
+});
+
 describe('MVP III base look in tokens.css (#651)', () => {
   it('background, ink, primary and hairline are the docs/mvp3.md P4 colours', () => {
     expect(token('--bg')).toBe('#F7F7F4');
@@ -86,6 +148,9 @@ describe('MVP III base look in tokens.css (#651)', () => {
       '--font-sans', '--font-mono', '--text-xs', '--text-sm', '--text-md', '--text-lg', '--text-xl',
       // Added by #895 (the app-wide keyboard focus ring); pinned in global-focus-motion.test.ts.
       '--focus-ring', '--focus-ring-on-dark', '--focus-ring-offset',
+      // Added by #955 ("night-shift transit ops"): the ink and paper grounds, the signal orange, the two
+      // carriers and the display face. Their values are pinned in the describe block below.
+      ...Object.keys(NIGHT_SHIFT),
     ];
     expect([...RAW.keys()].sort()).toEqual([...names].sort());
   });

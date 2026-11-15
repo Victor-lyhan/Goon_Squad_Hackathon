@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest';
 import Landing from '../../client/src/pages/Landing';
 
 describe('landing headings', () => {
-  it('one h1, the title, then one h2, "How it works" (#833)', () => {
+  it('one h1, the title, then two h2: "How it works" and the study\'s figure (#833, #955)', () => {
     const h = renderToStaticMarkup(<MemoryRouter><Landing /></MemoryRouter>);
-    expect(h.match(/<h[1-6]/g)).toEqual(['<h1', '<h2']);
+    expect(h.match(/<h[1-6]/g)).toEqual(['<h1', '<h2', '<h2']);
+    expect(h.match(/<h2 id="([^"]+)"/g)).toEqual(['<h2 id="landing-how-title"', '<h2 id="landing-numbers-title"']);
   });
 });
 

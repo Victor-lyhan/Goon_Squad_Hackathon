@@ -23,15 +23,18 @@ describe('landing.css at 390 px', () => {
 
   it('on a phone the text comes first and the map lies under it, about half the window tall, from edge to edge (#869)', () => {
     expect(STACKED).toMatch(/\.landing-hero \{ grid-template-columns: minmax\(0, 1fr\); grid-template-rows: auto minmax\(max\(50vh, 320px\), 1fr\); \}/);
-    expect(STACKED).toMatch(/\.landing-hero-inner \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+    // The text has the column's whole width there (#955; side by side it is 58 % of it).
+    expect(STACKED).toMatch(/\.landing-hero-copy \{ flex-basis: 100%; \}/);
     // The second row of the hero itself, not of the padded column: the map still reaches both sides and the
     // bottom. It fades in from its top, where the text ends.
     expect(STACKED).toMatch(/\.landing-hero-map \{ --hero-fade: to bottom; grid-column: 1; grid-row: 2; \}/);
     expect(STACKED).not.toMatch(/border|radius|margin|padding|aspect-ratio/);
     // The key starts at the text's left edge.
     expect(STACKED).toMatch(/\.hero-legend \{ left: var\(--landing-pad, 48px\); right: var\(--landing-pad, 48px\); justify-content: flex-start; \}/);
-    // The two entries are one column at every width; on a phone they take the whole width.
-    expect(rule('.workspaces')).toMatch(/grid-template-columns: minmax\(0, 1fr\);/);
+    // The two entries are side by side only where both fit with their text on one line (17.5em each, so
+    // from about 1300 px up), else one column; an entry is never wider than the box. On a phone they take
+    // the whole width.
+    expect(rule('.workspaces')).toMatch(/grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 17\.5em\), 1fr\)\);/);
     expect(narrow(480)).toMatch(/\.workspaces \{ max-width: none; \}/);
     expect(css).toMatch(/\.hero-legend \{[^}]*flex-wrap: wrap/);
     expect(css).toMatch(/\.landing \{[^}]*overflow-wrap: anywhere/);
@@ -52,11 +55,13 @@ describe('landing.css at 390 px', () => {
     // Every size is in em, so the mark follows the title's clamp() size: no px, no rule per width.
     expect(logo).not.toMatch(/\d(px|rem|vw|%)/);
     expect(css.match(/\.landing-title-logo \{/g)).toHaveLength(1);
-    // Measured in Chrome at 1440 and 390 px: the mark is 90 % of the picture's height and Inter's capital
-    // letters are 0.728em high, so the picture is 0.728 / 0.9 = 0.81em high and hangs under the baseline by
-    // its bottom margin. A capital letter is between 0.66em and 0.74em high in the title's fallback fonts too.
+    // Measured in Chrome at 1440 px (#955): the mark is 90 % of the picture's height and Archivo's capital
+    // letters are 0.687em high, so the picture is 0.687 / 0.9 = 0.76em high and hangs under the baseline by
+    // its bottom margin (5 % of its height). In the fallback, Inter, a capital letter is 0.728em high.
     expect(em('height') * 0.9).toBeGreaterThan(0.66);
     expect(em('height') * 0.9).toBeLessThan(0.74);
+    expect(Math.abs(em('height') * 0.9 - 0.687)).toBeLessThan(0.005);
+    expect(Math.abs(em('height') * 0.05 + em('vertical-align'))).toBeLessThan(0.005);
     expect(em('vertical-align')).toBeLessThan(0);
     expect(em('vertical-align')).toBeGreaterThan(-0.08);
     // Narrower than the picture: the clear margin at its sides is cut off, not squeezed.
@@ -66,8 +71,10 @@ describe('landing.css at 390 px', () => {
     expect(em('margin-right')).toBeGreaterThan(0);
     expect(em('margin-right')).toBeLessThan(0.1);
     expect(logo).not.toMatch(/border|background|radius/);
-    // The word is one box, so a line cannot break between the logo and "elay:" (and nowrap is not needed).
-    expect(rule('.landing-title-word')).toMatch(/^\s*display: inline-block;\s*$/);
+    // The word is one box, and so is each further line of the title (#955): a line cannot break between
+    // the logo and "elay:", and the title has the same three lines at every width (nowrap is not needed).
+    expect(css).toMatch(/\.landing-title-word, \.landing-title-line \{ display: block; \}/);
+    expect(css.match(/\.landing-title-(word|line)\b/g)).toHaveLength(2);
   });
 
   it('keeps the title legible at 390 px: 30 px at least, and the logo scales with it (#853)', () => {
@@ -76,7 +83,36 @@ describe('landing.css at 390 px', () => {
     expect(Number(size[2])).toBeGreaterThanOrEqual(Number(size[1]));
   });
 
-  it('puts the hero text in the left half of a centered column of 1200 px with 48 px at each side (#853, #869)', () => {
+  it('the title is the one bold thing: Archivo, condensed and heavy, as large as its longest line allows (#955)', () => {
+    const h1 = rule('.landing-hero h1');
+    expect(h1).toMatch(/font-family: var\(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif\);/);
+    expect(h1).toMatch(/font-weight: 800;/);
+    expect(h1).toMatch(/font-stretch: 78%;/);
+    expect(h1).toMatch(/line-height: \.92;/);
+    expect(h1).toMatch(/letter-spacing: -0\.02em;/); // tight
+    // Measured in Chrome: the longest line, "packages ride", is 5.43 times the font size wide.
+    const LINE_EM = 5.43;
+    // Side by side the text is 58 % of the column, and the size is 8 % of the window's width up to 116 px.
+    const side = /font-size: clamp\((\d+)px, (\d+(?:\.\d+)?)vw, (\d+)px\);/.exec(h1)!;
+    const [vw, max] = [Number(side[2]) / 100, Number(side[3])];
+    expect(max).toBeGreaterThanOrEqual(100); // huge at 1440 px
+    expect(rule('.landing-hero-copy')).toMatch(/flex: 0 1 58%;/);
+    for (const width of [821, 900, 1024, 1200, 1296, 1440, 1920, 2560]) {
+      const text = 0.58 * (Math.min(width, 1200) - 96);
+      expect(Math.min(vw * width, max) * LINE_EM, `${width} px`).toBeLessThanOrEqual(text);
+    }
+    // Under the text's own column (a narrow or upright window) the size is the column's width over 5.6,
+    // so the line fits whatever the width and the padding are.
+    const stacked = /\.landing-hero h1 \{ font-size: clamp\((\d+)px, calc\(\(100vw - 2 \* var\(--landing-pad, 48px\)\) \/ (\d+(?:\.\d+)?)\), (\d+)px\); \}/.exec(STACKED)!;
+    expect(Number(stacked[2])).toBeGreaterThan(LINE_EM);
+    expect(Number(stacked[2])).toBeLessThan(LINE_EM * 1.06); // and not much smaller than it could be
+    expect(Number(stacked[3])).toBe(max);
+    // At 390 px: (390 - 48) / 5.6 = 61 px. The least size, 40 px, fits a 320 px window: 40 * 5.43 = 217 of 272 px.
+    expect((390 - 48) / Number(stacked[2])).toBeGreaterThan(56);
+    expect(Number(stacked[1]) * LINE_EM).toBeLessThanOrEqual(320 - 48);
+  });
+
+  it('puts the hero text at the left edge of a centered column of 1200 px with 48 px at each side (#853, #869)', () => {
     expect(rule('.landing')).toMatch(/--landing-max: 1200px;/);
     // 48 px (twice --space-6) on a desktop and --space-6 on a phone: steps of the spacing scale, so the
     // text's left edge is on a whole pixel at every width (#879; 6vw of 390 px was 23.4 px).
@@ -86,14 +122,21 @@ describe('landing.css at 390 px', () => {
     const inner = rule('.landing-hero-inner');
     expect(inner).toMatch(/max-width: var\(--landing-max, 1200px\)/);
     expect(inner).toMatch(/margin: 0 auto;/); // centered
-    expect(inner).toMatch(/padding: var\(--space-8, 32px\) var\(--landing-pad, 48px\);/);
-    // Two equal halves with a gap of 48 px (twice --space-6): the text is the only child, so it is in the first
-    // half and ends 24 px before the column's middle, which is the hero's middle. It is centered in the hero's height.
-    expect(inner).toMatch(/display: grid;/);
-    expect(inner).toMatch(/grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\);/);
-    expect(inner).toMatch(/gap: var\(--space-6, 24px\) calc\(2 \* var\(--space-6, 24px\)\);/);
+    expect(inner).toMatch(/padding: calc\(2 \* var\(--space-6, 24px\)\) var\(--landing-pad, 48px\);/);
+    // #955: the text is the column's only child, at its left edge and centered in the hero's height. It is
+    // 58 % of the column wide, a little over the hero's left half: the title's long line ends on the map's
+    // faded inner edge, so the column is drawn over the map.
+    expect(inner).toMatch(/display: flex;/);
     expect(inner).toMatch(/align-items: center;/);
+    expect(inner).toMatch(/position: relative;/);
+    expect(inner).toMatch(/z-index: 1;/);
+    expect(rule('.landing-hero-copy')).toMatch(/flex: 0 1 58%;/);
+    expect(rule('.landing-hero-copy')).toMatch(/align-items: flex-start;/);
     expect(rule('.landing-hero-copy')).not.toMatch(/(^|[\s;])(grid-column|width|max-width|margin[a-z-]*):/);
+    // The sentence, the button and the entries have narrower limits of their own (in em or rem, so they
+    // follow the text size): none reaches the map's drawing.
+    expect(rule('.landing-sub')).toMatch(/max-width: 26em;/);
+    expect(rule('.workspaces')).toMatch(/max-width: 36rem;/);
     // The column lies over both halves of the hero and takes its height. A grid item with auto margins is
     // only as wide as its content, so the width is stated.
     expect(inner).toMatch(/grid-column: 1 \/ -1;/);
@@ -107,11 +150,19 @@ describe('landing.css at 390 px', () => {
     expect(inner).not.toMatch(/background/);
   });
 
-  it('gives "How it works" the same column: the same limit, centered, the same side padding (#853)', () => {
+  it('gives "How it works" and the study\'s figure the same column: the same limit, centered, the same side padding (#853, #955)', () => {
     const how = rule('.landing-how');
     expect(how).toMatch(/max-width: var\(--landing-max, 1200px\)/);
     expect(how).toMatch(/margin: 0 auto;/);
-    expect(how).toMatch(/padding: calc\(2 \* var\(--space-6, 24px\)\) var\(--landing-pad, 48px\);/);
+    expect(how).toMatch(/padding: calc\(4 \* var\(--space-6, 24px\)\) var\(--landing-pad, 48px\) 0;/);
+    const numbers = rule('.landing-numbers');
+    expect(numbers).toMatch(/max-width: var\(--landing-max, 1200px\)/);
+    expect(numbers).toMatch(/margin: calc\(4 \* var\(--space-6, 24px\)\) auto 0;/);
+    expect(numbers).toMatch(/padding: calc\(3 \* var\(--space-6, 24px\)\) var\(--landing-pad, 48px\) calc\(4 \* var\(--space-6, 24px\)\);/);
+    // The paper under the hero runs from edge to edge: it is the page's ground, not the sections'.
+    expect(rule('.landing')).toMatch(/background: var\(--paper, #F4F2EC\);/);
+    expect(rule('.landing')).toMatch(/color: var\(--paper-text, #14171F\);/);
+    for (const section of [how, numbers]) expect(section).not.toMatch(/background/);
     expect(css).not.toContain('1080px');
     // Border-box sizing (global.css) makes both limits include the padding, so the two left edges line up.
     expect(readFileSync('client/src/styles/global.css', 'utf8')).toMatch(/\* \{ box-sizing: border-box; \}/);
@@ -148,7 +199,8 @@ describe('landing.css at 390 px', () => {
     expect(rule('.landing-hero-map')).toMatch(/--hero-fade: to right;/);
     const masks = [...drawing.matchAll(/(-webkit-mask-image|mask-image): ([^;]+);/g)].map((m) => [m[1], m[2]]);
     expect(masks.map((m) => m[0])).toEqual(['-webkit-mask-image', 'mask-image']); // the prefixed one first
-    for (const [, value] of masks) expect(value).toBe('linear-gradient(var(--hero-fade, to right), transparent, #000 22%)');
+    // 30 % (#955; 22 % before): the title's long line ends on this edge, so it fades a little further in.
+    for (const [, value] of masks) expect(value).toBe('linear-gradient(var(--hero-fade, to right), transparent, #000 30%)');
     expect(css.match(/mask-image:/g)).toHaveLength(2);
     // The key is the box's child, not the drawing's, so the mask does not touch it.
     expect(rule('.landing-hero-map')).not.toMatch(/mask/);
@@ -169,15 +221,16 @@ describe('landing.css at 390 px', () => {
 
   it('the hero is dark and fills the window under the header, so "How it works" starts below the fold (#869)', () => {
     const hero = /\.landing-hero \{([^}]*)\}/.exec(css)![1];
-    expect(hero).toMatch(/--hero-ground: var\(--text, #171C24\)/); // the ink token is the dark ground
-    expect(hero).toMatch(/background: var\(--hero-ground, #171C24\)/);
+    expect(hero).toMatch(/--hero-ground: var\(--ink, #0B0F17\)/); // the deep ink of #955 is the dark ground
+    expect(hero).toMatch(/background: var\(--hero-ground, #0B0F17\)/);
+    expect(hero).toMatch(/color: var\(--hero-light, #F4F2EC\)/);
     // The window's height less the header's. dvh is the height a phone really shows; the vh line before it
     // is for a browser that does not know dvh.
     const heights = [...hero.matchAll(/min-height: ([^;]+);/g)].map((m) => m[1]);
-    expect(heights).toEqual(['calc(100vh - var(--app-header-h, 64px))', 'calc(100dvh - var(--app-header-h, 64px))']);
-    // 64 px is the header's height on one row (ui/shell.css, #868), and the fallback says the same (#879).
+    expect(heights).toEqual(['calc(100vh - var(--app-header-h, 72px))', 'calc(100dvh - var(--app-header-h, 72px))']);
+    // 72 px is the header's height on one row (ui/shell.css, #955), and the fallback says the same (#879).
     // On two rows the hero ends below the fold, never above.
-    expect(readFileSync('client/src/ui/shell.css', 'utf8')).toMatch(/:root \{ --app-header-h: 64px; \}/);
+    expect(readFileSync('client/src/ui/shell.css', 'utf8')).toMatch(/:root \{ --app-header-h: 72px; \}/);
     // No narrower rule makes the hero shorter, and nothing of "How it works" is pulled up into it.
     expect(css.match(/min-height: calc\(100dvh/g)).toHaveLength(1);
     expect(css.replace(hero, '')).not.toMatch(/\.landing-hero \{[^}]*(min-)?height/);

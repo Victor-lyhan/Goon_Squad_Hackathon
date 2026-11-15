@@ -15,8 +15,8 @@ const tags: Tag[] = [...html.replace(/<!--[\s\S]*?-->/g, '').matchAll(/<([a-z][a
 }));
 const tag = (name: string, attr: string, value: string) => tags.filter((t) => t.name === name && t.attrs[attr] === value);
 
-/** `--accent` of tokens.css, e.g. "#28618A". */
-const accent = /^\s*--accent:\s*(#[0-9A-Fa-f]{6})\s*;/m.exec(tokens)?.[1] ?? '';
+/** `--ink` of tokens.css, the header's ground on every page (#955), e.g. "#0B0F17". */
+const ink = /^\s*--ink:\s*(#[0-9A-Fa-f]{6})\s*;/m.exec(tokens)?.[1] ?? '';
 
 /** Every icon link: `rel` holds "icon" (the tab icon) or is "apple-touch-icon" (the home-screen icon). */
 const icons = tags.filter((t) => t.name === 'link' && /(^|\s)(icon|apple-touch-icon)(\s|$)/.test(t.attrs.rel ?? ''));
@@ -77,11 +77,13 @@ describe('client/index.html (#637, #784)', () => {
     expect(png.readUInt8(25)).toBe(6); // colour type 6 = RGBA, so the page background shows through
   });
 
-  it('theme-color is the accent token of tokens.css', () => {
-    expect(accent).toMatch(/^#[0-9A-Fa-f]{6}$/);
+  it('theme-color is the ink token of tokens.css: the browser bar of a phone continues the dark header (#955)', () => {
+    expect(ink).toMatch(/^#[0-9A-Fa-f]{6}$/);
     const theme = tag('meta', 'name', 'theme-color');
     expect(theme).toHaveLength(1);
-    expect(theme[0].attrs.content.toLowerCase()).toBe(accent.toLowerCase());
+    expect(theme[0].attrs.content.toLowerCase()).toBe(ink.toLowerCase());
+    // It is the colour the header is drawn in.
+    expect(readFileSync('client/src/ui/shell.css', 'utf8')).toContain(`background: var(--ink, ${ink});`);
   });
 
   it('has a description that says what Relay is', () => {

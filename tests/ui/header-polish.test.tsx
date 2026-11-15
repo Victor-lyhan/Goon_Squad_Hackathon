@@ -237,8 +237,8 @@ describe('shell.css: the layout faults of #918', () => {
       && (maxWidthPx === undefined ? r.media.length === 0 : r.media.some((m) => new RegExp(`max-width:\\s*${maxWidthPx}px`).test(m))))
     .flatMap((r) => r.decls).map((d) => [d.prop, d.value]));
 
-  it('the bar is still 64 px, and every tap target in it is at least 44 px high', () => {
-    expect(css).toMatch(/:root \{ --app-header-h: 64px; \}/);
+  it('the bar is 72 px (#955; 64 px before), and every tap target in it is at least 44 px high', () => {
+    expect(css).toMatch(/:root \{ --app-header-h: 72px; \}/);
     expect(decls('.shell-wordmark')['min-height']).toBe('44px');
     expect(decls('.shell-nav-link')['min-height']).toBe('44px');
     expect(decls('.shell-header .demo-account select', 900)['min-height']).toBe('44px');
@@ -267,8 +267,10 @@ describe('shell.css: the layout faults of #918', () => {
   });
 
   it('"Accounts unavailable" is drawn in the error colour (the header\'s own grey rule had won)', () => {
-    expect(decls('.shell-header .demo-account-error').color).toBe('var(--danger, #A4322A)');
-    expect(readFileSync('client/src/styles/tokens.css', 'utf8')).toMatch(/--danger: #A4322A;/);
+    // #955: the bar is ink, where the page's red (#A4322A, 2:1 on ink) cannot be read, so it has a lighter red.
+    expect(decls('.shell-header .demo-account-error').color).toBe('var(--danger-on-ink, #FF9B8E)');
+    expect(readFileSync('client/src/styles/tokens.css', 'utf8')).toMatch(/--danger-on-ink: #FF9B8E;/);
+    expect(decls('.shell-header .demo-account-status').color).toBe('var(--on-ink-muted, #A3A9B5)');
     // It comes after the grey rule of the same weight.
     expect(css.indexOf('.shell-header .demo-account-error {')).toBeGreaterThan(css.indexOf('.shell-header .demo-account-status {'));
   });
@@ -281,7 +283,8 @@ describe('shell.css: the layout faults of #918', () => {
       '.shell-wordmark:focus-visible', '.shell-nav-link:focus-visible',
       '.shell-header .demo-account select:focus-visible', '.shell-header .demo-account-status a:focus-visible',
     ]) expect(selectors, sel).toContain(sel);
-    expect(ring.decls.find((d) => d.prop === 'outline')!.value).toBe('2px solid var(--accent, #1D5075)');
+    // On the ink bar the ring is the light one (#955): the primary colour is only 2:1 there (tokens.css).
+    expect(ring.decls.find((d) => d.prop === 'outline')!.value).toBe('2px solid var(--focus-ring-on-dark, #FFFFFF)');
     expect(noComments).not.toMatch(/outline:\s*(none|0)\b/);
     expect(noComments).not.toMatch(/(^|[;{\s])order:|-reverse|tabindex/);
   });

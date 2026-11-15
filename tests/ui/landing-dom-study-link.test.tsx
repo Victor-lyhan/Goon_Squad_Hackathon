@@ -66,12 +66,14 @@ describe('the homepage links to the study page with "See the numbers" (#796, #83
     expect(logged()).toEqual([]);
   });
 
-  it('sits at the end of "How it works", under the hero: after Business and Employee in the Tab order', () => {
+  it('sits at the end of the page, under the study\'s figure (#955): after Business and Employee in the Tab order', () => {
     const { container } = mount(<MemoryRouter><Landing initialSummary={ready} /></MemoryRouter>);
     const a = link(container, 'See the numbers');
     const page = container.querySelector('.landing')!;
-    expect([...page.children].map((el) => el.className)).toEqual(['landing-hero', 'landing-how']);
-    expect(a.parentElement!.className).toBe('landing-how');
+    expect([...page.children].map((el) => el.className)).toEqual(['landing-hero', 'landing-how', 'landing-numbers']);
+    expect(a.parentElement!.className).toBe('landing-numbers');
+    // The figure it leads to is right over it: the heading, one line, then the button.
+    expect([...a.parentElement!.children].map((el) => el.tagName)).toEqual(['H2', 'P', 'A']);
     expect(a.parentElement!.lastElementChild).toBe(a);
     expect(a.closest('.landing-hero')).toBeNull();
     expect(tabOrder(container).map(textOf)).toEqual([
@@ -86,14 +88,14 @@ describe('the link target and its style (#796)', () => {
     expect(readFileSync('client/public/study.html', 'utf8')).toMatch(/<a [^>]*href="\/"/);
   });
 
-  it('is styled as a button with the existing tokens: accent fill, a visible focus ring, no fixed width', () => {
+  it('is styled as a button with the #955 tokens: ink fill on paper, a visible focus ring, no fixed width', () => {
     const css = readFileSync('client/src/styles/landing.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const rule = (selector: string) => new RegExp(`${selector.replace(/[.:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)![1];
-    expect(rule('.numbers-button')).toMatch(/background: var\(--accent, #1D5075\)/);
-    expect(rule('.numbers-button')).toMatch(/min-height: 44px/); // a tap area of its own
+    expect(rule('.numbers-button')).toMatch(/background: var\(--paper-text, #14171F\)/);
+    expect(rule('.numbers-button')).toMatch(/min-height: 48px/); // a tap area of its own
     expect(rule('.numbers-button')).toMatch(/text-decoration: none/);
-    expect(rule('.numbers-button:hover')).toMatch(/background: var\(--accent-dark, #173E5B\)/);
-    expect(rule('.numbers-button:focus-visible')).toMatch(/outline: 3px solid var\(--text, #171C24\)/);
+    expect(rule('.numbers-button:hover')).toMatch(/background: var\(--ink-line, #262D3A\)/);
+    expect(rule('.numbers-button:focus-visible')).toMatch(/outline: 3px solid var\(--paper-text, #14171F\)/);
     expect(rule('.numbers-button')).not.toMatch(/(^|[;\s])(width|white-space):/);
   });
 });

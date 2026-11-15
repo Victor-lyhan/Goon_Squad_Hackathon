@@ -170,7 +170,8 @@ describe('what the first script of `/` pulls in (static imports from client/src/
 
   it('no deck.gl and no Google Maps loader', () => {
     expect(mapPackages(first)).toStrictEqual([]);
-    expect([...first.packages].sort()).toStrictEqual(['react', 'react-dom/client', 'react-router-dom']);
+    // The one stylesheet is Archivo, the display face (#955): a font file the browser fetches by itself, no script.
+    expect([...first.packages].sort()).toStrictEqual(['@fontsource-variable/archivo/wdth.css', 'react', 'react-dom/client', 'react-router-dom']);
   });
 
   it('the three pages are the only chunks the shell loads later', () => {
