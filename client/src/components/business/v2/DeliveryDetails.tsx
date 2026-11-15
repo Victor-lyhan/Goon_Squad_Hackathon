@@ -36,8 +36,16 @@ export function DeliveryDetails(props: DeliveryDetailsProps) {
   const actions = requestActions(m, phase);
   const headingId = `bd-title-${m.header.shipmentId}`;
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const headRef = useRef<HTMLElement>(null);
 
-  useEffect(() => { headingRef.current?.focus(); }, [m.header.shipmentId]);
+  useEffect(() => {
+    headingRef.current?.focus();
+    // The browser scrolls only the focused title into view. Opened from further down the page ("View delivery"
+    // in the New delivery form), that left the row above it, with the Close button, just off screen (#719).
+    // `nearest` moves nothing when the header is in view. Not in every DOM (jsdom has none).
+    const head = headRef.current;
+    if (typeof head?.scrollIntoView === 'function') head.scrollIntoView({ block: 'nearest' });
+  }, [m.header.shipmentId]);
 
   const { header, result, steps, legs, facts } = m;
 
@@ -50,7 +58,7 @@ export function DeliveryDetails(props: DeliveryDetailsProps) {
         if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); props.onClose(); }
       }}
     >
-      <header className="bd-head">
+      <header className="bd-head" ref={headRef}>
         <div className="bd-head__top">
           <span className="bd-eyebrow">{header.directionLabel}</span>
           <button type="button" className="bd-btn bd-btn--ghost" onClick={props.onClose} aria-label="Close delivery details">Close</button>

@@ -1,4 +1,7 @@
-import { createContext, useContext, useId, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  createContext, useContext, useEffect, useId, useReducer, useRef, useState,
+  type FormEvent, type MouseEvent, type ReactNode, type Ref,
+} from 'react';
 import type { ShipmentResponse } from '../../../../../shared/v2/api';
 import type { CreateShipmentRequest } from '../../../../../shared/v2/schemas';
 import type { Employee, NetworkBusiness, PackageCategory, Phase } from '../../../../../shared/v2/types';
@@ -39,6 +42,61 @@ export type NewDeliveryFormProps = {
 
 const NO_EMPLOYEES: CarrierNames = [];
 
+/** The answers to a press: every status but the idle form and the pending line. */
+const ANSWERS: readonly SubmitStatus['kind'][] = ['matched', 'unmatched', 'locked', 'unavailable', 'error'];
+
+/**
+ * Brings the answer to a press on screen (#719). It is drawn between the fields and the buttons, so it pushes
+ * the pressed button down: in a 900 px high window the whole "Delivery arranged" card landed below the fold
+ * and the form only looked emptied. First the pressed button, which comes back to where it was (so nothing
+ * else ends up under the pointer), then the answer itself, which wins on a short screen. `nearest` moves
+ * nothing when both are in view already.
+ */
+export function revealAnswer(form: Element | null, kind: SubmitStatus['kind']): void {
+  if (!form || !ANSWERS.includes(kind)) return;
+  const answer = form.querySelector(kind === 'matched' || kind === 'unmatched' ? '.nd-result' : '.nd-alert');
+  for (const el of [form.querySelector('.nd-actions button[type="submit"]'), answer]) {
+    // Not in every DOM (jsdom has none).
+    if (typeof el?.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+/** A pointer press on the form's submit button: when and where. */
+export type Press = { time: number; x: number; y: number };
+/** Two presses this close in time and place are one double press. */
+export const REPEAT_PRESS_MS = 500;
+export const REPEAT_PRESS_PX = 10;
+
+type PressEvent = Pick<MouseEvent, 'detail' | 'target' | 'timeStamp' | 'clientX' | 'clientY'>;
+
+const inside = (target: unknown, selector: string): boolean => {
+  const el = target as { closest?: (selector: string) => unknown } | null;
+  return typeof el?.closest === 'function' && el.closest(selector) != null;
+};
+
+/**
+ * The press to compare the next one with: a pointer press on the submit button, the one press whose answer
+ * moves the form. Null for a key press or a scripted click (`detail` 0) and for a press anywhere else.
+ */
+export function pressOf(e: PressEvent): Press | null {
+  return e.detail >= 1 && inside(e.target, 'button[type="submit"]') ? { time: e.timeStamp, x: e.clientX, y: e.clientY } : null;
+}
+
+/**
+ * True for the second press of a double press that began on the submit button (#719). The answer to the
+ * first press moves the form under the pointer, so the second would press whatever button or link is there
+ * now: the same button with the emptied draft (two "is required" errors under "Delivery arranged"), "View
+ * delivery", "Watch in simulator" or Cancel. It is a press at the same place (REPEAT_PRESS_PX) that a mouse
+ * counts as a further click (`detail` 2 or more) or, because a touch screen reports every tap as a first
+ * click, that comes within REPEAT_PRESS_MS. Key presses (`detail` 0) and presses that follow no press on
+ * the submit button are never dropped.
+ */
+export function isRepeatPress(e: PressEvent, previous: Press | null): boolean {
+  if (previous === null || e.detail < 1 || !inside(e.target, 'button, a')) return false;
+  const near = Math.abs(e.clientX - previous.x) <= REPEAT_PRESS_PX && Math.abs(e.clientY - previous.y) <= REPEAT_PRESS_PX;
+  return near && (e.detail > 1 || e.timeStamp - previous.time < REPEAT_PRESS_MS);
+}
+
 /**
  * The New delivery form. The typed draft is local state: a re-render with equal props (a 1 s poll) never
  * resets it (DECISIONS pass 43). It starts over only when the sending business changes.
@@ -53,6 +111,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   const [clientErrors, setClientErrors] = useState<FieldErrors>({});
   const [submitState, dispatch] = useReducer(submitReducer, origin.id, (id: string) => initialSubmitState(newClientRequestId(id)));
   const busy = useRef(false);
+  const form = useRef<HTMLFormElement>(null);
   const fields = useRef<Partial<Record<DraftField, HTMLElement | null>>>({});
   const timeWindow = props.window ?? DEFAULT_WINDOW;
 
@@ -108,6 +167,8 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   };
 
   const status = submitState.status;
+  // Every answer is a new status object, so the same answer twice (a second no-match) is shown twice.
+  useEffect(() => { revealAnswer(form.current, status.kind); }, [status]);
   const errors: FieldErrors = { ...(status.kind === 'error' ? status.fieldErrors : {}), ...clientErrors };
 
   return (
@@ -126,6 +187,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
       onOpenDelivery={props.onOpenDelivery}
       onCancel={props.onCancel}
       fieldRef={(f) => (el) => { fields.current[f] = el; }}
+      formRef={form}
     />
   );
 }
@@ -147,6 +209,8 @@ export type NewDeliveryFormViewProps = {
   onOpenDelivery: (shipmentId: string) => void;
   onCancel: () => void;
   fieldRef?: (field: DraftField) => (el: HTMLElement | null) => void;
+  /** The form element, for the stateful form: it brings the answer on screen. */
+  formRef?: Ref<HTMLFormElement>;
 };
 
 const CATEGORIES: { value: PackageCategory; label: string }[] = [
@@ -165,6 +229,8 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
   const retrying = p.status.kind === 'submitting' && p.status.retry === true;
   const locked = p.phase === 'locked' || p.status.kind === 'locked';
   const ref = (f: DraftField) => p.fieldRef?.(f);
+  /** The last pointer press on the submit button; a second press right after it is dropped (isRepeatPress). */
+  const lastPress = useRef<Press | null>(null);
 
   const field = (f: DraftField, label: ReactNode, control: (a: {
     id: string; 'aria-invalid'?: true; 'aria-describedby'?: string; ref?: (el: HTMLElement | null) => void;
@@ -188,7 +254,12 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
     : '';
 
   return (
-    <form className="nd" aria-labelledby={id('title')} noValidate onSubmit={p.onSubmit}
+    <form className="nd" ref={p.formRef} aria-labelledby={id('title')} noValidate onSubmit={p.onSubmit}
+      onClickCapture={(e) => {
+        // Before any button's own handler and before the browser submits the form or follows the link.
+        if (isRepeatPress(e, lastPress.current)) { e.preventDefault(); e.stopPropagation(); return; }
+        lastPress.current = pressOf(e) ?? lastPress.current;
+      }}
       onKeyDown={(e) => {
         // Esc anywhere in the form does what Cancel does (an open native select handles its own Esc first).
         if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); p.onCancel(); }
