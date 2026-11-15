@@ -97,6 +97,92 @@ export function recipientOptions(businesses: NetworkBusiness[], originId: string
     .map(({ id, label }) => ({ id, label }));
 }
 
+// ---------- Prefill from a parsed request (MVP IV F1, docs/mvp4.md) ----------
+
+/**
+ * What a sentence can fill, each null when it did not. The names are those of the parse-request draft
+ * (#764); the type is local so this model does not depend on that contract. The sender is not here: it is
+ * always the signed-in business (DECISIONS pass 81).
+ */
+export type ParsedFields = {
+  destinationBusinessId: string | null;
+  label: string | null;
+  category: PackageCategory | null;
+  description: string | null;
+  weightKg: number | null;
+  readyMin: number | null;
+  deadlineMin: number | null;
+};
+
+/** Shown under every field of `needsInput` until the user edits it. */
+export const NEEDS_INPUT_HINT = 'Check this: not in your request';
+
+const CATEGORY_VALUES: readonly PackageCategory[] = ['envelope', 'small_box'];
+
+/** Whole minutes since Day 1 00:00 -> the form's day and "HH:MM" (24 h, as <input type="time"> holds it). */
+function minToDayTime(min: number): { day: number; time: string } {
+  const inDay = ((min % DAY) + DAY) % DAY;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return { day: Math.floor(min / DAY) + 1, time: `${two(Math.floor(inDay / 60))}:${two(inDay % 60)}` };
+}
+
+/**
+ * The New delivery draft for a parsed request, plus the fields the user still has to fill or check
+ * (`needsInput`, in screen order). A field the sentence did not give keeps its `emptyDraft()` value and is
+ * listed. So is one the form cannot hold: a recipient that is the sender or not in the network, a ready time
+ * that is not on Day 1, a deliver-by time on neither Day 1 nor Day 2. A value the form can hold is copied as
+ * it is, even one `validate()` will refuse on Send (3 kg, a time outside the window): the user sees what they
+ * asked for next to the reason. The two instruction fields are optional and never parsed, so never listed.
+ */
+export function draftFromParsed(
+  parsed: ParsedFields,
+  context: { originId: string; businesses: NetworkBusiness[] },
+): { draft: NewDeliveryDraft; needsInput: DraftField[] } {
+  const draft = emptyDraft();
+  const needs = new Set<DraftField>();
+
+  const recipients = recipientOptions(context.businesses, context.originId);
+  if (parsed.destinationBusinessId !== null && recipients.some((r) => r.id === parsed.destinationBusinessId)) {
+    draft.recipientId = parsed.destinationBusinessId;
+  } else needs.add('recipientId');
+
+  const label = parsed.label?.trim() ?? '';
+  if (label) draft.label = label;
+  else needs.add('label');
+
+  if (parsed.category !== null && CATEGORY_VALUES.includes(parsed.category)) draft.category = parsed.category;
+  else needs.add('category');
+
+  if (parsed.weightKg !== null && Number.isFinite(parsed.weightKg)) draft.weightKg = String(parsed.weightKg);
+  else needs.add('weightKg');
+
+  const description = parsed.description?.trim() ?? '';
+  if (description) draft.description = description;
+  else needs.add('description');
+
+  // Day 1 is minutes 0 to 1439 (AGENTS.md); the form has no day for the ready time.
+  const ready = parsed.readyMin;
+  if (ready !== null && Number.isInteger(ready) && ready >= 0 && ready < DAY) draft.readyTime = minToDayTime(ready).time;
+  else needs.add('readyTime');
+
+  const deadline = parsed.deadlineMin;
+  if (deadline !== null && Number.isInteger(deadline) && deadline >= 0 && deadline < 2 * DAY) {
+    const { day, time } = minToDayTime(deadline);
+    draft.deadlineDay = day === 1 ? 1 : 2;
+    draft.deadlineTime = time;
+  } else {
+    needs.add('deadlineDay');
+    needs.add('deadlineTime');
+  }
+
+  return { draft, needsInput: DRAFT_FIELDS.filter((f) => needs.has(f)) };
+}
+
+/** The listed field that comes first on screen: the one that gets focus when a prefilled form opens. */
+export function firstNeedsInput(needsInput: readonly DraftField[]): DraftField | null {
+  return DRAFT_FIELDS.find((f) => needsInput.includes(f)) ?? null;
+}
+
 const readyMinOf = (d: NewDeliveryDraft) => dayTimeToMin(1, d.readyTime);
 const deadlineMinOf = (d: NewDeliveryDraft) => dayTimeToMin(d.deadlineDay, d.deadlineTime);
 

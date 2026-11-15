@@ -47,6 +47,8 @@
 .nd-label { font-weight: 600; font-size: var(--text-sm, 13px); }
 .nd-hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .nd-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); }
+/* A field a parsed request left out (MVP IV F1): the hint says so in words; the colour only adds to it. */
+.nd-check { margin: 0; font-size: var(--text-xs, 12px); font-weight: 600; color: var(--warn, #8A5A00); }
 
 .nd-input {
   height: 36px;
@@ -61,6 +63,7 @@
   box-sizing: border-box;
 }
 .nd-input--num, .nd-input--time { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); }
+.nd-field--check .nd-input { border-color: var(--warn, #8A5A00); }
 .nd-field--invalid .nd-input { border-color: var(--danger, #A4322A); }
 .nd-input:focus-visible {
   outline: none;

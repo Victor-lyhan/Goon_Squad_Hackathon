@@ -7,8 +7,8 @@ import type { CreateShipmentRequest } from '../../../../../shared/v2/schemas';
 import type { Employee, NetworkBusiness, PackageCategory, Phase } from '../../../../../shared/v2/types';
 import { matchShipment as apiMatchShipment } from '../../../api/v2';
 import {
-  DEFAULT_WINDOW, RESULT_COPY, arrangedCard, draftAfterResult, emptyDraft, firstInvalidField,
-  initialSubmitState, mapServerFieldErrors, newClientRequestId, recipientOptions, retryShipmentId, submitReducer,
+  DEFAULT_WINDOW, NEEDS_INPUT_HINT, RESULT_COPY, arrangedCard, draftAfterResult, emptyDraft, firstInvalidField,
+  firstNeedsInput, initialSubmitState, mapServerFieldErrors, newClientRequestId, recipientOptions, retryShipmentId, submitReducer,
   toRequest, validate, windowTimes,
   type ArrangedCard, type DraftField, type FieldErrors, type NewDeliveryDraft, type SubmitStatus, type TimeWindow,
 } from './newDeliveryModel';
@@ -44,6 +44,16 @@ export type NewDeliveryFormProps = {
   onCancel: () => void;
   /** Planning window (settings.simStartMin / simEndMin); defaults to Day 1, 3:30 PM to Day 2, 12:00 PM. */
   window?: TimeWindow;
+  /**
+   * The draft the form opens with (MVP IV F1: a parsed request, `draftFromParsed`). Read once, when the form
+   * mounts: it is the user's draft from then on. Give the form a new `key` to open it with another one.
+   */
+  initialDraft?: NewDeliveryDraft;
+  /**
+   * The fields the request did not fill (`draftFromParsed`). Each shows a hint until the user edits it, and
+   * the first one on screen gets focus when the form opens. Read once, like `initialDraft`.
+   */
+  needsInput?: readonly DraftField[];
 };
 
 const NO_EMPLOYEES: CarrierNames = [];
@@ -112,7 +122,9 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   const services = useContext(NewDeliveryServicesContext);
   const onMatch = props.onMatch ?? services?.matchShipment ?? apiMatchShipment;
   const employees = props.employees ?? services?.employees ?? NO_EMPLOYEES;
-  const [draft, setDraft] = useState<NewDeliveryDraft>(emptyDraft);
+  const [draft, setDraft] = useState<NewDeliveryDraft>(() => props.initialDraft ?? emptyDraft());
+  // The listed fields the user has not edited yet. Empty without the prop, and then nothing below differs.
+  const [unchecked, setUnchecked] = useState<readonly DraftField[]>(() => props.needsInput ?? []);
   const [draftOrigin, setDraftOrigin] = useState(origin.id);
   const [clientErrors, setClientErrors] = useState<FieldErrors>({});
   const [submitState, dispatch] = useReducer(submitReducer, origin.id, (id: string) => initialSubmitState(newClientRequestId(id)));
@@ -125,6 +137,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   if (draftOrigin !== origin.id) {
     setDraftOrigin(origin.id);
     setDraft(emptyDraft());
+    setUnchecked([]); // the prefill was the other business's request
     setClientErrors({});
     dispatch({ type: 'dismiss' });
   }
@@ -145,6 +158,8 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   const change = <K extends keyof NewDeliveryDraft>(key: K, value: NewDeliveryDraft[K]) => {
     const next = { ...draft, [key]: value };
     setDraft(next);
+    // An edited field is the user's own value: its "not in your request" hint goes.
+    if (unchecked.includes(key)) setUnchecked(unchecked.filter((f) => f !== key));
     // Once errors are on screen, they follow the typing (fixed fields clear right away).
     if (Object.keys(clientErrors).length > 0) setClientErrors(validate(next, origin.id, timeWindow));
   };
@@ -169,7 +184,10 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
         ? await onMatch(retryId)
         : await onSubmit(toRequest(sent, origin.id, submitState.clientRequestId));
       dispatch({ type: 'success', response, draft: sent, nextRequestId: retryId ? undefined : newClientRequestId(origin.id) });
-      if (response.matched) setDraft((d) => (d === sent ? draftAfterResult(d, { kind: 'matched' }) : d));
+      if (response.matched) {
+        setDraft((d) => (d === sent ? draftAfterResult(d, { kind: 'matched' }) : d));
+        setUnchecked([]); // the form starts a fresh package; the hints were about the one just sent
+      }
     } catch (error) {
       dispatch({ type: 'failure', error });
       const server = (error as { status?: number; fieldErrors?: Record<string, string> } | null);
@@ -183,6 +201,11 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   const status = submitState.status;
   // Every answer is a new status object, so the same answer twice (a second no-match) is shown twice.
   useEffect(() => { revealAnswer(form.current, status.kind); }, [status]);
+  // A prefilled form opens on the first field the request left out. Once, on mount: never on a poll's re-render.
+  useEffect(() => {
+    const first = firstNeedsInput(props.needsInput ?? []);
+    if (first) fields.current[first]?.focus();
+  }, []);
   const errors: FieldErrors = { ...(status.kind === 'error' ? status.fieldErrors : {}), ...clientErrors };
 
   return (
@@ -194,6 +217,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
       window={timeWindow}
       retry={retryId !== null}
       draft={draft}
+      needsInput={unchecked}
       errors={errors}
       status={status}
       onChange={change}
@@ -216,6 +240,8 @@ export type NewDeliveryFormViewProps = {
   /** True while the draft is unchanged since a no-match answer: the primary button re-matches that delivery. */
   retry?: boolean;
   draft: NewDeliveryDraft;
+  /** Fields a parsed request left out and the user has not edited yet: each shows NEEDS_INPUT_HINT. */
+  needsInput?: readonly DraftField[];
   errors: FieldErrors;
   status: SubmitStatus;
   onChange: <K extends keyof NewDeliveryDraft>(key: K, value: NewDeliveryDraft[K]) => void;
@@ -251,12 +277,15 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
     id: string; 'aria-invalid'?: true; 'aria-describedby'?: string; ref?: (el: HTMLElement | null) => void;
   }) => ReactNode, hint?: ReactNode) => {
     const err = p.errors[f];
-    const describedBy = [hint ? id(`${f}-hint`) : '', err ? id(`${f}-err`) : ''].filter(Boolean).join(' ') || undefined;
+    const check = p.needsInput?.includes(f) === true;
+    const describedBy = [hint ? id(`${f}-hint`) : '', check ? id(`${f}-check`) : '', err ? id(`${f}-err`) : '']
+      .filter(Boolean).join(' ') || undefined;
     return (
-      <div className={`nd-field${err ? ' nd-field--invalid' : ''}`}>
+      <div className={`nd-field${check ? ' nd-field--check' : ''}${err ? ' nd-field--invalid' : ''}`}>
         <label className="nd-label" htmlFor={id(f)}>{label}</label>
         {control({ id: id(f), 'aria-invalid': err ? true : undefined, 'aria-describedby': describedBy, ref: ref(f) })}
         {hint && <p className="nd-hint" id={id(`${f}-hint`)}>{hint}</p>}
+        {check && <p className="nd-check" id={id(`${f}-check`)}>{NEEDS_INPUT_HINT}</p>}
         {err && <p className="nd-error" id={id(`${f}-err`)}>{err}</p>}
       </div>
     );
