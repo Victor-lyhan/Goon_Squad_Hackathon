@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { headerModel } from '../../client/src/components/business/v2/activity/activityModel';
+import { RESULT_COPY } from '../../client/src/components/business/v2/newDeliveryModel';
+import { NEW_DELIVERY_CLOSED_TEXT } from '../../client/src/components/business/v2/page/businessPageModel';
 import { UNAVAILABLE_TEXT as ADDRESS_SEARCH_NEEDS_KEY_TEXT } from '../../client/src/components/employee/v2/addressSearchModel';
+import { LOCKED_TEXT } from '../../client/src/components/employee/v2/employeeWorkspaceModel';
 import { TRAVEL_DATA_MISSING_TEXT } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
 import { RESET_LABEL } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { ENV_INDICATOR_TEXT } from '../../client/src/ui/shellModel';
@@ -158,11 +162,54 @@ describe('README after the cutover', () => {
     expect(state).not.toMatch(/reset as above to unlock it/);
     expect(RESET_LABEL).toBe('Back to start'); // the button's own label
     expect(state).toMatch(/Playing one package's journey does not lock the run/);
+    // #756: the locked lines are quoted as the pages print them (#742, #745), and both name the button.
+    const lock = state.split('\n').find((line) => line.startsWith('In the Simulator, **Play** with no package picked')) ?? '';
+    expect(NEW_DELIVERY_CLOSED_TEXT).toBe(RESULT_COPY.locked); // the Business page's line is the form's text
+    for (const text of [RESULT_COPY.locked, LOCKED_TEXT]) {
+      expect(text).toContain(`${RESET_LABEL} in the simulator`);
+      expect(lock, text).toContain(`"${text}"`);
+    }
+    expect(lock.indexOf(`"${RESULT_COPY.locked}"`)).toBeLessThan(lock.indexOf(`"${LOCKED_TEXT}"`)); // Business, then Employee
+    expect(lock).toMatch(/The Business page then says "Locked", its \*\*New delivery\*\* button is disabled/);
+    expect(headerModel({ business: {}, totals: {}, phase: 'locked' } as never).phaseLabel).toBe('Locked');
+    expect(lock).toMatch(/On the Employee page \*\*Edit commute\*\* is disabled/);
+    expect(lock).toMatch(/No reset is needed\./);
+    expect(lock).toMatch(/\*\*Pause\*\* does not unlock it, and neither does a restart/);
+    // The old sentence about the pages' wording is gone, here and everywhere else in the file.
+    expect(readme).not.toMatch(/planning cycle/i);
     // #727: a second server's own state file, with its start line in the words of server/index.ts.
     const example = new RegExp(`\`${STATE_PATH_NAME}=(\\S+) PORT=3002 npm start\``).exec(state)?.[1] ?? '';
     expect(example).toMatch(/^\/tmp\/.+\.json$/);
     expect(state).toContain(`"${stateStartLine(example, DEFAULT_V2_STATE_PATH)}"`);
     expect(stateStartLine(DEFAULT_V2_STATE_PATH, DEFAULT_V2_STATE_PATH)).toBeNull(); // the default file gets no line
+  });
+
+  // #756: rehearsing and the demo share one run. What the sentences claim was seen on a real server
+  // (`RELAY_STATE_PATH=... PORT=... npm start`, the README request three times over HTTP, PR #749 and #756);
+  // no test sends the second and third request, because their answers depend on the story (DECISIONS pass 54).
+  it('2-minute demo: says a rehearsal that ran Find a delivery match needs a reset, and one of Play, Back to start and a journey does not', () => {
+    const demo = sectionOf('## 2-minute demo');
+    const note = demo.split('\n').find((line) => line.startsWith('Rehearsing and the demo share one run.')) ?? '';
+    expect(note).not.toBe('');
+    // Before the numbered steps, after the request block.
+    expect(demo.indexOf(note)).toBeGreaterThan(demo.indexOf('```demo-request'));
+    expect(demo.indexOf(note)).toBeLessThan(demo.indexOf('\n1. **Employee**'));
+    expect(note).toContain(
+      'Use a fresh run for the real demo: the request is planned on commutes that are still free, and a rehearsal that chose '
+      + '**Find a delivery match** uses them up, so reset the run after it ([State file and reset](#state-file-and-reset)).',
+    );
+    expect(readme).toContain('\n## State file and reset\n'); // the heading the link points at
+    expect(note).toContain(
+      'One run arranges the request as the block says once: sent a second time it comes with other carriers than the block names, '
+      + 'and a third time it is not matched ("Every matching commute is already carrying a package").',
+    );
+    // The reason is the matcher's own sentence.
+    const reason = /not matched \("([^"]+)"\)/.exec(note)?.[1] ?? 'no reason quoted';
+    expect(read('server/domain/v2/matching.ts')).toContain(`'${reason}'`);
+    expect(note).toContain(`A rehearsal of only **Play**, **${RESET_LABEL}** and a package's journey adds no delivery and needs no reset.`);
+    // The older "after an earlier try, reset first" is replaced, and the way out of a locked run is still there.
+    expect(demo).not.toMatch(/after an earlier try/);
+    expect(demo).toMatch(/the run is locked and the \*\*New delivery\*\* button is disabled: press \*\*Back to start\*\* in the Simulator first/);
   });
 
   it('the repository layout names folders and files that exist', () => {
