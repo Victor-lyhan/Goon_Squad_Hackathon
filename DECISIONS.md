@@ -489,3 +489,4 @@ One line per decision: date, decision, why. Humans seeded the first block from t
 
 - 2026-11-14 (planner, pass 109) CI runs on main (#898, #877, the 23:50 QUESTIONS commit) were still in progress; earlier runs are red for the billing reason of pass 61. No fix issue.
 - 2026-11-14 (planner, pass 109) **No issues queued, per the humans' 23:50 note.** Step 4 (top every worker up to 4 `ready`) is off for the rest of the night. #899 (victor-3, `ready`, not started) keeps its label: it was queued before the stop, and the 00:15 cut-off covers it either way.
+- 2026-11-15 (planner, pass 110) The CI run for #919 (PR #930) on main failed and #895's passed, so this one may not be the billing failure. The planner could not read the log (gh run/checks need approval here). **No fix issue, per the humans' 23:50 stop;** it is flagged in STATUS to-do 7 and QUESTIONS for the morning.
