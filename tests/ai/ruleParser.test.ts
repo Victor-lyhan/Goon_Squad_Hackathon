@@ -389,6 +389,162 @@ describe('the package', () => {
   });
 });
 
+// #827: the F1 browser check (#807) typed "Send espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow."
+// and got an empty Package name and Contents, although the sentence says what is sent.
+describe('no package word: what is sent names the package and is its contents (#827)', () => {
+  const BLUE_BOTTLE = 'biz-blue-bottle-wall';
+
+  it('"Send espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow." fills the name and the contents, never the Type', () => {
+    const answer = parse('Send espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow.');
+    expect(answer).toEqual({
+      draft: {
+        originBusinessId: null, destinationBusinessId: BLUE_BOTTLE, label: 'Espresso blend samples', category: null,
+        description: 'Espresso blend samples', weightKg: null, readyMin: NOW, deadlineMin: DAY2 + 600,
+      },
+      missing: ['originBusinessId', 'category', 'weightKg'],   // the Type is the user's choice
+      rejected: null,
+      source: 'offline',
+    });
+    expectWellFormed(answer);
+  });
+
+  it('"Send 2 kg of coffee beans to Etsy." gives the weight and the contents', () => {
+    const answer = parse('Send 2 kg of coffee beans to Etsy.');
+    expect(answer.draft).toMatchObject({
+      destinationBusinessId: ETSY, label: 'Coffee beans', category: null, description: 'Coffee beans', weightKg: 2,
+    });
+    expect(answer.missing).toEqual(['originBusinessId', 'category', 'deadlineMin']);
+    expectWellFormed(answer);
+  });
+
+  it.each(['Send', 'send', 'Deliver', 'Ship', 'Bring', 'Take', 'Drop off', 'Please deliver', 'I need to send', 'Can you bring'])(
+    'after the verb: "%s coffee beans to Etsy"', (verb) => {
+      expect(draftOf(`${verb} coffee beans to Etsy`)).toMatchObject({
+        destinationBusinessId: ETSY, label: 'Coffee beans', category: null, description: 'Coffee beans',
+      });
+    });
+
+  it.each([
+    'a', 'an', 'the', 'some', 'two', 'twelve', '3', 'a few', 'the two', 'this', 'our', 'over the',
+    '2 kg of', '0.5kg', 'a 500 g', '1 lb of the',
+  ])('"%s" before it is dropped', (before) => {
+    expect(draftOf(`Send ${before} espresso samples to Etsy`)).toMatchObject({
+      label: 'Espresso samples', description: 'Espresso samples', category: null,
+    });
+  });
+
+  it.each([
+    'to Etsy', 'from Etsy to JetBlue', 'by noon', 'before 5 pm today', 'for Etsy', 'at Etsy', 'tomorrow morning to Etsy',
+    'ready at 4 pm', 'weighing 1 kg', 'asap', 'please', ', to Etsy', '; thanks', '(1 kg) to Etsy', '. Thanks!', '.', '',
+    'Etsy',   // a business name ends it too
+  ])('it ends at the next part of the sentence: "Send coffee beans %s"', (rest) => {
+    expect(draftOf(`Send coffee beans ${rest}`.trim())).toMatchObject({ label: 'Coffee beans', description: 'Coffee beans' });
+  });
+
+  it('is kept as typed, on one line, with a capital first letter', () => {
+    expect(draftOf('send the Kenya AA beans & two V60 filters to Etsy').description).toBe('Kenya AA beans & two V60 filters');
+    expect(draftOf('SEND COFFEE\n  BEANS TO ETSY').label).toBe('COFFEE BEANS');
+    expect(draftOf("Send étienne's croissants to Etsy").label).toBe("Étienne's croissants");
+  });
+
+  it('the name is cut to 60 characters and the contents to 120', () => {
+    const words = 'very long words '.repeat(12).trim();   // 191 characters
+    const { label, description } = draftOf(`Send ${words} to Etsy`);
+    expect(label).toBe(`V${words.slice(1, 60).trimEnd()}`);
+    expect(label!.length).toBeLessThanOrEqual(60);
+    expect(description).toBe(`V${words.slice(1, 120).trimEnd()}`);
+    expect(description!.length).toBeLessThanOrEqual(120);
+  });
+
+  it.each([
+    'Send it to Etsy',
+    'Send this to Etsy',
+    'Send something to Etsy',
+    'Send stuff to Etsy',
+    'Send some stuff to Etsy',
+    'Send them over to Etsy',
+    'Send one to Etsy',
+    'Send to Etsy by noon',               // an empty phrase
+    'Deliver by noon to Etsy',
+    'Deliver tomorrow morning to Etsy',
+    'Deliver now to Etsy',
+    'Deliver 9:30 tomorrow to Etsy',
+    'Send 350 5th Avenue to Etsy',        // what is left starts with a number
+    'Send',
+    'Send.',
+    'Send 2 kg to Etsy',
+    'Coffee beans to Etsy by noon',       // no verb: nothing says where the object starts
+  ])('a pronoun, an empty phrase or no verb gives nothing: "%s"', (text) => {
+    const answer = parse(text);
+    expect(answer.draft).toMatchObject({ label: null, category: null, description: null });
+    expect(answer.missing).toEqual(expect.arrayContaining(['label', 'category', 'description']));
+    expectWellFormed(answer);
+  });
+
+  it('a business name is never the package', () => {
+    // "Blue Bottle Coffee" is a stop (blanked), not coffee to send.
+    expect(draftOf('Send Blue Bottle Coffee to Etsy')).toMatchObject({
+      originBusinessId: BLUE_BOTTLE, destinationBusinessId: ETSY, label: null, description: null,
+    });
+    expect(draftOf('Deliver to Etsy from Blue Bottle Coffee')).toMatchObject({ label: null, description: null });
+    // Before and inside the phrase: the name is left out and ends the phrase.
+    expect(draftOf('Send Etsy coffee beans')).toMatchObject({ originBusinessId: ETSY, label: 'Coffee beans' });
+    expect(draftOf("Send Etsy samples and Zabar's bagels to JetBlue")).toMatchObject({
+      destinationBusinessId: 'biz-jetblue', label: 'Samples', description: 'Samples',
+    });
+  });
+
+  it('a sentence with a package word keeps that name and its Type (DECISIONS pass 86)', () => {
+    expect(draftOf('Send espresso blend samples in a box to Etsy')).toMatchObject({ label: 'Box', category: 'small_box', description: null });
+    expect(draftOf('Send the documents to Etsy')).toMatchObject({ label: 'Documents', category: 'envelope', description: null });
+    expect(draftOf('Send a box to Etsy')).toMatchObject({ label: 'Box', category: 'small_box', description: null });
+    expect(draftOf('Send a box of 12 bagels to Etsy')).toMatchObject({ label: 'Box', category: 'small_box', description: null });
+  });
+
+  // Nothing else changes: the answers the server gave before #827, as recorded by the browser check
+  // (tests/ui/business-v2-request-text-sentences.test.tsx, sentences 1, 2 and 4 to 7) and by #798 for the
+  // README demo sentence (tests/api/v2-f1-demo-sentence.test.ts sends it and checks the match).
+  const LONG = ('Please deliver a small box of espresso blend samples from Brooklyn Roasting Company to Blue Bottle Coffee by '
+    + '10 a.m. tomorrow, ready at 4 p.m.; the box holds twelve sample bags for the new winter menu, each one labelled with '
+    + 'its roast date, and it should be handed to the shift manager at the front counter, who knows it is coming and will '
+    + 'sign for it, so the courier does not need to wait in the line with the morning customers or call ahead before '
+    + 'arriving at the shop.').padEnd(500, '.');
+  const recorded = (draft: ParseDraft, missing: (keyof ParseDraft)[], rejected: string | null = null): ParseRequestResponse =>
+    ({ draft, missing, rejected, source: 'offline' });
+  it.each<[string, string, ParseRequestResponse]>([
+    ['sentence 1', 'Deliver an envelope from Brooklyn Roasting Company to Blue Bottle Coffee by 10 a.m. tomorrow.', recorded({
+      originBusinessId: ROASTING, destinationBusinessId: BLUE_BOTTLE, label: 'Envelope',
+      category: 'envelope', description: null, weightKg: null, readyMin: 930, deadlineMin: 2040,
+    }, ['description', 'weightKg'])],
+    ['sentence 2', 'Send a small box of coffee beans to Etsy.', recorded({
+      originBusinessId: null, destinationBusinessId: ETSY, label: 'Box', category: 'small_box',
+      description: 'Coffee beans', weightKg: null, readyMin: 930, deadlineMin: null,
+    }, ['originBusinessId', 'weightKg', 'deadlineMin'])],
+    ['sentence 4', 'Deliver an envelope to 123 Main Street, Brooklyn by 10 a.m. tomorrow.', recorded({
+      originBusinessId: null, destinationBusinessId: null, label: 'Envelope', category: 'envelope',
+      description: null, weightKg: null, readyMin: 930, deadlineMin: 2040,
+    }, ['originBusinessId', 'destinationBusinessId', 'description', 'weightKg'], refusal('123 Main Street'))],
+    ['sentence 5', "Send an envelope to Joe's Pizza by 9 a.m. tomorrow.", recorded({
+      originBusinessId: null, destinationBusinessId: null, label: 'Envelope', category: 'envelope',
+      description: null, weightKg: null, readyMin: 930, deadlineMin: 1980,
+    }, ['originBusinessId', 'destinationBusinessId', 'description', 'weightKg'], refusal("Joe's Pizza"))],
+    ['sentence 6', 'Deliver an envelope from Etsy to Blue Bottle Coffee by 10 a.m. tomorrow.', recorded({
+      originBusinessId: ETSY, destinationBusinessId: BLUE_BOTTLE, label: 'Envelope',
+      category: 'envelope', description: null, weightKg: null, readyMin: 930, deadlineMin: 2040,
+    }, ['description', 'weightKg'])],
+    ['sentence 7 (500 characters)', LONG, recorded({
+      originBusinessId: ROASTING, destinationBusinessId: BLUE_BOTTLE, label: 'Box',
+      category: 'small_box', description: 'Espresso blend samples', weightKg: null, readyMin: 960, deadlineMin: 2040,
+    }, ['weightKg'])],
+    ['the README demo sentence', 'Send a 0.5 kg envelope of espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow, ready at 4 p.m.', recorded({
+      originBusinessId: null, destinationBusinessId: BLUE_BOTTLE, label: 'Envelope',
+      category: 'envelope', description: 'Espresso blend samples', weightKg: 0.5, readyMin: 960, deadlineMin: 2040,
+    }, ['originBusinessId'])],
+  ])('a sentence with a package word is read as before: %s', (_name, text, answer) => {
+    expect(parse(text, 930)).toEqual(answer);
+  });
+});
+
 describe('any text gives a well-formed answer', () => {
   it.each([
     'hello',
@@ -405,6 +561,11 @@ describe('any text gives a well-formed answer', () => {
     'a.m. p.m. 10 10 10 :: .. ,,',
     'x'.repeat(500),
     `${'from my home to '.repeat(31)}Etsy`,
+    'send send send',
+    'Send a an the some two',
+    `Send ${'the '.repeat(120)}`,
+    `deliver ${'y'.repeat(480)}`,
+    'Send <b>bold</b> & "quotes" to Etsy',
   ])('%s', (text) => {
     expectWellFormed(parse(text));
   });
