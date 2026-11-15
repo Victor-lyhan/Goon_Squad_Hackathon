@@ -220,7 +220,8 @@ describe('POST /api/v2/parse-request with a Gemini key', () => {
     expect(sent).toEqual({
       systemInstruction: { parts: [{ text: promptOf(run) }] },
       contents: [{ role: 'user', parts: [{ text: EXAMPLE }] }],   // trimmed
-      generationConfig: { responseMimeType: 'application/json', responseSchema: PARSE_RESPONSE_SCHEMA },
+      // gemini-2.5-flash: thinking off, so the answer fits the 6 s limit (#797)
+      generationConfig: { responseMimeType: 'application/json', responseSchema: PARSE_RESPONSE_SCHEMA, thinkingConfig: { thinkingBudget: 0 } },
     });
     const prompt: string = sent.systemInstruction.parts[0].text;
     for (const business of run.scenario.businesses) {

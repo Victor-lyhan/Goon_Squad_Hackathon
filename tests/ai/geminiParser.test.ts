@@ -420,7 +420,8 @@ describe('parseWithGemini', () => {
     expect(body).toEqual({
       systemInstruction: { parts: [{ text: buildParsePrompt(CONTEXT) }] },
       contents: [{ role: 'user', parts: [{ text: EXAMPLE }] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: PARSE_RESPONSE_SCHEMA },
+      // gemini-2.5-flash: thinking off, so the answer fits the 6 s limit (#797)
+      generationConfig: { responseMimeType: 'application/json', responseSchema: PARSE_RESPONSE_SCHEMA, thinkingConfig: { thinkingBudget: 0 } },
     });
     // The sentence is the user turn only: it is not mixed into the instructions.
     expect(body.systemInstruction.parts[0].text).not.toContain(EXAMPLE);
