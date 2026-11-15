@@ -200,7 +200,8 @@ describe('Business page, MVP III look (#684)', () => {
 
     it('exactly the data classes are mono', () => {
       expect(using(MONO)).toEqual({
-        'activity/activity.css': ['.ba-header__id', '.ba-totals__value', '.ba-note__time', '.ba-note__open', '.ba-notes__count'],
+        // .ba-mono is the price inside a notification sentence (#742).
+        'activity/activity.css': ['.ba-header__id', '.ba-totals__value', '.ba-note__time', '.ba-note__open', '.ba-notes__count', '.ba-mono'],
         'businessWorkspace.css': ['.bw-table__count', '.bw-mono'],
         'deliveryDetails.css': ['.bd-mono'],
         'newDelivery.css': ['.nd-input--num', '.nd-input--time', '.nd-mono'],
@@ -231,9 +232,15 @@ describe('Business page, MVP III look (#684)', () => {
         'facts.weight', 'facts.ready', 'facts.deadline',
       ]],
       // f.value is mono when the model says so (ETA and price; business-v2-new-delivery-result.test.tsx).
-      ['NewDeliveryForm.tsx', /\bnd-mono\b/, ['card.shipmentId', 'p.shipmentId', 'st.timeText', 'f.value']],
+      // windowTime.start/end are the two times of the "Simulation window" hint (#742).
+      ['NewDeliveryForm.tsx', /\bnd-mono\b/, [
+        'card.shipmentId', 'p.shipmentId', 'st.timeText', 'f.value', 'windowTime.start', 'windowTime.end',
+      ]],
       ['activity/BusinessHeader.tsx', /\bba-(header__id|totals__value)\b/, ['m.id', 't.value']],
-      ['activity/NotificationsPanel.tsx', /\bba-(note__time|note__open|notes__count)\b/, ['r.time', 'r.shipmentId', 'rows.length']],
+      // part.text in a mono element is a price cut out of the server's sentence (#742).
+      ['activity/NotificationsPanel.tsx', /\bba-(note__time|note__open|notes__count|mono)\b/, [
+        'r.time', 'r.shipmentId', 'rows.length', 'part.text',
+      ]],
       ['page/BusinessPageView.tsx', /\bbp-mono\b/, ['screen.shipmentId']],
       ['route/DeliveryRoutePreview.tsx', /\bbdr__(n|time)\b/, ['s.n', 's.time']],
     ];

@@ -88,6 +88,8 @@
 .nd-result__text { margin: 0; }
 .nd-result__id { color: var(--muted, #5B6472); white-space: nowrap; }
 .nd-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); }
+/* A time or weight in a hint moves to the next line whole (at 390 px "Day 2," / "12:00 PM" broke in two, #742). */
+.nd-hint .nd-mono { white-space: nowrap; }
 
 /* The "Delivery arranged" card: title and ID, the facts in a row, one block per carrier, two actions. */
 .nd-arranged { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: var(--space-3, 12px); }

@@ -47,7 +47,8 @@ describe('NewDeliveryForm (static renders)', () => {
     expect(html).toContain('Bakery Row · Midtown');
     expect(html).not.toContain('Acme Studio · Midtown</option>');
     expect(html).toContain('Choose a business');
-    expect(html).toContain('Simulation window: Day 1, 3:30 PM to Day 2, 12:00 PM.');
+    // The two times are mono spans (#742); the sentence itself is pinned in business-v2-mono-markup.test.tsx.
+    expect(html).toContain('Simulation window: <span class="nd-mono">Day 1, 3:30 PM</span> to <span class="nd-mono">Day 2, 12:00 PM</span>.');
     expect(html).not.toContain('15:30');
     expect(html).toMatch(/<button type="submit"[^>]*>Find a delivery match</);
     expect(html).not.toMatch(/<button type="submit"[^>]*disabled/);

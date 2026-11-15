@@ -70,7 +70,9 @@ describe('newDeliveryClosedText', () => {
     expect(newDeliveryClosedText('planning')).toBeNull();
     expect(newDeliveryClosedText('locked')).toBe(NEW_DELIVERY_CLOSED_TEXT);
     expect(NEW_DELIVERY_CLOSED_TEXT).toBe(RESULT_COPY.locked);
-    expect(NEW_DELIVERY_CLOSED_TEXT).toMatch(/closed until the next planning cycle/);
+    // The way out is the simulator's "Back to start" (DECISIONS pass 74); the old control is gone (#700).
+    expect(NEW_DELIVERY_CLOSED_TEXT).toBe('The simulation has started, so new requests are closed. Press Back to start in the simulator to reopen them.');
+    expect(NEW_DELIVERY_CLOSED_TEXT).not.toMatch(/planning cycle/i);
   });
 });
 

@@ -127,7 +127,13 @@ export function toRequest(draft: NewDeliveryDraft, originId: string, clientReque
 
 /** "Day 1, 3:30 PM to Day 2, 12:00 PM": the planning window in the format of the shipments table. */
 export function windowText(w: TimeWindow): string {
-  return `${formatMin(w.startMin)} to ${formatMin(w.endMin)}`;
+  const t = windowTimes(w);
+  return `${t.start} to ${t.end}`;
+}
+
+/** The two times of `windowText`, each on its own so the form can set them in mono (docs/mvp3.md P4). */
+export function windowTimes(w: TimeWindow): { start: string; end: string } {
+  return { start: formatMin(w.startMin), end: formatMin(w.endMin) };
 }
 
 /**
@@ -300,7 +306,8 @@ export function submitReducer(state: SubmitState, action: SubmitAction): SubmitS
 export const RESULT_COPY = {
   matched: 'Delivery arranged.',
   unmatched: 'No matching commute yet.',
-  locked: 'The simulation has started, so new requests are closed until the next planning cycle.',
+  /** "Back to start" is the simulator's control that returns the run to planning (DECISIONS pass 74). */
+  locked: 'The simulation has started, so new requests are closed. Press Back to start in the simulator to reopen them.',
   unavailable: 'Travel data is not available on the server, so this request could not be matched. Nothing was saved.',
   unavailableRetry: 'Travel data is not available on the server, so matching could not run. Your request is still saved.',
   /** The typed draft stays, and the request ID is kept, so sending again never stores the delivery twice. */

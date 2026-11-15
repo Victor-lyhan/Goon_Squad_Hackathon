@@ -5,7 +5,8 @@
 //   details (sender, recipient, both carriers) with the "held here overnight" line; the package is read with
 //   GET /api/v2/shipments/:id, refreshed with the page poll, and its notification shows a real time.
 // - A delivery this business has no part in keeps the "another business" message.
-// - A locked dashboard closes New delivery, with the reason as text, until a new planning cycle.
+// - A locked dashboard closes New delivery, with the reason as text, until the run is back in planning
+//   (the simulator's "Back to start", DECISIONS pass 74).
 import { act } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -253,7 +254,7 @@ describe('a business that is only the relay point of a package', () => {
 });
 
 describe('New delivery while the run is locked', () => {
-  it('is disabled with the reason as text, and opens again after a new planning cycle', async () => {
+  it('is disabled with the reason as text, and opens again once the run is back in planning', async () => {
     server.dashboards.set(ACME.id, { ...DASHBOARD, phase: 'locked' });
     const p = open(`/business/${ACME.id}`);
     await p.until(() => buttons(p.container, 'New delivery').length === 1, 'the toolbar');
@@ -261,14 +262,15 @@ describe('New delivery while the run is locked', () => {
     expect(btn().disabled).toBe(true);
     const reason = p.container.querySelector('.bp-closed')!;
     expect(textOf(reason)).toBe(NEW_DELIVERY_CLOSED_TEXT);
-    expect(textOf(reason)).toMatch(/simulation has started.*closed until the next planning cycle/);
+    expect(textOf(reason)).toMatch(/simulation has started.*closed\. Press Back to start in the simulator to reopen them\.$/);
+    expect(textOf(reason)).not.toMatch(/planning cycle/i);
     click(btn());
     expect(p.container.querySelector('form.nd')).toBeNull();
     // The rest of the page still works: a delivery opens.
     click(p.container.querySelector('tr.bw-row')!);
     expect(p.details()).not.toBeNull();
 
-    // A new planning cycle: the next poll opens it again.
+    // Back to start in the simulator returns the run to planning: the next poll opens it again.
     server.dashboards.set(ACME.id, { ...DASHBOARD, phase: 'planning', version: DASHBOARD.version + 1 });
     await p.until(() => !btn().disabled, 'New delivery to open again');
     expect(p.container.querySelector('.bp-closed')).toBeNull();

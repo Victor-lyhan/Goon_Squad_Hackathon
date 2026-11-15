@@ -9,7 +9,7 @@ import { matchShipment as apiMatchShipment } from '../../../api/v2';
 import {
   DEFAULT_WINDOW, RESULT_COPY, arrangedCard, draftAfterResult, emptyDraft, firstInvalidField,
   initialSubmitState, mapServerFieldErrors, newClientRequestId, recipientOptions, retryShipmentId, submitReducer,
-  toRequest, validate, windowText,
+  toRequest, validate, windowTimes,
   type ArrangedCard, type DraftField, type FieldErrors, type NewDeliveryDraft, type SubmitStatus, type TimeWindow,
 } from './newDeliveryModel';
 import './newDelivery.css';
@@ -229,12 +229,13 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
   const retrying = p.status.kind === 'submitting' && p.status.retry === true;
   const locked = p.phase === 'locked' || p.status.kind === 'locked';
   const ref = (f: DraftField) => p.fieldRef?.(f);
+  const windowTime = windowTimes(p.window ?? DEFAULT_WINDOW);
   /** The last pointer press on the submit button; a second press right after it is dropped (isRepeatPress). */
   const lastPress = useRef<Press | null>(null);
 
   const field = (f: DraftField, label: ReactNode, control: (a: {
     id: string; 'aria-invalid'?: true; 'aria-describedby'?: string; ref?: (el: HTMLElement | null) => void;
-  }) => ReactNode, hint?: string) => {
+  }) => ReactNode, hint?: ReactNode) => {
     const err = p.errors[f];
     const describedBy = [hint ? id(`${f}-hint`) : '', err ? id(`${f}-err`) : ''].filter(Boolean).join(' ') || undefined;
     return (
@@ -294,7 +295,7 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
             <input {...a} ref={a.ref as (el: HTMLInputElement | null) => void} className="nd-input nd-input--num"
               type="text" inputMode="decimal" autoComplete="off" value={p.draft.weightKg}
               onChange={(e) => p.onChange('weightKg', e.target.value)} />
-          ), 'Up to 2 kg')}
+          ), <>Up to <span className="nd-mono">2 kg</span></>)}
         </div>
         {field('description', 'Contents', (a) => (
           <input {...a} ref={a.ref as (el: HTMLInputElement | null) => void} className="nd-input" type="text"
@@ -314,7 +315,9 @@ export function NewDeliveryFormView(p: NewDeliveryFormViewProps) {
 
       <fieldset className="nd-group" disabled={submitting}>
         <legend className="nd-legend">Timing</legend>
-        <p className="nd-hint">Simulation window: {windowText(p.window ?? DEFAULT_WINDOW)}.</p>
+        <p className="nd-hint">
+          Simulation window: <span className="nd-mono">{windowTime.start}</span> to <span className="nd-mono">{windowTime.end}</span>.
+        </p>
         {field('readyTime', 'Ready for pickup (Day 1)', (a) => (
           <input {...a} ref={a.ref as (el: HTMLInputElement | null) => void} className="nd-input nd-input--time"
             type="time" value={p.draft.readyTime} onChange={(e) => p.onChange('readyTime', e.target.value)} />

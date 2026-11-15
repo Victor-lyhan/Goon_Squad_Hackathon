@@ -140,10 +140,17 @@ export function renderPage(state: BusinessWorkspaceState, p: Partial<BusinessPag
 }
 
 /** Visible text of static markup, entities decoded, whitespace collapsed. */
-export const text = (html: string) => html
-  .replace(/<[^>]*>/g, ' ')
+const decode = (html: string) => html
   .replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/\s+/g, ' ').trim();
+
+export const text = (html: string) => decode(html.replace(/<[^>]*>/g, ' '));
+
+/**
+ * The text as the browser joins it (an element's textContent): tags leave no space behind. For a sentence
+ * with an inline element in it, like the mono price of a notification (#742), where `text` reads "$10.00 .".
+ */
+export const textContent = (html: string) => decode(html.replace(/<[^>]*>/g, ''));
 
 /** Words that must never reach a user on the real run. */
 // Case-sensitive for the leaked values (so "Financial District" is not "NaN"), any case for the two words.

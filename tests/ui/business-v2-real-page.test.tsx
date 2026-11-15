@@ -9,7 +9,7 @@ import { ROLE_LINE, headerModel } from '../../client/src/components/business/v2/
 import { INITIAL_TABLE, type TableState } from '../../client/src/components/business/v2/page/businessPageModel';
 import { NO_FILTERS } from '../../client/src/components/business/v2/shipmentsTableModel';
 import { formatCents } from '../../client/src/ui/format';
-import { T, elements, forbiddenIn, realRun, renderPage, text, workspaceState } from './business-v2-real-helper';
+import { T, elements, forbiddenIn, realRun, renderPage, text, textContent, workspaceState } from './business-v2-real-helper';
 
 vi.setConfig({ testTimeout: T, hookTimeout: T });
 
@@ -118,7 +118,8 @@ describe.each(real.moments)('every business at $name (minute $timeMin)', ({ time
       const notes = notesOf(html);
       expect(notes.length, b.id).toBe(Math.min(d.notifications.length, 20));
       for (const [i, n] of d.notifications.slice(0, 20).entries()) {
-        expect(text(notes[i])).toContain(n.message);
+        // The price is its own mono element inside the sentence (#742), so read it as the browser joins it.
+        expect(textContent(notes[i])).toContain(n.message);
         if (n.shipmentId) expect(text(notes[i])).toContain(`Open ${n.shipmentId}`);
       }
       for (const n of d.notifications.filter((x) => x.message.includes('(relay point)'))) {
