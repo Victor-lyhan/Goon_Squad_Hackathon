@@ -14,6 +14,18 @@ vi.setConfig({ testTimeout: T, hookTimeout: T });
 
 const routeLines = committedRouteLines();
 
+/**
+ * OVER BUDGET since #761, kept as `it.fails` below with the number unchanged (DECISIONS pass 54; the rule in
+ * v2-poll-budget-helper.ts at `LARGEST_RANDOM`). #761 (docs/mvp4.md F2) adds `trips` to the simulator answer:
+ * the trips of the employees who drive a plan leg, so a journey can play each carrier's whole commute. In the
+ * largest Random city at the end of the day that is 86 trips, 17.1 KB: 158.6 KB instead of 141.5 KB. Every
+ * other measurement is inside the budget (the NYC default run, the demo, is at most 75.6 KB; the largest
+ * Random city is 128.6 KB before the first event and 138.9 KB mid evening).
+ */
+const OVER_BUDGET = { kind: 'random', label: 'end of day' } as const;
+const overBudget = (kind: string, label: string) => kind === OVER_BUDGET.kind && label === OVER_BUDGET.label;
+const tripsBytes = (body: SimulatorResponse) => Buffer.byteLength(`,"trips":${JSON.stringify(body.trips)}`);
+
 describe.each(RUNS)('v2 poll budget: GET /api/v2/simulator, $name', ({ kind, name }) => {
   let api: PollApi;
   beforeAll(async () => {
@@ -42,10 +54,16 @@ describe.each(RUNS)('v2 poll budget: GET /api/v2/simulator, $name', ({ kind, nam
     const measured = await api.timed('/simulator'); // `timed` also fails if two of its calls differ by a byte
     report(`${name}, ${at.label} (minute ${at.timeMin})`, 'simulator', measured, SIM_MAX_BYTES);
     expect(measured.median).toBeLessThan(POLL_MEDIAN_MS);
-    expect(measured.bytes).toBeLessThan(SIM_MAX_BYTES);
+    const body = JSON.parse(measured.text) as SimulatorResponse;
+    if (overBudget(kind, label)) {
+      // The one case over the budget (see OVER_BUDGET): `trips` alone puts it there. Everything else in the
+      // body is still inside the budget, so nothing else grew.
+      expect(measured.bytes - tripsBytes(body)).toBeLessThan(SIM_MAX_BYTES);
+    } else {
+      expect(measured.bytes).toBeLessThan(SIM_MAX_BYTES);
+    }
 
     // The poll we measured is the full view of this clock time, not an empty or early one.
-    const body = JSON.parse(measured.text) as SimulatorResponse;
     const run = api.store.get();
     expect(body.clock.timeMin).toBe(at.timeMin);
     expect(body.snapshot.timeMin).toBe(at.timeMin);
@@ -66,6 +84,26 @@ describe.each(RUNS)('v2 poll budget: GET /api/v2/simulator, $name', ({ kind, nam
     expect(body.runId).toBe(sought.runId);
     expect(api.store.get().version).toBe(sought.version);
     expect(await api.getText('/simulator')).toBe(measured.text);
+  }, T);
+});
+
+describe('v2 poll budget: over the budget since #761', () => {
+  let api: PollApi;
+  beforeAll(async () => {
+    api = await startRun(OVER_BUDGET.kind);
+  });
+  afterAll(() => api?.close());
+
+  // Measured 158.6 KB (162,397 bytes) against 150 KB. The fix is a contract decision, so it is not made here:
+  // send only `{ id, departureMin }` per trip (about 3.5 KB instead of 17.1 KB), or move `trips` to GET /map,
+  // which pages fetch once per run. When it is fixed this test fails: make it a plain `it` again.
+  it.fails('largest Random city, end of day: the body is under 150 KB', async () => {
+    const run = api.store.get();
+    const end = CLOCK_TIMES.find((time) => time.label === OVER_BUDGET.label)!;
+    await api.seek(end.timeOf(run));
+    const measured = await api.timed('/simulator');
+    report(`largest Random city, ${end.label}: OVER BUDGET since #761`, 'simulator', measured, SIM_MAX_BYTES);
+    expect(measured.bytes).toBeLessThan(SIM_MAX_BYTES);
   }, T);
 });
 

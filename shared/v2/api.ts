@@ -95,6 +95,10 @@ export type SimulatorResponse = {
   unmatched: AssignmentResult['unmatched'];
   computeMs: number;
   nextEventMin: number | null;
+  // The trips of the employees who drive a plan leg (the trips whose `id` is some `Leg.tripId`), in
+  // `Run.trips` order: a journey plays each carrier's whole commute from `departureMin` (#761).
+  // The server always sends it; optional in the type only for samples written before it existed.
+  trips?: Trip[];
 };
 
 // POST /api/v2/matches/compare (does NOT modify live state)

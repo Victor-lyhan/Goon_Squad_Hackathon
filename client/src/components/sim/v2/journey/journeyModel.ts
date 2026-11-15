@@ -62,6 +62,18 @@ export type JourneyCarrier = {
   rewardCents: number;
 };
 
+/**
+ * One carrier's whole commute on its leg, as planned: home to work in the morning, work to home in the
+ * evening, through the stops. Read from the trip and the leg; nothing is computed.
+ */
+export type JourneyCommute = {
+  legIndex: number;
+  /** `Trip.departureMin` of the leg's trip; null when the simulator answer has no such trip. */
+  departureMin: number | null;
+  /** `Leg.finishMin`: the carrier is at the end of its commute. */
+  finishMin: number;
+};
+
 export type Journey = {
   kind: 'journey';
   shipmentId: string;
@@ -75,6 +87,8 @@ export type Journey = {
   deliveredAtMin: number | null;
   steps: JourneyStep[];
   carriers: JourneyCarrier[];
+  /** One per leg, for Play (`playPlan`). */
+  commutes: JourneyCommute[];
   places: MapPlace[];
   routes: MapRoute[];
   stops: MapStop[];
@@ -214,6 +228,17 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
     };
   });
 
+  // ---- Each carrier's whole commute: the trip's departure and the leg's finish (#761) ----
+  const trips = new Map((sim.trips ?? []).map((t) => [t.id, t]));
+  const commutes: JourneyCommute[] = plan.legs.map((leg, legIndex) => {
+    const departure = trips.get(leg.tripId)?.departureMin;
+    return {
+      legIndex,
+      departureMin: typeof departure === 'number' && Number.isFinite(departure) ? departure : null,
+      finishMin: leg.finishMin,
+    };
+  });
+
   // ---- Places: sender, recipient, relay business, carrier homes. Nothing else. ----
   const places: MapPlace[] = [];
   const seen = new Set<string>();
@@ -284,6 +309,7 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
     deliveredAtMin,
     steps,
     carriers,
+    commutes,
     places,
     routes,
     stops,
@@ -389,13 +415,20 @@ export function boundsOf(points: [number, number][], pad = 0.004): LatLngBounds 
 
 // ---------- Play journey ----------
 
-export type PlayWindow = { legIndex: number; startMin: number; endMin: number };
+/**
+ * One leg of Play. `startMin` to `endMin` is the carrier's whole commute; `carryStartMin` to
+ * `carryEndMin` is the part around the package (one minute before the carrier reaches the leg's first
+ * stop, to the `serviceEndMin` of its last), which Play steps through more slowly.
+ */
+export type PlayWindow = { legIndex: number; startMin: number; endMin: number; carryStartMin: number; carryEndMin: number };
 export type PlayPlan = { windows: PlayWindow[] };
 
 /**
- * One active window per leg: from one minute before the carrier reaches the leg's first stop to the
- * `serviceEndMin` of its last stop. SimulatorResponse carries no trip departure time, so the leg's
- * first arrival is the earliest "moving" minute the browser can read without computing one.
+ * One window per leg: the carrier's whole commute, from one minute before the leg's trip departs
+ * (`Trip.departureMin`, sent in `SimulatorResponse.trips`) to the leg's `finishMin`. So the morning
+ * carrier is seen from leaving home to arriving at work and the evening carrier from leaving work to
+ * arriving home (docs/mvp4.md F2). A leg whose trip is not in the answer (a sample written before
+ * `trips`) keeps the stop-based window: only the part around the package.
  */
 export function playPlan(journey: Journey): PlayPlan {
   const byLeg = new Map<number, JourneyStep[]>();
@@ -404,12 +437,22 @@ export function playPlan(journey: Journey): PlayPlan {
     list.push(s);
     byLeg.set(s.legIndex, list);
   }
+  const commuteOf = new Map(journey.commutes.map((c) => [c.legIndex, c]));
   const windows: PlayWindow[] = [...byLeg.entries()]
-    .map(([legIndex, steps]) => ({
-      legIndex,
-      startMin: Math.min(...steps.map((s) => s.arrivalMin)) - 1,
-      endMin: Math.max(...steps.map((s) => s.timeMin)),
-    }))
+    .map(([legIndex, steps]) => {
+      const carryStartMin = Math.min(...steps.map((s) => s.arrivalMin)) - 1;
+      const carryEndMin = Math.max(...steps.map((s) => s.timeMin));
+      const commute = commuteOf.get(legIndex);
+      const whole = commute && commute.departureMin !== null && Number.isFinite(commute.finishMin);
+      return {
+        legIndex,
+        // Never narrower than the part around the package, whatever the trip says.
+        startMin: whole ? Math.min(commute.departureMin! - 1, carryStartMin) : carryStartMin,
+        endMin: whole ? Math.max(commute.finishMin, carryEndMin) : carryEndMin,
+        carryStartMin,
+        carryEndMin,
+      };
+    })
     .filter((w) => Number.isFinite(w.startMin) && Number.isFinite(w.endMin) && w.endMin >= w.startMin)
     .sort((a, b) => a.startMin - b.startMin);
   return { windows };

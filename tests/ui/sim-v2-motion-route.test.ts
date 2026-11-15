@@ -3,6 +3,7 @@ import type { MapMover } from '../../client/src/components/map/types';
 import {
   shouldSnapV2, tweenMovers, tweenPoint, type LngLat, type TweenClock,
 } from '../../client/src/components/sim/v2/motion/routeTween';
+import { JOURNEY_COMMUTE_STEP_MIN, JOURNEY_STEP_MS } from '../../client/src/components/sim/v2/motion/journeyPlayback';
 
 // L-shaped route in Lower Manhattan: north along one street, then east.
 const CORNER: LngLat = [-74.0, 40.71];
@@ -176,6 +177,18 @@ describe('shouldSnapV2', () => {
     expect(shouldSnapV2(paused(930), paused(1035), 1000, true)).toBe(true);
     expect(shouldSnapV2(paused(1039), paused(1035), 1000, true)).toBe(true);
     expect(shouldSnapV2(paused(1035), at(1039, { playing: false, runId: 'run-2' }), 1000, true)).toBe(true);
+  });
+
+  it('Play journey: the larger steps of a commute without the package (#761) tween too, at any step timing', () => {
+    const paused = (t: number) => at(t, { playing: false });
+    for (const elapsedMs of [0, 100, JOURNEY_STEP_MS, 2 * JOURNEY_STEP_MS, 3 * JOURNEY_STEP_MS]) {
+      // One step, and the steps that fit in that time when the page drew none of them in between.
+      const steps = Math.max(1, Math.ceil(elapsedMs / JOURNEY_STEP_MS));
+      expect(shouldSnapV2(paused(1056), paused(1056 + JOURNEY_COMMUTE_STEP_MIN), elapsedMs, true)).toBe(false);
+      expect(shouldSnapV2(paused(1056), paused(1056 + steps * JOURNEY_COMMUTE_STEP_MIN), elapsedMs, true)).toBe(false);
+    }
+    // The night is still a jump.
+    expect(shouldSnapV2(paused(1079), paused(1939), 1000, true)).toBe(true);
   });
 });
 

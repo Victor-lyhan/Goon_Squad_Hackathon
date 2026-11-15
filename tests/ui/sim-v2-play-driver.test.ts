@@ -65,7 +65,11 @@ afterEach(() => { vi.useRealTimers(); });
 
 describe('the journey on the relay sample', () => {
   it('the plan windows: leg 1 on Day 1 evening, leg 2 on Day 2 morning', () => {
-    expect(windows).toEqual([{ startMin: 1039, endMin: 1062 }, { startMin: 1949, endMin: 1977 }]);
+    // The sample answer has no `trips`, so each window is only the part around the package (#761).
+    expect(windows).toEqual([
+      { startMin: 1039, endMin: 1062, carryStartMin: 1039, carryEndMin: 1062 },
+      { startMin: 1949, endMin: 1977, carryStartMin: 1949, carryEndMin: 1977 },
+    ]);
     expect(SEQUENCE).toHaveLength(28);
     expect(directWindows).toHaveLength(1);
   });

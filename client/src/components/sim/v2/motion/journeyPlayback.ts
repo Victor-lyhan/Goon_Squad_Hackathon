@@ -1,12 +1,19 @@
 // The step plan of a package journey (DECISIONS pass 45 + 46, one Play/Pause button in pass 63).
 // The server clock's slowest speed is 30 simulated minutes per real second, too fast to watch a
-// leg, so the page pauses the clock and sends small `seek` steps instead. The gap before the pickup
-// is one jump; the gap between two windows (the night of a relay) is a card shown for about 1 s,
-// then one jump to the morning. The server still decides every position and status; this file only
-// picks the next time to seek to.
+// leg, so the page pauses the clock and sends small `seek` steps instead. A window is one carrier's
+// whole commute (#761, docs/mvp4.md F2): the steps are small around the package and larger on the
+// rest of the commute, so a relay journey still plays in well under 30 s. The gap before the first
+// departure is one jump; the gap between two windows (the night of a relay) is a card shown for
+// about 1 s, then one jump to the morning. The server still decides every position and status;
+// this file only picks the next time to seek to.
 
-/** A span of simulated minutes in which a carrier moves the package (from the journey plan). */
-export type JourneyWindow = { startMin: number; endMin: number };
+/**
+ * A span of simulated minutes in which a carrier is on its commute (from the journey plan): it
+ * starts one minute before the carrier sets off and ends when the carrier arrives.
+ * `carryStartMin` to `carryEndMin` is the part around the package (just before the carrier's first
+ * stop to the end of its last); without them the whole window is that part.
+ */
+export type JourneyWindow = { startMin: number; endMin: number; carryStartMin?: number; carryEndMin?: number };
 
 /**
  * `overnight` marks the jump over the gap between two windows: the package waits at the relay
@@ -14,9 +21,11 @@ export type JourneyWindow = { startMin: number; endMin: number };
  */
 export type JourneyAction = { kind: 'seek'; toMin: number; overnight?: true } | { kind: 'done' };
 
-/** Simulated minutes per step. */
+/** Simulated minutes per step around the package (the carrier is at a stop or has the package). */
 export const JOURNEY_STEP_MIN = 2;
-/** Real milliseconds between steps: 4 simulated minutes per second. */
+/** Simulated minutes per step on the rest of the commute (the carrier drives without the package). */
+export const JOURNEY_COMMUTE_STEP_MIN = 4;
+/** Real milliseconds between steps: 4 simulated minutes per second around the package, 8 elsewhere. */
 export const JOURNEY_STEP_MS = 500;
 /** Real milliseconds the "Overnight at <relay point>" card stays up, in place of the night. */
 export const OVERNIGHT_CARD_MS = 1000;
@@ -25,17 +34,36 @@ const ordered = (windows: JourneyWindow[]): JourneyWindow[] =>
   windows.filter((w) => Number.isFinite(w.startMin) && Number.isFinite(w.endMin) && w.endMin >= w.startMin)
     .slice().sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
 
+const finiteOr = (x: number | undefined, fallback: number) => (typeof x === 'number' && Number.isFinite(x) ? x : fallback);
+
 /**
- * The next seek from `timeMin`: a step of JOURNEY_STEP_MIN inside the current window (never past
- * its end), or the jump to the start of the next window when in a gap (`overnight` when a window
- * came before it). `done` after the last window.
+ * The next minute inside window `w` from `timeMin` (`w.startMin <= timeMin < w.endMin`). A step never
+ * jumps over the start or the end of the part around the package, nor past the end of the window.
+ * Before that part, the first step out of `startMin` is one minute: it lands on the departure, so
+ * the carrier is first seen where its commute starts (at home in the morning), not down the road.
+ */
+function stepInWindow(w: JourneyWindow, timeMin: number): number {
+  const carryStart = Math.min(Math.max(finiteOr(w.carryStartMin, w.startMin), w.startMin), w.endMin);
+  const carryEnd = Math.min(Math.max(finiteOr(w.carryEndMin, w.endMin), carryStart), w.endMin);
+  if (timeMin < carryStart) {
+    return Math.min(timeMin + (timeMin === w.startMin ? 1 : JOURNEY_COMMUTE_STEP_MIN), carryStart);
+  }
+  if (timeMin < carryEnd) return Math.min(timeMin + JOURNEY_STEP_MIN, carryEnd);
+  return Math.min(timeMin + JOURNEY_COMMUTE_STEP_MIN, w.endMin);
+}
+
+/**
+ * The next seek from `timeMin`: a step inside the current window (JOURNEY_STEP_MIN around the
+ * package, JOURNEY_COMMUTE_STEP_MIN on the rest of the commute, never past the window's end), or
+ * the jump to the start of the next window when in a gap (`overnight` when a window came before
+ * it). `done` after the last window.
  */
 export function nextJourneyAction(windows: JourneyWindow[], timeMin: number): JourneyAction {
   const list = ordered(windows);
   for (let i = 0; i < list.length; i += 1) {
     const w = list[i];
     if (timeMin < w.startMin) return i > 0 ? { kind: 'seek', toMin: w.startMin, overnight: true } : { kind: 'seek', toMin: w.startMin };
-    if (timeMin < w.endMin) return { kind: 'seek', toMin: Math.min(timeMin + JOURNEY_STEP_MIN, w.endMin) };
+    if (timeMin < w.endMin) return { kind: 'seek', toMin: stepInWindow(w, timeMin) };
   }
   return { kind: 'done' };
 }

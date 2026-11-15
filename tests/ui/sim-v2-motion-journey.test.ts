@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
-  JOURNEY_STEP_MIN, JOURNEY_STEP_MS, OVERNIGHT_CARD_MS, journeyEndMin, nextJourneyAction, startJourneyPlayback,
-  type JourneyAction,
+  JOURNEY_COMMUTE_STEP_MIN, JOURNEY_STEP_MIN, JOURNEY_STEP_MS, OVERNIGHT_CARD_MS, journeyEndMin, nextJourneyAction,
+  startJourneyPlayback,
+  type JourneyAction, type JourneyWindow,
 } from '../../client/src/components/sim/v2/motion/journeyPlayback';
 
 // A relay journey: evening leg 17:15–18:00 on Day 1, morning leg 07:45–08:30 on Day 2.
 const WINDOWS = [{ startMin: 1035, endMin: 1080 }, { startMin: 1905, endMin: 1950 }];
 
-function playAll(windows: typeof WINDOWS, from: number): number[] {
+function playAll(windows: JourneyWindow[], from: number): number[] {
   const seeks: number[] = [];
   let t = from;
   for (let guard = 0; guard < 1000; guard++) {
@@ -69,6 +70,70 @@ describe('nextJourneyAction', () => {
       t = a.toMin;
     }
     expect(overnight).toBe(1);
+  });
+
+  // #761: a window is the carrier's whole commute; the part around the package keeps the small steps.
+  describe('whole-commute windows (#761)', () => {
+    // Evening: leaves work 17:20 with the pickup at the desk, drop done 17:42, home 18:20.
+    // Morning: leaves home 8:05, at the relay point 8:30, delivered and at work 8:57.
+    const COMMUTES: JourneyWindow[] = [
+      { startMin: 1039, endMin: 1100, carryStartMin: 1039, carryEndMin: 1062 },
+      { startMin: 1924, endMin: 1977, carryStartMin: 1949, carryEndMin: 1977 },
+    ];
+
+    it('steps 4 simulated minutes while the carrier drives without the package', () => {
+      expect(JOURNEY_COMMUTE_STEP_MIN).toBe(4);
+      expect(JOURNEY_COMMUTE_STEP_MIN).toBeGreaterThan(JOURNEY_STEP_MIN);
+    });
+
+    it('evening: small steps to the end of the drop, then large steps home, ending on the arrival', () => {
+      expect(playAll([COMMUTES[0]], -Infinity)).toEqual([
+        1039, ...range(1039, 1062, 2), // 1041 … 1061, 1062
+        ...range(1062, 1100, 4), // 1066 … 1098, 1100
+      ]);
+    });
+
+    it('morning: one minute to the departure (the carrier appears at home), large steps to the stop, then small steps', () => {
+      expect(playAll([COMMUTES[1]], -Infinity)).toEqual([
+        1924, 1925, // one minute before the departure, then the departure itself
+        ...range(1925, 1949, 4), // 1929 … 1945, 1949: never over the start of the package part
+        ...range(1949, 1977, 2),
+      ]);
+    });
+
+    it('the whole journey: evening, the overnight jump, morning; every seek inside a window and increasing', () => {
+      const seeks = playAll(COMMUTES, 930);
+      expect(seeks[0]).toBe(1039);
+      expect(seeks[seeks.length - 1]).toBe(1977);
+      expect(nextJourneyAction(COMMUTES, 1100)).toEqual({ kind: 'seek', toMin: 1924, overnight: true });
+      for (let i = 1; i < seeks.length; i += 1) expect(seeks[i]).toBeGreaterThan(seeks[i - 1]);
+      for (const t of seeks) expect(COMMUTES.some((w) => t >= w.startMin && t <= w.endMin)).toBe(true);
+      // The steps of the package part are exactly the ones of the stop-based windows.
+      const old = playAll([{ startMin: 1039, endMin: 1062 }, { startMin: 1949, endMin: 1977 }], 930);
+      expect(seeks.filter((t) => (t >= 1039 && t <= 1062) || (t >= 1949 && t <= 1977))).toEqual(old);
+    });
+
+    it('resuming after a pause steps from the clock\'s minute at the pace of where it is', () => {
+      expect(nextJourneyAction(COMMUTES, 1050)).toEqual({ kind: 'seek', toMin: 1052 });
+      expect(nextJourneyAction(COMMUTES, 1061)).toEqual({ kind: 'seek', toMin: 1062 });
+      expect(nextJourneyAction(COMMUTES, 1075)).toEqual({ kind: 'seek', toMin: 1079 });
+      expect(nextJourneyAction(COMMUTES, 1099)).toEqual({ kind: 'seek', toMin: 1100 });
+      expect(nextJourneyAction(COMMUTES, 1930)).toEqual({ kind: 'seek', toMin: 1934 });
+      expect(nextJourneyAction(COMMUTES, 1947)).toEqual({ kind: 'seek', toMin: 1949 });
+    });
+
+    it('a package part outside its window, or not finite, never sends a seek outside the window or loops', () => {
+      const odd: JourneyWindow[] = [
+        { startMin: 1000, endMin: 1010, carryStartMin: 900, carryEndMin: 2000 },
+        { startMin: 1100, endMin: 1110, carryStartMin: 1200, carryEndMin: 1050 },
+        { startMin: 1200, endMin: 1206, carryStartMin: Number.NaN, carryEndMin: Number.POSITIVE_INFINITY },
+      ];
+      const seeks = playAll(odd, -Infinity);
+      expect(seeks[seeks.length - 1]).toBe(1206);
+      for (let i = 1; i < seeks.length; i += 1) expect(seeks[i]).toBeGreaterThan(seeks[i - 1]);
+      for (const t of seeks) expect(odd.some((w) => t >= w.startMin && t <= w.endMin)).toBe(true);
+      expect(seeks.filter((t) => t >= 1200)).toEqual([1200, 1202, 1204, 1206]); // no usable part: small steps
+    });
   });
 
   it('journeyEndMin is the end of the last window', () => {

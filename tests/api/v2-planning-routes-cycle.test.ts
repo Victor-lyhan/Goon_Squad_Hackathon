@@ -11,7 +11,7 @@ import {
   type PlanningApi,
 } from './v2-planning-routes-helper';
 
-const SIMULATOR_KEYS = ['clock', 'computeMs', 'jobs', 'nextEventMin', 'plans', 'runId', 'shipments', 'snapshot', 'unmatched', 'version'];
+const SIMULATOR_KEYS = ['clock', 'computeMs', 'jobs', 'nextEventMin', 'plans', 'runId', 'shipments', 'snapshot', 'trips', 'unmatched', 'version'];
 const NOBODY = 'No sender evening commute or recipient morning commute is available';
 const ids = (items: { id: string }[]) => items.map((item) => item.id);
 /** Plans without the one measured number next to them: the parts of a run a full match decides. */

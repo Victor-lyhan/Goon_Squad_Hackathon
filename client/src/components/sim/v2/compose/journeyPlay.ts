@@ -1,8 +1,10 @@
 // The journey side of the simulator's one Play/Pause button (#496, #648; DECISIONS pass 45, 46, 63).
 // With a package picked, Play steps the server clock with the data hook's `seek` over the windows
-// of the journey plan (journeyModel `playPlan`): 2 simulated minutes every 500 ms inside a window,
-// one jump to the pickup, and the card "Overnight at <relay point>" for about 1 s in place of the
-// night. Pause keeps the clock where it is; Play again goes on from there. The step rule and the
+// of the journey plan (journeyModel `playPlan`): one window per carrier, its whole commute (#761:
+// leaving work to home in the evening, leaving home to work in the morning). Every 500 ms one step:
+// 2 simulated minutes around the package, 4 on the rest of the commute; one jump to the first
+// departure, and the card "Overnight at <relay point>" for about 1 s in place of the night.
+// Pause keeps the clock where it is; Play again goes on from there. The step rule and the
 // timer loop are `startJourneyPlayback` (motion/); this file adds the page's play, pause and copy.
 //
 // No React, no DOM, tested in Node with fake timers. The server decides every position and status;
@@ -45,12 +47,12 @@ export function currentPlay(state: PlayState, shipmentId: string | null, runId: 
 
 /** The plan's windows in the form the step driver takes. */
 export const journeyWindows = (journey: Journey): JourneyWindow[] =>
-  playPlan(journey).windows.map(({ startMin, endMin }) => ({ startMin, endMin }));
+  playPlan(journey).windows.map(({ startMin, endMin, carryStartMin, carryEndMin }) => ({ startMin, endMin, carryStartMin, carryEndMin }));
 
 /**
  * Where Play starts. After a pause it goes on from the clock's time (also when a timeline step
  * moved the clock meanwhile); otherwise, and once the clock is at the end of the journey, from the
- * start, so a judge sees sender, relay point, recipient.
+ * start, so a judge sees the first carrier leave, the sender, the relay point and the recipient.
  */
 export function playFromMin(state: PlayState, windows: JourneyWindow[], clockMin: number): number {
   if (state.status !== 'paused') return -Infinity;

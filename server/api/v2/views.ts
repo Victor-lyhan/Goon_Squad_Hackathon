@@ -119,6 +119,8 @@ export function simulatorResponse(run: Run, snapshot: Snapshot): SimulatorRespon
   for (const e of run.events) {
     if (e.timeMin > run.clock.timeMin && (nextEventMin === null || e.timeMin < nextEventMin)) nextEventMin = e.timeMin;
   }
+  // Only the carriers' trips (not every employee's), so a journey can play the whole commute (#761).
+  const legTripIds = new Set(run.assignments.plans.flatMap((p) => p.legs.map((l) => l.tripId)));
   return {
     runId: run.runId,
     version: run.version,
@@ -130,6 +132,7 @@ export function simulatorResponse(run: Run, snapshot: Snapshot): SimulatorRespon
     unmatched: run.assignments.unmatched,
     computeMs: run.assignments.computeMs,
     nextEventMin,
+    trips: run.trips.filter((t) => legTripIds.has(t.id)),
   };
 }
 

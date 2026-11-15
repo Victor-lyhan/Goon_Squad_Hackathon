@@ -17,7 +17,7 @@ import type { SimulatorResponse } from '../../shared/v2/api';
 import type { DeliveryPlan, Leg, Shipment, Stop } from '../../shared/v2/types';
 import { nycSummaryFrom, watchPackageHref } from '../../client/src/pages/landingModel';
 import {
-  JOURNEY_STEP_MIN, JOURNEY_STEP_MS, OVERNIGHT_CARD_MS,
+  JOURNEY_COMMUTE_STEP_MIN, JOURNEY_STEP_MIN, JOURNEY_STEP_MS, OVERNIGHT_CARD_MS,
 } from '../../client/src/components/sim/v2/motion/journeyPlayback';
 import { formatClock } from '../../client/src/ui/format';
 import { buttons, click, link, textOf } from './kitDom';
@@ -61,12 +61,20 @@ type Story = {
   stepCount: number;
 };
 
-/** One leg at the fixed pace: from one minute before its first arrival to its last stop's service end. */
-function legSeeks(leg: Leg): number[] {
-  const start = Math.min(...leg.stops.map((s) => s.arrivalMin)) - 1;
-  const end = Math.max(...leg.stops.map((s) => s.serviceEndMin));
-  const seeks = [start];
-  while (seeks[seeks.length - 1] < end) seeks.push(Math.min(seeks[seeks.length - 1] + JOURNEY_STEP_MIN, end));
+/**
+ * One leg at the fixed pace, the carrier's whole commute (#761): from one minute before the trip departs
+ * to the leg's finish. One minute to the departure, JOURNEY_COMMUTE_STEP_MIN while the carrier drives
+ * without the package, JOURNEY_STEP_MIN from one minute before its first stop to its last stop's service end.
+ */
+function legSeeks(leg: Leg, departureMin: number): number[] {
+  const carryStart = Math.min(...leg.stops.map((s) => s.arrivalMin)) - 1;
+  const carryEnd = Math.max(...leg.stops.map((s) => s.serviceEndMin));
+  const seeks = [departureMin - 1];
+  const last = () => seeks[seeks.length - 1];
+  if (last() < carryStart) seeks.push(departureMin);
+  while (last() < carryStart) seeks.push(Math.min(last() + JOURNEY_COMMUTE_STEP_MIN, carryStart));
+  while (last() < carryEnd) seeks.push(Math.min(last() + JOURNEY_STEP_MIN, carryEnd));
+  while (last() < leg.finishMin) seeks.push(Math.min(last() + JOURNEY_COMMUTE_STEP_MIN, leg.finishMin));
   return seeks;
 }
 
@@ -88,8 +96,20 @@ function storyOf(sim: SimulatorResponse): Story {
     if (!e) throw new Error(`no employee ${id} in the run`);
     return e.name;
   };
-  const evening = legSeeks(eveningLeg);
-  const morning = legSeeks(morningLeg);
+  const departure = (leg: Leg) => {
+    const trip = run.trips.find((t) => t.id === leg.tripId);
+    if (!trip) throw new Error(`no trip ${leg.tripId} in the run`);
+    return trip.departureMin;
+  };
+  const evening = legSeeks(eveningLeg, departure(eveningLeg));
+  const morning = legSeeks(morningLeg, departure(morningLeg));
+  // The whole commutes (#761): carrier A from leaving work to home, carrier B from leaving home to work.
+  expect(evening[0]).toBe(departure(eveningLeg) - 1);
+  expect(evening[evening.length - 1]).toBe(eveningLeg.finishMin);
+  expect(evening[evening.length - 1]).toBeGreaterThan(eveningLeg.stops[eveningLeg.stops.length - 1].serviceEndMin);
+  expect(morning[0]).toBe(departure(morningLeg) - 1);
+  expect(morning[0]).toBeLessThan(morningLeg.stops[0].arrivalMin - 1);
+  expect(morning[morning.length - 1]).toBe(morningLeg.finishMin);
   const id = encodeURIComponent(shipment.id);
   return {
     id: shipment.id,
