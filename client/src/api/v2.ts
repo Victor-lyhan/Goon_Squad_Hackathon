@@ -110,7 +110,11 @@ export const parseRequest = (text: string, opts?: RequestOptions) =>
  * earlier ready time or a later deliver-by. Read-only: nothing is reserved or saved. Every number comes from
  * the engine. A draft without both businesses, a ready time and a deliver-by rejects with a 400.
  * The server may take up to 10 s (the AI's budget), so the default time limit here is 15 s, not 8 s.
+ * `opts.text` is the sentence the draft was read from (#960, for #959's `AdviseRequest.text`): the server
+ * reads from it what the sender cares about when it picks its recommended option. Left out of the body when empty.
  */
 export const ADVISE_TIMEOUT_MS = 15_000;
-export const advise = (draft: ParseDraft, opts?: RequestOptions) =>
-  request<AdviseResponse>('POST', v2('/advise'), { draft }, { timeoutMs: ADVISE_TIMEOUT_MS, ...opts });
+export const advise = (draft: ParseDraft, opts: RequestOptions & { text?: string } = {}) => {
+  const { text, ...rest } = opts;
+  return request<AdviseResponse>('POST', v2('/advise'), text?.trim() ? { draft, text } : { draft }, { timeoutMs: ADVISE_TIMEOUT_MS, ...rest });
+};

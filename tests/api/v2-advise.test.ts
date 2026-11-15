@@ -1,14 +1,14 @@
-// POST /api/v2/advise (#862) on the real server: createV2Runtime, the sample travel cache, the committed NYC
-// businesses and story, and a FAKE Gemini behind the injected `fetch`. Checks: the contract's shape, every
-// number copied from the engine (a Gemini that invents a price is ignored), trips already reserved stay
-// reserved, a slow Gemini falls back to the offline options, a bad draft is a 400, and the run is never changed.
-// #867: the flexibility window is the run's `settings.flexWindowMin`; the variants, the prompt and the prices follow it.
-// No network, no real key.
+// POST /api/v2/advise (#862, #959) on the real server: createV2Runtime, the sample travel cache, the committed NYC
+// businesses and story, and a FAKE Gemini behind the injected `fetch`. Checks: the contract's shape, the engine's
+// fastest and cheapest candidates, every number copied from the engine, Gemini's recommendation used only when it
+// passes the checks, the balanced plan otherwise (a slow or failing Gemini), trips already reserved stay reserved,
+// a bad draft is a 400, the run is never changed, and one log line per request without the key or the sentence.
+// #867: the flexibility window is the run's `settings.flexWindowMin`. No network, no real key.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { adviseOffline, buildAdvisorPrompt, offlineVariants, PRESENT_OPTIONS, timeText, TRY_VARIANT } from '../../server/ai/advisor';
+import { adviseOffline, balancedPick, candidateSet, fastestAndCheapest, money, shortlist, timeText, whatIfVariants } from '../../server/ai/advisor';
 import { GEMINI_MODELS_URL } from '../../server/ai/gemini';
-import { advisorEngine, flexWindowOf, INVALID_ADVISE } from '../../server/api/v2/adviseRoutes';
+import { adviseLogLine, advisorEngine, flexWindowOf, INVALID_ADVISE } from '../../server/api/v2/adviseRoutes';
 import {
   DEADLINE_BEFORE_READY, DEADLINE_OUTSIDE_WINDOW, READY_OUTSIDE_WINDOW, SAME_BUSINESS, UNKNOWN_BUSINESS,
 } from '../../server/api/v2/shipmentOps';
@@ -16,16 +16,19 @@ import type { FetchLike } from '../../server/geo/googleClient';
 import type { Store } from '../../server/store';
 import type { AdviseResponse } from '../../shared/v2/api';
 import type { Run as RunV2, Shipment, TravelProvider } from '../../shared/v2/types';
-import { expectEnginePrices, withFlexWindow } from './v2-advise-pricing-helper';
-import { T, startBootstrapApi, type BootstrapApi } from './v2-bootstrap-helper';
+import { candidatePlanOf, expectEnginePrices, withFlexWindow } from './v2-advise-pricing-helper';
+import { T, startBootstrapApi, useStoryOnlyRun, type BootstrapApi } from './v2-bootstrap-helper';
 
 const KEY = 'AQ.FAKE_advise-route-77e2';
 const MODEL = 'gemini-2.5-flash';
 
 // A strict copy of the contract (shared/v2 has types, not response schemas): an extra key fails.
 const OptionSchema = z.strictObject({
+  id: z.string().regex(/^p\d+$/),
+  tags: z.array(z.enum(['fastest', 'cheapest', 'recommended', 'balanced'])).min(1),
   label: z.string().min(1).max(60),
   summary: z.string().min(1).max(140),
+  reason: z.string().min(1).max(120).optional(),
   changes: z.strictObject({ readyMin: z.number().int().optional(), deadlineMin: z.number().int().optional() }),
   kind: z.enum(['direct', 'relay']),
   relayBusinessId: z.string().optional(),
@@ -58,11 +61,10 @@ afterEach(async () => {
   vi.restoreAllMocks();
 }, T);
 
-type Part = Record<string, unknown>;
-type Turn = Part[] | 'hang';
-const call = (name: string, args: unknown): Part => ({ functionCall: { name, args } });
+/** One Gemini reply: the structured answer (sent back as the candidate's text), or a call that never answers. */
+type Turn = Record<string, unknown> | 'hang';
 
-/** A fake Gemini answering each model turn from `turns` in order (an HTTP 500 after the last). */
+/** A fake Gemini answering each call from `turns` in order (an HTTP 500 after the last). */
 function fakeGemini(turns: Turn[]) {
   const sent: string[] = [];
   const fetchImpl: FetchLike = (url, init) => {
@@ -75,7 +77,7 @@ function fakeGemini(turns: Turn[]) {
       });
     }
     if (turn === undefined) return Promise.resolve({ status: 500, text: async () => '{}' });
-    const body = { candidates: [{ content: { role: 'model', parts: turn }, finishReason: 'STOP' }] };
+    const body = { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(turn) }] }, finishReason: 'STOP' }] };
     return Promise.resolve({ status: 200, text: async () => JSON.stringify(body) });
   };
   return { fetchImpl, sent };
@@ -83,13 +85,18 @@ function fakeGemini(turns: Turn[]) {
 
 async function start(gemini?: { turns: Turn[]; adviseTimeoutMs?: number }) {
   const fake = fakeGemini(gemini?.turns ?? []);
+  /** The route's lines: [to log, to info]. */
+  const lines: ['log' | 'info', string][] = [];
   api = await startBootstrapApi({
     cache: 'sample',
     fetch: fake.fetchImpl,
-    ...(gemini ? { gemini: { apiKey: KEY, model: MODEL, adviseTimeoutMs: gemini.adviseTimeoutMs } } : {}),
+    ...(gemini ? { gemini: {
+      apiKey: KEY, model: MODEL, adviseTimeoutMs: gemini.adviseTimeoutMs,
+      log: (line: string) => void lines.push(['log', line]), info: (line: string) => void lines.push(['info', line]),
+    } } : {}),
   });
   if (!api.store || !api.runtime.deps.travel) throw new Error('/api/v2 did not load on the sample cache');
-  return { store: api.store as Store<RunV2>, travel: api.runtime.deps.travel as TravelProvider, sent: fake.sent };
+  return { store: api.store as Store<RunV2>, travel: api.runtime.deps.travel as TravelProvider, sent: fake.sent, lines };
 }
 
 /** The four draft fields of one of the run's own shipments (a full ParseDraft: the rest may be anything). */
@@ -102,14 +109,14 @@ function draftOf(run: RunV2, shipmentId: string) {
   };
 }
 
-async function advise(draft: unknown) {
-  const answer = await (api as BootstrapApi).v2.post('/advise', { draft });
+async function advise(draft: unknown, text?: string) {
+  const answer = await (api as BootstrapApi).v2.post('/advise', text === undefined ? { draft } : { draft, text });
   expect(JSON.stringify(answer.body)).not.toContain(KEY);
   return answer;
 }
 
-async function adviseOk(draft: unknown): Promise<AdviseResponse> {
-  const answer = await advise(draft);
+async function adviseOk(draft: unknown, text?: string): Promise<AdviseResponse> {
+  const answer = await advise(draft, text);
   expect(answer.status, JSON.stringify(answer.body)).toBe(200);
   expect(answer.headers.get('content-type')).toMatch(/^application\/json\b/);
   return ResponseSchema.parse(answer.body) as AdviseResponse;
@@ -121,14 +128,11 @@ function expectUntouched(store: Store<RunV2>, before: ReturnType<typeof remember
   expect(store.get()).toEqual(before.copy);   // and nothing was changed in place
 }
 
-/** Every option's numbers are the engine's plan for its variant, read straight from the matcher. */
+/** Every option's numbers are those of the engine's candidate it names by id, for the option's two times. */
 function expectEngineNumbers(run: RunV2, travel: TravelProvider, draft: ReturnType<typeof draftOf>, body: AdviseResponse) {
-  const engine = advisorEngine(run, travel, draft);
   const names = new Map(run.scenario.employees.map((e) => [e.id, e.name]));
   for (const option of body.options) {
-    const answer = engine.match(option.changes.readyMin ?? draft.readyMin, option.changes.deadlineMin ?? draft.deadlineMin);
-    if (!('plan' in answer)) throw new Error(`the engine has no plan for ${JSON.stringify(option.changes)}`);
-    const { plan } = answer;
+    const plan = candidatePlanOf(run, travel, draft, option);
     expect(option).toMatchObject({
       kind: plan.kind,
       deliveryMin: plan.deliveryMin,
@@ -142,46 +146,74 @@ function expectEngineNumbers(run: RunV2, travel: TravelProvider, draft: ReturnTy
 }
 
 describe('POST /api/v2/advise without a Gemini key', () => {
-  it('answers offline options in the contract\'s shape, every number from the engine, and changes nothing', async () => {
+  it('the fastest, the cheapest and the balanced candidate, in the contract\'s shape, every number from the engine; nothing changes', async () => {
     const { store, travel, sent } = await start();
     const before = remember(store);
     const run = store.get();
-    // shp-7 of the sample run: as typed it arrives next morning; ready 2 h earlier, the same evening.
-    const draft = draftOf(run, 'shp-7');
+    // shp-1 of the sample run: 14 free candidates as typed, in the matcher's order: p1 and p2 direct at $7.00
+    // (arriving 1988 and 1898), p3-p14 relay at $10.50 (p10 arrives first of all, at 1896).
+    const draft = draftOf(run, 'shp-1');
 
     const body = await adviseOk(draft);
 
     expect(body.source).toBe('offline');
-    expect(body.options.length).toBeGreaterThanOrEqual(2);
-    expect(body.options[0].changes).toStrictEqual({});
-    expect(body.options[1].changes).toStrictEqual({ readyMin: draft.readyMin - 120 });
-    expect(body.options[1].deliveryMin).toBeLessThan(body.options[0].deliveryMin);
+    expect(body.note).toBeUndefined();
+    // Fastest: p10 (1896). Cheapest: p2, the earlier of the two $7.00 plans. Balanced: p1, 0 + 92/97 = 0.95,
+    // under every remaining relay (1 + something).
+    expect(body.options.map((o) => [o.id, o.tags, o.kind])).toStrictEqual([
+      ['p10', ['fastest'], 'relay'], ['p2', ['cheapest'], 'direct'], ['p1', ['balanced'], 'direct'],
+    ]);
+    expect(body.options.map((o) => [o.deliveryMin, o.customerPriceCents])).toStrictEqual([[1896, 1050], [1898, 700], [1988, 700]]);
+    // The fastest arrives first of every candidate, the cheapest costs least of every candidate.
+    const { candidates } = candidateSet(advisorEngine(run, travel, draft));
+    expect(candidates).toHaveLength(14);
+    expect(body.options[0].deliveryMin).toBe(Math.min(...candidates.map((c) => c.option.deliveryMin)));
+    expect(body.options[1].customerPriceCents).toBe(Math.min(...candidates.map((c) => c.option.customerPriceCents)));
+    expect(body.options.every((o) => Object.keys(o.changes).length === 0 && o.reason === undefined)).toBe(true);
     expectEngineNumbers(run, travel, draft, body);
+    expectEnginePrices(run, travel, draft, body);
     expect(body).toStrictEqual(adviseOffline(advisorEngine(run, travel, draft)));
     expect(sent).toStrictEqual([]);
     expectUntouched(store, before);
     expect(await api!.savedRun()).toBeNull();   // the state file was never written
   }, T);
 
-  it('trips already reserved stay reserved: no option uses a trip of a plan of the run', async () => {
+  it('one plan that is both fastest and cheapest is one option; a kind with no plan has its note (#954)', async () => {
+    const { store, travel } = await start();
+    const run = store.get();
+    const draft = draftOf(run, 'shp-7');
+    const body = await adviseOk(draft);
+    expect(body.options.map((o) => [o.id, o.tags, o.kind, o.label])).toStrictEqual([
+      ['p1', ['fastest', 'cheapest'], 'direct', `Fastest and cheapest: Direct with ${body.options[0].carrierNames[0]}, $7.00`],
+    ]);
+    expect(body.note).toBe('No relay: no evening commute from McGraw Hill leaves after the package is ready.');
+    expectEngineNumbers(run, travel, draft, body);
+  }, T);
+
+  it('trips already reserved stay reserved: no candidate uses a trip of a plan of the run', async () => {
     const { store, travel } = await start();
     const run = store.get();
     const reserved = new Set(run.assignments.plans.flatMap((p) => p.legs.map((l) => l.tripId)));
+    expect(reserved.size).toBeGreaterThan(0);
     for (const shipment of run.scenario.shipments) {
       const draft = draftOf(run, shipment.id);
-      const engine = advisorEngine(run, travel, draft);
-      const answer = engine.match(draft.readyMin, draft.deadlineMin);
-      if ('plan' in answer) for (const leg of answer.plan.legs) expect(reserved.has(leg.tripId)).toBe(false);
+      for (const plan of advisorEngine(run, travel, draft).candidates(draft.readyMin, draft.deadlineMin).plans) {
+        for (const leg of plan.legs) expect(reserved.has(leg.tripId)).toBe(false);
+      }
     }
-    // shp-5's own plan holds the only commutes that fit it as typed, so the request as typed finds none.
-    const body = await adviseOk(draftOf(run, 'shp-5'));
+    // On the story's 60 employees alone, shp-5's own plan holds the only commutes that fit it as typed: the
+    // first what-if with a plan is offered. (On the default run an added employee has a free one, #966.)
+    const storyOnly = await useStoryOnlyRun(api as BootstrapApi);
+    const draft = draftOf(storyOnly, 'shp-5');
+    const body = await adviseOk(draft);
     expect(body.note).toBe('As typed, every matching commute is already carrying a package.');
-    expect(body.options.every((o) => Object.keys(o.changes).length > 0)).toBe(true);
+    expect(body.options.map((o) => o.changes)).toStrictEqual([{ readyMin: draft.readyMin - 120 }]);
+    expectEngineNumbers(storyOnly, travel, draft, body);
   }, T);
 
-  it('a draft no variant can match: 200 with no options and a note', async () => {
-    const { store } = await start();
-    const body = await adviseOk(draftOf(store.get(), 'shp-8'));
+  it('a draft no what-if can match either: 200 with no options and a note', async () => {
+    await start();
+    const body = await adviseOk(draftOf(await useStoryOnlyRun(api as BootstrapApi), 'shp-8'));
     expect(body).toStrictEqual({
       options: [], source: 'offline',
       note: 'Even with more time, every matching commute is already carrying a package.',
@@ -217,6 +249,16 @@ describe('POST /api/v2/advise without a Gemini key', () => {
     expectUntouched(store, before);
   }, T);
 
+  it('package fields of the wrong type and a sentence that is no text are dropped, not a 400', async () => {
+    const { store } = await start();
+    const draft = draftOf(store.get(), 'shp-7');
+    const plain = await adviseOk(draft);
+    expect(await adviseOk({ ...draft, label: 7, category: ['x'], description: {}, weightKg: 'heavy' })).toStrictEqual(plain);
+    const answer = await (api as BootstrapApi).v2.post('/advise', { draft, text: 42 });
+    expect(answer.status).toBe(200);
+    expect(answer.body).toStrictEqual(plain);
+  }, T);
+
   it.each<[string, (d: ReturnType<typeof draftOf>) => unknown, string]>([
     ['no sender', (d) => ({ ...d, originBusinessId: null }), 'Choose a sender to see options.'],
     ['no recipient', (d) => ({ ...d, destinationBusinessId: undefined }), 'Choose a recipient to see options.'],
@@ -249,144 +291,143 @@ describe('POST /api/v2/advise without a Gemini key', () => {
   }, T);
 });
 
-// #867: the advisor's flexibility window is the run's `settings.flexWindowMin` (#861), the number the engine
-// prices with. The sample run's settings say 1080 (18 h); the tests change it in the store, like an imported run.
+// #867: the flexibility window is the run's `settings.flexWindowMin` (#861), the number the engine prices with.
+// The sample run's settings say 1080 (18 h); the tests change it in the store, like an imported run.
 describe('POST /api/v2/advise reads the run\'s flexWindowMin (#867)', () => {
-  /** shp-2 of the sample run is delivered the evening it is ready. Here its deliver-by is 8 h after ready. */
-  function shortWindowDraft(run: RunV2) {
+  /** shp-2 of the sample run, with its deliver-by `hours` after ready. */
+  function windowDraft(run: RunV2, hours: number) {
     const draft = draftOf(run, 'shp-2');
-    return { ...draft, deadlineMin: draft.readyMin + 480 };
+    return { ...draft, deadlineMin: draft.readyMin + hours * 60 };
   }
-  /** The options that move the deliver-by: the "later deliver-by / flexible" variant. */
-  const laterDeliverBy = (body: AdviseResponse) => body.options.filter((o) => o.changes.deadlineMin !== undefined);
 
-  it('offline, the "later deliver-by" option is ready + 18 h on the sample run and ready + 10 h once the run says 600', async () => {
+  it('a 10 h window has no discount on the sample run (18 h) and has it once the run says 600', async () => {
     const { store, travel } = await start();
-    const draft = shortWindowDraft(store.get());
-    expect(store.get().scenario.settings.flexWindowMin).toBe(1080);
+    const draft = windowDraft(store.get(), 10);
     expect(flexWindowOf(store.get().scenario.settings)).toBe(1080);
-
     const at18 = await adviseOk(draft);
-    expect(at18.options[0]).toMatchObject({ changes: {}, customerPriceCents: 700 });
-    expect(laterDeliverBy(at18).map((o) => [o.changes, o.customerPriceCents]))
-      .toStrictEqual([[{ deadlineMin: draft.readyMin + 1080 }, 600]]);
-    expectEnginePrices(store.get(), travel, draft, at18);
+    expect(at18.options.length).toBeGreaterThan(0);
+    expect(expectEnginePrices(store.get(), travel, draft, at18).every((p) => !p.flexible && p.option.customerPriceCents >= 700)).toBe(true);
 
     const run = await store.mutate((r) => withFlexWindow(r, 600));
     const before = remember(store);
-    const engine = advisorEngine(run, travel, draft);
-    expect(engine.flexWindowMin).toBe(600);
-    expect(offlineVariants(engine).map((v) => v.changes)).toStrictEqual([
-      {}, { readyMin: run.clock.timeMin }, { deadlineMin: draft.readyMin + 600 },
-    ]);
-
     const at10 = await adviseOk(draft);
-    expect(at10.source).toBe('offline');
-    expect(at10.options[0]).toMatchObject({ changes: {}, customerPriceCents: 700 });
-    expect(laterDeliverBy(at10).map((o) => [o.label, o.changes, o.customerPriceCents]))
-      .toStrictEqual([[`Deliver by ${timeText(draft.readyMin + 600)}`, { deadlineMin: draft.readyMin + 600 }, 600]]);
     const priced = expectEnginePrices(run, travel, draft, at10);
-    expect(priced.map((p) => p.flexible)).toContain(true);
-    // The variant sits exactly on the engine's own limit: one minute less and the matcher gives no discount.
-    const short = engine.match(draft.readyMin, draft.readyMin + 599);
-    expect('plan' in short && short.plan.customerPriceCents).toBe(700);
-    expectUntouched(store, before);
-  }, T);
-
-  it('a window the request already leaves is not offered again: at 600 the shp-7 request has the discount as typed', async () => {
-    const { store, travel } = await start();
-    const run = await store.mutate((r) => withFlexWindow(r, 600));
-    const draft = draftOf(run, 'shp-7');   // 1090 -> 2100: under 18 h, over 10 h
-    expect(draft.deadlineMin - draft.readyMin).toBeLessThan(1080);
-    const body = await adviseOk(draft);
-    expect(laterDeliverBy(body)).toStrictEqual([]);
-    const priced = expectEnginePrices(run, travel, draft, body);
     expect(priced.length).toBeGreaterThan(0);
     expect(priced.every((p) => p.flexible)).toBe(true);
+    expect(at10.options.map((o) => o.customerPriceCents)).toStrictEqual(at18.options.map((o) => o.customerPriceCents - 100));
+    expectUntouched(store, before);
   }, T);
 
-  it('with a key, Gemini\'s prompt says "at least 10 hours" for 600, and its later deliver-by gets the engine\'s discount', async () => {
-    const turns: Turn[] = [];
-    const { store, travel, sent } = await start({ turns });
+  it('the deliver-by what-if for a request with no plan as typed is ready + the run\'s window', async () => {
+    const { store, travel } = await start();
     const run = await store.mutate((r) => withFlexWindow(r, 600));
-    const before = remember(store);
-    const draft = shortWindowDraft(run);
-    turns.push(
-      [call(TRY_VARIANT, {}), call(TRY_VARIANT, { deadlineMin: draft.readyMin + 600 }), call(TRY_VARIANT, { deadlineMin: draft.readyMin + 599 })],
-      [call(PRESENT_OPTIONS, { options: [
-        { resultId: 'r2', label: 'Flexible', summary: 'A later deliver-by, a lower price.' },
-        { resultId: 'r3', label: 'One minute short', summary: 'Not flexible yet.' },
-      ] })],
-    );
-
-    const body = await adviseOk(draft);
-
-    expect(body.source).toBe('gemini');
-    expect(body.options.map((o) => [o.label, o.changes, o.customerPriceCents])).toStrictEqual([
-      ['Flexible', { deadlineMin: draft.readyMin + 600 }, 600],
-      ['One minute short', { deadlineMin: draft.readyMin + 599 }, 700],
+    const draft = windowDraft(run, 8);
+    expect(whatIfVariants(advisorEngine(run, travel, draft)).map((v) => v.changes)).toStrictEqual([
+      { readyMin: run.clock.timeMin }, { deadlineMin: draft.readyMin + 600 },
     ]);
-    expect(expectEnginePrices(run, travel, draft, body).map((p) => p.flexible)).toStrictEqual([true, false]);
-    expect(sent).toHaveLength(2);
-    for (const text of sent) {
-      const prompt: string = JSON.parse(text).systemInstruction.parts[0].text;
-      expect(prompt).toBe(buildAdvisorPrompt(advisorEngine(run, travel, draft)));
-      expect(prompt).toContain('A deliver-by at least 10 hours after the ready time gets a flexibility discount.');
-      expect(prompt).not.toContain('18 hours');
-    }
-    expectUntouched(store, before);
   }, T);
 });
 
 describe('POST /api/v2/advise with a Gemini key', () => {
-  it('Gemini picks and phrases; a price, a time and carriers it invents are ignored', async () => {
-    const turns: Turn[] = [
-      [call(TRY_VARIANT, {}), call(TRY_VARIANT, { readyMin: 0 })],   // 0 is clamped to the run clock
-      [call(PRESENT_OPTIONS, {
-        options: [
-          { resultId: 'r1', label: 'As you asked', summary: 'Free, arrives tonight.', customerPriceCents: 1, deliveryMin: 1000, carrierNames: ['Nobody'] },
-          { resultId: 'r2', label: 'Hand it over earlier', summary: 'Ready earlier, delivered the same evening.' },
-          { resultId: 'r7', label: 'Teleport', summary: 'Invented' },
-        ],
-      })],
-    ];
-    const { store, travel, sent } = await start({ turns });
+  const SENTENCE = 'Fragile glass samples, one courier please, for the opening tomorrow morning';
+
+  /** shp-1's candidates as the advisor sees them, and a plan Gemini may recommend: shown to it, neither end. */
+  function shp1(run: RunV2, travel: TravelProvider) {
+    const draft = draftOf(run, 'shp-1');
+    const set = candidateSet(advisorEngine(run, travel, draft));
+    const ends = fastestAndCheapest(set.candidates)!;
+    const balanced = balancedPick(set.candidates)!;
+    const pick = shortlist(set.candidates).find((c) => ![ends.fastest.id, ends.cheapest.id, balanced.id].includes(c.id))!;
+    return { draft, set, ends, balanced, pick };
+  }
+
+  it('Gemini\'s valid pick is the third option, recommended with its reason; it got the sentence and the facts once', async () => {
+    const turns: Turn[] = [];
+    const { store, travel, sent, lines } = await start({ turns });
     const before = remember(store);
     const run = store.get();
-    const draft = draftOf(run, 'shp-7');
+    const { draft, ends, pick } = shp1(run, travel);
+    const reason = `A calm choice for glass: it arrives ${timeText(pick.option.deliveryMin)}.`;
+    turns.push({
+      recommendedId: pick.id, reason,
+      sentences: [
+        { id: ends.fastest.id, text: `The quickest, there ${timeText(ends.fastest.option.deliveryMin)}.` },
+        { id: pick.id, text: `${money(pick.option.customerPriceCents)}, with ${pick.handoffs} handoffs.` },
+      ],
+    });
 
-    const body = await adviseOk(draft);
+    const body = await adviseOk(draft, SENTENCE);
 
     expect(body.source).toBe('gemini');
-    expect(body.options.map((o) => [o.label, o.summary, o.changes])).toStrictEqual([
-      ['As you asked', 'Free, arrives tonight.', {}],
-      ['Hand it over earlier', 'Ready earlier, delivered the same evening.', { readyMin: run.clock.timeMin }],
+    expect(body.options.map((o) => [o.id, o.tags, o.reason])).toStrictEqual([
+      [ends.fastest.id, ['fastest'], undefined], [ends.cheapest.id, ['cheapest'], undefined], [pick.id, ['recommended'], reason],
     ]);
+    expect(body.options[0].summary).toBe(`The quickest, there ${timeText(ends.fastest.option.deliveryMin)}.`);
+    expect(body.options[2].summary).toBe(`${money(pick.option.customerPriceCents)}, with ${pick.handoffs} handoffs.`);
     expectEngineNumbers(run, travel, draft, body);
-    expect(body.options[0].customerPriceCents).not.toBe(1);
-    expect(body.options[0].carrierNames).not.toContain('Nobody');
-    expect(sent).toHaveLength(2);
-    for (const text of sent) expect(text).not.toContain(KEY);   // the key travels only in the header
+    // One call, with the business's sentence and the candidates as facts; the key only in the header.
+    expect(sent).toHaveLength(1);
+    const request: string = JSON.parse(sent[0]).contents[0].parts[0].text;
+    expect(request).toContain(JSON.stringify(SENTENCE));
+    expect(request).toContain(`Fastest plan: ${ends.fastest.id}. Cheapest plan: ${ends.cheapest.id}.`);
+    expect(request).toContain(`"id":"${pick.id}","kind":"${pick.option.kind}"`);
+    expect(sent[0]).not.toContain(KEY);
+    expect(lines).toStrictEqual([['info', adviseLogLine('gemini')]]);
+    expect(lines[0][1]).toBe('[advise] gemini');
     expectUntouched(store, before);
     expect(await api!.savedRun()).toBeNull();
   }, T);
 
-  it('a Gemini that does not answer within the budget: the offline options, quickly', async () => {
-    const { store, travel } = await start({ turns: ['hang'], adviseTimeoutMs: 150 });
+  it.each<[string, (p: ReturnType<typeof shp1>) => Turn, string]>([
+    ['an id that is no candidate', () => ({ recommendedId: 'p999', reason: 'The best one.', sentences: [] }), 'invalid answer: unknown id'],
+    ['the fastest again', (p) => ({ recommendedId: p.ends.fastest.id, reason: 'Quickest.', sentences: [] }), 'invalid answer: same as fastest or cheapest'],
+    ['a reason with an invented price', (p) => ({ recommendedId: p.pick.id, reason: 'It saves you $0.37.', sentences: [] }), 'invalid answer: invented number in reason'],
+  ])('%s: the balanced plan with the server\'s words, and the reason in the log line', async (_name, reply, by) => {
+    const turns: Turn[] = [];
+    const { store, travel, lines } = await start({ turns });
+    const run = store.get();
+    const p = shp1(run, travel);
+    turns.push(reply(p));
+    const body = await adviseOk(p.draft, SENTENCE);
+    expect(body).toStrictEqual(adviseOffline(advisorEngine(run, travel, p.draft)));
+    expect(body.options.at(-1)).toMatchObject({ id: p.balanced.id, tags: ['balanced'] });
+    expect(lines).toStrictEqual([['log', `[advise] fallback: ${by}`]]);
+  }, T);
+
+  it('a Gemini that does not answer within its limit: the balanced plan, quickly, and "[advise] fallback: timeout"', async () => {
+    const { store, travel, lines } = await start({ turns: ['hang'], adviseTimeoutMs: 150 });
     const before = remember(store);
     const run = store.get();
-    const draft = draftOf(run, 'shp-7');
+    const draft = draftOf(run, 'shp-1');
     const started = Date.now();
-    const body = await adviseOk(draft);
+    const body = await adviseOk(draft, SENTENCE);
     expect(Date.now() - started).toBeLessThan(5000);
     expect(body).toStrictEqual(adviseOffline(advisorEngine(run, travel, draft)));
+    expect(body.options.map((o) => o.tags)).toStrictEqual([['fastest'], ['cheapest'], ['balanced']]);
+    expect(lines).toStrictEqual([['log', '[advise] fallback: timeout']]);
     expectUntouched(store, before);
   }, T);
 
-  it('a Gemini error: the offline options, never a 5xx', async () => {
-    const { store, travel } = await start({ turns: [] });   // HTTP 500 on the first turn
+  it('a Gemini error: the balanced plan, never a 5xx; the next request asks Gemini again (no pause)', async () => {
+    const { store, travel, sent, lines } = await start({ turns: [] });   // HTTP 500 every time
     const run = store.get();
-    const draft = draftOf(run, 'shp-7');
+    const draft = draftOf(run, 'shp-1');
     expect(await adviseOk(draft)).toStrictEqual(adviseOffline(advisorEngine(run, travel, draft)));
+    expect(await adviseOk(draft)).toStrictEqual(adviseOffline(advisorEngine(run, travel, draft)));
+    expect(sent).toHaveLength(2);
+    expect(lines).toStrictEqual([['log', '[advise] fallback: HTTP 500'], ['log', '[advise] fallback: HTTP 500']]);
+  }, T);
+
+  it('no plan, a draft still missing a field, and a refused draft ask Gemini nothing; each has its one line', async () => {
+    const { sent, lines } = await start({ turns: [] });
+    const run = await useStoryOnlyRun(api as BootstrapApi); // shp-8 has no plan on the story's 60 employees
+    await adviseOk(draftOf(run, 'shp-8'), SENTENCE);
+    await adviseOk({ ...draftOf(run, 'shp-1'), destinationBusinessId: null });
+    expect((await advise({ ...draftOf(run, 'shp-1'), readyMin: 100 })).status).toBe(400);
+    expect(sent).toStrictEqual([]);
+    expect(lines).toStrictEqual([
+      ['info', '[advise] fallback: no plan'], ['info', '[advise] fallback: draft incomplete'], ['info', '[advise] fallback: invalid draft'],
+    ]);
+    for (const [, line] of lines) expect(line).not.toMatch(/Fragile|AQ\./);
   }, T);
 });

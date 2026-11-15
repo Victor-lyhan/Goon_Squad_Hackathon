@@ -4,7 +4,8 @@
 //
 // Every case goes the way the page goes: the server's answer or the failed call through the model
 // (requestTextModel, adviceModel, newDeliveryModel), then, where the component picks the line, through a
-// static render of that component. The source rule is unchanged: Gemini is named only for `source: 'gemini'`.
+// static render of that component. The source rule is unchanged: Gemini is named only for `source: 'gemini'`,
+// and since #960 only by the sentence box: the Options card no longer says who made the options.
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -133,29 +134,18 @@ describe('#919 the sentence box: who read the request', () => {
   });
 });
 
-describe('#919 the Options card: who made the options', () => {
-  it('source gemini: "Planned by Gemini, priced by Relay"', () => {
-    const c = card('gemini');
-    expect(c.sourceLabel).toBe('Planned by Gemini, priced by Relay');
-    expect(c.sourceLine).toBe('Planned by Gemini, priced by Relay.');
-    expectPlain(c.sourceLabel);
-    expectPlain(c.sourceLine);
-  });
-
-  it.each(NOT_GEMINI)('source %j: "Priced by Relay, no AI model", and Gemini is not named', (source) => {
+describe('#919 the Options card: its lines (who made the options is no longer said, #960)', () => {
+  it.each(['gemini', ...NOT_GEMINI])('source %j: the card holds no line about its source, and Gemini is not named', (source) => {
     const c = card(source);
-    expect(c.sourceLabel).toBe('Priced by Relay, no AI model');
-    expect(c.sourceLine).toBe('Priced by Relay, with no AI model.');
-    expectPlain(c.sourceLabel);
-    expectPlain(c.sourceLine);
-    expect(`${c.sourceLabel} ${c.sourceLine}`).not.toMatch(/gemini/i);
+    expect(Object.keys(c).sort()).toEqual(['note', 'rows']);
+    expect(JSON.stringify(c)).not.toMatch(/gemini|AI model|Priced by|Planned by/i);
   });
 
-  it('the wording changes nothing else: the same rows, prices and times for either source', () => {
+  it('the source changes nothing: the same rows, prices and times for either one', () => {
     const { rows: byModel } = card('gemini');
     expect(card('offline').rows).toEqual(byModel);
     expect(byModel.map((r) => [r.label, r.priceText, r.arrivalText, r.routeText])).toEqual([
-      ['As requested', '$16.00', 'Day 2, 9:05 AM', 'Via Atlas Books'],
+      ['As requested', '$16.00', 'Day 2, 9:05 AM', 'Relay via Atlas Books'],
     ]);
   });
 
@@ -264,10 +254,8 @@ describe('#919 every line the three models hold', () => {
     expectPlain(value);
   });
 
-  it('names Gemini in the two labels of a Gemini answer only', () => {
-    expect(lines.filter((l) => /gemini/i.test(l.value)).map((l) => l.name).sort()).toEqual([
-      'ADVICE_COPY.byModel', 'ADVICE_COPY.byModelLine', 'REQUEST_COPY.parsedByModel',
-    ]);
+  it('names Gemini in the sentence box\'s label of a Gemini answer only', () => {
+    expect(lines.filter((l) => /gemini/i.test(l.value)).map((l) => l.name).sort()).toEqual(['REQUEST_COPY.parsedByModel']);
   });
 
   it('keeps the labels README.md quotes', () => {

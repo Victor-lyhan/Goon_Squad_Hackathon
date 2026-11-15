@@ -1,9 +1,14 @@
-// #684 (docs/mvp3.md P4, lighter pass): the Business page has the MVP III look. Read from the six
-// stylesheets of client/src/components/business/v2 and from the components that use them:
-//   1. every colour is a token of client/src/styles/tokens.css (a literal only as the fallback of
-//      var(--token, fallback), and that fallback is the token's own value, never an MVP II value);
-//   2. no box-shadow beyond a 1 px hairline ring, no border-radius above 6 px;
-//   3. IBM Plex Mono (--font-mono) for times, IDs, weights and prices, Inter (--font-sans) for the rest.
+// The look of the Business page, read from the stylesheets of client/src/components/business/v2 and from
+// the components that use them. First the MVP III look (#684, docs/mvp3.md P4); since #956 the night-shift
+// transit look, which the human set for this page in place of the MVP III fonts and colours:
+//   1. every colour is a named property: one of the page's palette (the --ns-* block at the top of
+//      page/businessPage.css: ink, paper, hairline, package orange, the two carrier colours) or a state
+//      colour of client/src/styles/tokens.css (--ok, --warn, --danger). A literal appears only as the
+//      fallback of var(--name, fallback), and that fallback is the property's own value;
+//   2. no box-shadow beyond a 1 px ring, no border-radius above 6 px; a border is a hairline, or 2 px for a
+//      rule, a route mark or a stripe;
+//   3. Archivo (--ns-display) for headings, the typed sentence and an option's price, IBM Plex Mono
+//      (--font-mono) for times, IDs, weights and the prices of the list, Inter (--font-sans) for the rest.
 // The 390 px layout rules are pinned by the other business-v2-*-css tests.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -15,14 +20,24 @@ const short = (f: string) => f.replace(/^.*business\/v2\//, '');
 const files = v2CssFiles(DIR);
 const source = new Map(files.map((f) => [short(f), readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')]));
 const parsed = new Map(files.map((f) => [short(f), parseCss(readFileSync(f, 'utf8'))]));
-const tokens = readTokens();
+/** The page's own palette and display type: the --ns-* block of page/businessPage.css. */
+const palette = new Map([...readTokens(`${DIR}/page/businessPage.css`)].filter(([name]) => name.startsWith('--ns-')));
+/** Every name a Business stylesheet may use: the kit's tokens and the page's palette. */
+const tokens = new Map([...readTokens(), ...palette]);
 
 /** var(--name) or var(--name, fallback); the fallback may hold one level of parentheses. */
 const VAR_RE = /var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*(?:\([^()]*\)[^()]*)*))?\)/g;
 const COLOR_LITERAL = /#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/i;
 const NAMED_COLOR = /\b(white|black|red|green|blue|gray|grey|silver|orange|yellow|purple|navy|teal|maroon|olive|lime|aqua|fuchsia|pink|brown|gold|tan|beige|ivory|coral|salmon|crimson|indigo|violet)\b/i;
 const GRADIENT = /gradient\s*\(/i;
-const COLOR_TOKENS = ['--bg', '--panel', '--text', '--navy', '--muted', '--border', '--accent', '--accent-dark', '--accent-soft', '--ok', '--warn', '--danger'];
+/** The colours of the page: its palette, and the kit's three state colours. */
+const PALETTE_COLORS = [
+  '--ns-ink', '--ns-paper', '--ns-paper-deep', '--ns-sheet', '--ns-text', '--ns-muted', '--ns-line', '--ns-signal',
+  '--ns-signal-deep', '--ns-blue', '--ns-green', '--ns-on-ink-muted', '--ns-ink-line', '--ns-ink-field', '--ns-alert-on-ink',
+];
+const COLOR_TOKENS = [...PALETTE_COLORS, '--ok', '--warn', '--danger'];
+/** The MVP III colours the page no longer uses (#956): the primary blue and the kit's grounds and greys. */
+const RETIRED = ['--bg', '--panel', '--text', '--navy', '--muted', '--border', '--accent', '--accent-dark', '--accent-soft'];
 const MAX_RADIUS_PX = 6;
 
 const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, '').replace(/"/g, "'");
@@ -36,26 +51,62 @@ function* decls(): Generator<{ file: string; rule: CssRule; decl: Decl }> {
 }
 const families = (value: string) => value.split(',').map((s) => norm(s));
 
-describe('Business page, MVP III look (#684)', () => {
-  it('reads the six Business stylesheets', () => {
+describe('Business page, night-shift transit look (#956; MVP III look #684 before it)', () => {
+  it('reads the seven Business stylesheets', () => {
     expect([...parsed.keys()].sort()).toEqual([
-      'activity/activity.css', 'businessWorkspace.css', 'deliveryDetails.css', 'newDelivery.css',
+      'activity/activity.css', 'businessWorkspace.css', 'deliveryDetails.css', 'lineBadge.css', 'newDelivery.css',
       'page/businessPage.css', 'route/deliveryRoute.css',
     ]);
     for (const rules of parsed.values()) expect(rules.length).toBeGreaterThan(5);
   });
 
-  describe('1. colours come from tokens.css', () => {
-    it('the tokens hold the docs/mvp3.md P4 base colours', () => {
-      expect(tokens.get('--bg')).toBe('#F7F7F4');
-      expect(tokens.get('--text')).toBe('#171C24');
-      expect(tokens.get('--accent')).toBe('#1D5075');
-      expect(tokens.get('--border')).toBe('#E3E3DE');
+  describe('1. colours come from the page\'s palette', () => {
+    it('the palette holds the direction\'s colours (issue 956)', () => {
+      expect(Object.fromEntries(PALETTE_COLORS.slice(0, 11).map((name) => [name, palette.get(name)]))).toEqual({
+        '--ns-ink': '#0B0F17', // the sentence box and the rules
+        '--ns-paper': '#F4F2EC', // the work surface
+        '--ns-paper-deep': '#E9E6DC',
+        '--ns-sheet': '#FFFFFF',
+        '--ns-text': '#14171F',
+        '--ns-muted': '#5A5F6B',
+        '--ns-line': '#DCD8CE', // hairlines
+        '--ns-signal': '#FF6A1A', // package orange, the one signal colour
+        '--ns-signal-deep': '#E85A0C',
+        '--ns-blue': '#3D8BFF', // first carrier
+        '--ns-green': '#22C08A', // second carrier
+      });
+      // Every palette colour is declared, once, in the one block.
+      for (const name of PALETTE_COLORS) expect(palette.get(name), name).toMatch(/^#[0-9A-F]{6}$/);
+      const page = source.get('page/businessPage.css')!;
+      expect(page.match(/:root \{/g)).toHaveLength(1);
+      for (const name of palette.keys()) expect(page.split(`${name}:`).length - 1, name).toBe(1);
+      // No other Business stylesheet declares a property of its own.
+      for (const [file, css] of source) if (file !== 'page/businessPage.css') expect(css, file).not.toMatch(/(?:^|[{;\s])--[\w-]+\s*:/);
+    });
+
+    it('the MVP III primary blue, grounds and greys are gone from the page', () => {
+      for (const [file, css] of source) for (const name of RETIRED) expect(css, `${file}: ${name}`).not.toContain(`var(${name},`);
+    });
+
+    it('package orange is a fill or a line, never the colour of text (2.6:1 on paper)', () => {
+      const bad: string[] = [];
+      for (const { file, rule, decl } of decls()) {
+        if (decl.prop === 'color' && /--ns-(signal|signal-deep|blue|green)\b/.test(decl.value)) bad.push(where(file, rule, decl));
+      }
+      expect(bad).toEqual([]);
+      // Text on an orange fill is ink (6.7:1), in every rule that fills with it.
+      const filled = [...decls()].filter((x) => x.decl.prop === 'background' && /--ns-signal\b/.test(x.decl.value)
+        && /btn/.test(x.rule.selector) && !/:hover/.test(x.rule.selector));
+      expect(filled.length).toBeGreaterThanOrEqual(4);
+      for (const { file, rule } of filled) {
+        expect(rule.decls.find((d) => d.prop === 'color')?.value, `${file}: ${rule.selector}`).toBe('var(--ns-ink, #0B0F17)');
+      }
     });
 
     it('no hex, rgb(), named colour or gradient outside a var(--token, fallback) fallback', () => {
       const bad: string[] = [];
       for (const { file, rule, decl } of decls()) {
+        if (decl.prop.startsWith('--ns-')) continue; // the palette block is where the values are written
         const rest = decl.value.replace(VAR_RE, '');
         if (COLOR_LITERAL.test(rest) || NAMED_COLOR.test(rest)) bad.push(where(file, rule, decl));
       }
@@ -68,21 +119,21 @@ describe('Business page, MVP III look (#684)', () => {
       const bad: string[] = [];
       for (const { file, rule, decl } of decls()) {
         for (const [, name, fb] of decl.value.matchAll(VAR_RE)) {
-          if (!tokens.has(name)) bad.push(`${where(file, rule, decl)} (${name} is not in tokens.css)`);
+          if (!tokens.has(name)) bad.push(`${where(file, rule, decl)} (${name} is not in tokens.css or the palette)`);
           if (!fb?.trim()) bad.push(`${where(file, rule, decl)} (${name} has no fallback)`);
         }
       }
       expect(bad).toEqual([]);
     });
 
-    it('a fallback is the token\'s own value: no MVP II colour, radius or size is left', () => {
+    it('a fallback is the property\'s own value: no MVP II or MVP III colour, radius or size is left', () => {
       const bad: string[] = [];
       let colours = 0;
       for (const { file, rule, decl } of decls()) {
         for (const [, name, fb] of decl.value.matchAll(VAR_RE)) {
           const token = tokens.get(name);
           if (token === undefined || !fb) continue;
-          if (name.startsWith('--font-')) {
+          if (name.startsWith('--font-') || name === '--ns-display') {
             // A font stack may be shorter than the token's, but it starts with the same family and ends
             // with the same generic one.
             const [want, got] = [families(token), families(fb)];
@@ -153,50 +204,100 @@ describe('Business page, MVP III look (#684)', () => {
       expect(radii).toBeGreaterThan(20);
     });
 
-    it('a border is a 1 px hairline; only an accent stripe on the left is 2 or 3 px', () => {
+    it('a border is a 1 px hairline; a rule above a list and a station ring are 2 px; a stripe on the left is 2 or 3 px', () => {
+      /** The 2 px borders of the look: the ink rule above the timetable and the board, and the rings of stations. */
+      const TWO_PX = [
+        '.bw-table', '.nd-options__list', '.bw-status--warn::before', '.lb-stop--relay', '.nd-route::after',
+        '.bd-step__mark', '.bd-step--current .bd-step__mark',
+      ];
       const bad: string[] = [];
+      const twoPx: string[] = [];
       for (const { file, rule, decl } of decls()) {
         if (!/^border(-(top|right|bottom|left))?(-width)?$/.test(decl.prop)) continue;
         const px = [...decl.value.replace(VAR_RE, '').matchAll(/(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1]));
-        const limit = decl.prop.startsWith('border-left') ? 3 : decl.prop === 'border' && rule.selector === '.bd-step--current .bd-step__mark' ? 2 : 1;
+        const limit = decl.prop.startsWith('border-left') ? 3 : TWO_PX.includes(rule.selector) ? 2 : 1;
         if (px.some((n) => n > limit)) bad.push(where(file, rule, decl));
+        if (!decl.prop.startsWith('border-left') && px.includes(2)) twoPx.push(rule.selector);
       }
       expect(bad).toEqual([]);
+      expect([...new Set(twoPx)].sort()).toEqual([...TWO_PX].sort());
     });
   });
 
-  describe('3. IBM Plex Mono for times, IDs, weights and prices, Inter for the rest', () => {
+  describe('3. Archivo for headings and big numbers, IBM Plex Mono for times, IDs, weights and prices, Inter for the rest', () => {
     const SANS = /^var\(--font-sans, 'Inter', 'Geist', system-ui, sans-serif\)$/;
     const MONO = /^var\(--font-mono, 'IBM Plex Mono', ui-monospace, monospace\)$/;
-
-    it('the tokens are Inter and IBM Plex Mono', () => {
-      expect(tokens.get('--font-sans')).toMatch(/^"Inter", /);
-      expect(tokens.get('--font-mono')).toMatch(/^"IBM Plex Mono", /);
-    });
-
-    it('a font-family is --font-sans or --font-mono, and the font shorthand only inherits', () => {
-      const bad: string[] = [];
-      for (const { file, rule, decl } of decls()) {
-        if (decl.prop === 'font-family' && !SANS.test(decl.value) && !MONO.test(decl.value)) bad.push(where(file, rule, decl));
-        if (decl.prop === 'font' && decl.value !== 'inherit') bad.push(where(file, rule, decl));
-      }
-      expect(bad).toEqual([]);
-    });
-
-    it('a font-size is a --text token (or relative to its parent)', () => {
-      const bad: string[] = [];
-      for (const { file, rule, decl } of decls()) {
-        if (decl.prop !== 'font-size') continue;
-        if (!/^var\(--text-(xs|sm|md|lg|xl), \d+px\)$/.test(decl.value) && !/^\d*\.?\d+em$/.test(decl.value)) bad.push(where(file, rule, decl));
-      }
-      expect(bad).toEqual([]);
-    });
-
+    const DISPLAY = /^var\(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif\)$/;
     /** Selectors (outside media queries too) whose rule sets the given font token, per file. */
     const using = (re: RegExp) => Object.fromEntries([...parsed].map(([file, rules]) => [
       file,
       rules.filter((r) => r.decls.some((d) => d.prop === 'font-family' && re.test(d.value))).flatMap(selectors),
     ]));
+
+    it('the tokens are Inter and IBM Plex Mono, and the page\'s heading face is Archivo with Inter behind it', () => {
+      expect(tokens.get('--font-sans')).toMatch(/^"Inter", /);
+      expect(tokens.get('--font-mono')).toMatch(/^"IBM Plex Mono", /);
+      expect(palette.get('--ns-display')).toBe("'Archivo Variable', 'Inter', system-ui, sans-serif");
+    });
+
+    it('a font-family is --font-sans, --font-mono or --ns-display, and the font shorthand only inherits', () => {
+      const bad: string[] = [];
+      for (const { file, rule, decl } of decls()) {
+        if (decl.prop === 'font-family' && !SANS.test(decl.value) && !MONO.test(decl.value) && !DISPLAY.test(decl.value)) bad.push(where(file, rule, decl));
+        if (decl.prop === 'font' && decl.value !== 'inherit') bad.push(where(file, rule, decl));
+      }
+      expect(bad).toEqual([]);
+    });
+
+    it('a font-size is a --text token, a display size of the palette, or relative to its parent', () => {
+      expect(Object.fromEntries([...palette].filter(([name]) => name.startsWith('--ns-size-')))).toEqual({
+        '--ns-size-title': '20px', '--ns-size-sentence': '26px', '--ns-size-figure': '32px', '--ns-size-name': '40px',
+      });
+      const bad: string[] = [];
+      for (const { file, rule, decl } of decls()) {
+        if (decl.prop !== 'font-size') continue;
+        if (!/^var\(--(text-(xs|sm|md|lg|xl)|ns-size-(title|sentence|figure|name)), \d+px\)$/.test(decl.value) && !/^\d*\.?\d+em$/.test(decl.value)) bad.push(where(file, rule, decl));
+      }
+      expect(bad).toEqual([]);
+    });
+
+    it('Archivo is never asked for a weight above 600: its heavier cut comes from the weight axis, so the Inter behind it is never a faked bold', () => {
+      // fonts.css loads Inter at 400, 500 and 600 only (#737). A rule in the heading face keeps font-weight
+      // at 500 or 600, the weight the fallback is drawn in, and sets Archivo's own weight (up to 800) with
+      // font-variation-settings, which a font without that axis ignores.
+      const bad: string[] = [];
+      let heavy = 0;
+      for (const [file, rules] of parsed) {
+        for (const rule of rules) {
+          const get = (prop: string) => rule.decls.find((d) => d.prop === prop)?.value;
+          const axis = get('font-variation-settings');
+          if (axis === undefined) continue;
+          heavy++;
+          const m = /^'wght' (\d{3})$/.exec(axis);
+          if (!m || Number(m[1]) < 600 || Number(m[1]) > 800) bad.push(`${file}: ${rule.selector} { font-variation-settings: ${axis} }`);
+          // The axis is set where the face is: in a rule that names Archivo, or on a button that does.
+          if (!DISPLAY.test(get('font-family') ?? '')) bad.push(`${file}: ${rule.selector} sets the axis without the heading face`);
+        }
+        for (const rule of rules) {
+          const weight = rule.decls.find((d) => d.prop === 'font-weight')?.value;
+          if (weight !== undefined && !['400', '500', '600'].includes(weight)) bad.push(`${file}: ${rule.selector} { font-weight: ${weight} }`);
+        }
+      }
+      expect(bad).toEqual([]);
+      expect(heavy).toBeGreaterThanOrEqual(8);
+    });
+
+    it('exactly the headings, the typed sentence, an option\'s price and the orange buttons are in the heading face', () => {
+      expect(using(DISPLAY)).toEqual({
+        'activity/activity.css': ['.ba-header__name'],
+        'businessWorkspace.css': ['.bw-btn--primary', '.bw-table__title'],
+        'deliveryDetails.css': ['.bd-title'],
+        'lineBadge.css': [],
+        'newDelivery.css': ['.nd-title', '.nd-btn--primary', '.nd-request__text', '.nd-parsed__text', '.nd-options__title', '.nd-option__cents'],
+        'page/businessPage.css': ['.bp-state h1'],
+        'route/deliveryRoute.css': [],
+      });
+    });
 
     it('exactly the data classes are mono', () => {
       expect(using(MONO)).toEqual({
@@ -204,6 +305,7 @@ describe('Business page, MVP III look (#684)', () => {
         'activity/activity.css': ['.ba-header__id', '.ba-totals__value', '.ba-note__time', '.ba-note__open', '.ba-notes__count', '.ba-mono'],
         'businessWorkspace.css': ['.bw-table__count', '.bw-mono'],
         'deliveryDetails.css': ['.bd-mono'],
+        'lineBadge.css': [],
         'newDelivery.css': ['.nd-input--num', '.nd-input--time', '.nd-mono'],
         'page/businessPage.css': ['.bp-mono'],
         'route/deliveryRoute.css': ['.bdr__n', '.bdr__time'],
@@ -217,6 +319,8 @@ describe('Business page, MVP III look (#684)', () => {
         'businessWorkspace.css': ['.bw-toolbar', '.bw-table', '.bw-empty', '.bw-stale', '.bw-table td::before'],
         // The "Extra" label in front of the mono minutes at 480 px and below.
         'deliveryDetails.css': ['.bd-panel', '.bd-legs td.bd-num::before'],
+        // The badge is drawn inside the list and the Options card and takes their face.
+        'lineBadge.css': [],
         'newDelivery.css': ['.nd'],
         'page/businessPage.css': ['.bp'],
         'route/deliveryRoute.css': ['.bdr'],

@@ -1,8 +1,10 @@
 // Pure model for the "Options" card of the Business New delivery page (#863, the AI what-if advisor).
 // No React, no fetch: tested in Node. It turns the answer of POST /api/v2/advise into the rows of the card.
 // Nothing about matching or pricing is decided here: every number is the server's (the engine's plan for
-// that variant, #862). The model formats them, marks the lowest price it was given, and says which ready
-// and deliver-by times an option stands for, so that choosing it can put them in the confirmation form.
+// that option, #862), and so is what an option is marked as (#960: its `tags`, Fastest, Cheapest, Recommended
+// or Balanced, with one sentence about it). The model formats them, puts the rows in the order of their
+// marks, and says which ready and deliver-by times an option stands for, so that choosing it can put them
+// in the confirmation form. Who made the options is not said on the card (#960).
 import type { AdviseOption, AdviseResponse } from '../../../../../shared/v2/api';
 import type { NetworkBusiness, PackageCategory } from '../../../../../shared/v2/types';
 import { formatCents, formatDuration, formatMin } from '../../../ui/format';
@@ -38,8 +40,13 @@ export type AdviseAsk = Omit<AdviseDraft, 'destinationBusinessId' | 'readyMin' |
   deadlineMin: number | null;
 };
 
-/** `advise` of client/src/api/v2, which waits 15 s by default: the server's agent has 10 s (tests pass a stub). */
-export type AdviseCall = (draft: AdviseAsk, opts?: { signal?: AbortSignal; timeoutMs?: number }) => Promise<AdviseResponse>;
+/**
+ * `advise` of client/src/api/v2, which waits 15 s by default: the server's model has 6 s (tests pass a stub).
+ * `text` is the sentence the request was read from, for the server's choice of a recommended option (#960).
+ */
+export type AdviseCall = (
+  draft: AdviseAsk, opts?: { signal?: AbortSignal; timeoutMs?: number; text?: string },
+) => Promise<AdviseResponse>;
 
 /**
  * How long the card waits after the last change of the recipient or a time before it asks again (#948):
@@ -58,21 +65,16 @@ export const WAITING_ROWS = 2;
 export const ADVICE_COPY = {
   title: 'Options',
   /**
-   * The line in the card while it waits (#880). The server's agent has 10 s; the form below is not held up,
-   * so the line says that too.
+   * The line in the card while it waits (#880). The server answers within 10 s (its model has 6 s, #959); the
+   * form below is not held up, so the line says that too. Since #959 the options are plans for the request
+   * as typed, so the line no longer speaks of other times (#960).
    */
-  loadingLine: 'Pricing your request and a few other times. This takes up to 10 seconds; you can send the request as it is meanwhile.',
-  /**
-   * Who made the options (#919: plain words, so no "engine" and no "offline"). Relay prices every option
-   * either way; the model only chooses which times to try. The keys keep the names of the contract's two
-   * `source` values; `offline` is for every source but 'gemini'.
-   */
-  byModel: 'Planned by Gemini, priced by Relay',
-  offline: 'Priced by Relay, no AI model',
-  /** The card's one line about who made the options (#880): the label as a sentence. */
-  byModelLine: 'Planned by Gemini, priced by Relay.',
-  offlineLine: 'Priced by Relay, with no AI model.',
+  loadingLine: 'Pricing your request. This takes up to 10 seconds; you can send the request as it is meanwhile.',
+  /** The words of an option's badges (#960), one per tag of the answer. */
+  fastest: 'Fastest',
   cheapest: 'Cheapest',
+  recommended: 'Recommended',
+  balanced: 'Balanced',
   chosen: 'In the form',
   choose: 'Choose this option',
   /** The fact that says what the carriers add to their commutes for this option. */
@@ -105,16 +107,6 @@ const NEEDED_FIELDS: { field: DraftField; key: keyof AdviseAsk; name: string; in
   { field: 'readyTime', key: 'readyMin', name: 'Ready for pickup', inSentence: 'a ready time' },
   { field: 'deadlineTime', key: 'deadlineMin', name: 'Deliver by: time', inSentence: 'a deliver-by time' },
 ];
-
-/** The label names the model only when the server says the model planned the options; anything else is Relay alone. */
-export function adviceSourceLabel(source: unknown): string {
-  return source === 'gemini' ? ADVICE_COPY.byModel : ADVICE_COPY.offline;
-}
-
-/** The card's plain line about who made the options; like the label, it names the model only when the server does. */
-export function adviceSourceLine(source: unknown): string {
-  return source === 'gemini' ? ADVICE_COPY.byModelLine : ADVICE_COPY.offlineLine;
-}
 
 /**
  * The draft to ask options for: the request as the confirmation form opens with it, so with the signed-in
@@ -174,18 +166,32 @@ export function askTimes(ask: AdviseAsk): DraftTimes | null {
 
 // ---------- The card ----------
 
+/**
+ * What the server marks an option as (#960). The fastest and the cheapest plan are the matcher's; the third
+ * is 'recommended' when a model chose it for the request's own words (it then comes with a `reason`), and
+ * 'balanced' when the matcher chose it. One plan may have two tags.
+ */
+export type AdviceTag = 'fastest' | 'cheapest' | 'recommended' | 'balanced';
+
+/** The order of the badges in a row, and of the rows on the card: Fastest, Cheapest, then Recommended or Balanced. */
+export const ADVICE_TAGS: readonly AdviceTag[] = ['fastest', 'cheapest', 'recommended', 'balanced'];
+
 export type AdviceRow = {
   /** The option's position in the answer. */
   key: string;
+  /** The option's name: the answer's `label`, without the words of the row's own badges in front of it. */
   label: string;
+  /** The row's badges, in the order of `ADVICE_TAGS`. Empty for an option the answer does not mark. */
+  tags: AdviceTag[];
+  /** One sentence about the option. For a recommended one, why it is recommended (its `reason`), when the answer says. */
   summary: string;
   /** `customerPriceCents`, formatted. */
   priceText: string;
-  /** True for the lowest price of the card, when the rows do not all cost the same. */
-  cheapest: boolean;
   /** `deliveryMin` as "Day 2, 9:40 AM". */
   arrivalText: string;
-  /** "Direct" or "Via <relay point>". */
+  /** One carrier, or two with a relay point between them: which line badge the row gets (#956). */
+  kind: 'direct' | 'relay';
+  /** "Direct" or "Relay via <business>": the words of the row's line badge. */
   routeText: string;
   /** "+12 min · +1.4 mi": what the carriers add to their commutes (a no-break space before each unit). */
   extraText: string;
@@ -196,9 +202,6 @@ export type AdviceRow = {
 };
 
 export type AdviceCard = {
-  sourceLabel: string;
-  /** The one line the card shows about who made the options, in plain words. */
-  sourceLine: string;
   /** The server's sentence, when it sent one. */
   note: string | null;
   rows: AdviceRow[];
@@ -215,9 +218,25 @@ function changed(value: unknown, own: number | null): number {
 /** What the rows are read against: the times of the request that was asked about, and the names of the relay points. */
 type CardContext = { draft: AdviseAsk; businesses: Pick<NetworkBusiness, 'id' | 'name'>[] };
 
-function row(
-  raw: unknown, index: number, context: CardContext,
-): (AdviceRow & { cents: number }) | null {
+/** An option's tags as the card shows them: the known ones, each once, in the order of `ADVICE_TAGS`. */
+function tagsOf(raw: unknown): AdviceTag[] {
+  return Array.isArray(raw) ? ADVICE_TAGS.filter((tag) => raw.includes(tag)) : [];
+}
+
+/**
+ * An option's name without the words of its own badges in front (#960). The server's label says them for a
+ * reader without badges ("Fastest and cheapest: Relay via Etsy, $9.50"); on the card the badges already do,
+ * so the row is named "Relay via Etsy, $9.50". Any other label, also one with another colon, is left as it is.
+ */
+function withoutTagWords(label: string, tags: readonly AdviceTag[]): string {
+  const colon = label.indexOf(': ');
+  if (colon < 0) return label;
+  const words = label.slice(0, colon).toLowerCase().split(/\s+and\s+|\s*,\s*/);
+  const name = label.slice(colon + 2).trim();
+  return name && words.every((word) => (tags as readonly string[]).includes(word)) ? name : label;
+}
+
+function row(raw: unknown, index: number, context: CardContext): AdviceRow | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const o = raw as Partial<Record<keyof AdviseOption, unknown>>;
   const label = text(o.label);
@@ -233,42 +252,43 @@ function row(
     isNum(o.extraMiles) ? `+${Math.max(0, o.extraMiles).toFixed(1)} mi` : '',
   ].filter(Boolean).map((part) => part.replace(/ /g, '\u00a0'));
   const carriers = Array.isArray(o.carrierNames) ? o.carrierNames.map(text).filter(Boolean) : [];
+  const tags = tagsOf(o.tags);
   return {
     key: `option-${index}`,
-    label,
-    summary: text(o.summary),
+    label: withoutTagWords(label, tags),
+    tags,
+    summary: (tags.includes('recommended') && text(o.reason)) || text(o.summary),
     priceText: formatCents(o.customerPriceCents),
-    cents: o.customerPriceCents,
-    cheapest: false,
     arrivalText: formatMin(o.deliveryMin),
-    routeText: o.kind === 'direct' ? 'Direct' : `Via ${relay ?? 'a relay point'}`,
+    kind: o.kind,
+    routeText: o.kind === 'direct' ? 'Direct' : `Relay via ${relay ?? 'a relay point'}`,
     extraText: extra.join(' · ') || '—',
     carriersText: carriers.length > 0 ? carriers.join(', ') : null,
     times,
   };
 }
 
+/** Where a row stands on the card: by its first badge. A row without one comes last. */
+const rank = (x: AdviceRow) => (x.tags.length > 0 ? ADVICE_TAGS.indexOf(x.tags[0]) : ADVICE_TAGS.length);
+
 /**
  * The rows the card shows for an answer, or null when there is none (no usable option, or a body that is not
  * an advise answer): the card then says why (`noOptions`). An option the page cannot show or apply is left
- * out; the others keep the server's order.
+ * out. The others are in the order of their badges (#960): Fastest, Cheapest, then Recommended or Balanced;
+ * rows with the same first badge, and rows without one, keep the server's order. The badges are the server's
+ * `tags` and nothing else: the model compares no price and no time.
  */
 export function adviceCard(response: unknown, context: CardContext): AdviceCard | null {
-  const r = response as { options?: unknown; source?: unknown; note?: unknown } | null;
+  const r = response as { options?: unknown; note?: unknown } | null;
   if (typeof r !== 'object' || r === null || !Array.isArray(r.options)) return null;
   const rows = r.options
     .map((o, i) => row(o, i, context))
-    .filter((x): x is AdviceRow & { cents: number } => x !== null)
-    .slice(0, MAX_OPTIONS);
-  if (rows.length === 0) return null;
-  const lowest = Math.min(...rows.map((x) => x.cents));
-  const differ = rows.some((x) => x.cents !== lowest);
-  return {
-    sourceLabel: adviceSourceLabel(r.source),
-    sourceLine: adviceSourceLine(r.source),
-    note: text(r.note) || null,
-    rows: rows.map(({ cents, ...x }) => ({ ...x, cheapest: differ && cents === lowest })),
-  };
+    .filter((x): x is AdviceRow => x !== null)
+    .map((x, i) => ({ x, i }))
+    .sort((a, b) => rank(a.x) - rank(b.x) || a.i - b.i)
+    .slice(0, MAX_OPTIONS)
+    .map(({ x }) => x);
+  return rows.length === 0 ? null : { note: text(r.note) || null, rows };
 }
 
 /** What a call that was rejected means for the card (#948). */
@@ -346,12 +366,26 @@ function listText(parts: string[]): string {
 }
 
 /**
- * The accessible name of an option's button (#880): what the button says, then which option and its price,
- * so a screen reader user hears the price on every stop ("Choose this option: As requested, $9.50").
+ * The accessible name of an option's button (#880): what the button says, then which option, its price and
+ * its badges in words, so a screen reader user hears them on every stop ("Choose this option: As requested,
+ * $9.50, fastest, cheapest"). A label that already ends with the price ("Relay via Etsy, $9.50", #954) is
+ * not followed by it twice.
  */
-export function optionName(row: Pick<AdviceRow, 'label' | 'priceText' | 'cheapest'>, chosen: boolean): string {
-  const price = row.cheapest ? `${row.priceText}, ${ADVICE_COPY.cheapest.toLowerCase()}` : row.priceText;
-  return `${chosen ? ADVICE_COPY.chosen : ADVICE_COPY.choose}: ${row.label}, ${price}`;
+export function optionName(row: Pick<AdviceRow, 'label' | 'priceText' | 'tags'>, chosen: boolean): string {
+  const price = [row.priceText, ...row.tags.map((tag) => ADVICE_COPY[tag].toLowerCase())].join(', ');
+  return `${chosen ? ADVICE_COPY.chosen : ADVICE_COPY.choose}: ${labelParts(row).route}, ${price}`;
+}
+
+/**
+ * An option's name in two parts (#956): what it says before its own price, and the price at its end
+ * (", $9.50"; '' for a name that does not end with it). The two together are the name, unchanged. The card
+ * draws the price as the row's large figure, so it shows the first part and only reads out the second.
+ */
+export function labelParts(row: Pick<AdviceRow, 'label' | 'priceText'>): { route: string; price: string } {
+  const ending = `, ${row.priceText}`;
+  return row.label.endsWith(ending) && row.label.length > ending.length
+    ? { route: row.label.slice(0, -ending.length), price: ending }
+    : { route: row.label, price: '' };
 }
 
 /** The row whose times the form holds now (the first one, should two options share their times), or null. */

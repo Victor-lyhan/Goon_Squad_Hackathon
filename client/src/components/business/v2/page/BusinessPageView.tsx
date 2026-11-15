@@ -331,6 +331,7 @@ export function BusinessPageView({
             total={m.all.length}
             onNewDelivery={openNew}
             newDeliveryDisabled={closedText !== null}
+            newDeliveryOpen={newOpen}
           />
           {/* The open form says the same itself, so the line shows only while the form is closed. */}
           {closedText && !newOpen && <p className="bp-notice bp-closed">{closedText}</p>}
@@ -355,6 +356,7 @@ export function BusinessPageView({
                 <AdviceOptions
                   key={`options-${newView.key}`}
                   request={ask}
+                  sentence={newView.parsed.text}
                   businesses={businesses}
                   advise={advise}
                   onChoose={(times) => setTimesPatch((patch) => ({ seq: (patch?.seq ?? 0) + 1, times }))}

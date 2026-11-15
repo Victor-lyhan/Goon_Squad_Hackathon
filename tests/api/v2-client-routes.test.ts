@@ -118,6 +118,32 @@ describe('v2 client: route coverage', () => {
   });
 });
 
+describe('v2 client: the sentence of an advise call (#960, for #959\'s `AdviseRequest.text`)', () => {
+  const bodyOf = async (opts?: Parameters<typeof v2.advise>[1]) => {
+    stub();
+    await v2.advise(adviseDraft, opts);
+    return JSON.parse(calls[0].init.body as string) as unknown;
+  };
+
+  it('goes in the body beside the draft, as it was typed', async () => {
+    expect(await bodyOf({ text: SENTENCE })).toEqual({ draft: adviseDraft, text: SENTENCE });
+  });
+
+  it('is left out when there is none, so the body is the draft alone', async () => {
+    for (const opts of [undefined, {}, { text: undefined }, { text: '' }, { text: '   ' }]) {
+      expect(await bodyOf(opts), JSON.stringify(opts)).toEqual({ draft: adviseDraft });
+    }
+  });
+
+  it('is no request option: the signal and the time limit still are', async () => {
+    stub();
+    const ctl = new AbortController();
+    ctl.abort();
+    const e = await v2.advise(adviseDraft, { text: SENTENCE, signal: ctl.signal }).then(() => null, (x) => x);
+    expect(v2.isAbortError(e)).toBe(true);
+  });
+});
+
 describe('v2 client: method, path and body per helper', () => {
   for (const [name, c] of Object.entries(cases)) {
     it(`${name} -> ${c.route}`, async () => {

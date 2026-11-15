@@ -3,7 +3,8 @@ import {
   type AssignmentResult, type DeliveryPlan, type Job, type Notification, type Run, type SimEvent,
   type TravelProvider,
 } from '../../../shared/v2/types';
-import { assignShipments, type MatchContext } from '../../domain/v2/matching';
+import type { MatchContext } from '../../domain/v2/matching';
+import { assignStoryFirst } from './storyFirst';
 
 /**
  * What the pipeline needs from outside. `buildEvents` is `buildTimeline` from
@@ -127,7 +128,10 @@ export function matchPending(run: Run, shipmentIds: string[], deps: PipelineDeps
   const ids = new Set(shipmentIds);
   const pending = run.scenario.shipments.filter((s) => ids.has(s.id));
   const t0 = performance.now();
-  const result = assignShipments(pending, matchContext(run, deps.travel), { existing: run.assignments.plans });
+  // Story first (storyFirst.ts, #966): on the default run a request is matched on the story's 60 employees as
+  // it always was, and on the added employees only when those have no free plan for it. A story package is
+  // matched on the story's employees only.
+  const result = assignStoryFirst(pending, matchContext(run, deps.travel), run.scenario, { existing: run.assignments.plans });
   result.computeMs = performance.now() - t0;
   // The matcher orders plans by the `createdSeq` of the shipments it was given, which here is
   // only the pending ones. Order by the whole scenario instead, so the kept plans stay where they
@@ -140,5 +144,20 @@ export function matchPending(run: Run, shipmentIds: string[], deps: PipelineDeps
     ...run.assignments.unmatched.filter((u) => !ids.has(u.shipmentId)),
     ...result.unmatched,
   ];
+  Object.assign(run, materializeAssignment(run, result, deps));
+}
+
+/**
+ * Matches every shipment of a run that holds no plan (Recompute, a new planning cycle) and writes the result
+ * into `run`. Story first (storyFirst.ts, #966): on a demo run with added employees the story packages are
+ * matched first and on the story's employees only, so they get the plans of the run's first match again; the
+ * requests sent since come after them, and the added employees carry only requests the story's cannot.
+ * On any other run it is one plain full match.
+ * A `TravelDataMissingError` from the provider propagates and leaves `run` as it was.
+ */
+export function matchEverything(run: Run, deps: PipelineDeps): void {
+  const t0 = performance.now();
+  const result = assignStoryFirst(run.scenario.shipments, matchContext(run, deps.travel), run.scenario);
+  result.computeMs = performance.now() - t0;
   Object.assign(run, materializeAssignment(run, result, deps));
 }

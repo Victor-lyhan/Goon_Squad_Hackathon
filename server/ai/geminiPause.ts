@@ -1,9 +1,8 @@
 // The Gemini pause (#884): a slow or failing key must never stall the demo twice. After one failed Gemini call
-// (the time limit, an HTTP error, a network error or an unusable answer) POST /parse-request and POST /advise
-// stop asking Gemini for 2 minutes and answer offline at once; then Gemini is tried again. A call that succeeds
-// clears the pause.
-// One pause object is shared by both routes: the server makes it once (server/index.ts) and
-// server/api/v2/bootstrap.ts hands the same object to the parser and the advisor.
+// (the time limit, an HTTP error, a network error or an unusable answer) POST /parse-request stops asking Gemini
+// for 2 minutes and answers offline at once; then Gemini is tried again. A call that succeeds clears the pause.
+// The server makes the pause once (server/index.ts) and server/api/v2/bootstrap.ts hands it to the parser.
+// POST /advise used to share it; since #959 it makes one call per request with its own 6 s limit and no pause.
 // It lives in memory only: it is not part of the run, is never saved, and a restart starts without a pause.
 // This file logs nothing and reads no environment. A cause is fixed text (plus an HTTP status number): never
 // the key, the sentence or Gemini's answer.

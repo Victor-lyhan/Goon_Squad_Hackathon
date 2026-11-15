@@ -44,7 +44,7 @@ describe('businessWorkspace.css', () => {
   });
 
   it('uses tokens with fallbacks for color', () => {
-    expect(css).toMatch(/var\(--border, #E3E3DE\)/);
+    expect(css).toMatch(/var\(--ns-line, #DCD8CE\)/); // the hairline of the page's palette (#956)
     expect(css).toMatch(/var\(--font-mono, /);
     expect(css).not.toMatch(/var\(--[a-z-]+\)/); // every token has a fallback
   });

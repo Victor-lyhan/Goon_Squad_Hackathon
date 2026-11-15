@@ -2,6 +2,12 @@
 // read, the server tries a few variants of it on the engine (POST /api/v2/advise, #862) and this card lists
 // them above the confirmation card, each with its price. Choosing one only sets the ready and deliver-by
 // times of the form; the form's own button still sends (unchanged POST /api/v2/shipments).
+// A row starts with what the server marks the option as (#960): small badges, Fastest, Cheapest, Recommended
+// or Balanced, and one sentence about it (for a recommended option, why it is recommended). The card does
+// not say who made the options.
+// The card reads like a departure board (#956): one row per option, left to right its line (the option's
+// name, "Direct with …" or "Relay via …", behind a small drawn route line), the sentence, the arrival time
+// and the price as the row's large figure, with the button that puts the option in the form under it.
 // The card is an extra and never blocks the form (#880): while it waits it shows skeleton rows and a line
 // that says what is happening. It explains itself instead of going away (#948): an answer with no option
 // stays as the server's sentence in one plain line, with the names of the form fields the options still wait
@@ -11,9 +17,10 @@ import { Fragment, useEffect, useId, useMemo, useState } from 'react';
 import type { NetworkBusiness } from '../../../../../shared/v2/types';
 import {
   ADVICE_COPY, REASK_DELAY_MS, WAITING_ROWS, adviceCard, adviceFailure, appliedText, askKey, askTimes, chosenKey,
-  noOptions, optionName, type AdviceFailure, type AdviseAsk, type AdviseCall,
+  labelParts, noOptions, optionName, type AdviceFailure, type AdviseAsk, type AdviseCall,
 } from './adviceModel';
 import { sameTimes, type DraftTimes } from './newDeliveryModel';
+import { LineBadge } from './LineBadge';
 import './newDelivery.css';
 
 export type AdviceOptionsProps = {
@@ -23,6 +30,11 @@ export type AdviceOptionsProps = {
    * time asks again; with options on screen it never does: they stay the options of the request as it was read.
    */
   request: AdviseAsk;
+  /**
+   * The sentence the request was read from (#960). It goes to the server with every call, which reads from it
+   * what the sender cares about when it marks an option Recommended. The card itself never shows it.
+   */
+  sentence?: string;
   businesses: NetworkBusiness[];
   advise: AdviseCall;
   /** A press on an option: the page puts these times in the form. */
@@ -44,18 +56,18 @@ export function AdviceOptions(p: AdviceOptionsProps) {
   const [answer, setAnswer] = useState<Answer>(LOADING);
   /** The times of the last press. Its line is shown while the form still holds them. */
   const [pressed, setPressed] = useState<DraftTimes | null>(null);
-  const { advise, request } = p;
+  const { advise, request, sentence } = p;
 
   // One call per asked request. A card that goes away (Edit request, Cancel, a sent delivery) or asks again
   // aborts it, so a late answer changes nothing.
   useEffect(() => {
     const controller = new AbortController();
-    advise(asked, { signal: controller.signal }).then(
+    advise(asked, sentence ? { signal: controller.signal, text: sentence } : { signal: controller.signal }).then(
       (body) => { if (!controller.signal.aborted) setAnswer({ kind: 'answer', body }); },
       (error) => { if (!controller.signal.aborted) setAnswer(adviceFailure(error)); },
     );
     return () => { controller.abort(); };
-  }, [advise, asked]);
+  }, [advise, asked, sentence]);
 
   const card = useMemo(
     () => (answer.kind === 'answer' ? adviceCard(answer.body, { draft: asked, businesses: p.businesses }) : null),
@@ -88,11 +100,11 @@ export function AdviceOptions(p: AdviceOptionsProps) {
   return (
     <section className="nd-options" aria-labelledby={`${base}-title`} aria-busy={waiting || undefined}>
       <h2 className="nd-options__title" id={`${base}-title`}>{ADVICE_COPY.title}</h2>
-      {/* One line, polite, and in the page before its text changes: what the card is waiting for, then who
-          made the options (in plain words, #919), or the one sentence about a request with no option
-          (the server's own) or a call that failed. */}
+      {/* One line, polite, and in the page before its text changes: what the card is waiting for, or the
+          one sentence about a request with no option (the server's own) or a call that failed. It is empty,
+          and takes no room, once the options are there: the rows speak for themselves (#960). */}
       <p className={`nd-options__status${none ? ' nd-options__status--note' : ''}`} role="status">
-        {waiting ? ADVICE_COPY.loadingLine : card ? card.sourceLine : none?.note}
+        {waiting ? ADVICE_COPY.loadingLine : none?.note}
       </p>
       {none && none.fields.length > 0 && (
         <p className="nd-options__needed">
@@ -118,36 +130,62 @@ export function AdviceOptions(p: AdviceOptionsProps) {
           <ul className="nd-options__list">
             {card.rows.map((r) => {
               const isChosen = r.key === chosen;
+              const name = labelParts(r);
               return (
-                <li key={r.key} className={`nd-option${isChosen ? ' nd-option--chosen' : ''}`}>
-                  <div className="nd-option__top">
-                    <h3 className="nd-option__label">{r.label}</h3>
-                    <p className="nd-option__price">
-                      {r.cheapest && <><span className="nd-option__tag nd-option__tag--ok">{ADVICE_COPY.cheapest}</span>{' '}</>}
-                      <span className="nd-mono nd-option__cents">{r.priceText}</span>
-                    </p>
-                  </div>
-                  {r.summary && <p className="nd-option__summary">{r.summary}</p>}
-                  <dl className="nd-option__facts">
-                    <div className="nd-option__fact">
-                      <dt>Arrives</dt>
-                      <dd className="nd-mono">{r.arrivalText}</dd>
-                    </div>
-                    <div className="nd-option__fact">
-                      <dt>Route</dt>
-                      <dd>{r.routeText}</dd>
-                    </div>
-                    <div className="nd-option__fact">
-                      <dt>{ADVICE_COPY.extra}</dt>
-                      <dd className="nd-mono">{r.extraText}</dd>
-                    </div>
-                    {r.carriersText && (
-                      <div className="nd-option__fact">
-                        <dt>Carried by</dt>
-                        <dd>{r.carriersText}</dd>
-                      </div>
+                <li key={r.key} className={`nd-option nd-option--${r.kind}${isChosen ? ' nd-option--chosen' : ''}`}>
+                  {/* A row of the board (#956), left to right: the line, what is said about it, when it
+                      arrives, its price. The line is the option's name behind a small route line: the name
+                      is its route ("Relay via Etsy", "Direct with Elena Rossi"). */}
+                  <div className="nd-option__line">
+                    {/* What the option is marked as (#960), in words: the look of a badge only adds to it.
+                        The space between two badges keeps them two words for a screen reader. */}
+                    {r.tags.length > 0 && (
+                      <p className="nd-option__tags">
+                        {r.tags.map((tag, i) => (
+                          <Fragment key={tag}>
+                            {i > 0 && ' '}
+                            <span className={`nd-option__tag nd-option__tag--${tag}`}>{ADVICE_COPY[tag]}</span>
+                          </Fragment>
+                        ))}
+                      </p>
                     )}
+                    <h3 className="nd-option__label">
+                      <LineBadge kind={r.kind}>
+                        {name.route}
+                        {/* The price at the end of the name is the row's large figure, so it is not shown
+                            twice; the heading still reads it out. */}
+                        {name.price && <span className="nd-option__label-price">{name.price}</span>}
+                      </LineBadge>
+                    </h3>
+                  </div>
+                  <div className="nd-option__main">
+                    {r.summary && <p className="nd-option__summary">{r.summary}</p>}
+                    <dl className="nd-option__facts">
+                      {/* A name that does not say the route itself ("As requested") gets it as a fact. */}
+                      {!r.label.startsWith(r.routeText) && (
+                        <div className="nd-option__fact">
+                          <dt>Route</dt>
+                          <dd>{r.routeText}</dd>
+                        </div>
+                      )}
+                      <div className="nd-option__fact">
+                        <dt>{ADVICE_COPY.extra}</dt>
+                        <dd className="nd-mono">{r.extraText}</dd>
+                      </div>
+                      {r.carriersText && (
+                        <div className="nd-option__fact">
+                          <dt>Carried by</dt>
+                          <dd>{r.carriersText}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+                  <dl className="nd-option__arrives">
+                    <dt>Arrives</dt>
+                    <dd className="nd-mono">{r.arrivalText}</dd>
                   </dl>
+                  {/* The price is the row's large figure, in the heading face (the human's direction for this board). */}
+                  <p className="nd-option__price"><span className="nd-option__cents">{r.priceText}</span></p>
                   <div className="nd-option__foot">
                     {/* One stop per option. Its name holds the option and its price (#880). The option the
                         form holds says so on the button itself: a "Choose this option" on what is chosen

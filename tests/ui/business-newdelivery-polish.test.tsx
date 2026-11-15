@@ -12,7 +12,7 @@ import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequ
 import type { CreateShipmentRequest } from '../../shared/v2/schemas';
 import { ApiRequestError } from '../../client/src/api/v2';
 import {
-  ADVICE_COPY, WAITING_ROWS, adviceCard, adviceSourceLine, noOptions, optionName, type AdviseCall,
+  ADVICE_COPY, WAITING_ROWS, adviceCard, noOptions, optionName, type AdviseCall,
 } from '../../client/src/components/business/v2/adviceModel';
 import { RESULT_COPY } from '../../client/src/components/business/v2/newDeliveryModel';
 import { BusinessPageView } from '../../client/src/components/business/v2/page/BusinessPageView';
@@ -213,18 +213,17 @@ describe('an offline answer says so in one plain line', () => {
     for (const s of [undefined, null, 'GEMINI', 'offline']) expect(sourceLine(s)).toBe(REQUEST_COPY.offlineLine);
   }, T);
 
-  it('the options: one line under the title, and a Gemini answer names Gemini there', async () => {
+  it('the options: no line about who made them, whatever the answer\'s source (#960)', async () => {
     const offline = setup();
     await offline.read();
-    expect(textOf(offline.cardStatus())).toBe('Priced by Relay, with no AI model.');
-    expect(textOf(offline.card()!)).not.toContain('Gemini');
+    expect(textOf(offline.cardStatus())).toBe('');
+    expect(textOf(offline.card()!)).not.toMatch(/Gemini|AI model|Priced by|Planned by/);
     offline.unmount();
 
     const model = setup({ parse: async () => read('gemini'), advise: async () => options('gemini') });
     await model.read();
-    expect(textOf(model.cardStatus())).toBe('Planned by Gemini, priced by Relay.');
-    // Anything but "gemini" never claims the model.
-    for (const s of [undefined, null, 'GEMINI', 'offline']) expect(adviceSourceLine(s)).toBe(ADVICE_COPY.offlineLine);
+    expect(textOf(model.cardStatus())).toBe('');
+    expect(textOf(model.card()!)).not.toMatch(/Gemini|AI model|Priced by|Planned by/);
   }, T);
 });
 
@@ -236,7 +235,7 @@ describe('while the Options card waits (up to 10 s)', () => {
     expect(p.card()!.getAttribute('aria-busy')).toBe('true');
     expect(p.cardStatus().getAttribute('role')).toBe('status');
     expect(textOf(p.cardStatus())).toBe(
-      'Pricing your request and a few other times. This takes up to 10 seconds; you can send the request as it is meanwhile.',
+      'Pricing your request. This takes up to 10 seconds; you can send the request as it is meanwhile.',
     );
     // Still rows stand in for the options: not buttons, and hidden from a screen reader.
     const still = [...p.card()!.querySelectorAll('.nd-option--skeleton')];
@@ -249,7 +248,7 @@ describe('while the Options card waits (up to 10 s)', () => {
     pricing.resolve(options('offline'));
     await flush();
     expect(p.card()!.hasAttribute('aria-busy')).toBe(false);
-    expect(textOf(p.cardStatus())).toBe(ADVICE_COPY.offlineLine); // the same region: the line changes in place
+    expect(textOf(p.cardStatus())).toBe(''); // the same region, now empty (#960): the rows speak for themselves
     expect(p.rows()).toHaveLength(2);
   }, T);
 
@@ -319,13 +318,13 @@ describe('an /advise that fails is one plain sentence, and the form still sends'
 });
 
 describe('each option is one Tab stop whose name holds its price', () => {
-  it('the names: what the button says, the option, its price, and "cheapest" in words', async () => {
+  it('the names: what the button says, the option and its price (its badges too: business-v2-dom-advice-tags.test.tsx)', async () => {
     const p = setup();
     await p.read();
     const buttons = p.optionButtons();
     expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
       'In the form: As requested, $10.50',
-      'Choose this option: Deliver by Day 2, 12:00 PM, $9.50, cheapest',
+      'Choose this option: Deliver by Day 2, 12:00 PM, $9.50',
     ]);
     // The name starts with the words on the button, so what is seen is what is heard.
     for (const b of buttons) expect(b.getAttribute('aria-label')!.startsWith(`${textOf(b)}: `)).toBe(true);
@@ -346,18 +345,26 @@ describe('each option is one Tab stop whose name holds its price', () => {
     expect(p.optionButtons().map((b) => [textOf(b), b.getAttribute('aria-pressed')])).toEqual([
       ['Choose this option', 'false'], ['In the form', 'true'],
     ]);
-    expect(p.optionButtons()[1].getAttribute('aria-label')).toBe('In the form: Deliver by Day 2, 12:00 PM, $9.50, cheapest');
+    expect(p.optionButtons()[1].getAttribute('aria-label')).toBe('In the form: Deliver by Day 2, 12:00 PM, $9.50');
     expect(document.activeElement).toBe(p.optionButtons()[1]); // the pressed button keeps the focus
     expect((byLabel(p.form()!, 'Deliver by: time') as HTMLInputElement).value).toBe('12:00');
     expect(p.createShipment).not.toHaveBeenCalled(); // choosing sends nothing
   }, T);
 
-  it('the cheapest is marked by a word next to its price, and prices are in the mono class', async () => {
+  it('the price stands alone, as the row\'s large figure in the heading face; a mark is the server\'s tag, shown as a badge, never the page\'s own', async () => {
     const p = setup();
     await p.read();
-    expect(p.rows().map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$10.50', 'Cheapest $9.50']);
-    for (const r of p.rows()) expect(r.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(true);
-    expect(optionName({ label: 'As requested', priceText: '$9.50', cheapest: false }, false)).toBe('Choose this option: As requested, $9.50');
+    // #960: no word inside the price, and an answer without tags (these options) gets no badge: the page compares no price.
+    expect(p.rows().map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$10.50', '$9.50']);
+    expect(p.rows().map((r) => [...r.querySelectorAll('.nd-option__tag')].map(textOf))).toEqual([[], []]);
+    // The board's price is set in Archivo (#956, the human's direction for this card), not in the mono class.
+    for (const r of p.rows()) expect(r.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(false);
+    expect(optionName({ label: 'As requested', priceText: '$9.50', tags: [] }, false)).toBe('Choose this option: As requested, $9.50');
+    // #954: a label with its price at the end does not say the price twice.
+    expect(optionName({ label: 'Relay via Etsy, $9.50', priceText: '$9.50', tags: ['cheapest'] }, false))
+      .toBe('Choose this option: Relay via Etsy, $9.50, cheapest');
+    expect(optionName({ label: 'Direct with Theo Martin, $7.00', priceText: '$7.00', tags: [] }, true))
+      .toBe('In the form: Direct with Theo Martin, $7.00');
   }, T);
 
   it('one option only: it is the request, so the card offers nothing to choose and says what the price is for', async () => {
@@ -375,7 +382,10 @@ describe('each option is one Tab stop whose name holds its price', () => {
   it('what the carriers add is named in plain words', async () => {
     const p = setup();
     await p.read();
-    expect([...p.rows()[0].querySelectorAll('dt')].map(textOf)).toEqual(['Arrives', 'Route', 'Added to commutes', 'Carried by']);
+    // A name that does not say the route itself ("As requested") gets it as a fact; the arrival time has
+    // a column of its own after the facts (#956).
+    expect(textOf(p.rows()[0].querySelector('h3')!)).toBe('As requested');
+    expect([...p.rows()[0].querySelectorAll('dt')].map(textOf)).toEqual(['Route', 'Added to commutes', 'Carried by', 'Arrives']);
   }, T);
 });
 
@@ -391,8 +401,8 @@ describe('newDelivery.css: the send button stays on screen, and the card fits 39
     const bar = rule(css, '.nd > .nd-actions')!;
     expect(bar).toMatch(/position: sticky;/);
     expect(bar).toMatch(/bottom: 0;/);
-    expect(bar).toMatch(/background: var\(--panel, #FFFFFF\);/);
-    expect(bar).toMatch(/border-top: 1px solid var\(--border, #E3E3DE\);/);
+    expect(bar).toMatch(/background: var\(--ns-sheet, #FFFFFF\);/);
+    expect(bar).toMatch(/border-top: 1px solid var\(--ns-line, #DCD8CE\);/);
     // Only the form's bar: the text box's buttons stay where they are.
     expect(css).not.toMatch(/\.nd-request[^{]*\{[^}]*position: sticky/);
   });
@@ -416,13 +426,19 @@ describe('newDelivery.css: the send button stays on screen, and the card fits 39
     expect(css).toMatch(/\.nd-wait:empty \{ display: none; \}/);
     expect(css).toMatch(/\.nd-options__status:empty \{ display: none; \}/);
     for (const [, selector, body] of css.matchAll(/(\.nd-option[^{]*)\{([^}]*)\}/g)) {
+      if (selector.trim() === '.nd-option__label-price') continue; // read out, not shown: a 1 px box (#956)
       expect(body, selector).not.toMatch(/(^|[\s;])(min-)?width: \d+px/);
     }
-    expect(rule(narrow, '.nd-option__facts')).toMatch(/grid-template-columns: 1fr 1fr;/);
+    // A row of the board (#956) is four columns; where the card is narrow the line and the price share the
+    // first row and the rest stacks under them, so nothing is squeezed at 390 px.
+    expect(rule(css, '.nd-option')).toMatch(/grid-template-columns: minmax\(0, 15rem\) minmax\(0, 1fr\) 8\.5rem 10rem;/);
+    const stacked = css.match(/@media \(max-width: 720px\) \{([\s\S]*?)\n\}/)![1];
+    expect(rule(stacked, '.nd-option')).toMatch(/grid-template-columns: minmax\(0, 1fr\) auto;/);
+    expect(rule(stacked, '.nd-option')).toMatch(/'line price'\s*'main main'\s*'arrives arrives'\s*'foot foot'/);
   });
 
   it('the option buttons take the ring of every button in the form', () => {
-    expect(css).toMatch(/\.nd-btn:focus-visible \{ outline: 2px solid var\(--accent, #1D5075\); outline-offset: 2px; \}/);
+    expect(css).toMatch(/\.nd-btn:focus-visible \{ outline: 2px solid var\(--ns-ink, #0B0F17\); outline-offset: 2px; \}/);
     expect(css).not.toMatch(/\.nd-option__choose[^{]*\{[^}]*outline: (none|0)/);
   });
 });

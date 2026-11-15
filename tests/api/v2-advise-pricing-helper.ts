@@ -11,7 +11,7 @@ export type DraftTimes = { originBusinessId: string; destinationBusinessId: stri
 
 export type PricedOption = {
   option: AdviseOption;
-  /** The plan the matcher picks for the option's two times, on `run`. */
+  /** The engine's candidate plan the option was built from (#959: by its id, p1 = the first candidate). */
   plan: DeliveryPlan;
   readyMin: number;
   deadlineMin: number;
@@ -20,8 +20,22 @@ export type PricedOption = {
 };
 
 /**
- * Every option's price is `customerPriceCents()` of the plan the matcher picks for the option's two times,
- * under the run's own settings, and the flexibility discount is in it exactly when the option's window
+ * The engine's candidate an option was built from: `engine.candidates` for the option's two times, at the
+ * index its id names (p1 is the first). Throws when there is none.
+ */
+export function candidatePlanOf(run: RunV2, travel: TravelProvider, draft: DraftTimes, option: AdviseOption): DeliveryPlan {
+  const engine = advisorEngine(run, travel, draft);
+  const readyMin = option.changes.readyMin ?? draft.readyMin;
+  const deadlineMin = option.changes.deadlineMin ?? draft.deadlineMin;
+  const index = Number(/^p(\d+)$/.exec(option.id ?? '')?.[1] ?? NaN) - 1;
+  const plan = engine.candidates(readyMin, deadlineMin).plans[index];
+  if (!plan) throw new Error(`the engine has no candidate ${option.id} for ${JSON.stringify(option.changes)}`);
+  return plan;
+}
+
+/**
+ * Every option's price is `customerPriceCents()` of the engine's candidate plan it names (#959, by its id) for the
+ * option's two times, under the run's own settings, and the flexibility discount is in it exactly when the option's window
  * (ready to deliver-by, after its changes) is at least `settings.flexWindowMin`.
  * The price is also worked out here from the settings, without pricing.ts: legs x carrier pay + the relay fee
  * for a relay + the platform fee - the discount. `run` must be the run the answer was computed on.
@@ -34,9 +48,7 @@ export function expectEnginePrices(run: RunV2, travel: TravelProvider, draft: Dr
     const what = `${option.label} ${JSON.stringify(option.changes)}`;
     const readyMin = option.changes.readyMin ?? draft.readyMin;
     const deadlineMin = option.changes.deadlineMin ?? draft.deadlineMin;
-    const answer = engine.match(readyMin, deadlineMin);
-    if (!('plan' in answer)) throw new Error(`the engine has no plan for ${what}: ${answer.reason}`);
-    const { plan } = answer;
+    const plan = candidatePlanOf(run, travel, draft, option);
 
     expect(option.customerPriceCents, what).toBe(plan.customerPriceCents);
     expect(option.customerPriceCents, what).toBe(customerPriceCents(plan, { readyMin, deadlineMin }, settings));

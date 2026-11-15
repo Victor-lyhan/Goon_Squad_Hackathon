@@ -7,9 +7,10 @@
 //
 //   1. the README demo sentence -> "Read my request"            POST /api/v2/parse-request (offline)
 //   2. the Options card above the filled form                    POST /api/v2/advise (offline)
-//      -> the first row is the request as typed, "In the form", $9.50 (950 cents)
-//   3. "Find a delivery match" with that option's times          POST /api/v2/shipments
-//      -> the delivery has the plan and the price the card showed
+//      -> #959: every row is the request as typed at $9.50 (950 cents); the first, "Fastest and cheapest", is
+//         "In the form", and the matcher's own plan (p1) is the "Balanced" row
+//   3. "Find a delivery match" with the form's times             POST /api/v2/shipments
+//      -> the delivery has the plan and the price of the card's p1 row
 //   4. the new delivery is in the simulator answer, in the sender's Shipments table and on the evening
 //      carrier's Employee page
 //
@@ -35,7 +36,7 @@ import {
   parseRequest,
 } from '../../client/src/api/v2';
 import {
-  ADVICE_COPY, MAX_OPTIONS, adviceCard, adviseDraft, chosenKey, type AdviceCard, type AdviseDraft,
+  MAX_OPTIONS, adviceCard, adviseDraft, chosenKey, type AdviceCard, type AdviseDraft,
 } from '../../client/src/components/business/v2/adviceModel';
 import {
   draftFromParsed, toRequest, validate, type NewDeliveryDraft,
@@ -74,6 +75,12 @@ let advice: AdviseResponse;
 let card: AdviceCard;
 let arranged: ShipmentResponse;
 
+/** The option of step 2 that is the matcher's own first plan (#959: id p1), the plan a sent request gets. */
+function matcherPick() {
+  const pick = advice.options.find((o) => o.id === 'p1');
+  if (!pick) throw new Error('the Options card has no row for the matcher\'s first plan (p1)');
+  return pick;
+}
 const businessName = (id: string | undefined) => businesses.find((b) => b.id === id)?.name;
 const employeeName = (id: string) => employees.find((e) => e.id === id)?.name;
 /** `METHOD /path` of every write since `from`: what a step changed on the server. */
@@ -133,7 +140,7 @@ describe('the demo walk after the freeze, over the API on one server with no key
     expect(after.shipments.map((s) => s.id)).toStrictEqual(fresh.shipments.map((s) => s.id));
   });
 
-  it(`2. the Options card: computed offline, and its first row is the request as typed, in the form, at ${formatCents(PRICE_CENTS)}`, async () => {
+  it(`2. the Options card: computed offline, every row the request as typed at ${formatCents(PRICE_CENTS)}, the first in the form`, async () => {
     // What the page asks options for: the form's own draft, with the page's business as the sender.
     const draft = adviseDraft(form, sender.id);
     expect(draft).not.toBeNull();
@@ -150,29 +157,37 @@ describe('the demo walk after the freeze, over the API on one server with no key
     expect(advice.source).toBe('offline');
     expect(advice.options.length).toBeGreaterThanOrEqual(1);
     expect(advice.options.length).toBeLessThanOrEqual(MAX_OPTIONS);
-    const [asTyped] = advice.options;
-    expect(asTyped.changes).toStrictEqual({});
-    expect(asTyped.customerPriceCents).toBe(PRICE_CENTS);
-    expect(asTyped.kind).toBe('relay');
-    expect(businessName(asTyped.relayBusinessId)).toBe(demo.relay_point);
-    expect(asTyped.carrierNames).toStrictEqual([demo.evening_carrier, demo.morning_carrier]);
-    expect(asTyped.deliveryMin).toBeLessThanOrEqual(asked.deadlineMin);
+    // #959: every option is the request as typed, a relay via the README's relay point at the README's price.
+    for (const option of advice.options) {
+      expect(option.changes, option.label).toStrictEqual({});
+      expect(option.customerPriceCents, option.label).toBe(PRICE_CENTS);
+      expect(option.kind, option.label).toBe('relay');
+      expect(businessName(option.relayBusinessId), option.label).toBe(demo.relay_point);
+      expect(option.deliveryMin, option.label).toBeLessThanOrEqual(asked.deadlineMin);
+    }
+    expect(advice.options[0].tags).toStrictEqual(['fastest', 'cheapest']);
+    // The matcher's own first plan (p1) is what "Find a delivery match" gets: the README's carriers.
+    const pick = matcherPick();
+    expect(pick.tags).toStrictEqual(['balanced']);
+    expect(pick.carrierNames).toStrictEqual([demo.evening_carrier, demo.morning_carrier]);
 
     // The card as the page draws it: every option is a row, the first one holds the form's times ("In the
-    // form") and shows the README's price; the label says nobody but the server computed it.
+    // form") and shows the README's price; the card does not say who made the options (#960).
     const drawn = adviceCard(advice, { draft: asked, businesses });
     expect(drawn).not.toBeNull();
     card = drawn!;
-    expect(card.sourceLabel).toBe(ADVICE_COPY.offline);
+    expect(Object.keys(card).sort()).toStrictEqual(['note', 'rows']);
     expect(card.rows).toHaveLength(advice.options.length);
-    expect(card.rows[0]).toMatchObject({
-      priceText: demo.price, routeText: `Via ${demo.relay_point}`,
-      carriersText: `${demo.evening_carrier}, ${demo.morning_carrier}`,
-      times: { readyTime: form.readyTime, deadlineDay: form.deadlineDay, deadlineTime: form.deadlineTime },
-    });
+    const times = { readyTime: form.readyTime, deadlineDay: form.deadlineDay, deadlineTime: form.deadlineTime };
+    for (const row of card.rows) expect(row).toMatchObject({ priceText: demo.price, kind: 'relay', routeText: `Relay via ${demo.relay_point}`, times });
+    expect(card.rows[advice.options.indexOf(pick)].carriersText).toBe(`${demo.evening_carrier}, ${demo.morning_carrier}`);
     expect(chosenKey(card, form)).toBe(card.rows[0].key);
-    // No row is cheaper than the request as typed: it already has the flexibility discount.
-    expect(card.rows.filter((r) => r.cheapest && r.key !== card.rows[0].key)).toStrictEqual([]);
+    // #960: the badges are the server's tags, in the card's order, and a row's name leaves their words out.
+    // Every row has the same price (each already has the flexibility discount); the first is the fastest too.
+    expect(card.rows.map((r) => r.tags)).toStrictEqual(advice.options.map((o) => o.tags));
+    expect(card.rows.map((r) => [r.tags, r.label])).toStrictEqual([
+      [['fastest', 'cheapest'], `Relay via ${demo.relay_point}, ${demo.price}`], [['balanced'], `Relay via ${demo.relay_point}, ${demo.price}`],
+    ]);
 
     // Options are read-only: the run is as it was, and nothing is reserved.
     const after = await getSimulator();
@@ -181,7 +196,7 @@ describe('the demo walk after the freeze, over the API on one server with no key
     expect(after.plans).toStrictEqual(fresh.plans);
   });
 
-  it('3. Find a delivery match: the delivery made from that option has the plan and the price the card showed', async () => {
+  it('3. Find a delivery match: the delivery has the plan and the price of the card\'s p1 row', async () => {
     // "Choose this option" puts the row's times in the form (here they are the form's own), then the form sends.
     const sent = { ...form, ...card.rows[0].times };
     expect(sent).toStrictEqual(form);
@@ -199,12 +214,12 @@ describe('the demo walk after the freeze, over the API on one server with no key
       weightGrams: 500, readyMin: asked.readyMin, deadlineMin: asked.deadlineMin,
     });
 
-    const [asTyped] = advice.options;
+    const pick = matcherPick();
     const plan = arranged.plan!;
     expect(plan.customerPriceCents).toBe(PRICE_CENTS);
-    expect(plan.customerPriceCents).toBe(asTyped.customerPriceCents);
-    expect(plan).toMatchObject({ kind: asTyped.kind, relayBusinessId: asTyped.relayBusinessId, deliveryMin: asTyped.deliveryMin });
-    expect(plan.legs.map((leg) => employeeName(leg.employeeId))).toStrictEqual(asTyped.carrierNames);
+    expect(plan.customerPriceCents).toBe(pick.customerPriceCents);
+    expect(plan).toMatchObject({ kind: pick.kind, relayBusinessId: pick.relayBusinessId, deliveryMin: pick.deliveryMin });
+    expect(plan.legs.map((leg) => employeeName(leg.employeeId))).toStrictEqual(pick.carrierNames);
     expect(arranged.jobIds).toHaveLength(plan.legs.length);
   });
 
@@ -247,6 +262,6 @@ describe('the demo walk after the freeze, over the API on one server with no key
     // or has other carriers (one run arranges the README request as written once, DECISIONS pass 79).
     const again = await advise(asked);
     expect(again.source).toBe('offline');
-    for (const option of again.options) expect(option.carrierNames).not.toStrictEqual(advice.options[0].carrierNames);
+    for (const option of again.options) expect(option.carrierNames).not.toStrictEqual(matcherPick().carrierNames);
   });
 });

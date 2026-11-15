@@ -6,8 +6,9 @@
 import type { CompareResponse } from '../../../shared/v2/api';
 import { CompareRequest, type ApiError } from '../../../shared/v2/schemas';
 import type { AssignmentResult, Run, TravelProvider } from '../../../shared/v2/types';
-import { assignShipments, compareAssignments, type MatchContext, type MatchMode } from '../../domain/v2/matching';
+import type { MatchContext, MatchMode } from '../../domain/v2/matching';
 import { computeMetrics } from '../../domain/v2/metrics';
+import { assignStoryFirst } from './storyFirst';
 
 export const INVALID_COMPARE = 'The comparison takes no options. Send an empty JSON object.';
 
@@ -29,12 +30,13 @@ export function compareRun(
 
   const { shipments, employees, businesses, settings } = run.scenario;
   const ctx: MatchContext = { travel, trips: run.trips, employees, businesses, settings };
-  const compared = compareAssignments(shipments, ctx);
 
-  const side = (mode: MatchMode, result: AssignmentResult): CompareResponse['directOnly'] => {
-    // compareAssignments is untimed (computeMs 0), so this side is run once more, alone, for its time.
+  // Each side is a full match as Recompute would make it in that mode: story first (storyFirst.ts, #966). So
+  // on the default run both sides are those of the 60-employee story (the relay side is the run's own plans),
+  // and an added employee is counted only for a request a business sent.
+  const side = (mode: MatchMode): CompareResponse['directOnly'] => {
     const startMs = nowMs();
-    assignShipments(shipments, ctx, { mode });
+    const result = assignStoryFirst(shipments, ctx, run.scenario, { mode });
     const timed: AssignmentResult = { ...result, computeMs: nowMs() - startMs };
     const metrics = computeMetrics({
       shipments, plans: timed.plans, unmatched: timed.unmatched, occurredEvents: [], settings,
@@ -45,8 +47,8 @@ export function compareRun(
   return {
     kind: 'ok',
     response: {
-      directOnly: side('direct_only', compared.directOnly),
-      withRelay: side('with_relay', compared.withRelay),
+      directOnly: side('direct_only'),
+      withRelay: side('with_relay'),
     },
   };
 }

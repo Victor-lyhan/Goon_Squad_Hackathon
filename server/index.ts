@@ -254,7 +254,7 @@ export function startServer(opts: StartServerOptions): RelayServer {
   // The Gemini key and model for POST /api/v2/parse-request (docs/mvp4.md F1), from the same environment.
   // Without the key every sentence is parsed offline. No start line: the card says "Parsed by Gemini" or "Parsed offline",
   // and `parseRequestLog` gets one line per sentence saying which, never the key or the sentence (#811).
-  // One pause for parse-request and advise (#884): after one failed Gemini call both answer offline at once for
+  // The pause of parse-request (#884; POST /advise has none since #959): after one failed Gemini call it answers offline at once for
   // 2 minutes, so a slow key stalls the demo once, not on every try. In memory only; a restart starts without it.
   const gemini = { apiKey: geminiKey(env), model: geminiModel(env), info: opts.parseRequestLog, pause: createGeminiPause() };
   const v2 = createV2Runtime({ fixturesDir: opts.fixturesDir, statePath, key, fetch: opts.fetch, gemini });

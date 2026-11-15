@@ -1,31 +1,41 @@
-/* Business workspace: New delivery form.
-   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
-   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
-   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
-   IDs, weights and prices; Inter (--font-sans) for everything else. No pills.
-   Design pass (#940): the New delivery box is the page's one bold element. It is as wide as the toolbar and
-   the table (up to 880 px), has the primary colour as its border with a 3 px stripe on the left (the only stripe MVP III allows), 24 px of padding, the
-   page's largest title and the sentence set at 18 px. Everything else on the page stays hairline and quiet.
-   Labels are sentence case (no tracked capitals). */
+/* Business workspace: New delivery (the sentence box, the Options card, the confirmation form).
+   Night-shift transit look (#956): the palette is the --ns-* block at the top of page/businessPage.css; each
+   use here is var(--ns-name, fallback) with the property's own value as the fallback. No shadows beyond a
+   1 px focus ring, no gradients, radius var(--radius) or var(--radius-lg). IBM Plex Mono (--font-mono) for
+   times, IDs and weights; Archivo for titles, the typed sentence and an option's price; Inter for the rest.
+   The sentence box is the page's one bold element: the only ink panel on the paper page, with the sentence
+   set large and the one large orange button. Everything after it is quiet again: the Options card is a
+   departure board printed on the page (a 2 px ink rule, one hairline row per option), and the confirmation
+   form is a white sheet with hairlines whose send button is the same orange.
+   The box and the cards after it share one width (880 px), so their edges line up with the toolbar and the
+   list (#940). Labels are sentence case (no tracked capitals). */
 
+/* ---------- The confirmation form ---------- */
 .nd {
   display: flex;
   flex-direction: column;
   gap: var(--space-4, 16px);
   max-width: 880px;
   padding: var(--space-6, 24px);
-  border: 1px solid var(--accent, #1D5075);
-  border-left-width: 3px;
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: var(--ns-sheet, #FFFFFF);
+  color: var(--ns-text, #14171F);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
 }
 
 .nd-head { display: flex; flex-direction: column; gap: var(--space-1, 4px); }
-.nd-title { margin: 0; font-size: var(--text-xl, 28px); font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; }
-.nd-from { margin: 0; color: var(--muted, #5B6472); }
+.nd-title {
+  margin: 0;
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--text-xl, 28px);
+  font-weight: 600;
+  font-variation-settings: 'wght' 740;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.nd-from { margin: 0; color: var(--ns-muted, #5A5F6B); }
 
 .nd-group {
   display: flex;
@@ -34,37 +44,37 @@
   margin: 0;
   padding: var(--space-4, 16px) 0 0;
   border: 0;
-  border-top: 1px solid var(--border, #E3E3DE);
+  border-top: 1px solid var(--ns-line, #DCD8CE);
   min-width: 0;
 }
 .nd-legend {
   padding: 0 var(--space-2, 8px) 0 0;
   font-size: var(--text-xs, 12px);
   font-weight: 600;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
 }
 
 .nd-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4, 16px); }
 
 .nd-field { display: flex; flex-direction: column; gap: var(--space-1, 4px); min-width: 0; }
 .nd-label { font-weight: 600; font-size: var(--text-sm, 13px); }
-.nd-hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.nd-hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--ns-muted, #5A5F6B); }
 .nd-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); }
 /* A field a parsed request left out (MVP IV F1): the hint says so in words; the colour only adds to it. */
 .nd-check { margin: 0; font-size: var(--text-xs, 12px); font-weight: 600; color: var(--warn, #8A5A00); }
 /* How a value was read (#948): the business a misspelt name was taken for, a deliver-by time the server
    moved. In the text colour, not the hint's grey: it is about the user's own request. A value the server
    assumed reads like a field the request left out. */
-.nd-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--text, #171C24); overflow-wrap: anywhere; }
+.nd-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--ns-text, #14171F); overflow-wrap: anywhere; }
 .nd-note--check { font-weight: 600; color: var(--warn, #8A5A00); }
 
 .nd-input {
   height: 36px;
   padding: 0 var(--space-2, 8px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: var(--ns-sheet, #FFFFFF);
+  color: var(--ns-text, #14171F);
   font: inherit;
   min-width: 0;
   width: 100%;
@@ -75,10 +85,10 @@
 .nd-field--invalid .nd-input { border-color: var(--danger, #A4322A); }
 .nd-input:focus-visible {
   outline: none;
-  border-color: var(--accent, #1D5075);
-  box-shadow: 0 0 0 1px var(--accent, #1D5075);
+  border-color: var(--ns-ink, #0B0F17);
+  box-shadow: 0 0 0 1px var(--ns-ink, #0B0F17);
 }
-.nd-input:disabled { background: var(--bg, #F7F7F4); color: var(--muted, #5B6472); }
+.nd-input:disabled { background: var(--ns-paper, #F4F2EC); color: var(--ns-muted, #5A5F6B); }
 
 .nd-result:empty, .nd-alert:empty { display: none; }
 .nd-result__line {
@@ -89,7 +99,7 @@
   gap: var(--space-2, 8px);
   margin: 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-left-width: 3px;
   border-radius: var(--radius, 4px);
 }
@@ -97,7 +107,7 @@
 .nd-result__line--warn { border-left-color: var(--warn, #8A5A00); }
 .nd-result__line--danger { border-left-color: var(--danger, #A4322A); }
 .nd-result__text { margin: 0; }
-.nd-result__id { color: var(--muted, #5B6472); white-space: nowrap; }
+.nd-result__id { color: var(--ns-muted, #5A5F6B); white-space: nowrap; }
 .nd-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); }
 /* A time or weight in a hint moves to the next line whole (at 390 px "Day 2," / "12:00 PM" broke in two, #742). */
 .nd-hint .nd-mono { white-space: nowrap; }
@@ -111,7 +121,7 @@
   margin: 0;
 }
 .nd-fact { min-width: 0; }
-.nd-fact dt { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.nd-fact dt { font-size: var(--text-xs, 12px); color: var(--ns-muted, #5A5F6B); }
 .nd-fact dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .nd-carriers {
   display: flex;
@@ -119,12 +129,12 @@
   gap: var(--space-2, 8px);
   margin: 0;
   padding: var(--space-2, 8px) 0 0;
-  border-top: 1px solid var(--border, #E3E3DE);
+  border-top: 1px solid var(--ns-line, #DCD8CE);
   list-style: none;
 }
 .nd-carrier__who { margin: 0; }
 .nd-carrier__name { font-weight: 600; }
-.nd-carrier__trip { color: var(--muted, #5B6472); }
+.nd-carrier__trip { color: var(--ns-muted, #5A5F6B); }
 .nd-stops { margin: 0; padding: 0; list-style: none; font-size: var(--text-xs, 12px); }
 .nd-result__actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
 a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing: border-box; text-decoration: none; }
@@ -139,9 +149,9 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
   bottom: 0;
   margin: 0 calc(-1 * var(--space-6, 24px)) calc(-1 * var(--space-6, 24px));
   padding: var(--space-4, 16px) var(--space-6, 24px);
-  border-top: 1px solid var(--border, #E3E3DE);
+  border-top: 1px solid var(--ns-line, #DCD8CE);
   border-radius: 0 0 var(--radius, 4px) var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
+  background: var(--ns-sheet, #FFFFFF);
 }
 /* `html, body { overflow-x: hidden }` (styles/global.css) makes the body a scroll box of its own that never
    scrolls, and a sticky box inside it then sticks to nothing. While the form is on the page the body clips
@@ -155,66 +165,144 @@ body:has(.nd) { overflow-x: clip; }
 .nd-btn {
   height: 36px;
   padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: var(--ns-sheet, #FFFFFF);
+  color: var(--ns-text, #14171F);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
-.nd-btn:hover { border-color: var(--muted, #5B6472); }
+.nd-btn:hover { border-color: var(--ns-muted, #5A5F6B); }
+/* Read my request, Find a delivery match: package orange, the page's signal colour. Ink text on it is
+   6.7:1 (white would be 2.9:1). */
 .nd-btn--primary {
-  background: var(--accent, #1D5075);
-  border-color: var(--accent, #1D5075);
-  color: var(--panel, #FFFFFF);
+  background: var(--ns-signal, #FF6A1A);
+  border-color: var(--ns-signal, #FF6A1A);
+  color: var(--ns-ink, #0B0F17);
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-variation-settings: 'wght' 700;
 }
-.nd-btn--primary:hover { background: var(--accent-dark, #173E5B); border-color: var(--accent-dark, #173E5B); }
+.nd-btn--primary:hover { background: var(--ns-signal-deep, #E85A0C); border-color: var(--ns-signal-deep, #E85A0C); }
 .nd-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .nd-btn--link {
   height: auto;
   min-height: 32px;
   padding: 0 var(--space-2, 8px);
-  border-color: var(--accent, #1D5075);
-  color: var(--accent, #1D5075);
+  border-color: var(--ns-text, #14171F);
+  color: var(--ns-text, #14171F);
 }
-.nd-btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.nd-btn--link:hover { background: var(--ns-paper, #F4F2EC); }
+.nd-btn:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; }
 
-/* The request text box (MVP IV F1): what New delivery opens on. The same panel as the form it turns into.
-   It and the note below are only ever drawn inside the Business page (.bp), whose Inter they inherit. */
+/* ---------- The sentence box (MVP IV F1): what New delivery opens on, and the page's one bold element ----------
+   An ink panel on the paper page. It is only ever drawn inside the Business page (.bp), whose Inter it inherits. */
 .nd-request {
   display: flex;
   flex-direction: column;
   gap: var(--space-4, 16px);
   max-width: 880px;
-  padding: var(--space-6, 24px);
-  border: 1px solid var(--accent, #1D5075);
-  border-left-width: 3px;
-  border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  padding: var(--space-8, 32px);
+  border-radius: var(--radius-lg, 6px);
+  background: var(--ns-ink, #0B0F17);
+  color: var(--ns-paper, #F4F2EC);
   font-size: var(--text-sm, 13px);
 }
-/* One large box: the sentence is the main thing on this view, so it is set larger than anything but the title. */
+.nd-request .nd-head { gap: var(--space-3, 12px); }
+.nd-request .nd-title { font-size: var(--ns-size-figure, 32px); line-height: 1.1; }
+/* "From <this business>" as the start of a route: the package (the orange dot) is at this station, and the
+   line runs on to a stop that is not known yet. The sentence names it. */
+.nd-request .nd-from { display: flex; align-items: center; gap: var(--space-2, 8px); color: var(--ns-on-ink-muted, #9BA1AE); }
+.nd-request .nd-from::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius, 4px);
+  background: var(--ns-signal, #FF6A1A);
+}
+.nd-from__text { min-width: 0; }
+.nd-route {
+  position: relative;
+  flex: 1 1 48px;
+  min-width: 48px;
+  height: 2px;
+  margin-right: var(--space-1, 4px);
+  background: var(--ns-ink-line, #2A303D);
+}
+.nd-route::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border: 2px solid var(--ns-on-ink-muted, #9BA1AE);
+  border-radius: var(--radius, 4px);
+  background: var(--ns-ink, #0B0F17);
+}
+.nd-request .nd-label { font-weight: 500; color: var(--ns-on-ink-muted, #9BA1AE); }
+.nd-request .nd-hint { color: var(--ns-on-ink-muted, #9BA1AE); }
+.nd-request .nd-error { color: var(--ns-alert-on-ink, #FF9B8A); }
+/* One large box: the sentence is the main thing on the page, so it is set in the heading face, larger than
+   anything but the business's name. The caret is the package's orange. */
 .nd-request__text {
   height: auto;
-  min-height: 120px;
-  padding: var(--space-4, 16px);
-  font-size: var(--text-lg, 18px);
-  line-height: 1.45;
+  min-height: 136px;
+  padding: var(--space-4, 16px) var(--space-6, 24px);
+  border-color: var(--ns-ink-line, #2A303D);
+  border-radius: var(--radius-lg, 6px);
+  background: var(--ns-ink-field, #141925);
+  color: var(--ns-paper, #F4F2EC);
+  caret-color: var(--ns-signal, #FF6A1A);
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--ns-size-sentence, 26px);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   resize: vertical;
 }
+.nd-request__text::placeholder { color: var(--ns-on-ink-muted, #9BA1AE); opacity: 0.7; }
+/* On ink the ring of the box is the orange of its caret (6.7:1 on the panel). */
+.nd-request__text:focus-visible { border-color: var(--ns-signal, #FF6A1A); box-shadow: 0 0 0 1px var(--ns-signal, #FF6A1A); }
+.nd-request .nd-field--invalid .nd-input { border-color: var(--ns-alert-on-ink, #FF9B8A); }
 .nd-request__meta { display: flex; justify-content: space-between; gap: var(--space-3, 12px); }
 .nd-request__count { flex: none; white-space: nowrap; }
-.nd-request__actions { flex-wrap: wrap; }
+.nd-request .nd-result__line {
+  border-color: var(--ns-ink-line, #2A303D);
+  background: var(--ns-ink-field, #141925);
+}
+.nd-request .nd-result__line--danger { border-left-color: var(--ns-alert-on-ink, #FF9B8A); }
+.nd-request__actions { flex-wrap: wrap; align-items: center; margin-top: var(--space-2, 8px); }
+/* The buttons of the box are 48 px tall. The orange one is the large one; the two beside it are outlines. */
+.nd-request .nd-btn {
+  height: 48px;
+  border-color: var(--ns-ink-line, #2A303D);
+  background: none;
+  color: var(--ns-paper, #F4F2EC);
+}
+.nd-request .nd-btn:hover { border-color: var(--ns-on-ink-muted, #9BA1AE); }
+.nd-request .nd-btn:focus-visible { outline-color: var(--ns-paper, #F4F2EC); }
+.nd-request .nd-btn--primary {
+  padding: 0 var(--space-6, 24px);
+  border-color: var(--ns-signal, #FF6A1A);
+  background: var(--ns-signal, #FF6A1A);
+  color: var(--ns-ink, #0B0F17);
+  font-size: var(--text-lg, 18px);
+  letter-spacing: -0.01em;
+}
+.nd-request .nd-btn--primary:hover { border-color: var(--ns-signal-deep, #E85A0C); background: var(--ns-signal-deep, #E85A0C); }
 .nd-request__read { display: inline-flex; align-items: center; gap: var(--space-2, 8px); }
 
 /* While the request is read: a decorative spinner in the disabled button and one line that says what is
    happening (#880). The line's region is always in the page; empty, it takes no room. */
-.nd-wait { margin: 0; color: var(--muted, #5B6472); }
+.nd-wait { margin: 0; color: var(--ns-on-ink-muted, #9BA1AE); }
 .nd-wait:empty { display: none; }
 
-/* The lines above the prefilled form. With the form right below they read as one card: the note is its top. */
+/* ---------- The lines above the prefilled form ----------
+   With the form right below they read as one card: the note is its top, on the page's paper, with the
+   sentence in the heading face it was typed in. */
 .nd-parsed {
   display: flex;
   flex-direction: column;
@@ -222,120 +310,201 @@ body:has(.nd) { overflow-x: clip; }
   max-width: 880px;
   box-sizing: border-box;
   padding: var(--space-4, 16px) var(--space-6, 24px);
-  border: 1px solid var(--accent, #1D5075);
-  border-left-width: 3px;
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-bottom: 0;
   border-radius: var(--radius, 4px) var(--radius, 4px) 0 0;
-  background: var(--bg, #F7F7F4);
-  color: var(--text, #171C24);
+  background: var(--ns-paper, #F4F2EC);
+  color: var(--ns-text, #14171F);
   font-size: var(--text-sm, 13px);
 }
-/* One card: between the note and the form under it the line is a hairline, not the primary colour. */
-.nd-parsed + .nd { border-top: 1px solid var(--border, #E3E3DE); border-radius: 0 0 var(--radius, 4px) var(--radius, 4px); }
+/* One card: the form under the note has no rounded top. */
+.nd-parsed + .nd { border-radius: 0 0 var(--radius, 4px) var(--radius, 4px); }
 .nd-parsed__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2, 8px); }
 /* "Read by Gemini" / "Read by Relay’s rules": a small label, not a pill. */
 .nd-parsed__source {
   margin: 0;
   font-size: var(--text-xs, 12px);
   font-weight: 600;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
 }
-.nd-parsed__text { margin: 0; font-size: var(--text-md, 14px); overflow-wrap: anywhere; }
+.nd-parsed__text {
+  margin: 0;
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--text-lg, 18px);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
 .nd-parsed__notes { display: flex; flex-direction: column; gap: var(--space-2, 8px); }
 .nd-parsed__note {
   margin: 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-left: 3px solid var(--accent, #1D5075);
+  border: 1px solid var(--ns-line, #DCD8CE);
+  border-left: 3px solid var(--ns-ink, #0B0F17);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
+  background: var(--ns-sheet, #FFFFFF);
 }
 .nd-parsed__note--warn { border-left-color: var(--warn, #8A5A00); }
 
-/* The Options card (#863): the server's priced variants of the read request, above the confirmation card.
-   A panel of its own, as wide as the form; one hairline row per option, the price the largest thing in it. */
+/* ---------- The Options card (#863): a departure board printed on the page ----------
+   The server's priced variants of the read request, above the confirmation card and as wide as it. No box:
+   a heading, a 2 px ink rule, then one row per option between hairlines. A row reads left to right like a
+   board: the line (the option's name, Direct with a carrier or Relay via a business, under its badges),
+   what is said about it, when it arrives, its price (the largest thing in the row), and the button that
+   puts it in the form. */
 .nd-options {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4, 16px);
+  gap: var(--space-2, 8px);
   max-width: 880px;
   box-sizing: border-box;
-  margin: 0 0 var(--space-4, 16px);
-  padding: var(--space-4, 16px) var(--space-6, 24px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  margin: 0 0 var(--space-6, 24px);
+  color: var(--ns-text, #14171F);
   font-size: var(--text-sm, 13px);
 }
-.nd-options__title { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; }
+.nd-options__title {
+  margin: 0;
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--ns-size-title, 20px);
+  font-weight: 600;
+  font-variation-settings: 'wght' 720;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
 /* One plain line under the title: what the card waits for, who made the options, or why there are none. */
-.nd-options__status { margin: 0; color: var(--muted, #5B6472); }
+.nd-options__status { margin: 0; color: var(--ns-muted, #5A5F6B); }
 .nd-options__status:empty { display: none; }
 /* No option to show (#948): the line is the answer itself, so it is in the text colour, not the status grey. */
-.nd-options__status--note { color: var(--text, #171C24); overflow-wrap: anywhere; }
+.nd-options__status--note { color: var(--ns-text, #14171F); overflow-wrap: anywhere; }
 /* Under it, the form fields the options wait for: the card's one marked line, with the stripe of a field to check. */
 .nd-options__needed {
   margin: 0;
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-left: 3px solid var(--warn, #8A5A00);
   border-radius: var(--radius, 4px);
+  background: var(--ns-sheet, #FFFFFF);
 }
 .nd-options__need { font-weight: 600; color: var(--warn, #8A5A00); }
-.nd-options__list { display: flex; flex-direction: column; gap: var(--space-2, 8px); margin: 0; padding: 0; list-style: none; }
-.nd-options__hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.nd-options__list {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-1, 4px) 0;
+  padding: 0;
+  border-top: 2px solid var(--ns-ink, #0B0F17);
+  list-style: none;
+}
+.nd-options__hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--ns-muted, #5A5F6B); }
 .nd-options__applied { margin: 0; font-weight: 600; }
 .nd-options__applied:empty { display: none; }
 
+/* A row of the board: line, option, arrival, then the price above its button. */
 .nd-option {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2, 8px);
+  display: grid;
+  /* The last two columns have fixed widths, so the arrival times and the prices of the rows line up. */
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) 8.5rem 10rem;
+  grid-template-areas:
+    'line main arrives price'
+    'line main arrives foot';
+  gap: var(--space-2, 8px) var(--space-6, 24px);
+  align-items: start;
   min-width: 0;
-  padding: var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-left: 3px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
+  padding: var(--space-4, 16px) var(--space-3, 12px);
+  border-bottom: 1px solid var(--ns-line, #DCD8CE);
 }
-/* The option the form holds: the accent stripe and tint add to the words "In the form" on its button. */
-.nd-option--chosen { border-color: var(--accent, #1D5075); background: var(--accent-soft, #E8EEF1); }
-.nd-option__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3, 12px); }
+/* The option the form holds: the row is filled, which adds to the words "In the form" on its button. */
+.nd-option--chosen { background: var(--ns-paper-deep, #E9E6DC); }
+/* The line: the option's badges, then its name behind the drawn route line. */
+.nd-option__line { grid-area: line; min-width: 0; }
+.nd-option__main { grid-area: main; display: flex; flex-direction: column; gap: var(--space-1, 4px); min-width: 0; }
 .nd-option__label { margin: 0; min-width: 0; font-size: var(--text-md, 14px); font-weight: 600; overflow-wrap: anywhere; }
-.nd-option__price { display: flex; flex: none; align-items: baseline; gap: var(--space-2, 8px); margin: 0; }
-.nd-option__cents { font-size: var(--text-lg, 18px); font-weight: 600; white-space: nowrap; }
-/* "Cheapest": a small word in a token colour, no box around it. The word carries it; the colour only adds. */
-.nd-option__tag {
-  font-size: var(--text-xs, 12px);
-  font-weight: 600;
-  color: var(--accent, #1D5075);
+/* The price at the end of the name: read out with the heading, not shown, because it is the row's large
+   figure two columns to the right. */
+.nd-option__label-price {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-.nd-option__tag--ok { color: var(--ok, #2F6B4F); }
+/* One sentence: about the option, or why it is the recommended one. */
 .nd-option__summary { margin: 0; overflow-wrap: anywhere; }
-/* Each fact as wide as its value, so a time or "+7 min · +0.4 mi" stays on one line; a narrow card wraps whole facts. */
-.nd-option__facts { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px) var(--space-6, 24px); margin: 0; }
-.nd-option__fact { min-width: 0; }
-.nd-option__fact dt { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.nd-option__fact dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
-.nd-option__foot { display: flex; }
+/* Each fact as wide as its value, so "+7 min · +0.4 mi" stays on one line; a narrow row wraps whole facts. */
+.nd-option__facts { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px) var(--space-4, 16px); margin: var(--space-1, 4px) 0 0; font-size: var(--text-xs, 12px); }
+.nd-option__fact { display: flex; flex-wrap: wrap; gap: 0 var(--space-1, 4px); min-width: 0; }
+.nd-option__fact dt { color: var(--ns-muted, #5A5F6B); }
+.nd-option__fact dd { margin: 0; overflow-wrap: anywhere; }
+/* When it arrives: the word, then the time in mono under it. */
+.nd-option__arrives { grid-area: arrives; display: flex; flex-direction: column; gap: var(--space-1, 4px); margin: 0; min-width: 0; }
+.nd-option__arrives dt { font-size: var(--text-xs, 12px); color: var(--ns-muted, #5A5F6B); }
+.nd-option__arrives dd { margin: 0; font-size: var(--text-md, 14px); font-weight: 500; white-space: nowrap; }
+.nd-option__price { grid-area: price; display: flex; flex-direction: column; align-items: flex-end; margin: 0; }
+/* The price is the largest thing in the row, in the heading face with even figures. */
+.nd-option__cents {
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--ns-size-figure, 32px);
+  font-weight: 600;
+  font-variation-settings: 'wght' 760;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+/* What the option is marked as (#960): small filled badges, one per tag, above its name. The word carries
+   it; the colour only adds. The colours are the ones the human named for them, in this page's palette:
+   Fastest is the signal orange, Cheapest the green, Recommended the blue, each with ink text (6.7:1, 8:1 and
+   5.8:1); Balanced, the plain third choice, is the base badge with a hairline and no fill. */
+.nd-option__tags { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px); margin: 0 0 var(--space-2, 8px); }
+.nd-option__tag {
+  padding: 0 var(--space-2, 8px);
+  border: 1px solid var(--ns-line, #DCD8CE);
+  border-radius: var(--radius, 4px);
+  color: var(--ns-muted, #5A5F6B);
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.nd-option__tag--fastest { border-color: var(--ns-signal, #FF6A1A); background: var(--ns-signal, #FF6A1A); color: var(--ns-ink, #0B0F17); }
+.nd-option__tag--cheapest { border-color: var(--ns-green, #22C08A); background: var(--ns-green, #22C08A); color: var(--ns-ink, #0B0F17); }
+.nd-option__tag--recommended { border-color: var(--ns-blue, #3D8BFF); background: var(--ns-blue, #3D8BFF); color: var(--ns-ink, #0B0F17); }
+.nd-option__foot { grid-area: foot; display: flex; justify-content: flex-end; align-self: end; }
 /* The option the form holds: its button says "In the form" and reads as a state, not as one more thing to
    press. Still a button, so every option is one Tab stop with the same ring. */
 .nd-option__choose[aria-pressed='true'] {
-  border-color: var(--accent, #1D5075);
-  background: var(--accent-soft, #E8EEF1);
-  color: var(--accent, #1D5075);
+  border-color: var(--ns-ink, #0B0F17);
+  background: var(--ns-ink, #0B0F17);
+  color: var(--ns-paper, #F4F2EC);
 }
 
 /* While the options are on their way: two still rows of bars, no motion. */
-.nd-skeleton { display: block; height: 12px; border-radius: var(--radius, 4px); background: var(--border, #E3E3DE); }
+.nd-option--skeleton { display: flex; flex-direction: column; gap: var(--space-2, 8px); }
+.nd-skeleton { display: block; height: 12px; border-radius: var(--radius, 4px); background: var(--ns-line, #DCD8CE); }
 .nd-skeleton--label { width: 45%; height: 16px; }
 .nd-skeleton--line { width: 80%; }
 
+/* A narrow board: the line and the price share the first row, the rest stacks under them. */
+@media (max-width: 720px) {
+  .nd-option {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'line price'
+      'main main'
+      'arrives arrives'
+      'foot foot';
+    gap: var(--space-2, 8px) var(--space-3, 12px);
+  }
+  .nd-option__arrives { flex-direction: row; align-items: baseline; gap: var(--space-2, 8px); }
+  .nd-option__foot { justify-content: flex-start; }
+}
+
 /* 390 px: one column, controls at least 40 px high, full-width actions. */
 @media (max-width: 480px) {
-  .nd-options { padding: var(--space-4, 16px); max-width: none; }
-  .nd-option__top { flex-wrap: wrap; }
+  .nd-options { max-width: none; }
+  .nd-option { padding: var(--space-3, 12px) var(--space-2, 8px); }
+  .nd-option__cents { font-size: var(--text-xl, 28px); }
   .nd-option__choose { width: 100%; }
   /* "In the form" is a state: as wide as its words, so it does not read as the button to press next. */
   .nd-option__choose[aria-pressed='true'] { width: auto; }
@@ -357,13 +526,19 @@ body:has(.nd) { overflow-x: clip; }
   .nd > .nd-actions .nd-btn--primary { flex: 1; }
   .nd .nd-input, .nd .nd-btn { scroll-margin-bottom: 84px; }
   .nd .nd-result, .nd .nd-alert { scroll-margin-bottom: 84px; }
-  /* An option's facts in two columns: four stacked facts made one option 308 px high. */
-  .nd-option__facts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2, 8px) var(--space-3, 12px); }
   .nd-result__actions { flex-direction: column; }
   .nd-result__actions .nd-btn { width: 100%; justify-content: center; }
   .nd-request { padding: var(--space-4, 16px); max-width: none; }
-  .nd-request__text { height: auto; min-height: 132px; padding: var(--space-3, 12px); font-size: var(--text-md, 14px); line-height: 1.5; }
+  .nd-request .nd-title { font-size: var(--text-xl, 28px); }
+  /* The route line gets a row of its own under a long "From" line. */
+  .nd-request .nd-from { flex-wrap: wrap; align-items: flex-start; }
+  .nd-request .nd-from::before { margin-top: 5px; }
+  .nd-from__text { flex: 1 1 0; }
+  .nd-route { flex: 0 0 calc(100% - var(--space-1, 4px)); margin-top: var(--space-2, 8px); }
+  .nd-request__text { height: auto; min-height: 148px; padding: var(--space-3, 12px) var(--space-4, 16px); font-size: var(--ns-size-title, 20px); line-height: 1.35; }
   .nd-request__meta { flex-direction: column; gap: var(--space-1, 4px); }
+  .nd-request__actions { margin-top: 0; }
+  .nd-request .nd-btn { height: 48px; min-height: 48px; }
   .nd-request__read { justify-content: center; }
   .nd-parsed { padding: var(--space-4, 16px); max-width: none; }
 }

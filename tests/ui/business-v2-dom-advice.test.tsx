@@ -139,7 +139,7 @@ describe('the Options card after "Read my request"', () => {
     expect(card.tagName).toBe('SECTION');
     expect(textOf(document.getElementById(card.getAttribute('aria-labelledby')!)!)).toBe('Options');
     expect(card.hasAttribute('aria-busy')).toBe(false);
-    expect(p.status()).toBe('Planned by Gemini, priced by Relay.');
+    expect(p.status()).toBe(''); // no line about who made the options (#960)
     expect(p.skeletons()).toHaveLength(0);
 
     const rows = p.rows();
@@ -149,31 +149,54 @@ describe('the Options card after "Read my request"', () => {
       'Next-morning relay through Atlas Books.', 'One carrier takes it tonight.', 'A wider window earns the flexibility discount.',
     ]);
     const facts = (row: Element) => Object.fromEntries([...row.querySelectorAll('dt')].map((dt) => [textOf(dt), textOf(dt.nextElementSibling!)]));
+    // These names ("As requested") do not say the route, so each row has it as a fact, in the badge's words (#956).
     expect(facts(rows[0])).toEqual({
-      Arrives: 'Day 2, 9:05 AM', Route: 'Via Atlas Books', 'Added to commutes': '+17 min · +2.4 mi', 'Carried by': 'Maya Chen, Luis Ortega',
+      Arrives: 'Day 2, 9:05 AM', Route: 'Relay via Atlas Books', 'Added to commutes': '+17 min · +2.4 mi', 'Carried by': 'Maya Chen, Luis Ortega',
     });
     expect(facts(rows[1])).toEqual({
       Arrives: 'Day 1, 6:30 PM', Route: 'Direct', 'Added to commutes': '+9 min · +1.0 mi', 'Carried by': 'Maya Chen',
     });
-    // Prices, arrival times and the extras are data: IBM Plex Mono. The route and the names are not.
+    // A row reads like a departure board (#956). It starts with its line: the option's name behind a small
+    // route line that is hidden from assistive technology (one run, or two with the relay point).
+    const badge = (row: Element) => row.querySelector('.nd-option__line h3 .lb-badge')!;
+    expect(rows.map((r) => textOf(badge(r)))).toEqual(['As requested', 'Ready 30 minutes earlier', 'Deliver by noon']);
+    expect(rows.map((r) => badge(r).className)).toEqual(['lb-badge lb-badge--relay', 'lb-badge lb-badge--direct', 'lb-badge lb-badge--relay']);
+    expect(rows.map((r) => r.className)).toEqual(['nd-option nd-option--relay nd-option--chosen', 'nd-option nd-option--direct', 'nd-option nd-option--relay']);
     for (const row of rows) {
-      expect(row.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(true);
-      const dds = [...row.querySelectorAll('dd')];
-      expect(dds.map((dd) => dd.classList.contains('nd-mono'))).toEqual([true, false, true, false]);
+      const mark = badge(row).querySelector('.lb-mark')!;
+      expect(mark.getAttribute('aria-hidden')).toBe('true');
+      expect(textOf(mark)).toBe('');
+      const relay = badge(row).classList.contains('lb-badge--relay');
+      expect(mark.querySelectorAll('.lb-run')).toHaveLength(relay ? 2 : 1);
+      expect(mark.querySelectorAll('.lb-stop')).toHaveLength(relay ? 3 : 2);
+      expect(mark.querySelectorAll('.lb-stop--relay')).toHaveLength(relay ? 1 : 0);
+      // In the row's order: the line, the option, when it arrives, its price, its button.
+      expect([...row.children].map((c) => c.className)).toEqual([
+        'nd-option__line', 'nd-option__main', 'nd-option__arrives', 'nd-option__price', 'nd-option__foot',
+      ]);
     }
-    // The cheapest one is marked, in words.
-    expect(rows.map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$16.00', 'Cheapest $12.50', '$14.00']);
+    // Arrival times and the extras are data: IBM Plex Mono. The names are not. The price is the row's large
+    // figure in the heading face (the human's direction for this board), so it is not in the mono class.
+    for (const row of rows) {
+      expect(row.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(false);
+      const dds = [...row.querySelectorAll('dd')];
+      expect(dds.map((dd) => dd.classList.contains('nd-mono'))).toEqual([false, true, false, true]); // route, extras, names, arrival
+    }
+    // The price stands alone (#960). These options carry no tags, so no row has a badge: the page marks no
+    // price itself (the badges of a tagged answer: business-v2-dom-advice-tags.test.tsx).
+    expect(rows.map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$16.00', '$12.50', '$14.00']);
+    expect(rows.map((r) => [...r.querySelectorAll('.nd-option__tag')].map(textOf))).toEqual([[], [], []]);
     // Nothing was sent, and the form is as the request was read.
     expect(p.times()).toEqual(['16:00', '2', '10:00']);
     expect(p.createShipment).not.toHaveBeenCalled();
   }, T);
 
-  it('offline options say so and never name Gemini', async () => {
+  it('the card never says who made the options, and keeps the answer\'s note', async () => {
     const p = setup({ advise: async () => ({ ...OPTIONS, source: 'offline', note: 'Only two variants found a carrier.' }) });
     await p.read();
-    // One plain line: the label, and what "offline" means.
-    expect(p.status()).toBe('Priced by Relay, with no AI model.');
-    expect(textOf(p.card()!)).not.toContain('Gemini');
+    // #960: no source line, for either source (the Gemini answer is the test above).
+    expect(p.status()).toBe('');
+    expect(textOf(p.card()!)).not.toMatch(/Gemini|AI model|Priced by|Planned by/);
     expect(textOf(p.card()!)).toContain('Only two variants found a carrier.');
   }, T);
 
@@ -324,7 +347,7 @@ describe('keyboard and screen reader', () => {
     }
     expect(chooseButtons.map((b) => b.getAttribute('aria-label'))).toEqual([
       'In the form: As requested, $16.00',
-      'Choose this option: Ready 30 minutes earlier, $12.50, cheapest',
+      'Choose this option: Ready 30 minutes earlier, $12.50',
       'Choose this option: Deliver by noon, $14.00',
     ]);
     const order = tabOrder(p.container);
@@ -332,7 +355,7 @@ describe('keyboard and screen reader', () => {
     expect(order.slice(first, first + 3)).toEqual(chooseButtons);
     expect(first + 2).toBeLessThan(order.indexOf(button(p.note()!, 'Edit request')));
     expect(order.indexOf(button(p.note()!, 'Edit request'))).toBeLessThan(order.indexOf(byLabel(p.form()!, 'Recipient')));
-    // The line about who planned them is a polite status: announced when the options arrive.
+    // The card's one line is a polite status (the wait, or why there is no option); with options it is empty (#960).
     expect(p.card()!.querySelector('.nd-options__status')!.getAttribute('role')).toBe('status');
   }, T);
 
@@ -493,7 +516,7 @@ describe('the card belongs to one read request', () => {
 });
 
 describe('without a stub the page asks the server', () => {
-  it('POST /api/v2/advise with { draft } after the parse, and the answer fills the card', async () => {
+  it('POST /api/v2/advise with { draft } and the sentence after the parse, and the answer fills the card', async () => {
     const fetchMock = vi.fn(async (url: string, _init?: RequestInit) =>
       new Response(JSON.stringify(url.endsWith('/advise') ? OPTIONS : parsed()), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
@@ -516,6 +539,8 @@ describe('without a stub the page asks the server', () => {
         originBusinessId: ACME.id, destinationBusinessId: BAKERY.id, label: 'Envelope', category: 'envelope',
         description: 'Signed contract', weightKg: 0.2, readyMin: 960, deadlineMin: 2040,
       },
+      // #960: the sentence that was read goes along, for the server's recommended option (#959's `text`).
+      text: SENTENCE,
     });
     expect([...m.container.querySelectorAll('.nd-option__cents')].map(textOf)).toEqual(['$16.00', '$12.50', '$14.00']);
   }, T);

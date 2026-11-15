@@ -38,7 +38,7 @@ describe('newDelivery.css', () => {
   });
 
   it('uses tokens with fallbacks', () => {
-    expect(css).toMatch(/var\(--border, #E3E3DE\)/);
+    expect(css).toMatch(/var\(--ns-line, #DCD8CE\)/); // the hairline of the page's palette (#956)
     expect(css).not.toMatch(/var\(--[a-z0-9-]+\)/);
   });
 });

@@ -276,8 +276,9 @@ describe('README after the cutover', () => {
   });
 
   // #756: rehearsing and the demo share one run. What the sentences claim was seen on a real server
-  // (`RELAY_STATE_PATH=... PORT=... npm start`, the README request three times over HTTP, PR #749 and #756);
-  // no test sends the second and third request, because their answers depend on the story (DECISIONS pass 54).
+  // (`RELAY_STATE_PATH=... PORT=... npm start`, the README request three times over HTTP, PR #749 and #756).
+  // Since #966 the default run has 60 more employees, so the request is matched four times, and
+  // tests/api/v2-story-first-routes.test.ts sends it until it is not and reads the count from this sentence.
   it('2-minute demo: says a rehearsal that ran Find a delivery match needs a reset, and one of Play, Back to start and a journey does not', () => {
     const demo = sectionOf('## 2-minute demo');
     const note = demo.split('\n').find((line) => line.startsWith('Rehearsing and the demo share one run.')) ?? '';
@@ -291,8 +292,8 @@ describe('README after the cutover', () => {
     );
     expect(readme).toContain('\n## State file and reset\n'); // the heading the link points at
     expect(note).toContain(
-      'One run arranges the request as the block says once: sent a second time it comes with other carriers than the block names, '
-      + 'and a third time it is not matched ("Every matching commute is already carrying a package").',
+      'One run arranges the request as the block says once: sent again it comes with other carriers than the block names, '
+      + 'and the fifth time it is not matched ("Every matching commute is already carrying a package").',
     );
     // The reason is the matcher's own sentence.
     const reason = /not matched \("([^"]+)"\)/.exec(note)?.[1] ?? 'no reason quoted';

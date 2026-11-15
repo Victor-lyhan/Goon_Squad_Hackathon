@@ -1,12 +1,13 @@
-/* Business workspace: shipments toolbar + table.
-   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
-   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
-   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
-   IDs, weights and prices; Inter (--font-sans) for everything else.
+/* Business workspace: shipments toolbar + the deliveries list, set as a timetable.
+   Night-shift transit look (#956): the palette is the --ns-* block at the top of page/businessPage.css; each
+   use here is var(--ns-name, fallback) with the property's own value as the fallback. The list is a printed
+   timetable: no box and no header fill, one 2 px ink rule above the column heads, hairlines between the
+   rows, times and prices in IBM Plex Mono, a status as a station dot and its word. New delivery is the one
+   orange button. Archivo for the list's heading; Inter (--font-sans) for everything else.
    Design audit (#881): labels and column headers are sentence case (no tracked capitals), the state boxes are
    left-aligned like the rest of the page, and controls are 44 px tall where the rows stack.
-   Design pass (#940): controls are 36 px tall like the page's other buttons, gaps are 8 or 16 px, the labels
-   and column headers are medium weight so the rows carry the weight, and the columns share 16 px gutters. */
+   Design pass (#940): controls are 36 px tall like the page's other buttons, gaps are 8 or 16 px, and the
+   labels and column headers are medium weight so the rows carry the weight. */
 
 .bw-toolbar {
   display: flex;
@@ -14,40 +15,40 @@
   align-items: flex-end;
   gap: var(--space-2, 8px) var(--space-4, 16px);
   padding: 0 0 var(--space-4, 16px);
-  border-bottom: 1px solid var(--border, #E3E3DE);
+  border-bottom: 1px solid var(--ns-line, #DCD8CE);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
-  color: var(--text, #171C24);
+  color: var(--ns-text, #14171F);
 }
 .bw-toolbar__field { display: flex; flex-direction: column; gap: var(--space-1, 4px); min-width: 0; }
 .bw-toolbar__search { flex: 1 1 240px; }
 .bw-toolbar__label {
   font-size: var(--text-xs, 12px);
   font-weight: 500;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
 }
 .bw-toolbar__new { margin-left: auto; }
 
 .bw-input {
   height: 36px;
   padding: 0 var(--space-2, 8px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: var(--ns-sheet, #FFFFFF);
+  color: var(--ns-text, #14171F);
   font: inherit;
   font-size: var(--text-sm, 13px);
   min-width: 0;
 }
-.bw-input:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 0; }
+.bw-input:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 0; }
 
 .bw-segmented { display: flex; }
 .bw-segmented__btn {
   height: 36px;
   padding: 0 var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: 0;
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: var(--ns-sheet, #FFFFFF);
+  color: var(--ns-text, #14171F);
   font: inherit;
   font-size: var(--text-sm, 13px);
   cursor: pointer;
@@ -55,31 +56,40 @@
 .bw-segmented__btn + .bw-segmented__btn { border-left: 0; }
 .bw-segmented__btn:first-child { border-radius: var(--radius, 4px) 0 0 var(--radius, 4px); }
 .bw-segmented__btn:last-child { border-radius: 0 var(--radius, 4px) var(--radius, 4px) 0; }
+.bw-segmented__btn:hover { background: var(--ns-paper-deep, #E9E6DC); }
+/* The chosen direction is filled with ink: a state, so it is not the signal colour. */
 .bw-segmented__btn[aria-pressed='true'] {
-  background: var(--accent-soft, #E8EEF1);
-  color: var(--accent-dark, #173E5B);
+  border-color: var(--ns-ink, #0B0F17);
+  background: var(--ns-ink, #0B0F17);
+  color: var(--ns-paper, #F4F2EC);
   font-weight: 600;
 }
-.bw-segmented__btn:hover { background: var(--bg, #F7F7F4); }
-.bw-segmented__btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
+.bw-segmented__btn:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: -2px; }
 
 .bw-btn {
   height: 36px;
   padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: var(--ns-sheet, #FFFFFF);
+  color: var(--ns-text, #14171F);
   font: inherit;
   font-size: var(--text-sm, 13px);
   font-weight: 600;
   cursor: pointer;
 }
-.bw-btn:hover { border-color: var(--muted, #5B6472); }
-.bw-btn--primary { background: var(--accent, #1D5075); border-color: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
-.bw-btn--primary:hover { background: var(--accent-dark, #173E5B); border-color: var(--accent-dark, #173E5B); }
+.bw-btn:hover { border-color: var(--ns-muted, #5A5F6B); }
+/* New delivery: the page's one orange button. Ink text on it is 6.7:1 (white would be 2.9:1). */
+.bw-btn--primary {
+  background: var(--ns-signal, #FF6A1A);
+  border-color: var(--ns-signal, #FF6A1A);
+  color: var(--ns-ink, #0B0F17);
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-variation-settings: 'wght' 700;
+}
+.bw-btn--primary:hover { background: var(--ns-signal-deep, #E85A0C); border-color: var(--ns-signal-deep, #E85A0C); }
 .bw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.bw-btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.bw-btn:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; }
 
 /* ---------- Table ---------- */
 /* The table's box is a size container: above 640 px its least important columns drop as the box (not the
@@ -90,9 +100,9 @@
   border-collapse: collapse;
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
-  color: var(--text, #171C24);
-  background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #E3E3DE);
+  color: var(--ns-text, #14171F);
+  /* A timetable printed on the page: no box, one 2 px ink rule above the column heads. */
+  border-top: 2px solid var(--ns-ink, #0B0F17);
 }
 .bw-table__caption {
   caption-side: top;
@@ -101,27 +111,36 @@
   font-size: var(--text-md, 14px);
   font-weight: 600;
 }
-/* The list's h2 sits in the caption and reads as the caption's own text. */
-.bw-table__title { display: inline; margin: 0; font: inherit; }
+/* The list's h2 sits in the caption, on the caption's line, in the page's heading face. */
+.bw-table__title {
+  display: inline;
+  margin: 0;
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--ns-size-title, 20px);
+  font-weight: 600;
+  font-variation-settings: 'wght' 720;
+  letter-spacing: -0.01em;
+}
 .bw-table__count {
   margin-left: var(--space-2, 8px);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   font-weight: 400;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
 }
 .bw-table th,
 .bw-table td {
-  padding: var(--space-2, 8px) var(--space-4, 16px);
-  border-bottom: 1px solid var(--border, #E3E3DE);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-bottom: 1px solid var(--ns-line, #DCD8CE);
   text-align: left;
   vertical-align: top;
 }
 .bw-table th {
-  background: var(--bg, #F7F7F4);
+  padding-top: var(--space-2, 8px);
+  padding-bottom: var(--space-2, 8px);
   font-size: var(--text-xs, 12px);
   font-weight: 500;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
   white-space: nowrap;
 }
 .bw-table .bw-num { text-align: right; }
@@ -144,21 +163,21 @@
   letter-spacing: inherit;
   cursor: pointer;
 }
-.bw-sort:hover { color: var(--text, #171C24); }
-.bw-sort:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.bw-sort:hover { color: var(--ns-text, #14171F); }
+.bw-sort:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; }
 .bw-sort__icon { display: inline-block; width: 12px; font-size: 0.8em; }
-th[aria-sort] .bw-sort { color: var(--text, #171C24); }
+th[aria-sort] .bw-sort { color: var(--ns-text, #14171F); }
 
 .bw-row { cursor: pointer; }
-.bw-row:hover { background: var(--bg, #F7F7F4); }
-.bw-row[aria-selected='true'] { background: var(--accent-soft, #E8EEF1); }
-.bw-row[aria-selected='true'] .bw-cell--primary { color: var(--accent-dark, #173E5B); }
-.bw-row:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
+.bw-row:hover { background: var(--ns-paper-deep, #E9E6DC); }
+/* The open delivery's row keeps the fill a row has under the pointer. */
+.bw-row[aria-selected='true'] { background: var(--ns-paper-deep, #E9E6DC); }
+.bw-row:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: -2px; }
 /* The caption and an empty state's title take focus when a closed delivery has no row to return to
    (#609). Not tab stops; the ring shows for keyboard focus only, inside the box so the table's wrapper
    does not clip it. */
 .bw-table__caption:focus, .bw-empty__title:focus { outline: none; }
-.bw-table__caption:focus-visible, .bw-empty__title:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
+.bw-table__caption:focus-visible, .bw-empty__title:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: -2px; }
 
 .bw-cell--primary { font-weight: 600; }
 .bw-mono {
@@ -166,7 +185,7 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   font-size: var(--text-xs, 12px);
   white-space: nowrap;
 }
-.bw-muted { color: var(--muted, #5B6472); }
+.bw-muted { color: var(--ns-muted, #5A5F6B); }
 .bw-reason {
   display: block;
   margin-top: var(--space-1, 4px);
@@ -174,34 +193,43 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   color: var(--danger, #A4322A);
 }
 
-/* Status: rectangular label, 1px border, no pill. Words, so --font-sans. */
+/* Status: a station dot and its word, no box. The word says it; the dot only adds. An open dot is a
+   package that has not left; orange is the package on its way (filled) or waiting at the relay point (a
+   ring); a filled ink dot is a package that has arrived. Only a delivery without a match takes a colour
+   for its word. */
 .bw-status {
-  display: inline-block;
-  padding: 1px var(--space-2, 8px);
-  border: 1px solid currentColor;
-  border-radius: var(--radius, 4px);
-  font-size: var(--text-xs, 12px);
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  font-weight: 500;
   white-space: nowrap;
 }
-.bw-status--neutral { color: var(--muted, #5B6472); }
-.bw-status--info { color: var(--accent, #1D5075); }
-.bw-status--warn { color: var(--warn, #8A5A00); }
-.bw-status--success { color: var(--ok, #2F6B4F); }
+.bw-status::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--ns-muted, #5A5F6B);
+  border-radius: var(--radius, 4px);
+}
+.bw-status--info::before { border-color: var(--ns-signal, #FF6A1A); background: var(--ns-signal, #FF6A1A); }
+.bw-status--warn::before { border: 2px solid var(--ns-signal, #FF6A1A); }
+.bw-status--success::before { border-color: var(--ns-ink, #0B0F17); background: var(--ns-ink, #0B0F17); }
 .bw-status--danger { color: var(--danger, #A4322A); }
+.bw-status--danger::before { border-color: var(--danger, #A4322A); }
 
 /* ---------- The list's states without rows: loading, error, no deliveries yet, no match ---------- */
 .bw-empty {
   padding: var(--space-6, 24px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
+  background: var(--ns-sheet, #FFFFFF);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
-  color: var(--text, #171C24);
+  color: var(--ns-text, #14171F);
 }
 .bw-empty[role='alert'] { border-left: 2px solid var(--danger, #A4322A); }
 .bw-empty__title { margin: 0; font-weight: 600; font-size: var(--text-md, 14px); line-height: 1.45; }
-.bw-empty__text { max-width: 60ch; margin: var(--space-1, 4px) 0 0; color: var(--muted, #5B6472); font-size: var(--text-sm, 13px); }
+.bw-empty__text { max-width: 60ch; margin: var(--space-1, 4px) 0 0; color: var(--ns-muted, #5A5F6B); font-size: var(--text-sm, 13px); }
 .bw-empty .bw-btn { margin-top: var(--space-4, 16px); }
 
 /* Rows on screen whose last update failed: one line above them with the retry. */
@@ -213,13 +241,13 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   gap: var(--space-2, 8px) var(--space-3, 12px);
   margin: 0 0 var(--space-2, 8px);
   padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-left: 2px solid var(--danger, #A4322A);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
+  background: var(--ns-sheet, #FFFFFF);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
-  color: var(--text, #171C24);
+  color: var(--ns-text, #14171F);
 }
 
 /* ---------- Remove from the list (#949) ----------
@@ -238,7 +266,7 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   padding: var(--space-1, 4px) 0 0;
   border: 0;
   background: none;
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
   opacity: 0.45;
   cursor: pointer;
 }
@@ -252,29 +280,30 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   border-radius: var(--radius, 4px);
 }
 .bw-row:hover .bw-remove, .bw-row:focus-within .bw-remove { opacity: 1; }
-.bw-remove:hover { color: var(--text, #171C24); }
-.bw-remove:hover .bw-remove__icon { border-color: var(--muted, #5B6472); background: var(--panel, #FFFFFF); }
+.bw-remove:hover { color: var(--ns-text, #14171F); }
+.bw-remove:hover .bw-remove__icon { border-color: var(--ns-muted, #5A5F6B); background: var(--ns-sheet, #FFFFFF); }
 /* The ring is drawn inside the 44 px target, so the table's box never clips it. */
-.bw-remove:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; border-radius: var(--radius, 4px); opacity: 1; color: var(--text, #171C24); }
+.bw-remove:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: -2px; border-radius: var(--radius, 4px); opacity: 1; color: var(--ns-text, #14171F); }
 @media (hover: none) {
   .bw-remove { opacity: 1; }
 }
 
 /* "2 removed · Show all": the last line of the list while deliveries are hidden from it. */
-.bw-removed { margin: var(--space-2, 8px) 0 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.bw-removed { margin: var(--space-2, 8px) 0 0; font-size: var(--text-sm, 13px); color: var(--ns-muted, #5A5F6B); }
 .bw-removed__show {
   min-height: 36px;
   padding: 0 var(--space-1, 4px);
   border: 0;
   border-radius: var(--radius, 4px);
   background: none;
-  color: var(--accent, #1D5075);
+  color: var(--ns-text, #14171F);
   font: inherit;
   text-decoration: underline;
+  text-underline-offset: 2px;
   cursor: pointer;
 }
-.bw-removed__show:hover { color: var(--accent-dark, #173E5B); }
-.bw-removed__show:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
+.bw-removed__show:hover { color: var(--ns-ink, #0B0F17); }
+.bw-removed__show:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: -2px; }
 
 .bw-visually-hidden {
   position: absolute;
@@ -292,6 +321,8 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
    rows stack instead (end of this file). */
 @media (min-width: 641px) {
   .bw-table-wrap { overflow-x: auto; }
+  /* The first column starts 8 px inside the rule, so a row's fill under the pointer has a margin of its own. */
+  .bw-table th:first-child, .bw-table td:first-child { padding-left: var(--space-2, 8px); }
   @container bw-table (max-width: 1119px) {
     .bw-table .bw-col--drop1 { display: none; }
   }
@@ -305,7 +336,7 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
 
 /* ---------- Medium widths: let long cells wrap ---------- */
 @media (max-width: 1100px) {
-  .bw-table th, .bw-table td { padding: var(--space-2, 8px); }
+  .bw-table th, .bw-table td { padding-left: var(--space-2, 8px); padding-right: var(--space-2, 8px); }
 }
 
 /* ---------- 390 px: stacked rows, each cell with its column label, no horizontal scroll ---------- */
@@ -324,26 +355,26 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   .bw-table tbody,
   .bw-table tr,
   .bw-table td { display: block; width: 100%; box-sizing: border-box; }
-  .bw-table { border: 0; background: none; }
+  .bw-table { border: 0; }
   .bw-table caption { padding: 0 0 var(--space-2, 8px); }
   /* Header row is replaced by per-cell labels; sorting stays available on wider screens. */
   .bw-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   /* A keyboard user who tabs into the sort buttons sees them: the header row shows as a wrapping strip. */
   .bw-table thead:focus-within { position: static; display: block; width: auto; height: auto; overflow: visible; clip: auto; margin-bottom: var(--space-2, 8px); }
   .bw-table thead:focus-within tr { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px); }
-  .bw-table thead:focus-within th { display: block; padding: var(--space-1, 4px) var(--space-2, 8px); border: 1px solid var(--border, #E3E3DE); }
+  .bw-table thead:focus-within th { display: block; padding: var(--space-1, 4px) var(--space-2, 8px); border: 1px solid var(--ns-line, #DCD8CE); }
   .bw-table tr.bw-row {
     margin-bottom: var(--space-2, 8px);
-    border: 1px solid var(--border, #E3E3DE);
+    border: 1px solid var(--ns-line, #DCD8CE);
     border-radius: var(--radius, 4px);
-    background: var(--panel, #FFFFFF);
+    background: var(--ns-sheet, #FFFFFF);
   }
   .bw-table td {
     display: grid;
     grid-template-columns: 7.5rem minmax(0, 1fr);
     gap: var(--space-2, 8px);
     padding: var(--space-1, 4px) var(--space-3, 12px);
-    border-bottom: 1px solid var(--border, #E3E3DE);
+    border-bottom: 1px solid var(--ns-line, #DCD8CE);
     overflow-wrap: anywhere;
   }
   .bw-table td:last-child, .bw-table td:has(+ .bw-cell--remove) { border-bottom: 0; }
@@ -362,7 +393,7 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
     font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
     font-size: var(--text-xs, 12px);
     font-weight: 600;
-    color: var(--muted, #5B6472);
+    color: var(--ns-muted, #5A5F6B);
   }
   .bw-table .bw-num { text-align: left; }
   .bw-mono { white-space: normal; }

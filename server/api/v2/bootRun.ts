@@ -4,6 +4,8 @@
 //   503 `travel_data_missing`). Nothing here estimates a travel time, and boot does not throw.
 // - A saved v2 state is restored (paused) only if it is a v2 run whose places are all in the cache;
 //   an unusable file is renamed to <file>.bad-<n>, never overwritten (MVP 1 behaviour, #184).
+// - The default run has 120 employees and the story of 60 (#966): the story's 24 packages are matched on the
+//   first 60 employees, exactly as the 60-employee run matches them, and the other 60 start free (storyFirst.ts).
 // - A usable saved state is restored only if it was built from the same default inputs (DECISIONS pass 55):
 //   a fingerprint of the three fixture files and the default request is kept in a sidecar file next to the
 //   state file. A missing or different sidecar: the state file is renamed to <file>.stale-<n>, never deleted,
@@ -34,8 +36,19 @@ export const DEFAULT_V2_STATE_PATH = path.join(repoRoot, 'data', 'state-v2.json'
 /** `fixtures/nyc/`: the three fixture files read here, and the travel cache files. */
 export const NYC_FIXTURES_DIR = path.join(repoRoot, 'fixtures', 'nyc');
 
-/** The default scenario: the demo preset with the contract's defaults (seed 42, 60 employees, 24 packages, 8 extra minutes). */
-export const DEFAULT_RUN_REQUEST: GenerateScenarioRequest = GenerateScenarioRequest.parse({ preset: 'demo' });
+/**
+ * The employees of the default run (#966): the 60 the story is matched on plus 60 more background commuters.
+ * 120 is the contract's maximum and the size of the cached home pool, so nothing is fetched for them.
+ */
+export const DEFAULT_RUN_EMPLOYEES = 120;
+
+/**
+ * The default scenario: the demo preset with the contract's defaults (seed 42, 24 packages, 12 extra minutes)
+ * and `DEFAULT_RUN_EMPLOYEES` employees. The first 60 are the employees of the contract's default count, in
+ * the same order, with the same homes and commutes (the generator adds to a roster, it never reshuffles one).
+ */
+export const DEFAULT_RUN_REQUEST: GenerateScenarioRequest =
+  GenerateScenarioRequest.parse({ preset: 'demo', employees: DEFAULT_RUN_EMPLOYEES });
 
 export type Places = TravelMatrixFile['places'];
 
@@ -127,6 +140,9 @@ export function readNycFixtures(dir: string): NycFixtures {
 
 /**
  * The default NYC run: the demo preset, trips built and every package matched, timeline included.
+ * The 24 story packages are matched on the first 60 employees only (storyFirst.ts, #966), so their plans are
+ * those of the 60-employee story, field for field; the other 60 employees start with both commutes free and
+ * carry only requests that are sent later.
  * Reads only its arguments (no fs). Same arguments, same run, except `assignments.computeMs`, which is measured.
  * Throws TravelDataMissingError if `travel` lacks a pair, and an Error if `places` lacks a business.
  */
@@ -398,7 +414,7 @@ export function bootV2Run(input: BootV2RunInput): V2Boot {
       }
       const why = savedFingerprint === null
         ? `${shown(statePath)} has no record of the NYC story files it was saved from (${shown(sourcePath)} is missing or unreadable).`
-        : `The NYC story files, the default detour limit or the default prices changed since ${shown(statePath)} was saved.`;
+        : `The NYC story files, the default employee count, the default detour limit or the default prices changed since ${shown(statePath)} was saved.`;
       notice = `${why} Started from the new default run; the old run is kept as ${shown(copy)}.`;
     }
     // After the set-aside, so a crash in between leaves no state file and an old sidecar: the next boot

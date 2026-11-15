@@ -74,6 +74,11 @@ export interface GenerateJsonOptions {
   timeoutMs?: number;
   /** Defaults to the global `fetch` (Node 22). */
   fetchImpl?: FetchLike;
+  /**
+   * `generationConfig.thinkingConfig` to send instead of the default of `thinkingConfigFor` (#959: the advisor
+   * asks gemini-3.x Flash for minimal thinking). Null: none is sent. Left out: `thinkingConfigFor(model)`.
+   */
+  thinkingConfig?: Record<string, unknown> | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -197,7 +202,9 @@ export async function generateJson(opts: GenerateJsonOptions): Promise<unknown> 
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema,
-      ...thinkingFields(opts.model),
+      ...(opts.thinkingConfig === undefined
+        ? thinkingFields(opts.model)
+        : opts.thinkingConfig === null ? {} : { thinkingConfig: opts.thinkingConfig }),
     },
   });
   const answer = firstCandidateText(json);
