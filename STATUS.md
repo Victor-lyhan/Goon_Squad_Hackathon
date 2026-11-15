@@ -1,52 +1,51 @@
 # STATUS (maintained by the planner)
 
-_Last update: 2026-11-14, 22:22 (Sat), planner pass 99_
+_Last update: 2026-11-14, 22:30 (Sat), planner pass 100_
 
-## Current milestone: MVP IV (docs/mvp4.md), finishing. Feature freeze: fixes, polish and tests only. Code freeze 5 a.m.
-All three MVP IV tracks are on main (F2 moving carriers + network Play, F1 text box → Gemini or offline, F3 `npm run study` + `/study.html` + "See the numbers", 3,024 runs, PR #848). Human polish batch: #851 (PR #855), #852 (PR #859), #854 (PR #856) merged; #853 (homepage) left. README sync #850 merged (PR #858). Left: #847 (full demo walk, PR #857 in fix round), then fixes for what it lists and one README follow-up for the batch.
+## Current milestone: MVP IV (docs/mvp4.md) done; human-approved post-freeze additions in progress. Code freeze 5 a.m. Rollback tag: `demo-3`.
+All three MVP IV tracks are on main (F2, F1, F3 / PR #848). The full demo walk (#847, PR #857) passed: 13 steps in production at 1440 px, 0 console errors, 0 faults on current main. Humans approved (QUESTIONS 22:25) per-plan pricing (#861), the AI what-if advisor (#862 server, #863 UI), and the dark pill as the style for every map control (#864).
 
 ## HUMAN TO-DO
-1. **Open `/simulator` with the browser key**, or press **Watch a package** on `/`. Nobody has seen the map with a key, and the new dark Play pill (PR #859) was checked only over stand-in backgrounds. Write what looks wrong in QUESTIONS.md; it goes first.
-2. **Calls in QUESTIONS pass 98–99:** relay carrier A vanishes at home (not at the relay point); header keeps "Demo account"; disabled-button reason is now a tooltip, refused step a chip above the pill. SPEC.md line 67 and docs/ still describe the removed header line.
-3. **Homepage animation in Safari** (and the presenter's browser): the package uses CSS `offset-path`; without support it rests at the recipient.
-4. **F1: put `GEMINI_API_KEY`** (optionally `GEMINI_MODEL`) in `.env`, then run `npx tsx scripts/gemini-check.ts "<sentence>"` (PR #805). Exit 0 / `source: gemini` = OK; `HTTP 400` = refused request or bad key; `HTTP 404` = set `GEMINI_MODEL`.
-5. **F1 demo sentence** (Business page of Brooklyn Roasting, works without a key): `Send a 0.5 kg envelope of espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow, ready at 4 p.m.` → Relay via Etsy, $10.00, Elena Rossi then Reese Green, listed as "Envelope".
-6. **Before the real demo, reset the run** (stop the server, delete `data/state-v2.json`, start) if anyone rehearsed "Find a delivery match" (PR #749).
-7. **Demo machine:** `npm run build` in the checkout that has `.env` (browser key read at build time, PR #726).
-8. **GitHub Actions still not running (billing).** Reviewers run `bash scripts/test.sh` locally.
+1. **Open `/simulator` with the browser key**, or press **Watch a package** on `/`. The demo walk had no key: markers, routes and the dark Play pill over the real map are unseen. Write what looks wrong in QUESTIONS.md.
+2. **Pricing changes the demo number:** after #861 the F1 demo sentence costs $10.50 (or $9.50 if its ready→deadline window is ≥ 18 h; the README sentence's window is 18 h, so expect **$9.50**). README and `tests/ui/demo-walk-mvp4` pin $10.00; #861 must update both.
+3. **Calls in QUESTIONS pass 98–100** (carrier A vanishes at home; "Demo account" stays; disabled reason as tooltip; #864 restyles existing map controls).
+4. **Homepage animation in Safari** (CSS `offset-path`; without it the package rests at the recipient). Look at the hero at 821–1000 px after PR #860 (map ~290 px wide).
+5. **F1/advisor: put `GEMINI_API_KEY`** (optionally `GEMINI_MODEL`) in `.env`, run `npx tsx scripts/gemini-check.ts "<sentence>"` (PR #805). Without a key the advisor (#862) answers "offline".
+6. **Before the real demo, reset the run** (stop server, delete `data/state-v2.json`, start). **Demo machine:** `npm run build` in the checkout with `.env`.
+7. **GitHub Actions still not running (billing).** Reviewers run `bash scripts/test.sh` locally.
 
 ## Main health
-- CI red = billing (DECISIONS pass 61): runs of #850, #852 and the 22:15 planner commit. Reviews of PR #857/#859 say the check failed in 1–2 s; local `scripts/test.sh` passes (PR #859: 401 files, 7071 tests). No fix issue.
+- CI red = billing (DECISIONS pass 61): runs of #847, the 22:21 planner commit and the 22:26 QUESTIONS commit. PR #857 review: `scripts/test.sh` passed locally (403 files / 7098 tests). No fix issue.
 
 ## Stuck
 - Nothing labeled `stuck`.
-- PR #857 (#847) is `needs-fix`: the test is fine, but the PR body has no walk table. Planner comment on #847 (pass 99): walk current main and list faults by module.
+- PR #860 (#853, homepage hero) is approved but did not merge (conflict with main); `needs-fix`, worker told to merge origin/main.
 
-## Queued this pass: 0 (DECISIONS pass 99)
-- Demo-walk fixes wait for #847's table; the README follow-up waits for #853.
+## Queued this pass: 1 (DECISIONS pass 100)
+- #864 (victor-7): legend, day/night badge, banners, overnight card → dark translucent pill. CSS in `sim/v2/compose/`, `sim/v2/legend/`, `map/map.css` day/night rules.
 
 ## In progress / ready
-- #853 (victor-8, human): homepage hero centered, logo as the R of "Relay". `Landing.tsx`, `landing.css`, homepage tests.
-- #847 (victor-7): full demo walk; PR #857 fix round; holds `tests/ui/demo-walk-mvp4*` only.
+- #861 (victor-4, human-filed): one `customerPriceCents` in `server/domain/pricing.ts` (legs × $3 + $0.50 relay + $4 platform − $1 if window ≥ 18 h); every $10, README, story, study rerun.
+- #862 (victor-2, human-filed): `POST /api/v2/advise`, Gemini tool loop over the engine, offline fallback; adds types to `shared/v2/api.ts`. Uses #861's price.
+- #863 (victor-6, ready, human-filed): "Options" card after Parse in `client/src/components/business/v2/`, mocks /advise.
+- #853 (victor-8): PR #860 merge-conflict fix.
 
-## Merged since pass 98 (22:14)
-- PR #859 (#852): Play / Back to start are a dark translucent pill floating on the map, white icons, 44 px buttons; the step line under them is gone (still announced to screen readers).
-- PR #858 (#850): README synced with the MVP IV UI batch (Play bar at the bottom center, #832's panel wording, homepage, 3,024-run study).
+## Merged since pass 99 (22:22)
+- PR #857 (#847): full MVP IV demo walk, no faults; `tests/ui/demo-walk-mvp4.test.ts` (API half, `arrived` at 6:22 PM).
 
 ## Earlier MVP IV merges
-- Pass 94–98: PR #856 header text, #855 journey shows only handling carriers, #849 status chips, #848 3,024-run study, #845 Delivered step scroll, #844 landing counts, #840 homepage dark SVG hero.
+- Pass 94–99: PR #859 Play pill, #858 README sync, #856 header text, #855 journey handling carriers, #849 status chips, #848 3,024-run study, #845, #844, #840 homepage hero.
 - F1: PR #793, #795, #804, #805, #817, #818, #825, #834. F2: PR #789, #801, #783, #794, #830, #835, #837, #839. F3: PR #792, #802, #803, #819.
-- Other: PR #809 README Gemini + study, #813 plan/job order, #814 production test, #822/#826 test port clash, #828 README MVP IV demos, #829 homepage check, #838 panel text.
+- Other: PR #809, #813, #814, #822/#826, #828, #829, #838.
 
 ## Next up (each needs the issues in brackets merged first)
-- Fixes for whatever #847's walk lists, each to its owning module [#847].
-- One README follow-up for the polish batch: pill Play bar, README line 82/100 "under the buttons" text that no longer exists, journey shows only handling carriers, header, homepage hero [#853]; after #847 so walk-driven README lines go in the same issue if both are ready.
+- README follow-up: pill Play bar, README lines 82/100 "under the buttons", journey handling carriers, header, homepage hero, map-control look, advisor Options card [#853, #861, #862, #863, #864]; #861 edits README too, so it waits for it.
+- Demo walk re-run with per-plan prices and the advisor card (headless Chrome, 1440 + 390 px) [#861, #862, #863].
 
-## Known bugs / gaps
-- README lines 82 and 100 still describe the step line under the Play buttons, removed by PR #859 (README follow-up).
-- Real Gemini API never tested (needs a human with a key, to-do 4).
-- Homepage package animation checked in headless Chrome only (to-do 3).
-- Random city at end of day is 158.6 KB, over the 150 KB poll budget; unreachable from any page (DECISIONS pass 82).
-- Carrier package badge can drift a pixel or two between zoom events (PR #775 note); low priority, not queued in the freeze.
-- `PORT` does not work with `npm run dev` (README says `npm start` only).
-- `npm run study` needs tsx (devDependency); run it from a dev checkout.
+## Known bugs / gaps / risks
+- #861 and #862 both may touch `shared/` / plan types in parallel (human-arranged); the second to merge rebases.
+- README lines 82 and 100 still describe the removed step line under Play (README follow-up).
+- Real Gemini API never tested (to-do 5). Homepage animation checked in headless Chrome only.
+- Random city at end of day is 158.6 KB, over the 150 KB poll budget; unreachable from any page (pass 82).
+- Carrier package badge can drift a pixel or two between zoom events (PR #775 note); not queued in the freeze.
+- `PORT` does not work with `npm run dev`; `npm run study` needs tsx (devDependency).
