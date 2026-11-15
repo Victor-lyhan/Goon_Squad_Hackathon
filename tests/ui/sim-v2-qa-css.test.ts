@@ -159,7 +159,7 @@ describe('sim v2 + map CSS: keyboard focus', () => {
     expect(r, `${selector}:focus-visible in ${file}`).toBeDefined();
   });
 
-  it('the focus ring is the accent colour, 2px; on the dark map pills it is white, 2px (#852, #864)', () => {
+  it('the focus ring is the accent colour, 2px; on the dark map pills and the map placeholder it is white, 2px (#852, #864, #890)', () => {
     const pill = RULES.filter((x) => x.selectors.includes('.ctl-btn:focus-visible'));
     expect(pill).toHaveLength(1);
     expect(pill[0].selectors).toEqual(['.ctl-btn:focus-visible']);
@@ -169,8 +169,13 @@ describe('sim v2 + map CSS: keyboard focus', () => {
     expect(legend).toHaveLength(1);
     expect(legend[0].selectors).toEqual(['.ml__toggle:focus-visible']);
     expect(legend[0].decls.find(([p]) => p === 'outline')?.[1]).toBe(PILL_FOCUS_RING.replace(', #FFFFFF', ''));
+    // #890: Retry of the map placeholder sits on the ink frame of a map that is not coming.
+    const retry = RULES.filter((x) => x.selectors.includes('.map-v2__retry:focus-visible'));
+    expect(retry).toHaveLength(1);
+    expect(retry[0].selectors).toEqual(['.map-v2__retry:focus-visible']);
+    expect(retry[0].decls.find(([p]) => p === 'outline')?.[1]).toBe(PILL_FOCUS_RING);
     for (const r of RULES.filter((x) => x.selectors.some((s) => s.endsWith(':focus-visible')))) {
-      if (r === pill[0] || r === legend[0]) continue;
+      if (r === pill[0] || r === legend[0] || r === retry[0]) continue;
       const outline = r.decls.find(([p]) => p === 'outline')?.[1];
       // #1D5075 is the token; journey.css still writes the MVP II fallback (#699).
       if (outline) expect(outline, where(r)).toMatch(/^2px solid var\(--accent(, #(1D5075|28618A))?\)$/);

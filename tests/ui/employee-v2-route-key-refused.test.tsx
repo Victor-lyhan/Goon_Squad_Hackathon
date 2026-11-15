@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Issue #626: when Google refuses the browser key the map area shows the alert, and the text under it
+// Issue #626: when Google refuses the browser key the map area says so (a status since #890), and the text under it
 // still names both commute directions. On the workspace it repeats no departure (the commute card
 // has them) and the legend lists only the commute. The Google loader is faked; no network, no key.
 import { act } from 'react';
@@ -34,19 +34,24 @@ async function refusedPreview(job: typeof JOB | null) {
   act(() => { (win().gm_authFailure as () => void)(); });
   return m.container;
 }
+// #890: the map says it in its placeholder's status region; nothing on the map is an alert any more.
+const notice = (root: Element) => {
+  expect(root.querySelector('[role="alert"]')).toBeNull();
+  return root.querySelector('.ecr__map .map-v2__state-text[role="status"]')!.textContent;
+};
 const items = (root: Element, selector: string) => [...root.querySelectorAll(`${selector} li`)].map((li) => li.textContent!.trim());
 
 describe('CommuteRoutePreview when Google refuses the key', () => {
-  it('on the workspace: the alert, both directions as text with no departure, the commute alone in the legend', async () => {
+  it('on the workspace: the notice, both directions as text with no departure, the commute alone in the legend', async () => {
     const root = await refusedPreview(null);
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain('Google rejected the browser key.');
+    expect(notice(root)).toContain('Google rejected the browser key.');
     expect(items(root, '.ecr__summary')).toEqual(['Evening: 34 min, 9.8 km', 'Morning: 31 min, 9.7 km']);
     expect(items(root, '.ecr__legend')).toEqual(['Your normal commute']);
   });
 
   it('with a job open: both directions with their departure, the stops, and "Delivery route" in the legend', async () => {
     const root = await refusedPreview(JOB);
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain('Google rejected the browser key.');
+    expect(notice(root)).toContain('Google rejected the browser key.');
     expect(items(root, '.ecr__summary')).toEqual([
       'Evening: leaves 5:30 PM, 34 min, 9.8 km',
       'Morning: leaves 8:30 AM, 31 min, 9.7 km',

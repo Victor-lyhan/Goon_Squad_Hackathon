@@ -86,27 +86,6 @@
   font-size: var(--text-xs, 12px);
 }
 
-.bdr-line {
-  margin: 0;
-  padding: var(--space-2, 8px) var(--space-3, 12px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-left: 2px solid var(--accent, #1D5075);
-  border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--muted, #5B6472);
-}
-.bdr-line--problem { border-left-color: var(--danger, #A4322A); color: var(--text, #171C24); }
-.bdr-retry {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent, #1D5075);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-}
-.bdr-retry:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-
 @media (max-width: 600px) {
   .bdr__map { height: 240px; }
 }

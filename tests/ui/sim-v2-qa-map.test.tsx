@@ -1,10 +1,10 @@
-// #479: the map's hover tooltip text (name and role) is reachable without a mouse, and the map's
-// load-error message is an alert; the missing-key message is a polite status (#767). Static renders in
-// Node (no Google, no WebGL).
+// #479: the map's hover tooltip text (name and role) is reachable without a mouse. The missing-key
+// message is a polite status (#767), and since #890 so is the load error: one placeholder, never an
+// alert. Static renders in Node (no Google, no WebGL).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { GoogleBaseMap, MapKeyMissing, MapLoadError } from '../../client/src/components/map/GoogleBaseMap';
-import { KEY_MISSING_TEXT, LOAD_ERROR_TEXT, selectedItemText } from '../../client/src/components/map/mapModel';
+import { GoogleBaseMap, MapPlaceholder } from '../../client/src/components/map/GoogleBaseMap';
+import { KEY_MISSING_TEXT, LOAD_ERROR_TEXT, mapStateCopy, selectedItemText } from '../../client/src/components/map/mapModel';
 import type { LayerVisibility, MapMover, MapPlace, MapStop } from '../../client/src/components/map/types';
 import { RULES } from './sim-v2-qa-css-rules';
 
@@ -60,7 +60,7 @@ describe('GoogleBaseMap: the selected item in a visually hidden live region', ()
       <GoogleBaseMap places={places} routes={[]} movers={movers} visible={visible} selectedIds={['biz-a']} />,
     );
     expect(liveRegion(html)).toBe('Selected on map: DUMBO Café, Network business · DUMBO');
-    expect(html).toMatch(/<div class="map-v2__panel" role="status">/);
+    expect(html).toMatch(/<div class="map-v2__state-text" role="status">/);
     expect(html).not.toContain('role="alert"');
   });
 
@@ -74,19 +74,22 @@ describe('GoogleBaseMap: the selected item in a visually hidden live region', ()
   });
 });
 
-describe('GoogleBaseMap: the missing-key message is a status, the load-error message an alert', () => {
+describe('GoogleBaseMap: the missing-key and the load-error messages are both a status (#890)', () => {
+  const statusRegion = (html: string) => /<div class="map-v2__state-text" role="status">(.*?)<\/div>/.exec(html)?.[1] ?? '<none>';
+
   it('missing key: role="status", so it does not interrupt on every load without a key (#767)', () => {
-    const html = renderToStaticMarkup(<MapKeyMissing />);
-    expect(html.startsWith('<div class="map-v2__panel" role="status">')).toBe(true);
+    const html = renderToStaticMarkup(<MapPlaceholder copy={mapStateCopy('missing-key')} />);
+    expect(statusRegion(html)).toContain(KEY_MISSING_TEXT);
     expect(html).not.toContain('role="alert"');
     expect(html).not.toContain('aria-live="assertive"');
-    expect(html).toContain(KEY_MISSING_TEXT);
+    expect(html).not.toContain('<button');
   });
 
-  it('load error, with a Retry button: still an alert', () => {
-    const html = renderToStaticMarkup(<MapLoadError onRetry={() => {}} />);
-    expect(html.startsWith('<div class="map-v2__panel" role="alert">')).toBe(true);
-    expect(html).toContain(LOAD_ERROR_TEXT);
-    expect(html).toMatch(/<button[^>]*>Retry<\/button>/);
+  it('load error: a status too, with a Retry button outside the region (the words alone are announced)', () => {
+    const html = renderToStaticMarkup(<MapPlaceholder copy={mapStateCopy('error')} onRetry={() => {}} />);
+    expect(statusRegion(html)).toContain(unescape(LOAD_ERROR_TEXT).replace("'", '&#x27;'));
+    expect(statusRegion(html)).not.toContain('<button');
+    expect(html).not.toContain('role="alert"');
+    expect(html).toMatch(/<button type="button" class="map-v2__retry">Retry<\/button>/);
   });
 });

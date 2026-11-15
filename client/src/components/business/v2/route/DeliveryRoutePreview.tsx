@@ -1,11 +1,13 @@
 // The open delivery on the NYC map (#549): sender, relay point and recipient, each carrier leg in its
 // colour (LEG1, LEG2 from the map component) and the numbered stops, with the stops also as text under
 // the map so nothing depends on the map loading. Same look as the simulator's package journey.
-// `DeliveryRouteSlot` is what the Business page mounts: loading line, map, or one line with Retry.
+// `DeliveryRouteSlot` is what the Business page mounts: the map, or the map's placeholder in the same box
+// while the page's map data loads ("Loading the map…") or after it failed (one line, a hint and Retry, #890).
 import { useMemo } from 'react';
 import type { MapResponse, ShipmentView } from '../../../../../../shared/v2/api';
-import { GoogleBaseMap } from '../../../map/GoogleBaseMap';
+import { GoogleBaseMap, MapStateFrame } from '../../../map/GoogleBaseMap';
 import { toneLabelColor } from '../../../map/layers';
+import { RETRYING_COPY, STILL_WORKS_TEXT, type MapStateCopy } from '../../../map/mapModel';
 import type { LayerVisibility, RouteTone } from '../../../map/types';
 import type { DeliveryMapSlot } from './deliveryMapLoader';
 import { NO_ROUTE_NOTE, STRAIGHT_NOTE, buildDeliveryRoute } from './deliveryRouteModel';
@@ -64,18 +66,27 @@ export function DeliveryRoutePreview({ view, map }: DeliveryRoutePreviewProps) {
 
 export type DeliveryRouteSlotProps = { slot: DeliveryMapSlot; view: ShipmentView; onRetry: () => void };
 
+/** While the page's map data loads, or after it failed: the map's own placeholder in the map's box. */
+function slotCopy(slot: Extract<DeliveryMapSlot, { kind: 'loading' | 'failed' }>): MapStateCopy {
+  if (slot.kind === 'failed') return { line: slot.text, hint: [STILL_WORKS_TEXT], retry: true, tone: 'dark' };
+  // After Retry the failure's frame and button stay while the request is pending.
+  return slot.retrying ? { ...RETRYING_COPY, line: slot.text } : { line: slot.text, hint: [], retry: false, tone: 'plain' };
+}
+
 export function DeliveryRouteSlot({ slot, view, onRetry }: DeliveryRouteSlotProps) {
   switch (slot.kind) {
     case 'none':
       return null;
+    // One element for both, so the status region stays in the page from "Loading the map…" to a failure
+    // and the change is announced once (#890). The box is the map's, so nothing jumps when it arrives.
     case 'loading':
-      return <p className="bdr-line" role="status">{slot.text}</p>;
     case 'failed':
       return (
-        <p className="bdr-line bdr-line--problem" role="alert">
-          {slot.text}{' '}
-          <button type="button" className="bdr-retry" onClick={onRetry}>Retry</button>
-        </p>
+        <section className="bdr" aria-label="Delivery route on the map">
+          <div className="bdr__map">
+            <MapStateFrame copy={slotCopy(slot)} onRetry={onRetry} />
+          </div>
+        </section>
       );
     case 'map':
       return <DeliveryRoutePreview view={view} map={slot.map} />;

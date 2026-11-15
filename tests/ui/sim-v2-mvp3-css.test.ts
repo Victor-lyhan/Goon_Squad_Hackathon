@@ -233,9 +233,11 @@ describe('Simulator CSS, MVP III look (#701)', () => {
       }
     });
 
-    it('the map load overlay is the --bg token at 85%, not a literal', () => {
-      expect(valueOf('map/map.css', '.map-v2__overlay', 'background')).toBe('color-mix(in srgb, var(--bg, #F7F7F4) 85%, transparent)');
-      expect(valueOf('map/map.css', '.map-v2__overlay--solid', 'background')).toBe('var(--bg, #F7F7F4)');
+    it('the map placeholder is the ink token, not a literal; while loading it has no fill of its own (#890)', () => {
+      expect(valueOf('map/map.css', '.map-v2__state--dark', 'background')).toBe('var(--text, #171C24)');
+      expect(valueOf('map/map.css', '.map-v2__state--dark', 'color')).toBe('var(--panel, #FFFFFF)');
+      expect(valueOf('map/map.css', '.map-v2__state--plain', 'background')).toBeUndefined();
+      expect(valueOf('map/map.css', '.map-v2__state', 'background')).toBeUndefined();
     });
   });
 
@@ -332,13 +334,13 @@ describe('Simulator CSS, MVP III look (#701)', () => {
         // The number on a status filter chip.
         'packages/packages.css': ['.pk-count'],
         'page/page.css': [],
-        // The day/night badge's time, and the env variable name in the "no key" message.
-        'map/map.css': ['.map-v2__panel code', '.map-v2__daynight'],
+        // A name in the placeholder's hint (the env variable, .env, this page's origin), and the day/night badge's time.
+        'map/map.css': ['.map-v2__state-hint code', '.map-v2__daynight'],
       });
     });
 
     it('mono numbers have digits of one width', () => {
-      for (const u of uses.filter((x) => x.font === 'mono' && x.selector !== '.map-v2__panel code')) {
+      for (const u of uses.filter((x) => x.font === 'mono' && x.selector !== '.map-v2__state-hint code')) {
         expect(u.rule.decls.find((d) => d.prop === 'font-variant-numeric')?.value, `${u.file} ${u.selector}`).toBe('tabular-nums');
       }
     });
@@ -457,11 +459,13 @@ describe('Simulator CSS, MVP III look (#701)', () => {
       expect(contrast('#FFFFFF', tokens.get('--text')!)).toBeGreaterThanOrEqual(3);
     });
 
-    it('every other focus style in the files is the 2 px accent outline, and none is removed', () => {
+    it('every other focus style in the files is the 2 px accent outline (white on the ink of the map placeholder), and none is removed', () => {
       const focus = [...parsed].flatMap(([file, rules]) => rules.filter((r) => /:focus-visible/.test(r.selector)).map((rule) => ({ file, rule })));
       expect(focus.length).toBeGreaterThanOrEqual(6);
       for (const { file, rule } of focus) {
-        const pill = file === CTL && rule.selector.trim() === '.ctl-btn:focus-visible';
+        // On the ink: the Play pill's buttons, and Retry of the map placeholder (#890).
+        const pill = (file === CTL && rule.selector.trim() === '.ctl-btn:focus-visible')
+          || (file === 'map/map.css' && rule.selector.trim() === '.map-v2__retry:focus-visible');
         expect(rule.decls.find((d) => d.prop === 'outline')?.value, `${file} ${rule.selector}`)
           .toBe(pill ? '2px solid var(--panel, #FFFFFF)' : '2px solid var(--accent, #1D5075)');
       }

@@ -76,9 +76,12 @@ describe('delivery map loader', () => {
     h.loader.sync('run-1', relayPlan); // the poll does not retry by itself
     expect(h.getMap).toHaveBeenCalledTimes(1);
     h.loader.retry();
+    // #890: while the retry is pending the slot says so, and the placeholder keeps its Retry button.
+    expect(h.slot()).toEqual({ kind: 'loading', text: ROUTE_MAP_LOADING_TEXT, retrying: true });
     await flush();
     expect(h.getMap).toHaveBeenCalledTimes(2);
     expect(h.slot()).toEqual({ kind: 'map', map: MAP });
+    expect(h.state()).toEqual({ status: 'ready', map: MAP });
   });
 
   it('a newer request and stop abort the old one silently', async () => {

@@ -270,15 +270,20 @@ describe('nothing moved (#864): positions, sizes, z-order and the legend scroll 
 });
 
 describe('what is not a control keeps its look (#864)', () => {
-  it('the map states (key missing, error, loading) and the hover tooltip are still light panels', () => {
-    for (const selector of ['.map-v2__panel', '.map-v2__tooltip']) {
+  it('the hover tooltip is still a light panel; the map placeholder is the flat ink frame, not a pill (#890)', () => {
+    const tip = decls('.map-v2__tooltip');
+    expect([tip.get('background'), tip.get('border'), tip.get('color')])
+      .toEqual(['var(--panel, #FFFFFF)', '1px solid var(--border, #E3E3DE)', 'var(--text, #171C24)']);
+    expect(tip.has('backdrop-filter')).toBe(false);
+    // No key, key rejected, load error: the opaque ink with white words. No blur, no radius, no border.
+    const dark = decls('.map-v2__state--dark');
+    expect([dark.get('background'), dark.get('color')]).toEqual(['var(--text, #171C24)', 'var(--panel, #FFFFFF)']);
+    for (const selector of ['.map-v2__state', '.map-v2__state--dark', '.map-v2__state--plain', '.map-v2__state-body']) {
       const rule = decls(selector);
-      expect([rule.get('background'), rule.get('border'), rule.get('color')], selector)
-        .toEqual(['var(--panel, #FFFFFF)', '1px solid var(--border, #E3E3DE)', 'var(--text, #171C24)']);
-      expect(rule.has('backdrop-filter'), selector).toBe(false);
+      for (const prop of ['backdrop-filter', 'border', 'border-radius', 'box-shadow']) expect(rule.has(prop), `${selector} ${prop}`).toBe(false);
     }
-    expect(decls('.map-v2__overlay').get('background')).toBe('color-mix(in srgb, var(--bg, #F7F7F4) 85%, transparent)');
-    expect(decls('.map-v2__overlay--solid').get('background')).toBe('var(--bg, #F7F7F4)');
+    // Loading has no fill: the frame of the map that is about to appear shows through.
+    expect(decls('.map-v2__state--plain').has('background')).toBe(false);
     // The area behind the tiles: light by day, the ink at night.
     expect(decls('.map-v2').get('background')).toBe('var(--bg, #F7F7F4)');
     expect(decls('.map-v2--night').get('background')).toBe('var(--text, #171C24)');

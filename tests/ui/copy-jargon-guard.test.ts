@@ -49,15 +49,8 @@ const JARGON: ReadonlyArray<{ word: string; re: RegExp }> = [
  * so a fixed line that comes back in other words still fails. An entry whose text is gone does not
  * fail the test (the fix may merge before or after this file); delete it when you see it.
  */
-const ALLOWED: ReadonlyArray<{ file: string; word: string; text: string; module: string; issue: string }> = [
-  {
-    file: 'client/src/components/map/GoogleBaseMap.tsx',
-    word: 'API',
-    text: "The Maps JavaScript API is enabled in the key's project.",
-    module: 'Map (client/src/components/map/)',
-    issue: '#890',
-  },
-];
+// Empty since #890 reworded the map's rejected-key hint ("turn on Maps JavaScript and billing").
+const ALLOWED: ReadonlyArray<{ file: string; word: string; text: string; module: string; issue: string }> = [];
 
 // ---- which strings are text ----
 
