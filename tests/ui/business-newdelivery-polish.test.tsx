@@ -351,13 +351,14 @@ describe('each option is one Tab stop whose name holds its price', () => {
     expect(p.createShipment).not.toHaveBeenCalled(); // choosing sends nothing
   }, T);
 
-  it('the price stands alone in the mono class; a mark is the server\'s tag, shown as a badge, never the page\'s own', async () => {
+  it('the price stands alone, as the row\'s large figure in the heading face; a mark is the server\'s tag, shown as a badge, never the page\'s own', async () => {
     const p = setup();
     await p.read();
     // #960: no word inside the price, and an answer without tags (these options) gets no badge: the page compares no price.
     expect(p.rows().map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$10.50', '$9.50']);
     expect(p.rows().map((r) => [...r.querySelectorAll('.nd-option__tag')].map(textOf))).toEqual([[], []]);
-    for (const r of p.rows()) expect(r.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(true);
+    // The board's price is set in Archivo (#956, the human's direction for this card), not in the mono class.
+    for (const r of p.rows()) expect(r.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(false);
     expect(optionName({ label: 'As requested', priceText: '$9.50', tags: [] }, false)).toBe('Choose this option: As requested, $9.50');
     // #954: a label with its price at the end does not say the price twice.
     expect(optionName({ label: 'Relay via Etsy, $9.50', priceText: '$9.50', tags: ['cheapest'] }, false))
@@ -381,7 +382,10 @@ describe('each option is one Tab stop whose name holds its price', () => {
   it('what the carriers add is named in plain words', async () => {
     const p = setup();
     await p.read();
-    expect([...p.rows()[0].querySelectorAll('dt')].map(textOf)).toEqual(['Arrives', 'Route', 'Added to commutes', 'Carried by']);
+    // A name that does not say the route itself ("As requested") gets it as a fact; the arrival time has
+    // a column of its own after the facts (#956).
+    expect(textOf(p.rows()[0].querySelector('h3')!)).toBe('As requested');
+    expect([...p.rows()[0].querySelectorAll('dt')].map(textOf)).toEqual(['Route', 'Added to commutes', 'Carried by', 'Arrives']);
   }, T);
 });
 
@@ -397,8 +401,8 @@ describe('newDelivery.css: the send button stays on screen, and the card fits 39
     const bar = rule(css, '.nd > .nd-actions')!;
     expect(bar).toMatch(/position: sticky;/);
     expect(bar).toMatch(/bottom: 0;/);
-    expect(bar).toMatch(/background: var\(--panel, #FFFFFF\);/);
-    expect(bar).toMatch(/border-top: 1px solid var\(--border, #E3E3DE\);/);
+    expect(bar).toMatch(/background: var\(--ns-sheet, #FFFFFF\);/);
+    expect(bar).toMatch(/border-top: 1px solid var\(--ns-line, #DCD8CE\);/);
     // Only the form's bar: the text box's buttons stay where they are.
     expect(css).not.toMatch(/\.nd-request[^{]*\{[^}]*position: sticky/);
   });
@@ -422,13 +426,19 @@ describe('newDelivery.css: the send button stays on screen, and the card fits 39
     expect(css).toMatch(/\.nd-wait:empty \{ display: none; \}/);
     expect(css).toMatch(/\.nd-options__status:empty \{ display: none; \}/);
     for (const [, selector, body] of css.matchAll(/(\.nd-option[^{]*)\{([^}]*)\}/g)) {
+      if (selector.trim() === '.nd-option__label-price') continue; // read out, not shown: a 1 px box (#956)
       expect(body, selector).not.toMatch(/(^|[\s;])(min-)?width: \d+px/);
     }
-    expect(rule(narrow, '.nd-option__facts')).toMatch(/grid-template-columns: 1fr 1fr;/);
+    // A row of the board (#956) is four columns; where the card is narrow the line and the price share the
+    // first row and the rest stacks under them, so nothing is squeezed at 390 px.
+    expect(rule(css, '.nd-option')).toMatch(/grid-template-columns: minmax\(0, 15rem\) minmax\(0, 1fr\) 8\.5rem 10rem;/);
+    const stacked = css.match(/@media \(max-width: 720px\) \{([\s\S]*?)\n\}/)![1];
+    expect(rule(stacked, '.nd-option')).toMatch(/grid-template-columns: minmax\(0, 1fr\) auto;/);
+    expect(rule(stacked, '.nd-option')).toMatch(/'line price'\s*'main main'\s*'arrives arrives'\s*'foot foot'/);
   });
 
   it('the option buttons take the ring of every button in the form', () => {
-    expect(css).toMatch(/\.nd-btn:focus-visible \{ outline: 2px solid var\(--accent, #1D5075\); outline-offset: 2px; \}/);
+    expect(css).toMatch(/\.nd-btn:focus-visible \{ outline: 2px solid var\(--ns-ink, #0B0F17\); outline-offset: 2px; \}/);
     expect(css).not.toMatch(/\.nd-option__choose[^{]*\{[^}]*outline: (none|0)/);
   });
 });

@@ -173,12 +173,12 @@ describe('the text box in newDelivery.css', () => {
     new RegExp(`(?:^|[}\\s])${selector.replace(/[.+]/g, '\\$&')} \\{([^}]*)\\}`).exec(within)?.[1] ?? '';
 
   it('the box is large, and at 390 px it is taller than the 44 px of a form control', () => {
-    expect(rule('.nd-request__text')).toMatch(/min-height: 120px;/);
+    expect(rule('.nd-request__text')).toMatch(/min-height: 136px;/);
     expect(rule('.nd-request__text')).toMatch(/height: auto;/);
     const narrow = css.match(/@media \(max-width: 480px\) \{([\s\S]*?)\n\}/)![1];
     // After the rule that sets every .nd-input to 44 px, so the box keeps its height.
     expect(narrow.indexOf('.nd-request__text {')).toBeGreaterThan(narrow.indexOf('.nd-input, .nd-btn {'));
-    expect(rule('.nd-request__text', narrow)).toMatch(/height: auto; min-height: 132px;/);
+    expect(rule('.nd-request__text', narrow)).toMatch(/height: auto; min-height: 148px;/);
   });
 
   it('the note and the form below it read as one card', () => {

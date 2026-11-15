@@ -84,17 +84,17 @@ describe('adviceCard: the rows of the Options card', () => {
     expect(c.rows).toEqual([
       {
         key: 'option-0', label: 'As requested', summary: 'Next-morning relay through Atlas Books.', priceText: '$16.00',
-        tags: [], arrivalText: 'Day 2, 9:05 AM', routeText: 'Via Atlas Books', extraText: '+17\u00a0min · +2.4\u00a0mi',
+        tags: [], arrivalText: 'Day 2, 9:05 AM', kind: 'relay', routeText: 'Relay via Atlas Books', extraText: '+17\u00a0min · +2.4\u00a0mi',
         carriersText: 'Maya Chen, Luis Ortega', times: { readyTime: '16:00', deadlineDay: 2, deadlineTime: '10:00' },
       },
       {
         key: 'option-1', label: 'Ready 30 minutes earlier', summary: 'One carrier takes it tonight.', priceText: '$12.50',
-        tags: [], arrivalText: 'Day 1, 6:30 PM', routeText: 'Direct', extraText: '+9\u00a0min · +1.0\u00a0mi',
+        tags: [], arrivalText: 'Day 1, 6:30 PM', kind: 'direct', routeText: 'Direct', extraText: '+9\u00a0min · +1.0\u00a0mi',
         carriersText: 'Maya Chen', times: { readyTime: '15:30', deadlineDay: 2, deadlineTime: '10:00' },
       },
       {
         key: 'option-2', label: 'Deliver by noon', summary: 'A wider window earns the flexibility discount.', priceText: '$14.00',
-        tags: [], arrivalText: 'Day 2, 9:30 AM', routeText: 'Via Atlas Books', extraText: '+17\u00a0min · +2.4\u00a0mi',
+        tags: [], arrivalText: 'Day 2, 9:30 AM', kind: 'relay', routeText: 'Relay via Atlas Books', extraText: '+17\u00a0min · +2.4\u00a0mi',
         carriersText: 'Maya Chen, Luis Ortega', times: { readyTime: '16:00', deadlineDay: 2, deadlineTime: '12:00' },
       },
     ]);
@@ -124,7 +124,9 @@ describe('adviceCard: the rows of the Options card', () => {
     const c = card(answer([option({ relayBusinessId: 'biz-gone' }), option({ relayBusinessId: undefined, changes: { readyMin: 900 } })], {
       note: '  Only relay plans fit this window.  ',
     }))!;
-    expect(c.rows.map((r) => r.routeText)).toEqual(['Via a relay point', 'Via a relay point']);
+    // The words of the row's line badge (#956): "Relay via <business>".
+    expect(c.rows.map((r) => r.routeText)).toEqual(['Relay via a relay point', 'Relay via a relay point']);
+    expect(c.rows.map((r) => r.kind)).toEqual(['relay', 'relay']);
     expect(c.note).toBe('Only relay plans fit this window.');
   });
 

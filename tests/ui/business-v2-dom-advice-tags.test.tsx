@@ -189,30 +189,37 @@ describe('#960 the card: badges, the price, the arrival time and one sentence', 
     expect(p.rows().map((r) => [...r.querySelectorAll('.nd-option__tag')].map((b) => b.className))).toEqual([
       ['nd-option__tag nd-option__tag--fastest'], ['nd-option__tag nd-option__tag--cheapest'], ['nd-option__tag nd-option__tag--recommended'],
     ]);
-    // The badges come before the row's name, so they are read with it.
+    // The badges come before the row's name, so they are read with it. Since #956 the two are the row's
+    // first column, its line: the name stands behind a small drawn route line.
     for (const r of p.rows()) {
-      const head = r.querySelector('.nd-option__head')!;
+      const head = r.querySelector('.nd-option__line')!;
       expect([...head.children].map((c) => c.className)).toEqual(['nd-option__tags', 'nd-option__label']);
+      expect(head.querySelector('h3 .lb-badge .lb-mark')!.getAttribute('aria-hidden')).toBe('true');
     }
+    expect(p.rows().map((r) => r.querySelector('.lb-badge')!.className)).toEqual([
+      'lb-badge lb-badge--direct', 'lb-badge lb-badge--relay', 'lb-badge lb-badge--direct',
+    ]);
   }, T);
 
-  it('the price is the row\'s large figure, with the arrival time under it and the sentence under both', async () => {
+  it('the price is the row\'s large figure; the row reads like a departure board: line, sentence, arrival time, price (#956)', async () => {
     const p = await show(answer([FAST, CHEAP, PICKED]));
     const [first] = p.rows();
-    expect([...first.children].map((c) => c.className)).toEqual(['nd-option__top', 'nd-option__summary', 'nd-option__facts', 'nd-option__foot']);
-    const deal = first.querySelector('.nd-option__top > .nd-option__deal')!;
-    expect([...deal.children].map((c) => c.className)).toEqual(['nd-option__price', 'nd-option__arrives']);
+    expect([...first.children].map((c) => c.className)).toEqual([
+      'nd-option__line', 'nd-option__main', 'nd-option__arrives', 'nd-option__price', 'nd-option__foot',
+    ]);
+    expect([...first.querySelector('.nd-option__main')!.children].map((c) => c.className)).toEqual(['nd-option__summary', 'nd-option__facts']);
     expect(p.rows().map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$14.00', '$9.50', '$11.00']);
     expect(p.rows().map((r) => [...r.querySelector('.nd-option__arrives')!.children].map(textOf))).toEqual([
       ['Arrives', 'Day 1, 6:30 PM'], ['Arrives', 'Day 2, 9:05 AM'], ['Arrives', 'Day 2, 8:45 AM'],
     ]);
-    // Prices and times are data: IBM Plex Mono.
+    // Times are data: IBM Plex Mono. The price is the board's large figure in the heading face (#956).
     for (const r of p.rows()) {
-      expect(r.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(true);
+      expect(r.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(false);
       expect(r.querySelector('.nd-option__arrives dd')!.classList.contains('nd-mono')).toBe(true);
     }
-    // The other facts of the plan stay under the sentence.
-    expect([...first.querySelectorAll('.nd-option__facts dt')].map(textOf)).toEqual(['Route', 'Added to commutes', 'Carried by']);
+    // The other facts of the plan stay under the sentence. The route is not one of them here: the row's
+    // name says it ("Direct with Maya Chen"), behind the drawn line.
+    expect([...first.querySelectorAll('.nd-option__facts dt')].map(textOf)).toEqual(['Added to commutes', 'Carried by']);
   }, T);
 
   it('a recommended row shows its reason in place of its summary', async () => {
@@ -308,32 +315,34 @@ describe('#960 the look of a badge and of the price (newDelivery.css)', () => {
     return css.slice(at, css.indexOf('}', at));
   };
 
-  it('a badge is small, a filled box of its own colour: amber, green, the primary blue; Balanced is neutral', () => {
+  it('a badge is small, a filled box of its own colour: the signal orange, green, blue (in the page\'s palette since #956); Balanced is neutral', () => {
     const base = rule('.nd-option__tag');
     expect(base).toMatch(/font-size: var\(--text-xs, 12px\);/);
     expect(base).toMatch(/border-radius: var\(--radius, 4px\);/);
     expect(base).toMatch(/white-space: nowrap;/);
     expect(base).not.toMatch(/text-transform/);
     // Balanced has no rule of its own: it is the base badge, a hairline box with quiet text.
-    expect(base).toMatch(/border: 1px solid var\(--border, #E3E3DE\);/);
-    expect(base).toMatch(/color: var\(--muted, #5B6472\);/);
+    expect(base).toMatch(/border: 1px solid var\(--ns-line, #DCD8CE\);/);
+    expect(base).toMatch(/color: var\(--ns-muted, #5A5F6B\);/);
     expect(css).not.toContain('.nd-option__tag--balanced');
-    const fill = (token: string) => new RegExp(`border-color: var\\(${token}\\); background: var\\(${token}\\); color: var\\(--panel, #FFFFFF\\);`);
-    expect(rule('.nd-option__tag--fastest')).toMatch(fill('--warn, #8A5A00'));
-    expect(rule('.nd-option__tag--cheapest')).toMatch(fill('--ok, #2F6B4F'));
-    expect(rule('.nd-option__tag--recommended')).toMatch(fill('--accent, #1D5075'));
+    // Ink text on each fill: 6.7:1 on the orange, 8:1 on the green, 5.8:1 on the blue.
+    const fill = (token: string) => new RegExp(`border-color: var\\(${token}\\); background: var\\(${token}\\); color: var\\(--ns-ink, #0B0F17\\);`);
+    expect(rule('.nd-option__tag--fastest')).toMatch(fill('--ns-signal, #FF6A1A'));
+    expect(rule('.nd-option__tag--cheapest')).toMatch(fill('--ns-green, #22C08A'));
+    expect(rule('.nd-option__tag--recommended')).toMatch(fill('--ns-blue, #3D8BFF'));
     // The word of #863 inside the price is gone with its class.
     expect(css).not.toContain('.nd-option__tag--ok');
   });
 
   it('the price is the largest text of the row, and the row still fits a phone', () => {
-    expect(rule('.nd-option__cents')).toMatch(/font-size: var\(--text-xl, 28px\);/);
+    expect(rule('.nd-option__cents')).toMatch(/font-size: var\(--ns-size-figure, 32px\);/);
     for (const selector of ['.nd-option__label', '.nd-option__arrives dd', '.nd-option__summary']) {
       expect(rule(selector), selector).not.toMatch(/font-size: var\(--text-(lg|xl)/);
     }
-    const narrow = css.slice(css.indexOf('@media (max-width: 480px)'));
-    expect(narrow).toMatch(/\.nd-option__top \{ flex-wrap: wrap; \}/);
-    expect(narrow).toMatch(/\.nd-option__deal \{ align-items: flex-start; \}/);
+    // Where the card is narrow the line and the price share the first row and the rest stacks under them (#956).
+    const narrow = css.slice(css.indexOf('@media (max-width: 720px)'));
+    expect(narrow).toMatch(/'line price'\s*'main main'\s*'arrives arrives'\s*'foot foot'/);
+    expect(narrow).toMatch(/\.nd-option__cents \{ font-size: var\(--text-xl, 28px\); \}/);
     expect(rule('.nd-option__tags')).toMatch(/flex-wrap: wrap;/);
   });
 });

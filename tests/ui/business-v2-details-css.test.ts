@@ -31,7 +31,7 @@ describe('deliveryDetails.css', () => {
   });
 
   it('uses tokens with fallbacks and mono for data', () => {
-    expect(css).toMatch(/var\(--border, #E3E3DE\)/);
+    expect(css).toMatch(/var\(--ns-line, #DCD8CE\)/); // the hairline of the page's palette (#956)
     expect(css).toMatch(/\.bd-mono \{[^}]*var\(--font-mono, /);
     expect(css).not.toMatch(/var\(--[a-z0-9-]+\)/);
   });

@@ -1,23 +1,43 @@
 /* Business workspace: header strip + notifications.
-   MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
-   client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
-   Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
-   IDs, weights and prices; Inter (--font-sans) for everything else.
-   No cards and no row fills. Fluid widths only: works at 390 px.
-   Design pass (#940): 8 / 16 / 24 px gaps; the Notifications heading starts on the toolbar's line; the
-   "Held here overnight" mark is plain coloured words, so three of them do not outshout New delivery. */
+   Night-shift transit look (#956): the palette is the --ns-* block at the top of page/businessPage.css; each
+   use here is var(--ns-name, fallback) with the property's own value as the fallback. Archivo for the
+   business's name only; IBM Plex Mono (--font-mono) for times, IDs and prices; Inter (--font-sans) for the rest.
+   The header ends in a route line that leaves this business's station. The notifications are the quiet
+   column of the page: grey sentences, no fills, one small orange dot on a row that just arrived.
+   No cards and no row fills. Fluid widths only: works at 390 px. Gaps are 8 / 16 / 24 px, and the
+   Notifications heading starts on the toolbar's line (#940). */
 
 .ba-header {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-2, 8px) var(--space-6, 24px);
   padding: var(--space-2, 8px) 0 var(--space-6, 24px);
-  border-bottom: 1px solid var(--border, #E3E3DE);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
-  color: var(--text, #171C24);
+  color: var(--ns-text, #14171F);
   min-width: 0;
+}
+/* The divider under the header is a route line: it starts at a station (this business) and runs on. */
+.ba-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3px;
+  height: 2px;
+  background: var(--ns-ink, #0B0F17);
+}
+.ba-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius, 4px);
+  background: var(--ns-ink, #0B0F17);
 }
 /* One hierarchy (#892): the name is the only strong text. The lines under it are quiet and in reading order:
    where the business is, whether deliveries can be added now, what "relay point" means here. The totals sit
@@ -29,8 +49,17 @@
   gap: var(--space-1, 4px);
   min-width: 0;
 }
-.ba-header__who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2, 8px); min-width: 0; }
-.ba-header__name { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.ba-header__who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3, 12px); min-width: 0; margin-bottom: var(--space-1, 4px); }
+.ba-header__name {
+  margin: 0;
+  font-family: var(--ns-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: var(--ns-size-name, 40px);
+  font-weight: 600;
+  font-variation-settings: 'wght' 780;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
 .ba-header__id,
 .ba-totals__value,
 .ba-note__time,
@@ -39,26 +68,26 @@
 .ba-mono {
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
 }
-.ba-header__id { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.ba-header__id { font-size: var(--text-xs, 12px); color: var(--ns-muted, #5A5F6B); }
 .ba-header__place,
 .ba-header__phase,
 .ba-header__role {
   margin: 0;
   font-size: var(--text-sm, 13px);
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
   overflow-wrap: anywhere;
 }
 .ba-header__place { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3, 12px); }
 /* What the reader can do now is the one line under the name in ink. The label and its sentence are one
    run of text, so on a narrow screen the sentence starts beside the label and wraps under it. */
-.ba-header__phase-text { color: var(--text, #171C24); }
+.ba-header__phase-text { color: var(--ns-text, #14171F); }
 .ba-header__phase-label {
   display: inline-block;
   margin-right: var(--space-2, 8px);
   padding: 0 var(--space-1, 4px);
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--ns-text, #14171F);
   border-radius: var(--radius, 4px);
-  color: var(--accent-dark, #173E5B);
+  color: var(--ns-text, #14171F);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
 }
@@ -77,29 +106,31 @@
   gap: var(--space-1, 4px);
   padding-right: var(--space-3, 12px);
   margin-right: var(--space-3, 12px);
-  border-right: 1px solid var(--border, #E3E3DE);
+  border-right: 1px solid var(--ns-line, #DCD8CE);
 }
 .ba-totals__item:last-child { padding-right: 0; border-right: 0; margin-right: 0; }
 /* The totals stay at 500 (#714). IBM Plex Mono is loaded at 400, 500 and 600 (styles/fonts.css, #737), so no
    weight here is a synthetic bold. */
-.ba-totals__value { order: -1; margin: 0; font-size: var(--text-md, 14px); font-weight: 500; color: var(--text, #171C24); }
-.ba-totals__label { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.ba-totals__value { order: -1; margin: 0; font-size: var(--text-md, 14px); font-weight: 500; color: var(--ns-text, #14171F); }
+.ba-totals__label { font-size: var(--text-xs, 12px); color: var(--ns-muted, #5A5F6B); }
 
+/* ---------- Notifications: the page's quiet column ---------- */
 .ba-notes {
   position: relative;
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
-  color: var(--text, #171C24);
+  color: var(--ns-muted, #5A5F6B);
   min-width: 0;
 }
 .ba-notes__title {
   margin: 0;
   padding: 0 0 var(--space-2, 8px);
-  font-size: var(--text-md, 14px);
+  font-size: var(--text-sm, 13px);
   font-weight: 600;
-  border-bottom: 1px solid var(--border, #E3E3DE);
+  color: var(--ns-muted, #5A5F6B);
+  border-bottom: 1px solid var(--ns-line, #DCD8CE);
 }
-.ba-notes__count { margin-left: var(--space-1, 4px); font-weight: 400; color: var(--muted, #5B6472); }
-.ba-notes__empty { margin: 0; padding: var(--space-4, 16px) 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.ba-notes__count { margin-left: var(--space-1, 4px); font-weight: 400; color: var(--ns-muted, #5A5F6B); }
+.ba-notes__empty { margin: 0; padding: var(--space-4, 16px) 0; font-size: var(--text-sm, 13px); color: var(--ns-muted, #5A5F6B); }
 .ba-notes__list { list-style: none; margin: 0; padding: 0; }
 /* Read out, not shown: the polite live region for a notification that arrives (#892). It is in the page from
    the first render, so only its text changes. */
@@ -118,7 +149,7 @@
 
 /* A row is one column whose left edge is the heading's: the sentence, then a quiet line with the package's
    ready time (when it is known) and the action. No fill: "New" and the tag are the marks. */
-.ba-note { border-bottom: 1px solid var(--border, #E3E3DE); }
+.ba-note { border-bottom: 1px solid var(--ns-line, #DCD8CE); }
 .ba-note__btn,
 .ba-note__static {
   display: flex;
@@ -135,20 +166,33 @@
   border-radius: 0;
 }
 .ba-note__btn { cursor: pointer; }
+.ba-note__btn:hover { color: var(--ns-text, #14171F); }
 .ba-note__btn:hover .ba-note__action { text-decoration: underline; }
-.ba-note__btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; border-radius: var(--radius, 4px); }
+.ba-note__btn:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; border-radius: var(--radius, 4px); }
 .ba-note__text { min-width: 0; overflow-wrap: anywhere; }
 .ba-note__new,
 .ba-note__tag {
   display: inline-block;
   margin-right: var(--space-1, 4px);
-  padding: 0 var(--space-1, 4px);
-  border-radius: var(--radius, 4px);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
+  color: var(--ns-text, #14171F);
 }
-.ba-note__new { color: var(--panel, #FFFFFF); background: var(--accent, #1D5075); border: 1px solid var(--accent, #1D5075); }
-.ba-note__tag { padding: 0; color: var(--warn, #8A5A00); }
+/* "New": the word in ink behind a small orange dot, the page's one signal colour. A row that just arrived
+   is about a package, and the dot is the package. The word carries it; the dot only adds. */
+.ba-note__new::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-1, 4px);
+  border-radius: var(--radius, 4px);
+  background: var(--ns-signal, #FF6A1A);
+}
+/* A row that is new is read in ink, like the rows of the list beside it. */
+.ba-note--new .ba-note__msg { color: var(--ns-text, #14171F); }
+/* "Held here overnight" is plain words in ink: no box and no colour of its own. */
+.ba-note__tag { padding: 0; }
 .ba-note__foot {
   display: flex;
   flex-wrap: wrap;
@@ -156,10 +200,10 @@
   gap: 0 var(--space-3, 12px);
   min-width: 0;
   font-size: var(--text-xs, 12px);
-  color: var(--muted, #5B6472);
+  color: var(--ns-muted, #5A5F6B);
 }
-.ba-note__action { color: var(--accent-dark, #173E5B); font-weight: 500; }
-.ba-note__open { font-weight: 400; color: var(--muted, #5B6472); }
+.ba-note__action { color: var(--ns-text, #14171F); font-weight: 500; }
+.ba-note__open { font-weight: 400; color: var(--ns-muted, #5A5F6B); }
 
 .ba-notes__more {
   min-height: 36px;
@@ -168,14 +212,19 @@
   font: inherit;
   font-size: var(--text-sm, 13px);
   font-weight: 600;
-  color: var(--text, #171C24);
-  background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #E3E3DE);
+  color: var(--ns-text, #14171F);
+  background: var(--ns-sheet, #FFFFFF);
+  border: 1px solid var(--ns-line, #DCD8CE);
   border-radius: var(--radius, 4px);
   cursor: pointer;
 }
-.ba-notes__more:hover { border-color: var(--muted, #5B6472); }
-.ba-notes__more:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
+.ba-notes__more:hover { border-color: var(--ns-muted, #5A5F6B); }
+.ba-notes__more:focus-visible { outline: 2px solid var(--ns-ink, #0B0F17); outline-offset: 2px; }
+
+/* The name steps down where the row is narrow, so a long business name stays on two lines. */
+@media (max-width: 640px) {
+  .ba-header__name { font-size: var(--text-xl, 28px); line-height: 1.1; letter-spacing: -0.02em; }
+}
 
 @media (max-width: 390px) {
   .ba-totals__item { padding-right: var(--space-2, 8px); margin-right: var(--space-2, 8px); }

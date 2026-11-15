@@ -97,11 +97,12 @@ describe('header: one hierarchy, plain words', () => {
 
   it('only the name is strong; the role line is quiet and the phase sentence is ink', () => {
     const sheet = css(`${ACTIVITY}/activity.css`);
-    expect(sheet).toMatch(/\.ba-header__name \{[^}]*font-size: var\(--text-lg, 18px\);[^}]*font-weight: 600;/);
+    // Since #956 the name is the page's largest text, in the heading face.
+    expect(sheet).toMatch(/\.ba-header__name \{[^}]*font-family: var\(--ns-display, [^}]*font-size: var\(--ns-size-name, 40px\);[^}]*font-weight: 600;/);
     const quiet = sheet.match(/\.ba-header__place,\s*\.ba-header__phase,\s*\.ba-header__role \{([^}]*)\}/)![1];
-    expect(quiet).toMatch(/color: var\(--muted, #5B6472\);/);
+    expect(quiet).toMatch(/color: var\(--ns-muted, #5A5F6B\);/);
     expect(quiet).not.toMatch(/font-weight/);
-    expect(sheet).toMatch(/\.ba-header__phase-text \{ color: var\(--text, #171C24\); \}/);
+    expect(sheet).toMatch(/\.ba-header__phase-text \{ color: var\(--ns-text, #14171F\); \}/);
     // The totals wrap under the block by themselves when the row is too narrow: no breakpoint, no fixed width.
     expect(sheet).toMatch(/\.ba-header \{[^}]*flex-wrap: wrap;[^}]*justify-content: space-between;/);
     expect(sheet).toMatch(/\.ba-header__main \{[^}]*flex: 1 1 320px;[^}]*min-width: 0;/);
@@ -298,7 +299,7 @@ describe('notifications: layout and focus', () => {
   it('every control has a visible focus ring, and "Show all" is a finger-sized button at 390 px', () => {
     for (const sel of ['.ba-note__btn:focus-visible', '.ba-notes__more:focus-visible']) {
       const rule = sheet.match(new RegExp(`${sel.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`))![1];
-      expect(rule, sel).toMatch(/outline: 2px solid var\(--accent, #1D5075\);/);
+      expect(rule, sel).toMatch(/outline: 2px solid var\(--ns-ink, #0B0F17\);/); // an ink ring on paper (#956)
       expect(rule, sel).toMatch(/outline-offset: 2px;/);
     }
     expect(sheet).not.toMatch(/outline:\s*(none|0)\b/);

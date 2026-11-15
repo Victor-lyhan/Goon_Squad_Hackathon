@@ -425,12 +425,12 @@ describe('hierarchy and consistent controls (#881)', () => {
     }
   });
 
-  it('one focus ring: every :focus-visible rule of both files is the 2 px accent outline, never a shadow', () => {
+  it('one focus ring: every :focus-visible rule of both files is the 2 px ink outline (#956), never a shadow', () => {
     for (const sheet of [WORKSPACE_CSS, DETAILS_CSS]) {
       const rules = [...sheet.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)];
       expect(rules.length).toBeGreaterThanOrEqual(3);
       for (const [, selector, body] of rules) {
-        expect(body, selector.trim()).toMatch(/outline: 2px solid var\(--accent, #1D5075\)/);
+        expect(body, selector.trim()).toMatch(/outline: 2px solid var\(--ns-ink, #0B0F17\)/);
         expect(body, selector.trim()).not.toMatch(/box-shadow|outline: none/);
       }
     }

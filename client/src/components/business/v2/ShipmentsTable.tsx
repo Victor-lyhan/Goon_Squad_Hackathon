@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { LineBadge } from './LineBadge';
 import { isEchoPress, pressOf, type Press } from './NewDeliveryForm';
 import type { ListLoadKind, ShipmentRow, SortDir, SortKey } from './shipmentsTableModel';
 import {
@@ -302,8 +303,15 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                 <td data-label="Plan">
                   {/* One child per cell: the stacked 390 px cell is a two-column grid (label, value). */}
                   <div className="bw-plan">
-                    {r.planKind === 'relay' && r.relayPointName
-                      ? <>Relay <span className="bw-muted">via {r.relayPointName}</span></>
+                    {/* The plan as a line badge (#956), like a row of the Options card; "No match" is plain words. */}
+                    {r.planKind
+                      ? (
+                        <LineBadge kind={r.planKind}>
+                          {r.planKind === 'relay' && r.relayPointName
+                            ? <>Relay <span className="bw-muted">via {r.relayPointName}</span></>
+                            : r.planLabel}
+                        </LineBadge>
+                      )
                       : r.planLabel}
                     {r.unmatchedReason && <span className="bw-reason">{r.unmatchedReason}</span>}
                   </div>

@@ -353,7 +353,7 @@ describe('Remove styles (#949)', () => {
   it('it is quiet until the pointer is on its row or the keyboard is in it', () => {
     expect(rule('.bw-remove')).toMatch(/opacity: 0\.45;/);
     expect(css).toContain('.bw-row:hover .bw-remove, .bw-row:focus-within .bw-remove { opacity: 1; }');
-    expect(css).toMatch(/\.bw-remove:focus-visible \{[^}]*outline: 2px solid var\(--accent, #1D5075\);[^}]*opacity: 1;/);
+    expect(css).toMatch(/\.bw-remove:focus-visible \{[^}]*outline: 2px solid var\(--ns-ink, #0B0F17\);[^}]*opacity: 1;/);
     // No hover on a touch screen, and no room for one in the stacked cards: full strength there.
     expect(css).toMatch(/@media \(hover: none\) \{\s*\.bw-remove \{ opacity: 1; \}\s*\}/);
     const stacked = css.match(/@media \(max-width: 640px\) \{([\s\S]*)\}\s*$/)![1];
@@ -368,7 +368,7 @@ describe('Remove styles (#949)', () => {
   });
 
   it('Show all has a focus style and nothing here moves', () => {
-    expect(css).toMatch(/\.bw-removed__show:focus-visible \{ outline: 2px solid var\(--accent, #1D5075\);/);
+    expect(css).toMatch(/\.bw-removed__show:focus-visible \{ outline: 2px solid var\(--ns-ink, #0B0F17\);/);
     const mine = css.slice(css.indexOf('.bw-table th.bw-col--remove'), css.indexOf('.bw-visually-hidden'));
     expect(mine).not.toMatch(/transition|animation/);
   });

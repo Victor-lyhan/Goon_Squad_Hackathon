@@ -145,7 +145,7 @@ describe('#919 the Options card: its lines (who made the options is no longer sa
     const { rows: byModel } = card('gemini');
     expect(card('offline').rows).toEqual(byModel);
     expect(byModel.map((r) => [r.label, r.priceText, r.arrivalText, r.routeText])).toEqual([
-      ['As requested', '$16.00', 'Day 2, 9:05 AM', 'Via Atlas Books'],
+      ['As requested', '$16.00', 'Day 2, 9:05 AM', 'Relay via Atlas Books'],
     ]);
   });
 
