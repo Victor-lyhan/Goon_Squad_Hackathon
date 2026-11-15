@@ -14,6 +14,9 @@
 // An answer of the wrong shape (not an object, a field of the wrong type, no draft field at all) is no
 // draft: the caller parses offline.
 //
+// The route asks through `parseWithGeminiUnlessPaused` (#884): after one failed call Gemini is left alone for
+// 2 minutes (server/ai/geminiPause.ts, shared with the advisor), so a slow key costs its 6 s only once.
+//
 // This file logs nothing, never reads the environment and stores nothing. The key only passes through to
 // `generateJson`, which sends it in the `x-goog-api-key` header. The LLM never submits anything: the
 // answer is a draft the page shows as an editable card.
@@ -22,6 +25,7 @@ import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequ
 import type { NetworkBusiness, PackageCategory } from '../../shared/v2/types';
 import type { FetchLike } from '../geo/googleClient';
 import { GeminiUnavailable, generateJson, type GeminiUnavailableReason } from './gemini';
+import { pauseCause, pausedMessage, type GeminiPause } from './geminiPause';
 import { NOT_A_NETWORK_BUSINESS } from './ruleParser';
 
 export type GeminiParseContext = {
@@ -277,6 +281,44 @@ export const UNEXPECTED_ERROR_MESSAGE = 'The Gemini answer could not be read.';
 export async function parseWithGemini(
   text: string, context: GeminiParseContext, settings: GeminiParseSettings,
 ): Promise<GeminiParseOutcome> {
+  return (await askGemini(text, context, settings)).outcome;
+}
+
+/** `parseWithGemini`, or no call at all: `reason: 'paused'` while the shared pause is on (server/ai/geminiPause.ts). */
+export type GeminiParseAttempt =
+  | GeminiParseOutcome
+  /** `message` is `pausedMessage`: the cause of the pause and the seconds left. Fixed text, safe to log. */
+  | { ok: false; reason: 'paused'; message: string };
+
+/**
+ * `parseWithGemini` behind the shared pause (#884). While `pause` is on, Gemini is not asked and the answer is
+ * `reason: 'paused'` at once. Otherwise the call is made as usual: a failure starts the pause (not a missing
+ * key or model name: then nothing was sent), a usable draft clears it. Without `pause` this is `parseWithGemini`.
+ */
+export async function parseWithGeminiUnlessPaused(
+  text: string, context: GeminiParseContext, settings: GeminiParseSettings, pause?: GeminiPause,
+): Promise<GeminiParseAttempt> {
+  // Without a key nothing is ever sent, so the pause is neither read nor changed.
+  const hasKey = typeof settings.apiKey === 'string' && settings.apiKey.trim() !== '';
+  if (!pause || !hasKey) return parseWithGemini(text, context, settings);
+  const paused = pause.current();
+  if (paused) return { ok: false, reason: 'paused', message: pausedMessage(paused) };
+  const { outcome, status } = await askGemini(text, context, settings);
+  if (outcome.ok) {
+    pause.clear();
+  } else {
+    const cause = pauseCause(outcome.reason, status);
+    if (cause !== null) pause.fail(cause);
+  }
+  return outcome;
+}
+
+/** The one Gemini call of a sentence: its outcome, and the HTTP status when that is why it failed. */
+async function askGemini(
+  text: string, context: GeminiParseContext, settings: GeminiParseSettings,
+): Promise<{ outcome: GeminiParseOutcome; status: number | null }> {
+  const failed = (reason: GeminiParseFailure, message: string, status: number | null = null) =>
+    ({ outcome: { ok: false as const, reason, message }, status });
   try {
     const answer = await generateJson({
       apiKey: settings.apiKey ?? null,
@@ -288,10 +330,10 @@ export async function parseWithGemini(
       ...(settings.fetchImpl === undefined ? {} : { fetchImpl: settings.fetchImpl }),
     });
     const response = draftFromGemini(answer, context);
-    return response ? { ok: true, response } : { ok: false, reason: 'invalid_answer', message: INVALID_ANSWER_MESSAGE };
+    return response ? { outcome: { ok: true, response }, status: null } : failed('invalid_answer', INVALID_ANSWER_MESSAGE);
   } catch (err) {
     // GeminiUnavailable's text is fixed. Anything else is dropped unread: its message could quote the answer.
-    if (err instanceof GeminiUnavailable) return { ok: false, reason: err.reason, message: err.message };
-    return { ok: false, reason: 'error', message: UNEXPECTED_ERROR_MESSAGE };
+    if (err instanceof GeminiUnavailable) return failed(err.reason, err.message, err.status);
+    return failed('error', UNEXPECTED_ERROR_MESSAGE);
   }
 }

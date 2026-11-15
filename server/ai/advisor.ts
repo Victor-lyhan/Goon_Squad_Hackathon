@@ -6,6 +6,8 @@
 // matched tool result is dropped.
 // Without a key, or on any Gemini failure (HTTP, network, the 10 s budget, no usable picks), the options come
 // from three fixed variants instead (`adviseOffline`) with `source: 'offline'`.
+// After one such failure Gemini is left alone for 2 minutes (`adviseUnlessPaused`, #884): the pause is shared
+// with parse-request (server/ai/geminiPause.ts), so a slow key costs its 10 s only once.
 //
 // Rules for a variant (checked on the server, whatever Gemini sends):
 // - readyMin: whole minutes, never later than the draft's and never before the run clock (or the window start);
@@ -20,6 +22,7 @@ import type { FetchLike } from '../geo/googleClient';
 import {
   GeminiUnavailable, generateWithTools, type GeminiContent, type GeminiFunctionDeclaration,
 } from './gemini';
+import { pauseCause, type GeminiPause, type GeminiPauseState } from './geminiPause';
 
 /** Gemini's whole budget for one /advise request (all model turns together). */
 export const ADVISE_TIMEOUT_MS = 10_000;
@@ -392,9 +395,16 @@ function toolAnswer(resultId: string, outcome: VariantOutcome, engine: AdvisorEn
 
 /** Gemini answered, but with nothing the server can show. */
 export class AdvisorNoAnswer extends Error {
-  constructor() {
+  /**
+   * True when Gemini tried variants and the engine matched none of them: it had nothing to present, which is
+   * no fault of Gemini's (and no reason to pause it, #884).
+   */
+  readonly nothingMatched: boolean;
+
+  constructor(nothingMatched = false) {
     super('Gemini gave no usable options.');
     this.name = 'AdvisorNoAnswer';
+    this.nothingMatched = nothingMatched;
   }
 }
 
@@ -466,7 +476,10 @@ export async function adviseWithGemini(
     for (const call of answer.calls) {
       if (call.name === PRESENT_OPTIONS) {
         const options = optionsFromPicks(call.args, results, engine);
-        if (options.length === 0) throw new AdvisorNoAnswer();
+        if (options.length === 0) {
+          const outcomes = [...results.values()];
+          throw new AdvisorNoAnswer(outcomes.length > 0 && outcomes.every((o) => !o.matched));
+        }
         const note = unmatchedNote([...results.values()]);
         return { options, source: 'gemini', ...(note === undefined ? {} : { note }) };
       }
@@ -498,13 +511,41 @@ export async function adviseWithGemini(
 export async function advise(
   engine: AdvisorEngine, gemini?: AdvisorGeminiSettings, now?: () => number,
 ): Promise<AdviseResponse> {
+  return (await adviseUnlessPaused(engine, gemini, undefined, now)).response;
+}
+
+export type AdviseAttempt = {
+  response: AdviseResponse;
+  /** Set when Gemini was not asked because the shared pause is on: why, and how long is left. Else null. */
+  paused: GeminiPauseState | null;
+};
+
+/**
+ * `advise` behind the shared pause (#884, server/ai/geminiPause.ts). With a key and the pause on, Gemini is not
+ * asked: the offline options come back at once, with the pause's state for the route's log line. Otherwise the
+ * conversation runs as usual: a failure starts the pause, usable options clear it. Two things start no pause:
+ * a missing key or model name (nothing was sent), and a conversation in which the engine matched no variant
+ * (Gemini worked; there was nothing to show). Without `pause`, or without a key, this is `advise` as before.
+ * `now` is the clock of the 10 s budget; the pause has its own.
+ */
+export async function adviseUnlessPaused(
+  engine: AdvisorEngine, gemini?: AdvisorGeminiSettings, pause?: GeminiPause, now?: () => number,
+): Promise<AdviseAttempt> {
   const key = typeof gemini?.apiKey === 'string' ? gemini.apiKey.trim() : '';
   if (gemini && key !== '') {
+    const paused = pause?.current() ?? null;
+    if (paused) return { response: adviseOffline(engine), paused };
     try {
-      return await adviseWithGemini(engine, gemini, now);
+      const response = await adviseWithGemini(engine, gemini, now);
+      pause?.clear();
+      return { response, paused: null };
     } catch (err) {
-      if (!(err instanceof GeminiUnavailable) && !(err instanceof AdvisorNoAnswer)) throw err;
+      let cause: string | null;
+      if (err instanceof GeminiUnavailable) cause = pauseCause(err.reason, err.status);
+      else if (err instanceof AdvisorNoAnswer) cause = err.nothingMatched ? null : pauseCause('invalid_answer');
+      else throw err;
+      if (cause !== null) pause?.fail(cause);
     }
   }
-  return adviseOffline(engine);
+  return { response: adviseOffline(engine), paused: null };
 }

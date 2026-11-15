@@ -8,6 +8,7 @@ import { createV2Router, V2_DEPS_NOT_LOADED, type V2Deps } from './api/v2/router
 import { createV2Runtime } from './api/v2/bootstrap';
 import { DEFAULT_V2_STATE_PATH, NYC_FIXTURES_DIR } from './api/v2/bootRun';
 import { geminiKey, geminiModel } from './ai/env';
+import { createGeminiPause } from './ai/geminiPause';
 import { DEFAULT_ENV_PATH, loadDotEnv, serverKey } from './geo/env';
 import type { FetchLike } from './geo/googleClient';
 
@@ -253,7 +254,9 @@ export function startServer(opts: StartServerOptions): RelayServer {
   // The Gemini key and model for POST /api/v2/parse-request (docs/mvp4.md F1), from the same environment.
   // Without the key every sentence is parsed offline. No start line: the card says "Parsed by Gemini" or "Parsed offline",
   // and `parseRequestLog` gets one line per sentence saying which, never the key or the sentence (#811).
-  const gemini = { apiKey: geminiKey(env), model: geminiModel(env), info: opts.parseRequestLog };
+  // One pause for parse-request and advise (#884): after one failed Gemini call both answer offline at once for
+  // 2 minutes, so a slow key stalls the demo once, not on every try. In memory only; a restart starts without it.
+  const gemini = { apiKey: geminiKey(env), model: geminiModel(env), info: opts.parseRequestLog, pause: createGeminiPause() };
   const v2 = createV2Runtime({ fixturesDir: opts.fixturesDir, statePath, key, fetch: opts.fetch, gemini });
   if (v2.status === 'ready') v2.startTicker();
   for (const line of v2StartLines(v2)) log(line);

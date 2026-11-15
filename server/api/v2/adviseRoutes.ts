@@ -5,13 +5,18 @@
 // answers while the run is locked too. The engine runs on a throwaway shipment that is never stored, against
 // the run's current plans, so trips already reserved stay reserved.
 // Gemini can never make this route answer 5xx; a travel error from the engine goes to the router's 503 handler.
-// Nothing is logged: no key, no draft, no Gemini text.
+// After one failed Gemini call (here or in parse-request) the shared pause is on for 2 minutes (#884,
+// server/ai/geminiPause.ts): Gemini is not asked and the offline options come back at once.
+// One line is logged, and only for an answer that was offline because of that pause:
+// "[advise] Options computed offline: Gemini paused after timeout, next try in 87 s." Nothing else is: no key,
+// no draft, no Gemini text.
 import type express from 'express';
 import { z } from 'zod';
 import type { AdviseResponse } from '../../../shared/v2/api';
 import type { ApiError } from '../../../shared/v2/schemas';
 import type { Run as RunV2, Shipment, TravelProvider } from '../../../shared/v2/types';
-import { advise, type AdviseDraft, type AdvisorEngine, type AdvisorGeminiSettings } from '../../ai/advisor';
+import { adviseUnlessPaused, type AdviseDraft, type AdvisorEngine, type AdvisorGeminiSettings } from '../../ai/advisor';
+import { pausedMessage, type GeminiPause } from '../../ai/geminiPause';
 import { assignShipments } from '../../domain/v2/matching';
 import type { Store } from '../../store';
 import { matchContext } from './pipeline';
@@ -25,9 +30,22 @@ export type AdviseRouteDeps = {
   travel: TravelProvider;
   /** Gemini settings read once by the caller. Left out, or with a null or blank key: offline options, nothing is sent. */
   gemini?: AdvisorGeminiSettings;
+  /**
+   * The pause shared with POST /parse-request (#884): after one failed Gemini call neither route asks Gemini
+   * for 2 minutes. The app gives one (server/index.ts). Left out: every request asks Gemini, as before #884.
+   */
+  pause?: GeminiPause;
+  /** Gets `pausedLogLine` when the options are offline because Gemini is paused. Fixed text and numbers only. */
+  log?: (line: string) => void;
 };
 
 export const INVALID_ADVISE = 'Invalid draft';
+
+/**
+ * The line for `deps.log` when Gemini was not asked because it is paused. `message` is `pausedMessage` of
+ * server/ai/geminiPause.ts: "[advise] Options computed offline: Gemini paused after timeout, next try in 87 s."
+ */
+export const pausedLogLine = (message: string) => `[advise] Options computed offline: ${message}`;
 
 /** The id of the throwaway shipment the engine is asked about. Never stored. */
 export const ADVICE_SHIPMENT_ID = 'shp-advice';
@@ -135,7 +153,15 @@ export function registerAdviseRoutes(router: express.Router, deps: AdviseRouteDe
         res.status(400).json({ error: INVALID_ADVISE, fieldErrors: checked.fieldErrors });
         return;
       }
-      res.json(await advise(advisorEngine(run, deps.travel, checked.draft), deps.gemini));
+      const { response, paused } = await adviseUnlessPaused(advisorEngine(run, deps.travel, checked.draft), deps.gemini, deps.pause);
+      if (paused) {
+        try {
+          deps.log?.(pausedLogLine(pausedMessage(paused)));
+        } catch {
+          // the options matter more than their log line
+        }
+      }
+      res.json(response);
     } catch (err) {
       next(err);
     }
