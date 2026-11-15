@@ -148,14 +148,22 @@ const CHART_MAX_WIDTH = Math.round(CHART_WIDTH * 1.4);
 
 /** Paragraphs stop here: about 80 characters a line at 15 px (they ran to about 105 at 760 px before #887). */
 const TEXT_MAX_WIDTH = 640;
-// The headline band: five tiles in one row on a page wide enough to give each TILE_MIN_WIDTH, three and two
-// below that (never one tile alone on a row of dark), one column on a phone. A headline value is at most 10
-// characters ("54.8% less"), each 0.6 em wide in IBM Plex Mono less the letter-spacing of the rule below:
-// 163 px of text, which fits the narrowest tile of every layout (200 px less its padding at a 641 px page).
-/** The font size of a headline value: the largest text on the page. */
-export const TILE_VALUE_PX = 28;
-/** The narrowest a headline tile is in the five-in-a-row layout. */
-export const TILE_MIN_WIDTH = 208;
+// The headline band (#942): the three Relay-vs-courier results (cost, added miles, CO2) are the one bold
+// element of the page, three in a row in the largest type; delivery time and match rate sit under them as a
+// quieter row of two (never one tile alone on a row of dark). One column on a phone. A headline value is at
+// most 10 characters ("54.8% less"), each 0.6 em wide in IBM Plex Mono less the letter-spacing of the rule
+// below: 232 px at TILE_VALUE_PX, which fits a third of the band from TILE_WIDE_MIN up and one column of a
+// phone; between the two the value is TILE_VALUE_MID_PX (163 px, fits a third of a 641 px page).
+/** The font size of the three Relay-vs-courier values: the largest text on the page. */
+export const TILE_VALUE_PX = 40;
+/** Their size where three in a row are too narrow for TILE_VALUE_PX. */
+export const TILE_VALUE_MID_PX = 28;
+/** The size of the two supporting values (delivery time, match rate). */
+export const TILE_SUPPORT_VALUE_PX = 20;
+/** The narrowest page that shows three TILE_VALUE_PX values in a row. */
+export const TILE_WIDE_MIN = 880;
+/** The space between two cards. */
+export const CARD_GAP = 16;
 const TILE_PADDING_X = 16;
 const PAGE_PADDING_X = 20;
 
@@ -487,23 +495,26 @@ strong,b,th,dd{font-weight:600}
 .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 12px;margin:14px 0 0}
 h1{font-size:22px;line-height:1.3;margin:0;font-weight:600;letter-spacing:-0.01em}
 .sub{margin:0;color:${COLOR.muted}}
-h2{font-size:19px;line-height:1.3;margin:44px 0 4px;font-weight:600}
+h2{font-size:20px;line-height:1.3;margin:64px 0 6px;font-weight:600;letter-spacing:-0.01em}
 p{margin:0 0 12px}
-.lede{font-size:17px;color:${COLOR.muted};max-width:${TEXT_MAX_WIDTH}px;margin:20px 0 0}
+.lede{font-size:17px;color:${COLOR.muted};max-width:${TEXT_MAX_WIDTH}px;margin:24px 0 0}
 .lede a{white-space:nowrap}
 .intro{color:${COLOR.muted};max-width:${TEXT_MAX_WIDTH}px}
-.after{margin-top:20px}
+.after{margin-top:32px}
 .how{max-width:${TEXT_MAX_WIDTH}px}
-.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));column-gap:0;row-gap:0;margin:12px 0 0;background:${COLOR.ink};color:${COLOR.onInk};border-radius:6px;overflow:hidden}
-.tile{display:grid;grid-row:span 3;grid-template-rows:subgrid;row-gap:0;margin:-1px 0 0 -1px;padding:17px ${TILE_PADDING_X}px 16px ${TILE_PADDING_X + 1}px;border:solid ${COLOR.inkLine};border-width:1px 0 0 1px}
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));column-gap:0;row-gap:0;margin:16px 0 0;background:${COLOR.ink};color:${COLOR.onInk};border-radius:6px;overflow:hidden}
+.tile{display:grid;grid-column:span 2;grid-row:span 3;grid-template-rows:subgrid;row-gap:0;margin:-1px 0 0 -1px;padding:24px ${TILE_PADDING_X}px 24px ${TILE_PADDING_X + 1}px;border:solid ${COLOR.inkLine};border-width:1px 0 0 1px}
+.tile:nth-child(n+4){grid-column:span 3;padding-top:14px;padding-bottom:14px}
 .tile p{margin:0}
-.tile-label{font-size:13px;color:${COLOR.onInkMuted};align-self:end}
-.tile-value{font-size:${TILE_VALUE_PX}px;font-weight:600;line-height:1.25;letter-spacing:-0.02em;margin:2px 0 4px}
-.tile-detail{font-size:13px;color:${COLOR.onInkMuted}}
-.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,${CARD_MIN_WIDTH}px),1fr));gap:12px;margin-top:12px}
-.grid2{display:grid;grid-template-columns:minmax(${CARD_MIN_WIDTH}px,1fr) minmax(0,2fr);gap:12px 24px;align-items:start;margin-top:12px}
-.card{margin:0;padding:14px ${CARD_PADDING_X}px 12px;background:${COLOR.panel};border:solid ${COLOR.line};border-width:${CARD_BORDER}px;border-radius:6px;min-width:0}
-figcaption{font-size:14px;font-weight:600;margin-bottom:10px}
+.tile-label{font-size:14px;color:${COLOR.onInkMuted};align-self:end}
+.tile-value{font-size:${TILE_VALUE_PX}px;font-weight:600;line-height:1.2;letter-spacing:-0.02em;margin:4px 0 6px}
+.tile:nth-child(n+4) .tile-value{font-size:${TILE_SUPPORT_VALUE_PX}px;line-height:1.3;margin:2px 0}
+.tile-detail{font-size:14px;color:${COLOR.onInkMuted}}
+.tile:nth-child(n+4) .tile-label,.tile:nth-child(n+4) .tile-detail{font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,${CARD_MIN_WIDTH}px),1fr));gap:${CARD_GAP}px;margin-top:16px}
+.grid2{display:grid;grid-template-columns:minmax(${CARD_MIN_WIDTH}px,1fr) minmax(0,2fr);gap:${CARD_GAP}px 32px;align-items:start;margin-top:16px}
+.card{margin:0;padding:18px ${CARD_PADDING_X}px 16px;background:${COLOR.panel};border:solid ${COLOR.line};border-width:${CARD_BORDER}px;border-radius:6px;min-width:0}
+figcaption{font-size:14px;font-weight:600;margin-bottom:14px}
 svg{display:block;width:100%;height:auto;max-width:${CHART_MAX_WIDTH}px}
 svg text{font-size:${CHART_TEXT_PX}px}
 .t{fill:${COLOR.ink}}
@@ -514,23 +525,26 @@ svg text{font-size:${CHART_TEXT_PX}px}
 .f-track{fill:${COLOR.relaySoft}}
 .f-ontime{fill:${COLOR.onTime}}
 .f-late{fill:${COLOR.late}}
-.legend{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:10px 0 0;padding:0;font-size:13px;color:${COLOR.muted}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:12px 0 0;padding:0;font-size:13px;color:${COLOR.muted}}
 .legend li{display:flex;align-items:baseline;gap:6px}
 .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;flex:none}
-.note{font-size:13px;color:${COLOR.muted};margin:10px 0 0}
-.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 20px;margin:16px 0 0;max-width:${TEXT_MAX_WIDTH}px}
-.facts div{border-top:1px solid ${COLOR.line};padding-top:6px}
+.note{font-size:13px;color:${COLOR.muted};margin:12px 0 0}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 24px;margin:24px 0 0;max-width:${TEXT_MAX_WIDTH}px}
+.facts div{border-top:1px solid ${COLOR.line};padding-top:8px}
 .facts dt{font-size:13px;color:${COLOR.muted}}
 .facts dd{margin:0}
-.scroll{overflow-x:auto;margin-top:12px;background:${COLOR.panel};border:1px solid ${COLOR.line};border-radius:6px}
+.scroll{overflow-x:auto;margin-top:16px;background:${COLOR.panel};border:1px solid ${COLOR.line};border-radius:6px}
 table{border-collapse:collapse;width:100%;font-size:14px}
-th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid ${COLOR.line}}
+th,td{text-align:left;vertical-align:top;padding:12px 16px;border-top:1px solid ${COLOR.line}}
 thead th{border-top:0;font-size:12px;color:${COLOR.muted};white-space:nowrap}
-.assumptions tbody th{width:26%}
-.assumptions .value{width:24%}
-.assumptions code{display:block;margin-top:2px;font-size:12px;color:${COLOR.muted};overflow-wrap:anywhere}
+.assumptions th,.assumptions td{padding:14px 16px}
+.assumptions tbody th{width:27%}
+.assumptions .value{width:21%;font-size:13px;color:${COLOR.muted}}
+.assumptions .value b{display:block;font-size:16px;line-height:1.4;color:${COLOR.ink}}
+.assumptions td:last-child{color:${COLOR.muted}}
+.assumptions code{display:block;margin-top:2px;font-size:12px;font-weight:400;color:${COLOR.muted};overflow-wrap:anywhere}
 .figures{font-size:13px;font-variant-numeric:tabular-nums}
-.figures th,.figures td{padding:8px 12px;white-space:nowrap}
+.figures th,.figures td{padding:10px 14px;white-space:nowrap}
 .figures td{text-align:right}
 .figures thead th{text-align:right;white-space:normal;vertical-align:bottom}
 .figures thead th:first-child,.figures.spread thead th:nth-child(2){text-align:left}
@@ -542,11 +556,9 @@ thead th{border-top:0;font-size:12px;color:${COLOR.muted};white-space:nowrap}
 details{margin-top:12px}
 summary{cursor:pointer;font-weight:600;color:${COLOR.relay};padding:6px 0}
 .skipped{font-size:13px;color:${COLOR.muted};padding-left:20px}
-footer{margin-top:44px;padding-top:12px;border-top:1px solid ${COLOR.line};font-size:13px;color:${COLOR.muted}}
-@media (max-width:${5 * TILE_MIN_WIDTH + 2 * PAGE_PADDING_X - 1}px){
-.tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
-.tile{grid-column:span 2}
-.tile:nth-child(n+4){grid-column:span 3}
+footer{margin-top:64px;padding-top:16px;border-top:1px solid ${COLOR.line};font-size:13px;color:${COLOR.muted}}
+@media (min-width:641px) and (max-width:${TILE_WIDE_MIN - 1}px){
+.tile-value{font-size:${TILE_VALUE_MID_PX}px}
 }
 @media (max-width:860px){
 .grid2{grid-template-columns:minmax(0,1fr)}
@@ -554,13 +566,15 @@ footer{margin-top:44px;padding-top:12px;border-top:1px solid ${COLOR.line};font-
 }
 @media (max-width:640px){
 main{padding:12px 16px 40px}
+h2{margin-top:48px}
+.tile{padding-top:20px;padding-bottom:20px}
 .tiles{grid-template-columns:minmax(0,1fr)}
 .tile,.tile:nth-child(n+4){grid-column:auto}
 .figures th,.figures td{padding:6px}
 .figures.spread td:last-child{white-space:normal}
 .figures.detour tbody th,.figures.detour thead th:first-child{position:sticky;left:0;padding-right:10px;background:${COLOR.panel};box-shadow:inset -1px 0 0 ${COLOR.line}}
 .assumptions thead{display:none}
-.assumptions tr{display:block;padding:12px 14px;border-top:1px solid ${COLOR.line}}
+.assumptions tr{display:block;padding:14px 16px;border-top:1px solid ${COLOR.line}}
 .assumptions tbody tr:first-child{border-top:0}
 .assumptions th,.assumptions td{display:block;width:auto!important;padding:0;border:0}
 .assumptions .value{margin:4px 0}
@@ -650,10 +664,9 @@ export function renderStudyPage(results: StudyResults): string {
     : `<p>On average a Relay package arrives ${duration(ahead)} ${ahead < 0 ? 'after' : 'before'} the courier’s promised time.</p>`;
   const windowText = requestWindow === null || promisedByMin === null ? ''
     : requestWindow.latestDeadlineMin <= promisedByMin
-      ? `<p>Why nothing is late here: Relay only accepts a package it can deliver by the sender’s deadline. `
-        + `The simulated packages were ready from ${dayClock(requestWindow.earliestReadyMin)} and every deadline was at or before ${dayClock(requestWindow.latestDeadlineMin)}, `
-        + `which is no later than the courier’s promise (${dayClock(promisedByMin)}), so a matched package cannot be late. `
-        + `The price of that rule is the match rate above, not lateness.</p>`
+      ? `<p>Why nothing is late: Relay only accepts a package it can deliver by the sender’s deadline, `
+        + `and every simulated deadline is at or before ${dayClock(requestWindow.latestDeadlineMin)}, no later than the courier’s promise (${dayClock(promisedByMin)}). `
+        + `The cost of that rule shows in the match rate, not in lateness.</p>`
       : `<p>Relay only accepts a package it can deliver by the sender’s deadline. The simulated packages were ready from ${dayClock(requestWindow.earliestReadyMin)}, `
         + `the latest deadline was ${dayClock(requestWindow.latestDeadlineMin)} and the courier’s promise is ${dayClock(promisedByMin)}, so a matched package can be later than the courier.</p>`;
 
@@ -701,7 +714,7 @@ ${pairs}
 
 <section>
 <h2>Spread across runs</h2>
-<p class="intro">The average is over all ${count(totals.matched)} matched packages. The median and the percentiles are over the ${runsWord(summary.runsWithMatch)} that matched a package, one per-package value per run: 8 in 10 runs lie between the 10th and the 90th percentile.${noMatchRuns > 0 ? ` ${runsWord(noMatchRuns)} matched no package and ${noMatchRuns === 1 ? 'is' : 'are'} not shown.` : ''}</p>
+<p class="intro">Averages are over all ${count(totals.matched)} matched packages. Medians and percentiles are over the ${runsWord(summary.runsWithMatch)} that matched a package, one value per run; 8 in 10 runs fall between the 10th and the 90th percentile.${noMatchRuns > 0 ? ` ${runsWord(noMatchRuns)} matched no package and ${noMatchRuns === 1 ? 'is' : 'are'} not shown.` : ''}</p>
 <div class="scroll" tabindex="0" role="region" aria-label="Spread across runs">
 <table class="figures spread">
 <thead><tr><th scope="col">Per package</th><th scope="col">Sent with</th><th scope="col">Average</th><th scope="col">Median</th><th scope="col">10th to 90th percentile</th></tr></thead>
@@ -710,7 +723,7 @@ ${spreadRows(summary)}
 </tbody>
 </table>
 </div>
-<p class="intro after">What Relay saved per matched package, run by run. Each column counts the runs in that range; a value below zero means the courier was ahead in that run.</p>
+<p class="intro after">What Relay saved per package, run by run. Each column counts the runs in that range. Below zero, the courier was ahead.</p>
 <div class="grid3">
 ${histograms}
 </div>
@@ -761,7 +774,7 @@ ${skippedBlock(grid)}
 
 <section id="assumptions">
 <h2>Assumptions</h2>
-<p class="intro">Every number the comparison uses that is not travel data or simulation output, with the reason for its value and the side it favours.</p>
+<p class="intro">Every number we chose rather than measured or simulated, with the reason for it and the side it favours.</p>
 <div class="scroll">
 <table class="assumptions">
 <thead><tr><th scope="col">Assumption</th><th scope="col">Value</th><th scope="col">Why this value</th></tr></thead>
@@ -774,7 +787,7 @@ ${assumptionRows(assumptions)}
 
 <section>
 <h2>Every run</h2>
-<p class="intro">One row per run: its seed, employees, packages and detour limit, what Relay matched, and the totals of both sides over the matched packages. A skipped run is in the file with its reason.</p>
+<p class="intro">One row per run: seed, employees, packages, detour limit, what Relay matched and the totals of both sides. A skipped run is listed with its reason.</p>
 <p><a class="download" href="${RUNS_CSV_HREF}" download>Download every run (CSV)</a></p>
 </section>
 

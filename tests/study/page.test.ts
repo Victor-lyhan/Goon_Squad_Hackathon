@@ -8,7 +8,7 @@ import { ASSUMPTIONS, ASSUMPTION_KEYS } from '../../scripts/study/assumptions';
 import { DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
 import { EMBEDDED_FONTS, embeddedFontCss } from '../../scripts/study/fonts';
 import {
-  CARD_MIN_WIDTH, CHART_TEXT_PX, CHART_WIDTH, RUNS_AXIS, RUNS_CSV_HREF, SKIPPED_RUNS_LISTED, TILE_MIN_WIDTH, TILE_VALUE_PX,
+  CARD_MIN_WIDTH, CHART_TEXT_PX, CHART_WIDTH, RUNS_AXIS, RUNS_CSV_HREF, SKIPPED_RUNS_LISTED, CARD_GAP, TILE_SUPPORT_VALUE_PX, TILE_VALUE_MID_PX, TILE_VALUE_PX, TILE_WIDE_MIN,
   assumptionValueParts, escapeHtml, headlineTiles, renderStudyPage,
 } from '../../scripts/study/page';
 import { runStudy } from '../../scripts/study/runner';
@@ -325,7 +325,7 @@ describe('the study page', () => {
     expect(rows[3]).toEqual([mi(h.courierMilesPerPackage), mi(summary.miles.courier.median), mi(summary.miles.courier.low), mi(summary.miles.courier.high)]);
     expect(rows[4]).toEqual([kg(h.relayCo2KgPerPackage), kg(summary.co2Kg.relay.median), kg(summary.co2Kg.relay.low), kg(summary.co2Kg.relay.high)]);
     expect(rows[5]).toEqual([kg(h.courierCo2KgPerPackage), kg(summary.co2Kg.courier.median), kg(summary.co2Kg.courier.low), kg(summary.co2Kg.courier.high)]);
-    expect(text(page)).toContain(`The average is over all ${sample.totals.matched} matched packages. The median and the percentiles are over the 2 runs that matched a package, one per-package value per run: 8 in 10 runs lie between the 10th and the 90th percentile.`);
+    expect(text(page)).toContain(`Averages are over all ${sample.totals.matched} matched packages. Medians and percentiles are over the 2 runs that matched a package, one value per run; 8 in 10 runs fall between the 10th and the 90th percentile.`);
   });
 
   it('shows the match rate by employee count as a chart with one line under it, which says "rises" only when it does', () => {
@@ -446,8 +446,9 @@ describe('the study page on a laptop and on a phone (#808)', () => {
     const phone = css.slice(css.indexOf('@media (max-width:640px)'));
     const pagePadding = Number(/main\{padding:\d+px (\d+)px \d+px\}/.exec(phone)![1]);
     expect(390 - 2 * pagePadding).toBeGreaterThanOrEqual(CARD_MIN_WIDTH);
-    // Three columns fit the widest page (main is at most 1120 px with 20 px padding and 12 px gaps).
-    expect(3 * CARD_MIN_WIDTH + 2 * 12).toBeLessThanOrEqual(1120 - 2 * 20);
+    // Three columns fit the widest page (main is at most 1120 px with 20 px padding and CARD_GAP between cards).
+    expect(rule(css, '.grid3')).toContain(`gap:${CARD_GAP}px`);
+    expect(3 * CARD_MIN_WIDTH + 2 * CARD_GAP).toBeLessThanOrEqual(1120 - 2 * 20);
   });
 
   it('keeps every chart text inside the chart box', () => {
@@ -621,21 +622,36 @@ describe('the study page after the design audit (#887)', () => {
     // No other dark block: ink is a background only there.
     expect(css.match(/background:#171C24/g)).toHaveLength(1);
 
-    // Five in a row where each tile gets TILE_MIN_WIDTH, three and two below that (never one tile alone on a
-    // row), one column on a phone.
-    expect(band).toContain('grid-template-columns:repeat(5,minmax(0,1fr))');
-    expect(css).toContain(`@media (max-width:${5 * TILE_MIN_WIDTH + 2 * 20 - 1}px){\n.tiles{grid-template-columns:repeat(6,minmax(0,1fr))}\n.tile{grid-column:span 2}\n.tile:nth-child(n+4){grid-column:span 3}\n}`);
+    // Since #942 the three Relay-vs-courier results are the one bold element: three in a row in the largest
+    // type, with delivery time and match rate as a quieter row of two under them (never one tile alone on a
+    // row), at every width above a phone. One column on a phone.
+    expect(band).toContain('grid-template-columns:repeat(6,minmax(0,1fr))');
+    expect(rule(css, '.tile')).toContain('grid-column:span 2');
+    expect(rule(css, '.tile:nth-child(n+4)')).toContain('grid-column:span 3');
+    expect(rule(css, '.tile:nth-child(n+4) .tile-value')).toContain(`font-size:${TILE_SUPPORT_VALUE_PX}px`);
+    expect(TILE_SUPPORT_VALUE_PX).toBeLessThanOrEqual(TILE_VALUE_PX / 2);
+    expect(css).toContain(`@media (min-width:641px) and (max-width:${TILE_WIDE_MIN - 1}px){\n.tile-value{font-size:${TILE_VALUE_MID_PX}px}\n}`);
     expect(rule(css, 'main')).toContain('padding:20px 20px 56px');
     const phone = css.slice(css.indexOf('@media (max-width:640px)'));
     expect(phone).toContain('.tiles{grid-template-columns:minmax(0,1fr)}\n.tile,.tile:nth-child(n+4){grid-column:auto}');
+    const phonePadding = Number(/main\{padding:\d+px (\d+)px \d+px\}/.exec(phone)![1]);
 
-    // A value stays on one line in the narrowest tile: a third of a 641 px page less the tile's padding. A
-    // figure of IBM Plex Mono is 0.6 em wide, less the letter-spacing of the rule.
+    // A value stays on one line in the narrowest tile of each layout, less the tile's padding. A figure of
+    // IBM Plex Mono is 0.6 em wide, less the letter-spacing of the rule. Three in a row: a third of the page
+    // at TILE_WIDE_MIN for the full size, a third of a 641 px page for the middle size. One column: a 346 px
+    // phone, the narrowest that shows a chart at full size.
     const tile = /padding:\d+px (\d+)px \d+px (\d+)px/.exec(rule(css, '.tile'))!;
     const spacing = Number(/letter-spacing:-(0\.\d+)em/.exec(rule(css, '.tile-value'))![1]);
-    const room = (641 - 2 * 20) / 3 - Number(tile[1]) - Number(tile[2]);
+    const tilePadding = Number(tile[1]) + Number(tile[2]);
+    const layouts = [
+      { size: TILE_VALUE_PX, room: (TILE_WIDE_MIN - 2 * 20) / 3 - tilePadding },
+      { size: TILE_VALUE_MID_PX, room: (641 - 2 * 20) / 3 - tilePadding },
+      { size: TILE_VALUE_PX, room: 346 - 2 * phonePadding - tilePadding },
+    ];
     for (const html of [pinnedPage, renderStudyPage(empty), renderStudyPage({ ...pinned, headline: { ...pinned.headline, milesSavedRate: -0.2 } })]) {
-      for (const { value } of headlineTiles(html)) expect(value.length * TILE_VALUE_PX * (0.6 - spacing), value).toBeLessThanOrEqual(room);
+      for (const { value } of headlineTiles(html).slice(0, 3)) {
+        for (const { size, room } of layouts) expect(value.length * size * (0.6 - spacing), `${value} at ${size} px`).toBeLessThanOrEqual(room);
+      }
     }
   });
 
