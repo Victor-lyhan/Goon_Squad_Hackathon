@@ -51,9 +51,9 @@ describe('network view: hovering a route', () => {
     expect(lines(tips.get('leg:plan-shp-1:0'))).toEqual(['Astoria product proofs · carried by Maya Ortiz', 'Delivery route']);
   });
 
-  it('a relay package: both legs say which leg and who carries it', () => {
-    expect(lines(tips.get('leg:plan-shp-2:0'))).toEqual(['Ceramic samples · leg 1 of 2 · carried by Sam Rivera', 'Delivery route']);
-    expect(lines(tips.get('leg:plan-shp-2:1'))).toEqual(['Ceramic samples · leg 2 of 2 · carried by Li Chen', 'Delivery route']);
+  it('a relay package: both lines name the carrier with the journey\'s letter, A or B (#917)', () => {
+    expect(lines(tips.get('leg:plan-shp-2:0'))).toEqual(['Ceramic samples · A · Sam Rivera', 'Delivery route']);
+    expect(lines(tips.get('leg:plan-shp-2:1'))).toEqual(['Ceramic samples · B · Li Chen', 'Delivery route']);
   });
 
   it('a commute: the employee\'s name above "Normal commute"', () => {
@@ -82,12 +82,12 @@ describe('network view: hovering a route', () => {
     const focused = buildNetworkView({ map, sim, focus: { kind: 'employee', id: 'emp-3' } });
     expect(focused.routes.map((r) => r.id)).toEqual(['baseline:emp-3-eve', 'leg:plan-shp-2:0']);
     const foc = tooltips(focused.routes);
-    expect(lines(foc.get('leg:plan-shp-2:0'))).toEqual(['Ceramic samples · leg 1 of 2 · carried by Sam Rivera', 'Delivery route']);
+    expect(lines(foc.get('leg:plan-shp-2:0'))).toEqual(['Ceramic samples · A · Sam Rivera', 'Delivery route']);
     expect(lines(foc.get('baseline:emp-3-eve'))).toEqual(['Sam Rivera · evening', 'Normal commute']);
 
     const business = buildNetworkView({ map, sim, focus: { kind: 'business', id: 'biz-etsy' } });
     const biz = tooltips(business.routes);
-    expect(lines(biz.get('leg:plan-shp-2:1'))).toEqual(['Ceramic samples · leg 2 of 2 · carried by Li Chen', 'Delivery route']);
+    expect(lines(biz.get('leg:plan-shp-2:1'))).toEqual(['Ceramic samples · B · Li Chen', 'Delivery route']);
     for (const item of biz.values()) expectClean(item);
   });
 
@@ -97,7 +97,7 @@ describe('network view: hovering a route', () => {
     const t = tooltips(buildNetworkView({ map: m, sim }).routes);
     expect(t.get('leg:plan-shp-2:1:2')).toBeDefined();
     expect(lines(t.get('leg:plan-shp-2:1:2'))).toEqual(lines(t.get('leg:plan-shp-2:1')));
-    expect(t.get('leg:plan-shp-2:1')!.label).toBe('Ceramic samples · leg 2 of 2 · carried by Li Chen');
+    expect(t.get('leg:plan-shp-2:1')!.label).toBe('Ceramic samples · B · Li Chen');
   });
 
   it('the page passes the labels to the map, in the network view and with a focus', () => {
@@ -114,7 +114,7 @@ describe('network view: hovering a route', () => {
     const t = tooltips(v.routes);
     expect(t.size).toBe(160);
     for (const item of t.values()) expectClean(item);
-    expect(t.get('leg:plan-shp-3:1')!.label).toBe('Package 3 · leg 2 of 2 · carried by Employee 33');
+    expect(t.get('leg:plan-shp-3:1')!.label).toBe('Package 3 · B · Employee 33');
   });
 });
 
@@ -135,7 +135,7 @@ describe('network view: what is not known is not invented', () => {
     expect(lines(t.get('leg:plan-shp-1:0'))).toEqual(['Delivery route', 'Delivery route']);
     expect(lines(t.get('baseline:emp-1-eve'))).toEqual(['Commute', 'Normal commute']);
     // The other routes are untouched.
-    expect(t.get('leg:plan-shp-2:1')!.label).toBe('Ceramic samples · leg 2 of 2 · carried by Li Chen');
+    expect(t.get('leg:plan-shp-2:1')!.label).toBe('Ceramic samples · B · Li Chen');
   });
 
   it('a route without a label has no `label` key at all', () => {
@@ -145,16 +145,16 @@ describe('network view: what is not known is not invented', () => {
     expect('label' in v.routes.find((r) => r.id === 'baseline:emp-1-eve')!).toBe(false);
   });
 
-  it('only the carrier unknown: the package and the leg, no "carried by"', () => {
+  it('only the carrier unknown: the package and the carrier letter, no "carried by"', () => {
     const t = tooltips(buildNetworkView({ map: withoutEmployee('emp-3'), sim: makeSim() }).routes);
     const item = t.get('leg:plan-shp-2:0')!;
-    expect(lines(item)).toEqual(['Ceramic samples · leg 1 of 2', 'Delivery route']);
+    expect(lines(item)).toEqual(['Ceramic samples · carrier A', 'Delivery route']);
     expectClean(item);
   });
 
   it('only the package unknown or unnamed: "Package" and the carrier', () => {
     const t = tooltips(buildNetworkView({ map: makeMap(), sim: withoutShipment('shp-2') }).routes);
-    expect(lines(t.get('leg:plan-shp-2:1'))).toEqual(['Package · leg 2 of 2 · carried by Li Chen', 'Delivery route']);
+    expect(lines(t.get('leg:plan-shp-2:1'))).toEqual(['Package · B · Li Chen', 'Delivery route']);
     const blank = makeSim();
     blank.shipments = blank.shipments.map((s) => (s.id === 'shp-1' ? { ...s, label: '   ' } : s));
     const t2 = tooltips(buildNetworkView({ map: makeMap(), sim: blank }).routes);
@@ -166,7 +166,7 @@ describe('network view: what is not known is not invented', () => {
     m.employees = m.employees.filter((e) => e.id !== 'emp-2');
     const t = tooltips(buildNetworkView({ map: m, sim: makeSim() }).routes);
     const item = t.get('leg:plan-shp-2:1')!;
-    expect(item.label).toBe('Ceramic samples · leg 2 of 2');
+    expect(item.label).toBe('Ceramic samples · carrier B');
     expectClean(item);
   });
 });
@@ -175,16 +175,16 @@ describe('journey: hovering a route', () => {
   const journeyOf = (shipmentId: string, map: MapResponse = journeyMap) =>
     buildJourney({ shipmentId, sim: simAt(T.onLeg1), map }) as Journey;
 
-  it('a direct package: "Leg 1" and the carrier on the thick part; the thin whole commute names the employee', () => {
+  it('a direct package: "A · <carrier>" on the thick part; the thin whole commute names the employee', () => {
     const t = tooltips(journeyOf('shp-1').routes);
-    expect(lines(t.get('journey-shp-1-L0-leg-0'))).toEqual(['Leg 1 · carried by Ana Ruiz', 'Delivery route']);
+    expect(lines(t.get('journey-shp-1-L0-leg-0'))).toEqual(['A · Ana Ruiz', 'Delivery route']);
     expect(lines(t.get('journey-shp-1-L0-trip-0'))).toEqual(['Ana Ruiz · evening', 'Whole commute']);
   });
 
   it('a relay package: each carried line names its leg and its carrier, each commute line its employee', () => {
     const j = journeyOf('shp-2');
     const t = tooltips(j.routes);
-    expect(lines(t.get('journey-shp-2-L0-leg-0'))).toEqual(['Leg 1 · carried by Cy Lam', 'Delivery route']);
+    expect(lines(t.get('journey-shp-2-L0-leg-0'))).toEqual(['A · Cy Lam', 'Delivery route']);
     // Leg 2's carried pair (relay → recipient) has no cached polyline in the sample: no line is invented.
     expect(t.has('journey-shp-2-L1-leg-0')).toBe(false);
     expect(lines(t.get('journey-shp-2-L0-trip-0'))).toEqual(['Cy Lam · evening', 'Whole commute']);
@@ -193,14 +193,14 @@ describe('journey: hovering a route', () => {
     for (const item of t.values()) expectClean(item);
   });
 
-  it('uses the legend\'s words: the leg numbers and names of `journey.carriers`', () => {
+  it('uses the legend\'s words: the letters and names of `journey.carriers`', () => {
     const j = journeyOf('shp-2');
     const t = tooltips(j.routes);
     const carried = j.routes.filter((r) => r.carried);
     expect(carried.length).toBeGreaterThan(0);
     for (const r of carried) {
       const c = j.carriers.find((x) => r.id.startsWith(`journey-shp-2-L${x.legIndex}-`))!;
-      expect(t.get(r.id)!.label).toBe(`Leg ${c.legIndex + 1} · carried by ${c.name}`);
+      expect(t.get(r.id)!.label).toBe(`${c.letter} · ${c.name}`);
     }
   });
 
@@ -210,15 +210,15 @@ describe('journey: hovering a route', () => {
       polylines: journeyMap.polylines.map((p) => (p.from === 'biz-roast' && p.to === 'home-007' ? { ...p, encoded: null } : p)),
     };
     const routes = journeyOf('shp-2', map).routes.filter((r) => r.id.startsWith('journey-shp-2-L0-'));
-    expect(routes.filter((r) => r.carried).map((r) => r.label)).toEqual(['Leg 1 · carried by Cy Lam']);
+    expect(routes.filter((r) => r.carried).map((r) => r.label)).toEqual(['A · Cy Lam']);
     expect(routes.filter((r) => r.carried === false).map((r) => r.label)).toEqual(['Cy Lam · evening']);
   });
 
-  it('a carrier who is not in the map answer: the leg only, never "Unknown carrier" or an ID', () => {
+  it('a carrier who is not in the map answer: the letter only, never "Unknown carrier" or an ID', () => {
     const map: MapResponse = { ...journeyMap, employees: journeyMap.employees.filter((e) => e.id !== 'emp-3') };
     const j = journeyOf('shp-2', map);
     const t = tooltips(j.routes);
-    expect(lines(t.get('journey-shp-2-L0-leg-0'))).toEqual(['Leg 1', 'Delivery route']);
+    expect(lines(t.get('journey-shp-2-L0-leg-0'))).toEqual(['Carrier A', 'Delivery route']);
     expect(lines(t.get('journey-shp-2-L0-trip-0'))).toEqual(['Commute', 'Whole commute']);
     expect('label' in j.routes.find((r) => r.id === 'journey-shp-2-L0-trip-0')!).toBe(false);
     expect(lines(t.get('journey-shp-2-L1-trip-0'))).toEqual(['Ben Okafor · morning', 'Whole commute']);
@@ -233,17 +233,18 @@ describe('journey: hovering a route', () => {
     const v = simPageView({ data: ready, selection: { kind: 'package', id: 'shp-2' }, layers: DEFAULT_LAYERS }) as SimReadyView;
     expect(v.mode).toBe('journey');
     const t = tooltips(v.map.routes);
-    expect(t.get('journey-shp-2-L0-leg-0')!.label).toBe('Leg 1 · carried by Cy Lam');
+    expect(t.get('journey-shp-2-L0-leg-0')!.label).toBe('A · Cy Lam');
     expect(t.get('journey-shp-2-L1-trip-0')!.label).toBe('Ben Okafor · morning');
   });
 });
 
 describe('the label helpers', () => {
   it('deliveryLabel', () => {
-    expect(deliveryLabel('Coffee samples', 'Cy Lam', 0, 2)).toBe('Coffee samples · leg 1 of 2 · carried by Cy Lam');
+    expect(deliveryLabel('Coffee samples', 'Cy Lam', 0, 2)).toBe('Coffee samples · A · Cy Lam');
     expect(deliveryLabel(' Coffee samples ', ' Cy Lam ', 0, 1)).toBe('Coffee samples · carried by Cy Lam');
-    expect(deliveryLabel(undefined, 'Cy Lam', 1, 2)).toBe('Package · leg 2 of 2 · carried by Cy Lam');
-    expect(deliveryLabel('Coffee samples', undefined, 1, 2)).toBe('Coffee samples · leg 2 of 2');
+    expect(deliveryLabel(undefined, 'Cy Lam', 1, 2)).toBe('Package · B · Cy Lam');
+    expect(deliveryLabel('Coffee samples', undefined, 1, 2)).toBe('Coffee samples · carrier B');
+    expect(deliveryLabel('Coffee samples', undefined, 0, 1)).toBe('Coffee samples');
     expect(deliveryLabel(undefined, undefined, 0, 2)).toBeUndefined();
     expect(deliveryLabel('  ', null, 0, 1)).toBeUndefined();
   });
@@ -254,8 +255,9 @@ describe('the label helpers', () => {
     expect(commuteLabel('Cy Lam', 'some-trip')).toBe('Cy Lam');
     expect(commuteLabel('', 'emp-3-eve')).toBeUndefined();
     expect(commuteLabel(undefined, 'emp-3-eve')).toBeUndefined();
-    expect(journeyLegLabel('Cy Lam', 0)).toBe('Leg 1 · carried by Cy Lam');
-    expect(journeyLegLabel(undefined, 1)).toBe('Leg 2');
+    expect(journeyLegLabel('Cy Lam', 0)).toBe('A · Cy Lam');
+    expect(journeyLegLabel(' Li Chen ', 1)).toBe('B · Li Chen');
+    expect(journeyLegLabel(undefined, 1)).toBe('Carrier B');
   });
 });
 

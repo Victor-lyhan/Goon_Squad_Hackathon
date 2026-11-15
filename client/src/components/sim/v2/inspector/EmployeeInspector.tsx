@@ -65,7 +65,7 @@ export function EmployeeInspector({ model, onFocus, onClear, ...h }: EmployeeIns
           { key: 'reward', label: 'Total reward', value: <span className="insp-mono">{model.totalRewardLabel}</span> },
         ]}
       />
-      {/* #883: no "ID EMP-7" line under Details any more; the panels never show a raw ID. */}
+      {/* #883: no raw employee number under Details any more; the panels name people and packages. */}
       <div className="insp-actions">
         <button type="button" className="insp-btn" aria-label={`Focus on this employee: ${model.name}`} onClick={() => onFocus(model.id)}>
           Focus on this employee
@@ -73,7 +73,7 @@ export function EmployeeInspector({ model, onFocus, onClear, ...h }: EmployeeIns
       </div>
       <section className="insp-section" data-testid="insp-legs">
         <h3 className="insp-section-title">
-          Legs <span className="insp-count">{model.legs.length}</span>
+          Packages <span className="insp-count">{model.legs.length}</span>
         </h3>
         {model.emptyMessage ? (
           <p className="insp-empty">{model.emptyMessage}</p>

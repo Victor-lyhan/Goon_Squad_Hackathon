@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Details } from '../Details';
+import { carrierRoleLabel } from './inspectorModel';
 import type { BusinessInspectorModel, PackageRow, PlaceRef } from './inspectorModel';
 import './inspector.css';
 
@@ -102,7 +103,7 @@ function PackageRowItem({ row, h }: { row: PackageRow; h: RowHandlers }) {
         ))}
         {row.carriers.map((c, i) => (
           <span key={`${c.id}-${i}`} className="insp-party">
-            <span className="insp-role">{row.carriers.length > 1 ? `Leg ${i + 1}` : 'Carrier'}</span>
+            <span className="insp-role">{carrierRoleLabel(i, row.carriers.length)}</span>
             <button
               type="button"
               className="insp-link"

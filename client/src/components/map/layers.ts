@@ -440,7 +440,7 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
             id: r.id,
             kind: r.kind,
             label: r.label?.trim() || (r.kind === 'leg' && r.carried !== false ? 'Delivery route' : 'Commute'),
-            role: r.dashed ? `${roleOfRoute(r)} · no street route cached` : roleOfRoute(r),
+            role: r.dashed ? `${roleOfRoute(r)} · Straight line: street route not loaded` : roleOfRoute(r),
           },
         };
         // An uncached pair: the straight line as dashes, each piece reporting the same route.

@@ -10,6 +10,7 @@ import { formatCents, formatMin } from '../../../../ui/format';
 import {
   NO_MATCH, packageName, SHIPMENT_STATUS_TEXT, shipmentStatusText,
 } from '../packages/statusText';
+import { carrierLetter } from '../network/networkIndex';
 
 // ---------- Labels (UI copy says "relay point", never "hub") ----------
 /** The status words of packages/statusText.ts, the same map the left list reads (#635). */
@@ -248,12 +249,21 @@ export function businessInspector(
   };
 }
 
+/**
+ * The words in front of a carrier's name in a package row (#917): "Carrier" for a direct package, and
+ * the journey timeline's letters "A ·" / "B ·" for a relay (DECISIONS pass 67), never "Leg n".
+ */
+export function carrierRoleLabel(index: number, carrierCount: number): string {
+  return carrierCount > 1 ? `${carrierLetter(index)} ·` : 'Carrier';
+}
+
 // ---------- Employee ----------
 type CarriedLeg = { plan: DeliveryPlan; leg: Leg; legIndex: number };
 
+/** "Direct", or "Relay · carrier A" / "Relay · carrier B": the journey's letter for this carrier (#917). */
 function legLabel(plan: DeliveryPlan, legIndex: number): string {
   if (plan.kind !== 'relay') return 'Direct';
-  return `Relay leg ${legIndex + 1} of ${plan.legs.length}`;
+  return `Relay · carrier ${carrierLetter(legIndex)}`;
 }
 
 export function employeeInspector(

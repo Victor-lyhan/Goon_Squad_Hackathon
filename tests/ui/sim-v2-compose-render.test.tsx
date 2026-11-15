@@ -224,7 +224,7 @@ describe('SimPageBody render', () => {
     expect(t).toContain('Works at');
     expect(t).toContain('Park Slope');
     expect(t).toContain('Ceramic samples');
-    expect(t).toContain('Relay leg 2 of 2');
+    expect(t).toContain('Relay · carrier B');
     expect(t).toContain('Pickup at relay point');
     expect(t).toContain('+9 min');
     expect(t).toContain('$4.50');
