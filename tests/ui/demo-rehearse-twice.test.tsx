@@ -427,8 +427,8 @@ describe('the demo can be rehearsed twice on a real server (#740)', () => {
 // dashboard and the buttons are disabled before anyone can press them. A page is up to one poll behind,
 // though: a click on "Find a delivery match" or "Save commute" in that gap is sent and answered 409.
 // The first test below plays that through on the same server and writes down what the two forms show one
-// poll after Back to start. The two `it.fails` after it are the faults it found: NEEDS PRODUCT FIX.
-// #740 changes no product file (`business/v2/` is held by #719, `employee/v2/` by #735).
+// poll after Back to start. The two tests after it are the faults it found. They were `it.fails` until #755
+// fixed them: #740 changed no product file (`business/v2/` was held by #719, `employee/v2/` by #735).
 
 /** What the two forms showed one poll after Back to start, when a 409 had locked them. */
 type AfterRefusal = {
@@ -481,7 +481,11 @@ describe('a write the lock refused with 409, then Back to start (#740)', () => {
     // The next poll says the same: locked.
     await onePoll('after the 409');
     expectBusinessLocked(biz, 'after the 409 and one poll');
-    expectEditorLocked(emp, 'after the 409 and one poll');
+    // Not `expectEditorLocked`: while the page's notice above the editor says the refusal, the form's own
+    // message is hidden and has no role (#735, PR #744), so "says why, as an alert" is the notice here.
+    for (const control of [...editorFields(emp), ...editorButtons(emp)]) expect(isDisabled(control), control.id || textOf(control)).toBe(true);
+    expect(emp.querySelectorAll('.ep-editor .ep-problem')).toHaveLength(1);
+    expect(lockedLine(emp)).not.toBeNull();
 
     // Back to start, one poll: the server is in planning, both dashboards say so and the pages got them.
     await pressBackToStart();
@@ -527,26 +531,26 @@ describe('a write the lock refused with 409, then Back to start (#740)', () => {
     expect(editor(emp)).toBeNull();
   });
 
-  // NEEDS PRODUCT FIX (Business, client/src/components/business/v2/NewDeliveryForm.tsx with the submit state
+  // Fixed by #755 (Business, client/src/components/business/v2/NewDeliveryForm.tsx with the submit state
   // of newDeliveryModel.ts): `locked = p.phase === 'locked' || p.status.kind === 'locked'`. A 409 sets
-  // `status.kind` to 'locked', and nothing clears it while the form stays open: the only button that
-  // dispatches is the disabled one. So after Back to start the dashboard says planning, the toolbar's New
-  // delivery is enabled, and the open form still has "Find a delivery match" disabled under the 409's
-  // sentence ("The simulation is playing. Press Back to start ..."), which is no longer true.
-  // When this passes, the fault is fixed: make it a plain `it`.
-  it.fails('NEEDS PRODUCT FIX: the New delivery form a 409 locked is open again one poll after Back to start', () => {
+  // `status.kind` to 'locked', and nothing cleared it while the form stayed open: the only button that
+  // dispatches is the disabled one. So after Back to start the dashboard said planning, the toolbar's New
+  // delivery was enabled, and the open form still had "Find a delivery match" disabled under the 409's
+  // sentence ("The simulation is playing. Press Back to start ..."), which was no longer true.
+  // Now a planning dashboard that arrives after the 409 drops that state (the `dashboard` action).
+  it('the New delivery form a 409 locked is open again one poll after Back to start', () => {
     expect(observed().formSubmitDisabled).toBe(false);
     expect(observed().formAlert).toBe('');
   });
 
-  // NEEDS PRODUCT FIX (Employee, client/src/components/employee/v2/CommuteForm.tsx and
+  // Fixed by #755 (Employee, client/src/components/employee/v2/CommuteForm.tsx and
   // page/EmployeePageView.tsx): `locked = phase === 'locked' || save.status === 'locked'`. A 409 sets
-  // `save.status` to 'locked', and `update()` returns early while locked, so no field can reset it; the
-  // page keeps its `outcome` of kind 'locked' until the editor is closed. So after Back to start the
-  // dashboard says planning, the workspace's locked line is gone, and the open editor still has every field
-  // disabled under two sentences that say the run is playing.
-  // When this passes, the fault is fixed: make it a plain `it`.
-  it.fails('NEEDS PRODUCT FIX: the commute editor a 409 locked is open again one poll after Back to start', () => {
+  // `save.status` to 'locked', and `update()` returns early while locked, so no field could reset it; the
+  // page kept its `outcome` of kind 'locked' until the editor was closed. So after Back to start the
+  // dashboard said planning, the workspace's locked line was gone, and the open editor still had every
+  // field disabled under two sentences that said the run is playing.
+  // Now a planning dashboard that arrives after the 409 drops both (the `dashboard` action, `outcomeAfterDashboard`).
+  it('the commute editor a 409 locked is open again one poll after Back to start', () => {
     expect(observed().editorFieldsDisabled).toBe(0);
     expect(observed().editorAlerts).toStrictEqual([]);
   });

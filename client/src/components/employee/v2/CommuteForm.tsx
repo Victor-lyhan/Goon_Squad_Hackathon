@@ -31,6 +31,12 @@ export type CommuteFormProps = {
   home: Home;
   businesses: NetworkBusiness[];
   phase: Phase;
+  /**
+   * The version of the dashboard `phase` was read from. A 409 locks the editor on its own, before the page
+   * has polled; the lock is dropped when a dashboard that says `planning` arrives after it, and this is how
+   * the form tells a new dashboard from the one it already had. Without it only a change of `phase` counts.
+   */
+  dashboardVersion?: number;
   homeControl?: (args: HomeControlArgs) => ReactNode;
   onSave: (req: PutCommuteRequest) => Promise<CommuteResponse>;
   /**
@@ -52,7 +58,7 @@ type FormState = {
 };
 
 export function CommuteForm({
-  employee, home, businesses, phase, homeControl, onSave, announce = true, initialDraft, initialSaveState,
+  employee, home, businesses, phase, dashboardVersion, homeControl, onSave, announce = true, initialDraft, initialSaveState,
 }: CommuteFormProps) {
   const [form, setForm] = useState<FormState>(() => ({
     draft: initialDraft ?? draftFromSaved(employee, home),
@@ -75,6 +81,14 @@ export function CommuteForm({
     setForm(current);
   }
   const { draft, baseline } = current;
+
+  // A new dashboard (adjusting state during render, like above): when it says planning, a 409's lock goes
+  // with it, so the editor reopens in the same poll as the workspace's locked line goes. The draft stays.
+  const [seenDashboard, setSeenDashboard] = useState({ phase, version: dashboardVersion });
+  if (seenDashboard.phase !== phase || seenDashboard.version !== dashboardVersion) {
+    setSeenDashboard({ phase, version: dashboardVersion });
+    dispatch({ type: 'dashboard', phase });
+  }
 
   const ids = useId();
   const id = (k: string) => `${ids}-${k}`;

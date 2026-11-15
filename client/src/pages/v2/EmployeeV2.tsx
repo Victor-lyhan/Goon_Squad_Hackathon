@@ -41,7 +41,7 @@ export default function EmployeeV2() {
 
   const job = ws.dashboard && pageScreen(ws, jobId).kind === 'job' ? ws.job : null;
 
-  // A new delivery, a re-match or a new planning cycle changes the jobs but not the run: ask for the
+  // A new delivery or a re-match changes the jobs but not the run: ask for the
   // map once more. `refresh` keeps the old map on screen until the new one is in.
   const jobsKey = ws.dashboard ? mapJobsKey(runId, ws.dashboard) : null;
   const jobsScope = jobsKey?.scope ?? null;

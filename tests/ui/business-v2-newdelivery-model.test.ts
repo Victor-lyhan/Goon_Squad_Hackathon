@@ -118,6 +118,32 @@ describe('submitReducer', () => {
     expect(submitReducer(start, { type: 'failure', error: httpError(409, 'Locked') }).status).toEqual({ kind: 'locked', message: 'Locked' });
   });
 
+  // #755: the 409 locks the form on its own; a planning dashboard that arrives after it reopens the form.
+  it('a planning dashboard after a 409 drops the lock and keeps the request ID; a locked one keeps it', () => {
+    const refused = submitReducer(submitReducer(start, { type: 'submit' }), { type: 'failure', error: httpError(409, 'Locked') });
+    expect(refused.status).toEqual({ kind: 'locked', message: 'Locked' });
+    // The dashboard still says locked: the refusal stays, with the server's text as sent.
+    expect(submitReducer(refused, { type: 'dashboard', phase: 'locked' })).toBe(refused);
+    const reopened = submitReducer(refused, { type: 'dashboard', phase: 'planning' });
+    expect(reopened).toEqual({ status: { kind: 'idle' }, clientRequestId: start.clientRequestId, retryOf: null });
+    // The draft is not part of this state, so nothing that was typed can be reset by it.
+    expect(Object.keys(reopened).sort()).toEqual(['clientRequestId', 'retryOf', 'status']);
+  });
+
+  it('a dashboard changes no other status: only a 409 is undone by planning', () => {
+    const others: SubmitState[] = [
+      start,
+      submitReducer(start, { type: 'submit' }),
+      submitReducer(start, { type: 'success', response: response(true), nextRequestId: 'req-b' }),
+      submitReducer(start, { type: 'success', response: response(false, 'No commute'), nextRequestId: 'req-b', draft: valid() }),
+      submitReducer(start, { type: 'failure', error: httpError(503, 'x', { code: 'google_unavailable' }) }),
+      submitReducer(start, { type: 'failure', error: httpError(500, 'Oops') }),
+    ];
+    for (const state of others) {
+      for (const phase of ['planning', 'locked'] as const) expect(submitReducer(state, { type: 'dashboard', phase })).toBe(state);
+    }
+  });
+
   it.each(['google_key_missing', 'travel_data_missing', 'google_unavailable'] as const)('503 %s is unavailable', (code) => {
     expect(submitReducer(start, { type: 'failure', error: httpError(503, 'x', { code }) }).status).toEqual({ kind: 'unavailable', code });
   });
@@ -204,6 +230,15 @@ describe('retry after a no-match (DECISIONS pass 60)', () => {
     const s = submitReducer(submitReducer(noMatch(), { type: 'retry' }), { type: 'failure', error: httpError(503, 'x', { code: 'travel_data_missing' }) });
     expect(s.status).toEqual({ kind: 'unavailable', code: 'travel_data_missing', saved: true });
     expect(retryShipmentId(s, sent)).toBe('shp-9');
+  });
+
+  it('a retry the lock refused is still a retry once a planning dashboard reopens the form (#755)', () => {
+    const refused = submitReducer(submitReducer(noMatch(), { type: 'retry' }), { type: 'failure', error: httpError(409, 'Locked') });
+    expect(refused.status.kind).toBe('locked');
+    const reopened = submitReducer(refused, { type: 'dashboard', phase: 'planning' });
+    expect(reopened.status).toEqual({ kind: 'idle' });
+    expect(retryShipmentId(reopened, sent)).toBe('shp-9');
+    expect(reopened.clientRequestId).toBe(refused.clientRequestId);
   });
 
   it('a 404 on the retry (the delivery is gone) makes the next click a new request', () => {

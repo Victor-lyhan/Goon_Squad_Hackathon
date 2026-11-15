@@ -29,6 +29,12 @@ export type NewDeliveryFormProps = {
   origin: NetworkBusiness;
   businesses: NetworkBusiness[];
   phase: Phase;
+  /**
+   * The version of the dashboard `phase` was read from. A 409 locks the form on its own, before the page
+   * has polled; the lock is dropped when a dashboard that says `planning` arrives after it, and this is how
+   * the form tells a new dashboard from the one it already had. Without it only a change of `phase` counts.
+   */
+  dashboardVersion?: number;
   onSubmit: (req: CreateShipmentRequest) => Promise<ShipmentResponse>;
   /** "Try matching again" for a saved delivery. Default: the context's call, else POST /api/v2/shipments/:id/match. */
   onMatch?: MatchShipment;
@@ -121,6 +127,14 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
     setDraft(emptyDraft());
     setClientErrors({});
     dispatch({ type: 'dismiss' });
+  }
+
+  // A new dashboard (adjusting state during render, like above): when it says planning, a 409's lock goes
+  // with it, so the form reopens in the same poll as the toolbar's New delivery. The draft is not touched.
+  const [seen, setSeen] = useState({ phase: props.phase, version: props.dashboardVersion });
+  if (seen.phase !== props.phase || seen.version !== props.dashboardVersion) {
+    setSeen({ phase: props.phase, version: props.dashboardVersion });
+    dispatch({ type: 'dashboard', phase: props.phase });
   }
 
   const focusFirst = (errors: FieldErrors) => {

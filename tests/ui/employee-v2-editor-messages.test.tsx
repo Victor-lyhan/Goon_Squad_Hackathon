@@ -345,3 +345,90 @@ describe('commute editor messages: nothing in the home control works during a sa
     expect(f.homeLabel()).toBe('Home: Hamilton Heights');
   }, T);
 });
+
+// #755: the page is up to one poll behind, so Save right after Play is answered 409 while the editor's
+// dashboard still says planning. The refusal locks the editor; a later planning dashboard reopens it.
+describe('commute editor messages: a save the lock refused, then Back to start (#755)', () => {
+  const SENT = 'The simulation is playing. Press Back to start in the simulator to change a commute.';
+  const EVENING = 'Evening departure (Day 1, work to home)';
+  const off = (el: Element) => (el as HTMLButtonElement).disabled === true || el.closest('fieldset[disabled]') !== null;
+  /** The 7 commute fields: workplace, home (its Change button), two departures, two availabilities, detour (and its slider). */
+  const fields = (f: Editor) => [...f.form().querySelectorAll('input, select'), button(f.form(), 'Change')];
+  const problems = (f: Editor) => [...f.editor().querySelectorAll('.ep-problem')].map(textOf);
+  const announced = (f: Editor) => textOf(f.c.querySelector('.ep-announce')!);
+
+  async function refused() {
+    const f = openEditor();
+    typeInto(f.detour(), '7');
+    typeInto(byLabel(f.form(), EVENING), '18:10');
+    f.api.saveCommute = vi.fn(async () => { throw new ApiRequestError(409, SENT); });
+    click(f.saveButton());
+    await settle();
+    expect(f.api.saveCommute).toHaveBeenCalledTimes(1);
+    expect(fields(f)).toHaveLength(8);
+    for (const el of fields(f)) expect(off(el), el.id || textOf(el)).toBe(true);
+    expect(f.saveButton().disabled).toBe(true);
+    expect(problems(f)).toStrictEqual([SENT]); // the server's text as sent, once
+    return f;
+  }
+
+  function expectReopened(f: Editor) {
+    for (const el of fields(f)) expect(off(el), el.id || textOf(el)).toBe(false);
+    expect(problems(f)).toStrictEqual([]);
+    expect(textOf(f.message())).toBe('');
+    expect(announced(f)).toBe('');
+    expect(textOf(f.editor())).not.toContain('playing');
+    expect(f.c.querySelector('.ew-locked')).toBeNull();
+    // What was typed is kept, and it is still an unsaved change.
+    expect(f.detour().value).toBe('7');
+    expect((byLabel(f.form(), EVENING) as HTMLInputElement).value).toBe('18:10');
+    expect(f.saveButton().disabled).toBe(false);
+  }
+
+  it('the 409 stays while the dashboard says locked, with the text as sent; a planning dashboard reopens the editor with the typing intact', async () => {
+    const f = await refused();
+
+    // A poll with the dashboard the page already had (same version): still refused.
+    f.poll({ ...dashboard });
+    expect(problems(f)).toStrictEqual([SENT]);
+    for (const el of fields(f)) expect(off(el), el.id || textOf(el)).toBe(true);
+    // The poll that brings the lock, and a later one while the run plays: still refused, text as sent.
+    f.poll(nowLocked);
+    f.poll({ ...nowLocked, version: nowLocked.version + 3 });
+    expect(problems(f)).toStrictEqual([SENT]);
+    for (const el of fields(f)) expect(off(el), el.id || textOf(el)).toBe(true);
+    expect(f.c.querySelector('.ew-locked')).not.toBeNull();
+
+    // Back to start: the next dashboard says planning.
+    f.poll({ ...dashboard, version: nowLocked.version + 4 });
+    expectReopened(f);
+
+    // The save the lock refused goes through now, with the typed values.
+    f.api.saveCommute = vi.fn(async (req: PutCommuteRequest) => commuteAnswer(req));
+    click(f.saveButton());
+    await settle();
+    expect(f.api.saveCommute).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(f.api.saveCommute).mock.calls[0][0]).toMatchObject({ maxExtraMin: 7, eveningDepartureMin: 18 * 60 + 10 });
+    expect(f.c.querySelector('.ep-editor')).toBeNull();
+    expect(f.c.querySelectorAll('.ep-success')).toHaveLength(1);
+  }, T);
+
+  it('a newer planning dashboard reopens the editor even when the page never saw the lock', async () => {
+    // Play, the save and Back to start all inside one poll interval: the page's phase never changes.
+    const f = await refused();
+    f.poll({ ...dashboard, version: dashboard.version + 2 });
+    expectReopened(f);
+  }, T);
+
+  it('a failure that is not a 409 is not cleared by a planning dashboard', async () => {
+    const f = openEditor();
+    typeInto(f.detour(), '7');
+    f.api.saveCommute = vi.fn(async () => { throw new ApiRequestError(500, 'The store is not writable.'); });
+    click(f.saveButton());
+    await settle();
+    expect(problems(f)).toStrictEqual(['The store is not writable.']);
+    f.poll({ ...dashboard, version: dashboard.version + 1 });
+    expect(problems(f)).toStrictEqual(['The store is not writable.']);
+    expect(f.detour().value).toBe('7');
+  }, T);
+});

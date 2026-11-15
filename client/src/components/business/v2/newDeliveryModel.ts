@@ -2,7 +2,7 @@
 // The form never decides whether a package matches; it only shapes the request and reports the server's answer.
 import { CreateShipmentRequest } from '../../../../../shared/v2/schemas';
 import type { ShipmentResponse, ShipmentView, TravelUnavailable } from '../../../../../shared/v2/api';
-import type { NetworkBusiness, PackageCategory } from '../../../../../shared/v2/types';
+import type { NetworkBusiness, PackageCategory, Phase } from '../../../../../shared/v2/types';
 import { formatMin } from '../../../ui/format';
 import { deliveryDetails, type DetailsLookups, type StopRow } from './deliveryDetailsModel';
 
@@ -223,6 +223,8 @@ export type SubmitAction =
   /** `draft`: what was sent. `nextRequestId` comes with the answer to a new request; a retry keeps the ID. */
   | { type: 'success'; response: ShipmentResponse; nextRequestId?: string; draft?: NewDeliveryDraft }
   | { type: 'failure'; error: unknown }
+  /** A dashboard newer than the last answer arrived (a poll): `phase` is what it says. */
+  | { type: 'dashboard'; phase: Phase }
   | { type: 'dismiss' };
 
 export function initialSubmitState(clientRequestId: string): SubmitState {
@@ -294,6 +296,10 @@ export function submitReducer(state: SubmitState, action: SubmitAction): SubmitS
       if ((action.error as { status?: unknown } | null)?.status === 404) return { ...state, status, retryOf: null };
       return { ...state, status: status.kind === 'unavailable' ? { ...status, saved: true } : status };
     }
+    case 'dashboard':
+      // A 409 locks the form until the run is back in planning ("Back to start", DECISIONS pass 74). Only
+      // the refusal goes: the request ID and the delivery to retry stay, and the draft is not in this state.
+      return state.status.kind === 'locked' && action.phase === 'planning' ? { ...state, status: { kind: 'idle' } } : state;
     case 'dismiss':
       return { ...state, status: { kind: 'idle' }, retryOf: null };
     default:

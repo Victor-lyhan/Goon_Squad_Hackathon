@@ -2,7 +2,7 @@
 // Pure: owns the draft, the poll-safe reset rule (DECISIONS pass 43), validation and the request.
 import type { CommuteResponse, TravelUnavailable } from '../../../../../shared/v2/api';
 import { PutCommuteRequest } from '../../../../../shared/v2/schemas';
-import type { Employee, Home } from '../../../../../shared/v2/types';
+import type { Employee, Home, Phase } from '../../../../../shared/v2/types';
 
 export const DAY_MIN = 1440;
 export const MAX_DETOUR_MIN = 30;
@@ -172,6 +172,8 @@ export type SaveAction =
   | { type: 'start' }
   | { type: 'success'; response: CommuteResponse }
   | { type: 'failure'; error: unknown }
+  /** A dashboard newer than the last answer arrived (a poll): `phase` is what it says. */
+  | { type: 'dashboard'; phase: Phase }
   | { type: 'reset' };
 
 export const INITIAL_SAVE_STATE: SaveState = { status: 'idle' };
@@ -215,6 +217,10 @@ export function saveReducer(state: SaveState, action: SaveAction): SaveState {
       return { status: 'saved', matched: action.response.rematchedShipmentIds.length };
     case 'failure':
       return classifySaveError(action.error);
+    case 'dashboard':
+      // A 409 locks the editor until the run is back in planning ("Back to start", DECISIONS pass 74).
+      // The draft is not in this state, so what was typed stays.
+      return state.status === 'locked' && action.phase === 'planning' ? INITIAL_SAVE_STATE : state;
     case 'reset':
       return state.status === 'idle' ? state : INITIAL_SAVE_STATE;
   }

@@ -250,7 +250,7 @@ describe('Employee page CSS, MVP III look (#685)', () => {
       expect(mono).toBeGreaterThan(inherit);
     });
 
-    it('mono text is never bolder than 500, the heaviest IBM Plex Mono the app loads', () => {
+    it('mono text is never bolder than the heaviest IBM Plex Mono the app loads (600 since #737)', () => {
       const loaded = [...readFileSync('client/src/styles/fonts.css', 'utf8').matchAll(/ibm-plex-mono\/latin-(\d+)\.css/g)].map((m) => Number(m[1]));
       expect(loaded.length).toBeGreaterThan(0);
       const monoSelectors = new Set(MONO.map((u) => u.selector));
