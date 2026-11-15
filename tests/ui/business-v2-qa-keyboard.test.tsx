@@ -85,8 +85,13 @@ describe('keyboard walk (#497)', () => {
       const withId = all(r, (e) => e.tag === 'td' && /shp-\d+/.test(textOf(e)));
       expect(withId.map((td) => td.attrs.hidden)).toEqual(['']);
     }
+    // Each row is followed by its own Remove button, named after its package (#949).
+    const listStops = names.slice(firstRow, firstRow + 2 * ROW_COUNT);
+    expect(listStops.filter((_, i) => i % 2 === 1)).toEqual(
+      rows.map((r) => `Remove ${textOf(all(r, (e) => e.tag === 'td' && e.attrs['data-label'] === 'Package')[0])} from the list`),
+    );
     // Notification buttons follow the table.
-    const rest = names.slice(firstRow + ROW_COUNT);
+    const rest = names.slice(firstRow + 2 * ROW_COUNT);
     expect(rest.length).toBeGreaterThan(0);
     for (const n of rest) expect(n).toMatch(/Open delivery shp-|Show all/);
   });
@@ -115,7 +120,7 @@ describe('keyboard walk (#497)', () => {
     const root = page(ready(), { shipmentId: 'shp-9' });
     const names = walkTabs(root);
     const close = names.indexOf('Close delivery details');
-    expect(close).toBeGreaterThan(TOOLBAR.length + SORTS.length + ROW_COUNT - 1);
+    expect(close).toBeGreaterThan(TOOLBAR.length + SORTS.length + 2 * ROW_COUNT - 1); // a row and its Remove button each
     expect(names.slice(close, close + 3)).toEqual(['Close delivery details', 'Try matching again', 'View journey']);
     const journey = tabOrder(root)[close + 2];
     expect(journey.attrs.href).toBe('/simulator?package=shp-9&play=1');
@@ -227,7 +232,7 @@ describe('announcements (#497)', () => {
     const caption = all(table, (e) => e.tag === 'caption')[0];
     expect(textOf(caption)).toMatch(/^Deliveries/);
     const ths = all(table, (e) => e.tag === 'th');
-    expect(ths.length).toBe(10);
+    expect(ths.length).toBe(11); // the ten columns and the Remove buttons' column (#949)
     for (const th of ths) expect(th.attrs.scope).toBe('col');
     // The sorted column says so.
     expect(ths.filter((th) => th.attrs['aria-sort'])).toHaveLength(1);

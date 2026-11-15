@@ -222,6 +222,60 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
   color: var(--text, #171C24);
 }
 
+/* ---------- Remove from the list (#949) ----------
+   The last column holds one button per row, in a cell without padding. Its target is 44 px square from the
+   row's top edge; the cross sits 4 px from that edge, level with the first line of the cells beside it, so
+   the rows keep their 8 px of padding. The cross is small and faint until the pointer is on its row or the
+   keyboard is in it; under the pointer it gets the hairline box every other button of the page gets on
+   hover. Where there is no pointer to hover with (a touch screen), it is at full strength all the time. */
+.bw-table th.bw-col--remove,
+.bw-table td.bw-cell--remove { width: 44px; padding: 0; }
+.bw-remove {
+  display: grid;
+  place-items: start center;
+  width: 44px;
+  height: 44px;
+  padding: var(--space-1, 4px) 0 0;
+  border: 0;
+  background: none;
+  color: var(--muted, #5B6472);
+  opacity: 0.45;
+  cursor: pointer;
+}
+/* A 16 px cross in a 28 px box (the page sets border-box on everything inside it). */
+.bw-remove__icon {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius, 4px);
+}
+.bw-row:hover .bw-remove, .bw-row:focus-within .bw-remove { opacity: 1; }
+.bw-remove:hover { color: var(--text, #171C24); }
+.bw-remove:hover .bw-remove__icon { border-color: var(--muted, #5B6472); background: var(--panel, #FFFFFF); }
+/* The ring is drawn inside the 44 px target, so the table's box never clips it. */
+.bw-remove:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; border-radius: var(--radius, 4px); opacity: 1; color: var(--text, #171C24); }
+@media (hover: none) {
+  .bw-remove { opacity: 1; }
+}
+
+/* "2 removed · Show all": the last line of the list while deliveries are hidden from it. */
+.bw-removed { margin: var(--space-2, 8px) 0 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.bw-removed__show {
+  min-height: 36px;
+  padding: 0 var(--space-1, 4px);
+  border: 0;
+  border-radius: var(--radius, 4px);
+  background: none;
+  color: var(--accent, #1D5075);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.bw-removed__show:hover { color: var(--accent-dark, #173E5B); }
+.bw-removed__show:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
+
 .bw-visually-hidden {
   position: absolute;
   width: 1px;
@@ -292,7 +346,14 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
     border-bottom: 1px solid var(--border, #E3E3DE);
     overflow-wrap: anywhere;
   }
-  .bw-table td:last-child { border-bottom: 0; }
+  .bw-table td:last-child, .bw-table td:has(+ .bw-cell--remove) { border-bottom: 0; }
+  /* Remove (#949) sits in the card's top right corner, beside the package's name, which makes room for it. */
+  .bw-table tr.bw-row { position: relative; }
+  .bw-table td.bw-cell--remove { position: absolute; top: 0; right: 0; display: block; width: 44px; padding: 0; border: 0; }
+  .bw-table td.bw-cell--remove::before { content: none; }
+  .bw-table tr.bw-row:has(.bw-cell--remove) td.bw-cell--primary { min-height: 44px; padding: var(--space-3, 12px) 44px var(--space-3, 12px) var(--space-3, 12px); }
+  .bw-remove { place-items: center; padding: 0; opacity: 1; }
+  .bw-removed__show { min-height: 44px; }
   /* The package's name is the card's title: full width, no "Package" label in front of it (#881). */
   .bw-table td.bw-cell--primary { display: block; padding: var(--space-2, 8px) var(--space-3, 12px); font-size: var(--text-md, 14px); }
   .bw-table td.bw-cell--primary::before { content: none; }

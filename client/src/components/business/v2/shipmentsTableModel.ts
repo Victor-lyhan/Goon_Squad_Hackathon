@@ -57,6 +57,22 @@ export const LIST_STALE_TEXT = 'This list could not be updated, so it may be out
 export const LIST_RETRY_LABEL = 'Try again';
 export const LIST_RETRYING_LABEL = 'Trying again…';
 
+// ---------- Remove from the list (#949): hides a row in this browser, cancels nothing ----------
+/** The name of a row's Remove button, for a screen reader. */
+export const removeLabel = (packageName: string) => `Remove ${packageName} from the list`;
+/** The same button's tooltip: the row already says which package. */
+export const REMOVE_TITLE = 'Remove from the list';
+/** The column of Remove buttons, read by a screen reader only. */
+export const REMOVE_COLUMN = 'Remove';
+/** "2 removed · Show all", the last line of the list while deliveries are hidden from it. */
+export const LIST_REMOVED_WORD = 'removed';
+export const LIST_SHOW_ALL_LABEL = 'Show all';
+/** That button's full name: the notifications beside the list have a "Show all" of their own. */
+export const LIST_SHOW_ALL_NAME = 'Show all removed deliveries';
+/** The list when every delivery is hidden from it. */
+export const LIST_ALL_REMOVED_TITLE = 'No deliveries left in the list';
+export const LIST_ALL_REMOVED_TEXT = 'You removed them from this list. Nothing was cancelled.';
+
 /** Display order of statuses (also the sort order for the status column). */
 export const STATUS_ORDER: ShipmentProgress[] = [
   'unmatched', 'scheduled', 'picked_up', 'at_hub', 'out_for_delivery', 'delivered',

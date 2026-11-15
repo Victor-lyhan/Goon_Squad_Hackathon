@@ -1,9 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { isEchoPress, pressOf, type Press } from './NewDeliveryForm';
 import type { ListLoadKind, ShipmentRow, SortDir, SortKey } from './shipmentsTableModel';
 import {
-  LIST_EMPTY_TEXT, LIST_EMPTY_TITLE, LIST_ERROR_TEXT, LIST_ERROR_TITLE, LIST_FILTERED_TITLE, LIST_LOADING_TEXT,
-  LIST_RETRYING_LABEL, LIST_RETRY_LABEL, LIST_STALE_TEXT, LIST_TITLE, NAMES_WAIT_MS, listLoadKind, namesMissing,
-  shipmentCountText,
+  LIST_ALL_REMOVED_TEXT, LIST_ALL_REMOVED_TITLE, LIST_EMPTY_TEXT, LIST_EMPTY_TITLE, LIST_ERROR_TEXT, LIST_ERROR_TITLE,
+  LIST_FILTERED_TITLE, LIST_LOADING_TEXT, LIST_REMOVED_WORD, LIST_RETRYING_LABEL, LIST_RETRY_LABEL, LIST_SHOW_ALL_LABEL,
+  LIST_SHOW_ALL_NAME, LIST_STALE_TEXT, LIST_TITLE, NAMES_WAIT_MS, REMOVE_COLUMN, REMOVE_TITLE, listLoadKind, namesMissing,
+  removeLabel, shipmentCountText,
 } from './shipmentsTableModel';
 import './businessWorkspace.css';
 
@@ -58,6 +60,15 @@ export type ShipmentsTableProps = {
   onClearFilters: () => void;
   /** Loading / error state of the list; default: the page's ShipmentsListLoadContext, else ready. */
   load?: ShipmentsListLoad;
+  /**
+   * Hides a delivery from this list (#949). With it every row ends in a Remove button. Nothing is cancelled:
+   * the caller only leaves the row out of `rows` and `totalCount` from then on.
+   */
+  onRemove?: (shipmentId: string) => void;
+  /** How many deliveries are hidden from the list; above zero the list ends with "2 removed · Show all". */
+  removedCount?: number;
+  /** Brings every removed delivery back. */
+  onShowAll?: () => void;
 };
 
 /**
@@ -131,6 +142,29 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
     // Only a change of the selection moves focus; a poll that brings new rows does not.
   }, [props.selectedId]);
 
+  // Remove and Show all take the pressed button away with them (#949). Focus then goes to the Remove button
+  // of the row that moved up into the removed row's place (the one above for the last row), so the next
+  // delivery can be removed with one more key press; with no row left, to Show all. After Show all it goes
+  // to the list's heading. A press that changed nothing moves nothing.
+  const showAllRef = useRef<HTMLButtonElement>(null);
+  /** The last pointer press on a Remove button, to tell a double press from two presses. */
+  const removePress = useRef<Press | null>(null);
+  const pressed = useRef<{ kind: 'remove'; id: string; index: number } | { kind: 'showAll' } | null>(null);
+  const removedCount = props.onShowAll ? props.removedCount ?? 0 : 0;
+  useEffect(() => {
+    const last = pressed.current;
+    if (!last) return;
+    pressed.current = null;
+    if (last.kind === 'showAll') {
+      if (removedCount === 0) headingRef.current?.focus();
+      return;
+    }
+    if (props.rows.some((r) => r.id === last.id)) return;
+    const rows = tbodyRef.current?.rows;
+    const row = rows && rows.length > 0 ? rows[Math.min(last.index, rows.length - 1)] : null;
+    (row?.querySelector<HTMLElement>('.bw-remove') ?? showAllRef.current ?? headingRef.current)?.focus();
+  });
+
   /** One box for every state without rows: a heading (the list's h2 in that state), one line, one action. */
   const stateBox = (title: string, text: string | null, action: ReactNode, role: 'status' | 'alert' = 'status') => (
     <div className="bw-empty" role={role}>
@@ -140,9 +174,27 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
     </div>
   );
 
+  /** The last line of the list while deliveries are hidden from it: how many, and the way back. */
+  const removedLine = removedCount > 0 && (
+    <p className="bw-removed" role="status">
+      <span className="bw-mono">{removedCount}</span> {LIST_REMOVED_WORD} ·{' '}
+      <button
+        type="button"
+        className="bw-removed__show"
+        ref={showAllRef}
+        aria-label={LIST_SHOW_ALL_NAME}
+        onClick={() => { pressed.current = { kind: 'showAll' }; props.onShowAll?.(); }}
+      >
+        {LIST_SHOW_ALL_LABEL}
+      </button>
+    </p>
+  );
+  /** A state box with that line under it. */
+  const withRemovedLine = (box: ReactNode) => (removedLine ? <div className="bw-list">{box}{removedLine}</div> : box);
+
   if (load.kind === 'loading') return stateBox(LIST_LOADING_TEXT, null, null);
   // Nothing was ever loaded: only the error. With rows on screen the error is the line above them (below).
-  if (load.kind === 'error' && props.totalCount === 0) {
+  if (load.kind === 'error' && props.totalCount === 0 && removedCount === 0) {
     return stateBox(LIST_ERROR_TITLE, LIST_ERROR_TEXT, <RetryButton onRetry={load.onRetry} />, 'alert');
   }
   const stale = load.kind === 'error' && (
@@ -152,6 +204,10 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
     </p>
   );
 
+  if (props.totalCount === 0 && removedCount > 0) {
+    // Every delivery is hidden: the box says so instead of "No deliveries yet", and Show all is under it.
+    return <>{stale}{withRemovedLine(stateBox(LIST_ALL_REMOVED_TITLE, LIST_ALL_REMOVED_TEXT, null))}</>;
+  }
   if (props.totalCount === 0) {
     return stateBox(LIST_EMPTY_TITLE, LIST_EMPTY_TEXT, (
       <button type="button" className="bw-btn bw-btn--primary" onClick={props.onNewDelivery} disabled={props.newDeliveryDisabled}>
@@ -163,18 +219,21 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
     return (
       <>
         {stale}
-        {stateBox(LIST_FILTERED_TITLE, `${shipmentCountText(props.totalCount)} in total.`, (
+        {withRemovedLine(stateBox(LIST_FILTERED_TITLE, `${shipmentCountText(props.totalCount)} in total.`, (
           <button type="button" className="bw-btn" onClick={props.onClearFilters}>Clear filters</button>
-        ))}
+        )))}
       </>
     );
   }
 
   const sortedCol = COLUMNS.find((c) => c.key === props.sort.key);
   const onRowKey = (e: KeyboardEvent<HTMLTableRowElement>, id: string) => {
+    // A key pressed on the row's Remove button is that button's, not the row's.
+    if (e.target !== e.currentTarget) return;
     // Enter and Space open the delivery, like a button; Space must not scroll the page instead.
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onSelect(id); }
   };
+  const { onRemove } = props;
 
   return (
     <div className="bw-table-wrap">
@@ -215,10 +274,14 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                 </th>
               );
             })}
+            {/* The column of Remove buttons: its name is for a screen reader, the buttons name themselves. */}
+            {onRemove && (
+              <th scope="col" className="bw-col--remove"><span className="bw-visually-hidden">{REMOVE_COLUMN}</span></th>
+            )}
           </tr>
         </thead>
         <tbody ref={tbodyRef}>
-          {props.rows.map((r) => {
+          {props.rows.map((r, index) => {
             const selected = r.id === props.selectedId;
             return (
               <tr
@@ -249,11 +312,36 @@ export function ShipmentsTable(props: ShipmentsTableProps) {
                 <td data-label="Deadline" className={cls('bw-mono', dropClass('Deadline'))}>{r.deadlineText}</td>
                 <td data-label="Delivery" className="bw-mono">{r.deliveryText}</td>
                 <td data-label="Price" className="bw-mono bw-num">{r.priceText}</td>
+                {onRemove && (
+                  <td data-label={REMOVE_COLUMN} className="bw-cell--remove">
+                    <button
+                      type="button"
+                      className="bw-remove"
+                      aria-label={removeLabel(r.label)}
+                      title={REMOVE_TITLE}
+                      // The row around it opens the delivery on a click; this press only hides the row.
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // The next row moves up under the pointer: the second press of a double press would
+                        // remove that one too, so it is dropped (as on the New delivery form, #807).
+                        if (isEchoPress(e, removePress.current)) return;
+                        removePress.current = pressOf(e, '.bw-remove');
+                        pressed.current = { kind: 'remove', id: r.id, index };
+                        onRemove(r.id);
+                      }}
+                    >
+                      <svg className="bw-remove__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                        <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}
         </tbody>
       </table>
+      {removedLine}
     </div>
   );
 }
