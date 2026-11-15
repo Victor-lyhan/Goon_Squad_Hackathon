@@ -11,8 +11,9 @@ import {
   type GeminiParseContext, type GeminiParseOutcome,
 } from '../../server/ai/geminiParser';
 import { NOT_A_NETWORK_BUSINESS } from '../../server/ai/ruleParser';
+import type { ParseAnswer } from '../../server/ai/deadline';
 import type { FetchInitLike, FetchLike } from '../../server/geo/googleClient';
-import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequest';
+import type { ParseDraft } from '../../shared/v2/parseRequest';
 import type { NetworkBusiness, PackageCategory } from '../../shared/v2/types';
 
 // Not a real key. It starts with `AQ` like a new AI Studio key.
@@ -49,8 +50,8 @@ const GOOD = {
 };
 
 /** The checked draft of `answer`. Fails when the answer is refused. */
-function drafted(answer: unknown, context: GeminiParseContext = CONTEXT): ParseRequestResponse {
-  const response = draftFromGemini(answer, context);
+function drafted(answer: unknown, context: GeminiParseContext = CONTEXT, text?: string): ParseAnswer {
+  const response = draftFromGemini(answer, context, text);
   if (response === null) throw new Error(`the answer was refused: ${JSON.stringify(answer)}`);
   expect(response.source).toBe('gemini');
   expect(response.missing).toEqual(DRAFT_KEYS.filter((key) => response.draft[key] === null));
@@ -299,16 +300,100 @@ describe('draftFromGemini', () => {
     expect(drafted({ ...GOOD, category: ' Envelope ' }).draft.category).toBe('envelope');
   });
 
-  it('a time outside the planning window, or no whole minute, becomes null', () => {
-    for (const deadlineMin of [929, 2161, 2880, 5000, -10, 0, 2040.5]) {
+  it('a deliver-by before the window, after the end of Day 2 or no whole minute becomes null (#947)', () => {
+    for (const deadlineMin of [929, 2881, 5000, -10, 0, 2040.5]) {
       const one = drafted({ ...GOOD, deadlineMin });
       expect(one.draft.deadlineMin, String(deadlineMin)).toBeNull();
       expect(one.missing, String(deadlineMin)).toContain('deadlineMin');
+      expect(one.assumed, String(deadlineMin)).toBeUndefined();
+      expect(one.note, String(deadlineMin)).toBeUndefined();
     }
     expect(drafted({ ...GOOD, deadlineMin: 2160 }).draft.deadlineMin).toBe(2160);   // the window's last minute
-    // The window is the run's: another run, other limits.
-    expect(drafted({ ...GOOD, deadlineMin: 2040 }, { ...CONTEXT, windowEndMin: 2000 }).draft.deadlineMin).toBeNull();
+    expect(drafted({ ...GOOD, deadlineMin: 2160 }).note).toBeUndefined();
     expect(drafted({ ...GOOD, deadlineMin: 2500 }, { ...CONTEXT, windowEndMin: 2880 }).draft.deadlineMin).toBe(2500);
+  });
+
+  it('a deliver-by after the window end cannot be missed: it becomes the end, and the note says so (#947)', () => {
+    const five = drafted({ ...GOOD, deadlineMin: 2460 });   // "by tomorrow 5pm"
+    expect(five.draft.deadlineMin).toBe(2160);
+    expect(five.missing).not.toContain('deadlineMin');
+    expect(five.note).toBe('Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.');
+    expect(five.assumed).toBeUndefined();
+    expect(drafted({ ...GOOD, deadlineMin: 2161 }).draft.deadlineMin).toBe(2160);
+    expect(drafted({ ...GOOD, deadlineMin: 2880 }).note).toBe('Relay delivers by 12:00 PM tomorrow, ahead of your midnight deadline.');
+    // The window is the run's: another run, other limits.
+    const other = drafted({ ...GOOD, deadlineMin: 2040 }, { ...CONTEXT, windowEndMin: 2000 });
+    expect(other.draft.deadlineMin).toBe(2000);
+    expect(other.note).toBe('Relay delivers by 9:20 AM tomorrow, ahead of your 10:00 AM deadline.');
+    const today = drafted({ ...GOOD, deadlineMin: 1500 }, { ...CONTEXT, windowEndMin: 1260 });
+    expect(today.note).toBe('Relay delivers by 9:00 PM today, ahead of your deadline of 1:00 AM tomorrow.');
+  });
+
+  it('no deliver-by at all is the window end, listed in assumed (#947)', () => {
+    for (const deadlineMin of [null, undefined]) {
+      const none = drafted({ ...GOOD, deadlineMin });
+      expect(none.draft.deadlineMin).toBe(2160);
+      expect(none.missing).not.toContain('deadlineMin');
+      expect(none.assumed).toEqual(['deadlineMin']);
+      expect(none.note).toBe('No deliver-by time given, so Relay delivers by 12:00 PM tomorrow.');
+    }
+  });
+
+  describe('the sentence of the #947 bug report, sent by Titan Foods', () => {
+    const HUMAN = 'deliver a box of cookies to Kinshop coffee by tomorrow 5pm';
+    /** What Gemini answers to it when it reads every word right: tomorrow 5pm is Day 2 17:00 = 2460. */
+    const READ = {
+      originBusinessId: null, destinationBusinessId: 'biz-kinship-coffee', label: 'Box', category: 'small_box',
+      description: 'Cookies', weightKg: null, readyMin: null, deadlineMin: 2460, rejected: [],
+    };
+    const NOTE = 'Read "Kinshop coffee" as Kinship Coffee. Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.';
+
+    it('Gemini read Kinship Coffee: the deliver-by is moved to the window end, and the note says both', () => {
+      const answer = drafted(READ, CONTEXT, HUMAN);
+      expect(answer.draft).toEqual({
+        originBusinessId: null, destinationBusinessId: 'biz-kinship-coffee', label: 'Box', category: 'small_box',
+        description: 'Cookies', weightKg: null, readyMin: 930, deadlineMin: 2160,
+      });
+      // The sender is the signed-in business (Titan Foods), which the Business page fills in.
+      expect(answer.missing).toEqual(['originBusinessId', 'weightKg']);
+      expect(answer.rejected).toBeNull();
+      expect(answer.note).toBe(NOTE);
+      expect(answer.assumed).toBeUndefined();
+      expect(BUSINESSES.find((b) => b.id === 'biz-titan-foods')?.name).toBe('Titan Foods');
+    });
+
+    it('Gemini left the misspelt stop open or refused it: the sentence fills it, and it is not refused', () => {
+      for (const given of [{ destinationBusinessId: null }, { destinationBusinessId: null, rejected: ['Kinshop coffee'] }]) {
+        const answer = drafted({ ...READ, ...given }, CONTEXT, HUMAN);
+        expect(answer.draft.destinationBusinessId, JSON.stringify(given)).toBe('biz-kinship-coffee');
+        expect(answer.rejected, JSON.stringify(given)).toBeNull();
+        expect(answer.note, JSON.stringify(given)).toBe(NOTE);
+      }
+      // Without the sentence nothing is guessed from Gemini's open stop.
+      expect(drafted({ ...READ, destinationBusinessId: null }).draft.destinationBusinessId).toBeNull();
+    });
+
+    it('Gemini wrote the misspelt name where the id belongs: one note for the business, in Gemini\'s words', () => {
+      const answer = drafted({ ...READ, destinationBusinessId: 'Kinshop Coffee' }, CONTEXT, HUMAN);
+      expect(answer.draft.destinationBusinessId).toBe('biz-kinship-coffee');
+      expect(answer.note).toBe('Read "Kinshop Coffee" as Kinship Coffee. Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.');
+    });
+
+    it('with no deliver-by in the sentence the window end is assumed', () => {
+      const text = 'deliver a box of cookies to Kinshop coffee';
+      const answer = drafted({ ...READ, deadlineMin: null }, CONTEXT, text);
+      expect(answer.draft.deadlineMin).toBe(2160);
+      expect(answer.assumed).toEqual(['deadlineMin']);
+      expect(answer.note).toBe('Read "Kinshop coffee" as Kinship Coffee. No deliver-by time given, so Relay delivers by 12:00 PM tomorrow.');
+    });
+
+    it('parseWithGemini sends the sentence and answers the same draft', async () => {
+      const { fetchImpl } = fakeFetch(() => geminiSays(READ));
+      const outcome = await parseWithGemini(HUMAN, CONTEXT, { apiKey: KEY, model: MODEL, fetchImpl });
+      if (!outcome.ok) throw new Error(outcome.message);
+      expect(outcome.response).toEqual(drafted(READ, CONTEXT, HUMAN));
+      expect(buildParsePrompt(CONTEXT)).toContain('Map a misspelt or mistyped business name');
+    });
   });
 
   it('readyMin defaults to the clock minute, like the offline parser', () => {
@@ -364,11 +449,12 @@ describe('draftFromGemini', () => {
     const sparse = drafted({ originBusinessId: 'biz-etsy' });
     expect(sparse.draft).toEqual({
       originBusinessId: 'biz-etsy', destinationBusinessId: null, label: null, category: null,
-      description: null, weightKg: null, readyMin: 930, deadlineMin: null,
+      description: null, weightKg: null, readyMin: 930, deadlineMin: 2160,
     });
-    // All null is an answer too: the sentence said nothing ("hello").
+    expect(sparse.assumed).toEqual(['deadlineMin']);
+    // All null is an answer too: the sentence said nothing ("hello"). The deliver-by is assumed (#947).
     const nothing = drafted({ ...Object.fromEntries(DRAFT_KEYS.map((key) => [key, null])), rejected: [] });
-    expect(nothing.missing).toEqual(DRAFT_KEYS.filter((key) => key !== 'readyMin'));
+    expect(nothing.missing).toEqual(DRAFT_KEYS.filter((key) => key !== 'readyMin' && key !== 'deadlineMin'));
   });
 
   it.each<[string, unknown]>([

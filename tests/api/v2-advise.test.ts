@@ -200,9 +200,7 @@ describe('POST /api/v2/advise without a Gemini key', () => {
   it.each<[string, (d: ReturnType<typeof draftOf>) => unknown, Record<string, string>]>([
     ['no draft', () => undefined, { draft: 'Send the parsed draft' }],
     ['a draft that is a list', (d) => [d], { draft: 'Send the parsed draft' }],
-    ['no sender', (d) => ({ ...d, originBusinessId: null }), { originBusinessId: 'Choose a sender' }],
-    ['no recipient', (d) => ({ ...d, destinationBusinessId: undefined }), { destinationBusinessId: 'Choose a recipient' }],
-    ['no ready time', (d) => ({ ...d, readyMin: null }), { readyMin: 'Choose a ready time' }],
+    ['a sender that is a number', (d) => ({ ...d, originBusinessId: 7 }), { originBusinessId: 'Choose a sender' }],
     ['a deliver-by that is text', (d) => ({ ...d, deadlineMin: '2040' }), { deadlineMin: 'Choose a deliver-by time' }],
     ['a fraction of a minute', (d) => ({ ...d, readyMin: 990.5 }), { readyMin: 'Choose a ready time' }],
     ['an unknown sender', (d) => ({ ...d, originBusinessId: 'biz-nope' }), { originBusinessId: UNKNOWN_BUSINESS }],
@@ -217,6 +215,37 @@ describe('POST /api/v2/advise without a Gemini key', () => {
     expect(answer.status).toBe(400);
     expect(answer.body).toStrictEqual({ error: INVALID_ADVISE, fieldErrors });
     expectUntouched(store, before);
+  }, T);
+
+  it.each<[string, (d: ReturnType<typeof draftOf>) => unknown, string]>([
+    ['no sender', (d) => ({ ...d, originBusinessId: null }), 'Choose a sender to see options.'],
+    ['no recipient', (d) => ({ ...d, destinationBusinessId: undefined }), 'Choose a recipient to see options.'],
+    ['no ready time', (d) => ({ ...d, readyMin: null }), 'Choose a ready time to see options.'],
+    ['no sender and no recipient', (d) => ({ ...d, originBusinessId: null, destinationBusinessId: null }), 'Choose a sender and a recipient to see options.'],
+  ])('%s is a 200 with no options and a note naming it (#947)', async (_name, build, note) => {
+    const { store } = await start();
+    const before = remember(store);
+    const body = await adviseOk(build(draftOf(store.get(), 'shp-7')));
+    expect(body).toStrictEqual({ options: [], source: 'offline', note });
+    expectUntouched(store, before);
+  }, T);
+
+  it('no deliver-by is the window end, and one after the window end is moved to it with a note (#947)', async () => {
+    const { store, travel } = await start();
+    const run = store.get();
+    const { simEndMin } = run.scenario.settings;
+    const draft = draftOf(run, 'shp-7');
+    const atEnd = await adviseOk({ ...draft, deadlineMin: simEndMin });
+    expect(atEnd.options.length).toBeGreaterThan(0);
+
+    const none = await adviseOk({ ...draft, deadlineMin: null });
+    expect(none.options).toStrictEqual(atEnd.options);
+    expect(none.note).toBe(['No deliver-by time given, so Relay delivers by 12:00 PM tomorrow.', atEnd.note].filter(Boolean).join(' '));
+
+    const late = await adviseOk({ ...draft, deadlineMin: simEndMin + 300 });
+    expect(late.options).toStrictEqual(atEnd.options);
+    expect(late.note?.startsWith('Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.')).toBe(true);
+    expectEngineNumbers(run, travel, { ...draft, deadlineMin: simEndMin }, late);
   }, T);
 });
 

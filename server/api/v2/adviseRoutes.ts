@@ -10,12 +10,16 @@
 // One line is logged, and only for an answer that was offline because of that pause:
 // "[advise] Options computed offline: Gemini paused after timeout, next try in 87 s." Nothing else is: no key,
 // no draft, no Gemini text.
+// #947: a draft without a sender, recipient or ready time is 200 with no options and a note naming what to
+// choose; no deliver-by is the window end, and one after the window end is moved to it, with a note in front of
+// the advisor's (server/ai/deadline.ts). A deliver-by before the window or not after the ready time stays a 400.
 import type express from 'express';
 import { z } from 'zod';
 import type { AdviseResponse } from '../../../shared/v2/api';
 import type { ApiError } from '../../../shared/v2/schemas';
 import type { Run as RunV2, Shipment, TravelProvider } from '../../../shared/v2/types';
 import { adviseUnlessPaused, type AdviseDraft, type AdvisorEngine, type AdvisorGeminiSettings } from '../../ai/advisor';
+import { settleDeadline } from '../../ai/deadline';
 import { pausedMessage, type GeminiPause } from '../../ai/geminiPause';
 import { assignShipments } from '../../domain/v2/matching';
 import type { Store } from '../../store';
@@ -50,9 +54,10 @@ export const pausedLogLine = (message: string) => `[advise] Options computed off
 /** The id of the throwaway shipment the engine is asked about. Never stored. */
 export const ADVICE_SHIPMENT_ID = 'shp-advice';
 
-const businessId = (message: string) => z.string({ error: message }).min(1, message);
-const minute = (message: string) => z.number({ error: message }).int(message);
+const businessId = (message: string) => z.string({ error: message }).min(1, message).nullish();
+const minute = (message: string) => z.number({ error: message }).int(message).nullish();
 
+// A field left out or null is missing (#947): no 400, but no options either (see `checkDraft`).
 const AdviseBody = z.object({
   draft: z.object({
     originBusinessId: businessId('Choose a sender'),
@@ -62,8 +67,30 @@ const AdviseBody = z.object({
   }, { error: 'Send the parsed draft' }),
 }, { error: 'Send the parsed draft' });
 
-/** The draft checked against the run, or the field errors (keyed like the delivery form). */
-export function checkDraft(run: RunV2, body: unknown): { draft: AdviseDraft } | { fieldErrors: Record<string, string> } {
+/** What a missing field is called in the note, in the order of the draft. */
+const MISSING_WORDS = { originBusinessId: 'a sender', destinationBusinessId: 'a recipient', readyMin: 'a ready time' } as const;
+type Needed = keyof typeof MISSING_WORDS;
+
+/** "Choose a recipient to see options." / "Choose a sender, a recipient and a ready time to see options." */
+export function missingNote(missing: readonly Needed[]): string {
+  const words = missing.map((key) => MISSING_WORDS[key]);
+  const list = words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+  return `Choose ${list} to see options.`;
+}
+
+export type CheckedDraft =
+  /** `note`: what the server changed or assumed about the deliver-by, to put before the advisor's note. */
+  | { draft: AdviseDraft; note: string | null }
+  /** Sender, recipient or ready time not given (and nothing given is wrong): 200 with no options and a note. */
+  | { missing: Needed[] }
+  | { fieldErrors: Record<string, string> };
+
+/**
+ * The draft checked against the run, the fields still missing, or the field errors (keyed like the delivery
+ * form). The deliver-by is settled as the parsers settle it (server/ai/deadline.ts, #947): none at all is the
+ * window end, one after the window end (up to the end of Day 2) is moved to the end, with a note.
+ */
+export function checkDraft(run: RunV2, body: unknown): CheckedDraft {
   const parsed = AdviseBody.safeParse(body);
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -73,18 +100,34 @@ export function checkDraft(run: RunV2, body: unknown): { draft: AdviseDraft } | 
     }
     return { fieldErrors };
   }
-  const draft = parsed.data.draft;
+  const given = parsed.data.draft;
   const fieldErrors: Record<string, string> = {};
   const known = new Set(run.scenario.businesses.map((b) => b.id));
   const { simStartMin, simEndMin } = run.scenario.settings;
   const outside = (min: number) => min < simStartMin || min > simEndMin;
-  if (!known.has(draft.originBusinessId)) fieldErrors.originBusinessId = UNKNOWN_BUSINESS;
-  if (draft.destinationBusinessId === draft.originBusinessId) fieldErrors.destinationBusinessId = SAME_BUSINESS;
-  else if (!known.has(draft.destinationBusinessId)) fieldErrors.destinationBusinessId = UNKNOWN_BUSINESS;
-  if (outside(draft.readyMin)) fieldErrors.readyMin = READY_OUTSIDE_WINDOW;
-  if (draft.deadlineMin <= draft.readyMin) fieldErrors.deadlineMin = DEADLINE_BEFORE_READY;
-  else if (outside(draft.deadlineMin)) fieldErrors.deadlineMin = DEADLINE_OUTSIDE_WINDOW;
-  return Object.keys(fieldErrors).length > 0 ? { fieldErrors } : { draft };
+  const origin = given.originBusinessId ?? null;
+  const destination = given.destinationBusinessId ?? null;
+  const readyMin = given.readyMin ?? null;
+  if (origin !== null && !known.has(origin)) fieldErrors.originBusinessId = UNKNOWN_BUSINESS;
+  if (destination !== null && destination === origin) fieldErrors.destinationBusinessId = SAME_BUSINESS;
+  else if (destination !== null && !known.has(destination)) fieldErrors.destinationBusinessId = UNKNOWN_BUSINESS;
+  if (readyMin !== null && outside(readyMin)) fieldErrors.readyMin = READY_OUTSIDE_WINDOW;
+
+  const asked = given.deadlineMin ?? null;
+  const settled = settleDeadline(asked, readyMin, { windowStartMin: simStartMin, windowEndMin: simEndMin });
+  if (asked !== null && settled.deadlineMin === null) {
+    fieldErrors.deadlineMin = readyMin !== null && asked <= readyMin ? DEADLINE_BEFORE_READY : DEADLINE_OUTSIDE_WINDOW;
+  }
+  if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
+
+  const missing = (Object.keys(MISSING_WORDS) as Needed[]).filter((key) => (given[key] ?? null) === null);
+  if (missing.length > 0 || origin === null || destination === null || readyMin === null) return { missing };
+  // A ready time at the window end leaves no deliver-by to assume.
+  if (settled.deadlineMin === null) return { fieldErrors: { deadlineMin: DEADLINE_OUTSIDE_WINDOW } };
+  return {
+    draft: { originBusinessId: origin, destinationBusinessId: destination, readyMin, deadlineMin: settled.deadlineMin },
+    note: settled.note,
+  };
 }
 
 /**
@@ -153,6 +196,10 @@ export function registerAdviseRoutes(router: express.Router, deps: AdviseRouteDe
         res.status(400).json({ error: INVALID_ADVISE, fieldErrors: checked.fieldErrors });
         return;
       }
+      if ('missing' in checked) {
+        res.json({ options: [], source: 'offline', note: missingNote(checked.missing) });
+        return;
+      }
       const { response, paused } = await adviseUnlessPaused(advisorEngine(run, deps.travel, checked.draft), deps.gemini, deps.pause);
       if (paused) {
         try {
@@ -161,7 +208,8 @@ export function registerAdviseRoutes(router: express.Router, deps: AdviseRouteDe
           // the options matter more than their log line
         }
       }
-      res.json(response);
+      const note = [checked.note, response.note].filter((line): line is string => typeof line === 'string' && line !== '').join(' ');
+      res.json(note === '' ? response : { ...response, note });
     } catch (err) {
       next(err);
     }

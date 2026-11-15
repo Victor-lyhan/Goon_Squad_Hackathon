@@ -24,14 +24,27 @@
 //   Without a package word, what is sent names the package and is its description ("Send coffee beans to
 //   Etsy": "Coffee beans"); the category stays null, because the Type is the user's choice (#827).
 // Whatever the sentence does not say stays null and is listed in `missing`; `readyMin` defaults to the clock.
-import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequest';
+// - A misspelt business after from/to ("to Kinshop coffee", #947) is the one network business within one or two
+//   letters of it (full name or distinctive first words), and `note` says which one was read; with two such
+//   businesses it is not guessed.
+// - With the planning window in the context, the deliver-by is settled by server/ai/deadline.ts: after the
+//   window end it becomes the end (with a note), and none at all is the end, listed in `assumed`.
+import type { ParseDraft } from '../../shared/v2/parseRequest';
 import type { NetworkBusiness, PackageCategory } from '../../shared/v2/types';
+import { settleDeadline, withNotes, type ParseAnswer } from './deadline';
 
 export type ParseContext = {
   /** `run.scenario.businesses`: the only stops a draft may name. */
   businesses: readonly (Pick<NetworkBusiness, 'id' | 'name'> & Partial<Pick<NetworkBusiness, 'address' | 'neighborhood' | 'borough'>>)[];
   /** The run clock's minute (`run.clock.timeMin`). */
   nowMin: number;
+  /**
+   * The run's planning window (`settings.simStartMin`, `settings.simEndMin`; #947). Given (the route always
+   * gives it): a deliver-by after its end becomes the end, none at all is assumed to be the end, and one
+   * before its start or not after the ready time is null (server/ai/deadline.ts). Left out: times as typed.
+   */
+  windowStartMin?: number;
+  windowEndMin?: number;
 };
 
 const DAY_MIN = 1440;
@@ -334,6 +347,119 @@ function resolveStops(text: string, tokens: Token[], hits: Hit[]): Stops {
   return { originBusinessId: stop.origin, destinationBusinessId: stop.destination, rejected };
 }
 
+// ---------- business names with a slip (#947) ----------
+
+/** Damerau-Levenshtein distance (optimal string alignment): "kinshop coffee" to "kinship coffee" is 1. */
+export function editDistance(a: string, b: string): number {
+  const rows: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j += 1) rows[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      rows[i][j] = Math.min(rows[i - 1][j] + 1, rows[i][j - 1] + 1, rows[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        rows[i][j] = Math.min(rows[i][j], rows[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return rows[a.length][b.length];
+}
+
+/** The slips a name of this many characters may have: none under 4, one up to 7, two from 8 on. */
+const MAX_SLIPS = 2;
+const slipsAllowed = (length: number) => (length >= 8 ? MAX_SLIPS : length >= 4 ? 1 : 0);
+
+/** A name a slip may be measured against: a full name or distinctive first words, in compared spelling. */
+type SlipName = { name: string; businessId: string };
+
+/**
+ * Every business's full name (also when two businesses share it, so neither is guessed) and the distinctive
+ * first words of `buildAliases`. Street addresses are left out: a wrong number is another address.
+ */
+function slipNames(businesses: ParseContext['businesses'], aliases: readonly Alias[]): SlipName[] {
+  const full = businesses.map((business) => {
+    const words = tokenize(business.name).map((token) => token.norm);
+    return { name: (words.length > 1 && words[0] === 'the' ? words.slice(1) : words).join(' '), businessId: business.id };
+  });
+  const short = aliases.filter((alias) => !alias.full && !alias.address).map((alias) => ({ name: alias.words.join(' '), businessId: alias.businessId }));
+  return [...full, ...short].filter((entry) => entry.name !== '');
+}
+
+/** The businesses whose full name or distinctive first words are within the allowed slips of `words`. */
+function closeBusinesses(words: readonly string[], names: readonly SlipName[]): Set<string> {
+  const typed = words.join(' ');
+  const close = new Set<string>();
+  for (const { name, businessId } of names) {
+    if (Math.abs(name.length - typed.length) > MAX_SLIPS) continue;
+    if (editDistance(typed, name) <= slipsAllowed(name.length)) close.add(businessId);
+  }
+  return close;
+}
+
+/**
+ * The one network business a typed name means, allowing a slip or two ("Kinshop coffee": Kinship Coffee), or
+ * null when no business, or more than one, is that close. Also used for a name Gemini wrote where an id belongs.
+ */
+export function closestBusiness(typed: string, businesses: ParseContext['businesses']): string | null {
+  let words = tokenize(typed).map((token) => token.norm);
+  if (words.length > 1 && words[0] === 'the') words = words.slice(1);
+  if (words.length === 0) return null;
+  const close = closeBusinesses(words, slipNames(businesses, buildAliases(businesses)));
+  return close.size === 1 ? [...close][0] : null;
+}
+
+/** A misspelt stop that was read as a network business: its role, the business, and the words as typed. */
+export type NearMiss = { role: Role; businessId: string; typed: string };
+
+/**
+ * Stops after from/to that name no business exactly but are a slip away from exactly one: "to Kinshop coffee
+ * by 5" is Kinship Coffee. The longest run of words after from/to is tried first; the first length at which
+ * any business is close decides, and only one close business is a match. A role already taken is left alone.
+ */
+function findNearMisses(text: string, tokens: Token[], hits: readonly Hit[], names: readonly SlipName[]): { hits: Hit[]; misses: NearMiss[] } {
+  const covered = new Set(hits.flatMap((hit) => Array.from({ length: hit.length }, (_, k) => hit.at + k)));
+  const taken = new Map<Role, string>();
+  for (const hit of hits) if (hit.role && !taken.has(hit.role)) taken.set(hit.role, hit.businessId);
+  const found: Hit[] = [];
+  const misses: NearMiss[] = [];
+  tokens.forEach((token, at) => {
+    if (token.norm !== 'from' && token.norm !== 'to') return;
+    const role: Role = token.norm === 'from' ? 'origin' : 'destination';
+    if (taken.has(role)) return;
+    const words = wordsAfter(text, tokens, at);
+    if (!words) return;
+    let first = words[0];
+    while (first <= words[1] && tokens[first].norm === 'the') first += 1;
+    let last = first - 1;
+    while (last + 1 <= words[1] && !covered.has(last + 1)) last += 1;
+    if (last < first || isTimeOrAmount(text, tokens, first, last) || NOT_A_PLACE.has(tokens[first].norm)) return;
+    for (let end = last; end >= first; end -= 1) {
+      const close = closeBusinesses(tokens.slice(first, end + 1).map((t) => t.norm), names);
+      if (close.size === 0) continue;
+      const [businessId] = close;
+      const other = taken.get(role === 'origin' ? 'destination' : 'origin');
+      if (close.size === 1 && businessId !== other) {
+        found.push({ at: first, length: end - first + 1, businessId, role, forIt: false });
+        misses.push({ role, businessId, typed: text.slice(tokens[first].start, tokens[end].end) });
+        taken.set(role, businessId);
+        for (let k = first; k <= end; k += 1) covered.add(k);
+      }
+      return;
+    }
+  });
+  return { hits: found, misses };
+}
+
+/** The near-miss stops of a sentence (see `findNearMisses`), for the Gemini parser's note. */
+export function nearMissStops(text: string, businesses: ParseContext['businesses']): NearMiss[] {
+  const tokens = tokenize(text);
+  const aliases = buildAliases(businesses);
+  return findNearMisses(text, tokens, findBusinesses(text, tokens, aliases), slipNames(businesses, aliases)).misses;
+}
+
+/** 'Read "Kinshop coffee" as Kinship Coffee.' */
+export const nearMissNote = (typed: string, name: string) => `Read "${typed}" as ${name}.`;
+
 // ---------- times ----------
 
 // A day in words. "next morning" and "the next day" are tomorrow; "this evening" is today, like "tonight".
@@ -542,26 +668,44 @@ function findWeightKg(lower: string): number | null {
  * The draft the sentence describes, with `source: 'offline'`. Pure: the same text, businesses and minute
  * always give the same answer. It never throws on any text.
  */
-export function parseOffline(text: string, context: ParseContext): ParseRequestResponse {
+export function parseOffline(text: string, context: ParseContext): ParseAnswer {
   const nowMin = Number.isFinite(context.nowMin) ? Math.min(LAST_MIN, Math.max(0, Math.floor(context.nowMin))) : 0;
 
   const tokens = tokenize(text);
-  const hits = findBusinesses(text, tokens, buildAliases(context.businesses));
+  const aliases = buildAliases(context.businesses);
+  const exact = findBusinesses(text, tokens, aliases);
+  const near = findNearMisses(text, tokens, exact, slipNames(context.businesses, aliases));
+  const hits = [...exact, ...near.hits].sort((a, b) => a.at - b.at);
   const stops = resolveStops(text, tokens, hits);
+  const names = new Map(context.businesses.map((business) => [business.id, business.name]));
+  const notes = near.misses.map((miss) => nearMissNote(miss.typed, names.get(miss.businessId) ?? miss.typed));
 
   // From here on the business names are out of the way: "Century 21" is not a time, "Print Shop" not a category.
   let lower = sameLengthLower(text);
   for (const hit of hits) lower = blank(lower, tokens[hit.at].start, tokens[hit.at + hit.length - 1].end);
 
   const ready = findReady(lower, nowMin);
+  const readyMin = ready.readyMin ?? nowMin;
+  let deadlineMin = findDeadline(ready.rest, nowMin);
+  const assumed: (keyof ParseDraft)[] = [];
+  const { windowStartMin, windowEndMin } = context;
+  if (typeof windowStartMin === 'number' && typeof windowEndMin === 'number') {
+    const settled = settleDeadline(deadlineMin, readyMin, { windowStartMin, windowEndMin });
+    deadlineMin = settled.deadlineMin;
+    if (settled.note) notes.push(settled.note);
+    if (settled.assumed) assumed.push('deadlineMin');
+  }
   const draft: ParseDraft = {
     originBusinessId: stops.originBusinessId,
     destinationBusinessId: stops.destinationBusinessId,
     ...findItem(text, lower),
     weightKg: findWeightKg(lower),
-    readyMin: ready.readyMin ?? nowMin,
-    deadlineMin: findDeadline(ready.rest, nowMin),
+    readyMin,
+    deadlineMin,
   };
   // Spread order above follows ParseDraft; `missing` follows DRAFT_KEYS, which is the same order.
-  return { draft, missing: DRAFT_KEYS.filter((key) => draft[key] === null), rejected: stops.rejected, source: 'offline' };
+  return withNotes(
+    { draft, missing: DRAFT_KEYS.filter((key) => draft[key] === null), rejected: stops.rejected, source: 'offline' },
+    notes, assumed,
+  );
 }
