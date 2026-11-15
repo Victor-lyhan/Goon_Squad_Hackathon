@@ -1,5 +1,6 @@
 // #479: the map's hover tooltip text (name and role) is reachable without a mouse, and the map's
-// missing-key and load-error messages are alerts. Static renders in Node (no Google, no WebGL).
+// load-error message is an alert; the missing-key message is a polite status (#767). Static renders in
+// Node (no Google, no WebGL).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { GoogleBaseMap, MapKeyMissing, MapLoadError } from '../../client/src/components/map/GoogleBaseMap';
@@ -53,13 +54,14 @@ describe('GoogleBaseMap: the selected item in a visually hidden live region', ()
     expect(liveRegion(none)).toBe('');
   });
 
-  it('without a key: the alert and the announcement are both there', () => {
+  it('without a key: the no-key notice (a status, not an alert) and the announcement are both there', () => {
     vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '');
     const html = renderToStaticMarkup(
       <GoogleBaseMap places={places} routes={[]} movers={movers} visible={visible} selectedIds={['biz-a']} />,
     );
     expect(liveRegion(html)).toBe('Selected on map: DUMBO Café, Network business · DUMBO');
-    expect(html).toMatch(/<div class="map-v2__panel" role="alert">/);
+    expect(html).toMatch(/<div class="map-v2__panel" role="status">/);
+    expect(html).not.toContain('role="alert"');
   });
 
   it('the live region is visually hidden, not display:none (screen readers still read it)', () => {
@@ -72,14 +74,16 @@ describe('GoogleBaseMap: the selected item in a visually hidden live region', ()
   });
 });
 
-describe('GoogleBaseMap: missing-key and load-error messages are alerts', () => {
-  it('missing key', () => {
+describe('GoogleBaseMap: the missing-key message is a status, the load-error message an alert', () => {
+  it('missing key: role="status", so it does not interrupt on every load without a key (#767)', () => {
     const html = renderToStaticMarkup(<MapKeyMissing />);
-    expect(html.startsWith('<div class="map-v2__panel" role="alert">')).toBe(true);
+    expect(html.startsWith('<div class="map-v2__panel" role="status">')).toBe(true);
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain('aria-live="assertive"');
     expect(html).toContain(KEY_MISSING_TEXT);
   });
 
-  it('load error, with a Retry button', () => {
+  it('load error, with a Retry button: still an alert', () => {
     const html = renderToStaticMarkup(<MapLoadError onRetry={() => {}} />);
     expect(html.startsWith('<div class="map-v2__panel" role="alert">')).toBe(true);
     expect(html).toContain(LOAD_ERROR_TEXT);
