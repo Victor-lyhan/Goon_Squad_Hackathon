@@ -55,7 +55,13 @@ export type ShipmentResponse = ShipmentView & { matched: boolean };
 export type EmployeesResponse = { employees: Employee[] };
 
 // GET /api/v2/employees/:id/dashboard
-export type EmployeeJobView = { job: Job; status: JobStatus; shipment: Shipment; plan: DeliveryPlan };
+export type EmployeeJobView = {
+  job: Job; status: JobStatus; shipment: Shipment; plan: DeliveryPlan;
+  // How many of this job's leg stops (`plan.legs[job.legIndex].stops`, in order) are done: their
+  // `serviceEndMin` is at or before the simulation minute (#781). The page marks stop `i` done when
+  // `i < stopsDone`. The server always sends it; optional in the type only for samples written before it existed.
+  stopsDone?: number;
+};
 export type EmployeeDashboard = {
   employee: Employee; home: Home; trips: Trip[];
   assigned: EmployeeJobView[]; completed: EmployeeJobView[];

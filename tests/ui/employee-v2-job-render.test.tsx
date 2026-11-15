@@ -51,6 +51,28 @@ describe('JobDetailV2 render', () => {
     expect(t).not.toContain('relay');
   });
 
+  // #781: "(done)" on a stop comes from the API's `stopsDone`, not from the job status.
+  it('marks "Collect the package (done)" only once the server counts the pickup', () => {
+    const marks = (html: string) => [...html.matchAll(/data-kind="([^"]+)" data-done="([^"]+)"/g)].map((m) => `${m[1]} ${m[2]}`);
+    // The commute left, the package is not collected yet.
+    const left = render({ ...eveningDirect('in_progress'), stopsDone: 0 });
+    expect(text(left)).toContain('Leave work (done)');
+    expect(text(left)).not.toContain('Collect the package (done)');
+    expect(text(left)).toContain('Collect the package');
+    expect(marks(left)).toEqual(['start true', 'pickup false', 'delivery false', 'end false']);
+    expectClean(left);
+    // The pickup is handled.
+    const collected = render({ ...eveningDirect('in_progress'), stopsDone: 1 });
+    expect(text(collected)).toContain('Collect the package (done)');
+    expect(text(collected)).not.toContain('Hand over the package (done)');
+    expect(marks(collected)).toEqual(['start true', 'pickup true', 'delivery false', 'end false']);
+    // Everything is done.
+    const done = render({ ...eveningDirect('completed'), stopsDone: 2 });
+    expect(marks(done)).toEqual(['start true', 'pickup true', 'delivery true', 'end true']);
+    // An answer without the count keeps the old marks.
+    expect(marks(render(eveningDirect('in_progress')))).toEqual(['start true', 'pickup true', 'delivery false', 'end false']);
+  });
+
   it('"What it adds" lists the reward first and a shorter detour as "km shorter" (#551)', () => {
     const job = eveningDirect();
     job.plan.legs[job.job.legIndex].extraDistanceM = -5496;

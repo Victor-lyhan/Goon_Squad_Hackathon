@@ -76,7 +76,7 @@ describe('jobDetail (v2 model)', () => {
     expect(r2.map((r) => r.instructions)).toEqual(['', '', 'Hand to the office manager', '']);
   });
 
-  it.each(STATUSES)('status %s: label and done marks come only from job.status', (status) => {
+  it.each(STATUSES)('status %s without stopsDone: label and done marks come only from job.status', (status) => {
     for (const make of [eveningDirect, morningDirect, relayLeg1, relayLeg2]) {
       const m = jobDetail(make(status), businesses, 'Astoria');
       expect(m.status).toBe(status);
@@ -90,6 +90,75 @@ describe('jobDetail (v2 model)', () => {
       }[status]);
       expect(m.route).toHaveLength(4);
     }
+  });
+
+  // #781: the server counts the leg's stops that are done (`stopsDone`); the page no longer guesses from the status.
+  describe('stop rows follow the API\'s stopsDone (#781)', () => {
+    const doneOf = (job: ReturnType<typeof eveningDirect>) =>
+      jobDetail(job, businesses, 'Astoria').route.map((r) => [r.action, r.done]);
+
+    it('the commute left but the package is not collected yet: "Collect the package" is not done', () => {
+      for (const make of [eveningDirect, morningDirect, relayLeg1, relayLeg2]) {
+        // An answer that says "in progress" with no stop done: the count wins over the old status guess.
+        const m = jobDetail({ ...make('in_progress'), stopsDone: 0 }, businesses, 'Astoria');
+        expect(m.route.map((r) => r.done)).toEqual([true, false, false, false]);
+      }
+      expect(doneOf({ ...eveningDirect('in_progress'), stopsDone: 0 })).toEqual([
+        ['Leave work', true], ['Collect the package', false], ['Hand over the package', false], ['Arrive home', false],
+      ]);
+    });
+
+    it('after the pickup it is done, and the next stop is not', () => {
+      expect(doneOf({ ...eveningDirect('in_progress'), stopsDone: 1 })).toEqual([
+        ['Leave work', true], ['Collect the package', true], ['Hand over the package', false], ['Arrive home', false],
+      ]);
+      expect(doneOf({ ...relayLeg2('in_progress'), stopsDone: 1 })).toEqual([
+        ['Leave home', true], ['Collect it from the relay point', true], ['Hand over the package', false], ['Arrive at work', false],
+      ]);
+    });
+
+    it('what the server sends with each status: 0 assigned, all stops completed', () => {
+      for (const make of [eveningDirect, morningDirect, relayLeg1, relayLeg2]) {
+        expect(jobDetail({ ...make('assigned'), stopsDone: 0 }, businesses, 'Astoria').route.map((r) => r.done))
+          .toEqual([false, false, false, false]);
+        expect(jobDetail({ ...make('completed'), stopsDone: 2 }, businesses, 'Astoria').route.map((r) => r.done))
+          .toEqual([true, true, true, true]);
+      }
+    });
+
+    it('only the stop rows read the count: the start and end rows keep the job status', () => {
+      // Whatever the count says, "Leave work" and "Arrive home" follow the status, as before.
+      expect(jobDetail({ ...eveningDirect('assigned'), stopsDone: 2 }, businesses, 'Astoria').route.map((r) => r.done))
+        .toEqual([false, true, true, false]);
+      expect(jobDetail({ ...eveningDirect('completed'), stopsDone: 1 }, businesses, 'Astoria').route.map((r) => r.done))
+        .toEqual([true, true, false, true]);
+    });
+
+    it('a leg with three stops: stop i is done iff i < stopsDone', () => {
+      const three = (stopsDone: number) => {
+        const job = eveningDirect('in_progress');
+        const leg = job.plan.legs[0];
+        leg.stops = [leg.stops[0], { ...leg.stops[0], placeId: 'biz-cafe', kind: 'hub_drop' }, leg.stops[1]];
+        return jobDetail({ ...job, stopsDone }, businesses, 'Astoria').route.slice(1, -1).map((r) => r.done);
+      };
+      expect(three(0)).toEqual([false, false, false]);
+      expect(three(1)).toEqual([true, false, false]);
+      expect(three(2)).toEqual([true, true, false]);
+      expect(three(3)).toEqual([true, true, true]);
+    });
+
+    it('without stopsDone (an older answer or sample) the old rule holds; a value that is no number counts as missing', () => {
+      const old = { assigned: [false, false, false, false], in_progress: [true, true, false, false], completed: [true, true, true, true] };
+      for (const status of STATUSES) {
+        const job = relayLeg1(status);
+        expect('stopsDone' in job).toBe(false);
+        expect(jobDetail(job, businesses, 'Astoria').route.map((r) => r.done)).toEqual(old[status]);
+        for (const bad of [undefined, null, Number.NaN, '1']) {
+          const odd = { ...relayLeg1(status), stopsDone: bad as unknown as number };
+          expect(jobDetail(odd, businesses, 'Astoria').route.map((r) => r.done)).toEqual(old[status]);
+        }
+      }
+    });
   });
 
   it('an unresolved placeId reads "Unknown place", never the raw ID', () => {

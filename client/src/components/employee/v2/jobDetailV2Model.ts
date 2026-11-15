@@ -29,7 +29,10 @@ export type RouteRow = {
   address: string;
   action: string;
   instructions: string;
-  /** Done per the API job status only (first stop once in progress, all once completed). */
+  /**
+   * A stop is done per the API's `stopsDone` count (#781); without it, per the job status (first stop once
+   * in progress, all once completed). The start and end rows follow the job status.
+   */
   done: boolean;
 };
 
@@ -119,7 +122,13 @@ export function relaySentence(job: JobResponse, businesses: NetworkBusiness[]): 
   return `Another carrier brought the package from ${origin} to ${relay} on their evening commute; you collect it there and deliver it.`;
 }
 
-function stopDone(status: JobStatus, index: number): boolean {
+/**
+ * Is stop `index` of the leg done? The server's count decides (`stopsDone`, #781): the first `stopsDone`
+ * stops are done. An answer without the count (an older sample) falls back to the job status: the first
+ * stop once in progress, all once completed.
+ */
+function stopDone(status: JobStatus, index: number, stopsDone: number | undefined): boolean {
+  if (typeof stopsDone === 'number' && Number.isFinite(stopsDone)) return index < stopsDone;
   if (status === 'completed') return true;
   return status === 'in_progress' && index === 0;
 }
@@ -128,7 +137,7 @@ function stopDone(status: JobStatus, index: number): boolean {
 export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeNeighborhood: string): RouteRow[] {
   const leg = job.plan.legs[job.job.legIndex];
   const stops = leg?.stops?.length ? leg.stops : [job.job.pickup, job.job.dropoff];
-  const { shipment, trip, status } = job;
+  const { shipment, trip, status, stopsDone } = job;
   const start = resolvePlace(trip.originPlaceId, businesses, homeNeighborhood);
   const end = resolvePlace(trip.destinationPlaceId, businesses, homeNeighborhood);
   const lastStop = stops[stops.length - 1];
@@ -147,7 +156,7 @@ export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeN
       key: `${i}-${s.kind}`, kind: s.kind,
       time: momentText(s.serviceStartMin),
       place: p.name, address: p.address, action: STOP_ACTION[s.kind],
-      instructions: (instructions ?? '').trim(), done: stopDone(status, i),
+      instructions: (instructions ?? '').trim(), done: stopDone(status, i, stopsDone),
     });
   });
   rows.push({
