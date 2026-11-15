@@ -3,12 +3,14 @@
    (compose.css `.spc-playbar`): the --text ink at 72% over a blur of the map, white text, no white panel,
    no border, no shadow, no gradient. Closed it is a pill; open it is a rounded box. Colors only through
    tokens (tokens.css) here; swatch colors are set inline from the map layer constants. At most 240px
-   wide so it never covers much of the map. The page positions it in the map corner. */
+   wide so it never covers much of the map. The page positions it in the map corner.
+   Issue 874: and never wider than the box the page puts it in (compose.css `.spc-legend`, which keeps it
+   12px inside both sides of the map): in a 220px map (a 900px window) the labels wrap instead. */
 
 .ml {
   box-sizing: border-box;
   width: max-content;
-  max-width: 240px;
+  max-width: min(240px, 100%);
   /* The room of the hairline border it had, so the legend is as large as before. */
   padding: 1px;
   border-radius: 14px;
@@ -69,8 +71,10 @@
   align-items: center;
   gap: var(--space-2);
 }
+/* In a narrow map a label wraps beside its swatch, and a long word breaks rather than overflow. */
 .ml__label {
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 /* Softer than the other labels, and still above 4.5:1 on the pill over a white map. */
 .ml__row--dimmed .ml__label,

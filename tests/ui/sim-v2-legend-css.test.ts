@@ -39,7 +39,8 @@ describe('legend.css', () => {
     expect(ml).toMatch(/background:\s*color-mix\(in srgb, var\(--text\) 72%, transparent\);/);
     expect(ml).toMatch(/color:\s*var\(--panel\);/);
     expect(ml).toMatch(/font-family:\s*var\(--font-sans\);/);
-    const max = ml.match(/max-width:\s*(\d+)px;/);
+    // #874: at most 240px, and at most its corner box, so it fits a 220px map too.
+    const max = ml.match(/max-width:\s*min\((\d+)px, 100%\);/);
     expect(max).not.toBeNull();
     expect(Number(max![1])).toBeLessThanOrEqual(240);
     expect(ml).not.toMatch(/(^|[^-])width:\s*\d{3,}px/);
@@ -51,6 +52,17 @@ describe('legend.css', () => {
   it('uses only token variables for colors (no fallbacks needed, no literals)', () => {
     for (const m of noComments.matchAll(/var\(--[\w-]+\s*,/g)) throw new Error(`fallback in ${m[0]}`);
     expect(noComments).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+
+  it('every class MapLegend.tsx writes has a rule here: no dead hooks (#874 dropped ml__chevron)', () => {
+    // The fixed class names; the `ml__row--${row.key}` and `ml__swatch--${row.shape}` modifiers are data.
+    const written = [...tsx.matchAll(/className=(?:"([^"]+)"|\{`([^`]+)`\})/g)]
+      .flatMap((m) => (m[1] ?? m[2]).split(/\s+/))
+      .filter((c) => c && !c.includes('${'));
+    expect(written.length).toBeGreaterThan(5);
+    const styled = new Set(rules.flatMap(([s]) => [...s.matchAll(/\.([\w-]+)/g)].map((m) => m[1])));
+    expect(written.filter((c) => !styled.has(c))).toEqual([]);
+    expect(tsx).not.toContain('ml__chevron');
   });
 
   it('never stores the open state in localStorage', () => {
