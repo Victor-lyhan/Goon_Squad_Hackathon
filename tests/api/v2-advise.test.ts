@@ -2,12 +2,13 @@
 // businesses and story, and a FAKE Gemini behind the injected `fetch`. Checks: the contract's shape, every
 // number copied from the engine (a Gemini that invents a price is ignored), trips already reserved stay
 // reserved, a slow Gemini falls back to the offline options, a bad draft is a 400, and the run is never changed.
+// #867: the flexibility window is the run's `settings.flexWindowMin`; the variants, the prompt and the prices follow it.
 // No network, no real key.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { adviseOffline, PRESENT_OPTIONS, TRY_VARIANT } from '../../server/ai/advisor';
+import { adviseOffline, buildAdvisorPrompt, offlineVariants, PRESENT_OPTIONS, timeText, TRY_VARIANT } from '../../server/ai/advisor';
 import { GEMINI_MODELS_URL } from '../../server/ai/gemini';
-import { advisorEngine, INVALID_ADVISE } from '../../server/api/v2/adviseRoutes';
+import { advisorEngine, flexWindowOf, INVALID_ADVISE } from '../../server/api/v2/adviseRoutes';
 import {
   DEADLINE_BEFORE_READY, DEADLINE_OUTSIDE_WINDOW, READY_OUTSIDE_WINDOW, SAME_BUSINESS, UNKNOWN_BUSINESS,
 } from '../../server/api/v2/shipmentOps';
@@ -15,6 +16,7 @@ import type { FetchLike } from '../../server/geo/googleClient';
 import type { Store } from '../../server/store';
 import type { AdviseResponse } from '../../shared/v2/api';
 import type { Run as RunV2, Shipment, TravelProvider } from '../../shared/v2/types';
+import { expectEnginePrices, withFlexWindow } from './v2-advise-pricing-helper';
 import { T, startBootstrapApi, type BootstrapApi } from './v2-bootstrap-helper';
 
 const KEY = 'AQ.FAKE_advise-route-77e2';
@@ -214,6 +216,95 @@ describe('POST /api/v2/advise without a Gemini key', () => {
     const answer = await advise(build(draftOf(store.get(), 'shp-7')));
     expect(answer.status).toBe(400);
     expect(answer.body).toStrictEqual({ error: INVALID_ADVISE, fieldErrors });
+    expectUntouched(store, before);
+  }, T);
+});
+
+// #867: the advisor's flexibility window is the run's `settings.flexWindowMin` (#861), the number the engine
+// prices with. The sample run's settings say 1080 (18 h); the tests change it in the store, like an imported run.
+describe('POST /api/v2/advise reads the run\'s flexWindowMin (#867)', () => {
+  /** shp-2 of the sample run is delivered the evening it is ready. Here its deliver-by is 8 h after ready. */
+  function shortWindowDraft(run: RunV2) {
+    const draft = draftOf(run, 'shp-2');
+    return { ...draft, deadlineMin: draft.readyMin + 480 };
+  }
+  /** The options that move the deliver-by: the "later deliver-by / flexible" variant. */
+  const laterDeliverBy = (body: AdviseResponse) => body.options.filter((o) => o.changes.deadlineMin !== undefined);
+
+  it('offline, the "later deliver-by" option is ready + 18 h on the sample run and ready + 10 h once the run says 600', async () => {
+    const { store, travel } = await start();
+    const draft = shortWindowDraft(store.get());
+    expect(store.get().scenario.settings.flexWindowMin).toBe(1080);
+    expect(flexWindowOf(store.get().scenario.settings)).toBe(1080);
+
+    const at18 = await adviseOk(draft);
+    expect(at18.options[0]).toMatchObject({ changes: {}, customerPriceCents: 700 });
+    expect(laterDeliverBy(at18).map((o) => [o.changes, o.customerPriceCents]))
+      .toStrictEqual([[{ deadlineMin: draft.readyMin + 1080 }, 600]]);
+    expectEnginePrices(store.get(), travel, draft, at18);
+
+    const run = await store.mutate((r) => withFlexWindow(r, 600));
+    const before = remember(store);
+    const engine = advisorEngine(run, travel, draft);
+    expect(engine.flexWindowMin).toBe(600);
+    expect(offlineVariants(engine).map((v) => v.changes)).toStrictEqual([
+      {}, { readyMin: run.clock.timeMin }, { deadlineMin: draft.readyMin + 600 },
+    ]);
+
+    const at10 = await adviseOk(draft);
+    expect(at10.source).toBe('offline');
+    expect(at10.options[0]).toMatchObject({ changes: {}, customerPriceCents: 700 });
+    expect(laterDeliverBy(at10).map((o) => [o.label, o.changes, o.customerPriceCents]))
+      .toStrictEqual([[`Deliver by ${timeText(draft.readyMin + 600)}`, { deadlineMin: draft.readyMin + 600 }, 600]]);
+    const priced = expectEnginePrices(run, travel, draft, at10);
+    expect(priced.map((p) => p.flexible)).toContain(true);
+    // The variant sits exactly on the engine's own limit: one minute less and the matcher gives no discount.
+    const short = engine.match(draft.readyMin, draft.readyMin + 599);
+    expect('plan' in short && short.plan.customerPriceCents).toBe(700);
+    expectUntouched(store, before);
+  }, T);
+
+  it('a window the request already leaves is not offered again: at 600 the shp-7 request has the discount as typed', async () => {
+    const { store, travel } = await start();
+    const run = await store.mutate((r) => withFlexWindow(r, 600));
+    const draft = draftOf(run, 'shp-7');   // 1090 -> 2100: under 18 h, over 10 h
+    expect(draft.deadlineMin - draft.readyMin).toBeLessThan(1080);
+    const body = await adviseOk(draft);
+    expect(laterDeliverBy(body)).toStrictEqual([]);
+    const priced = expectEnginePrices(run, travel, draft, body);
+    expect(priced.length).toBeGreaterThan(0);
+    expect(priced.every((p) => p.flexible)).toBe(true);
+  }, T);
+
+  it('with a key, Gemini\'s prompt says "at least 10 hours" for 600, and its later deliver-by gets the engine\'s discount', async () => {
+    const turns: Turn[] = [];
+    const { store, travel, sent } = await start({ turns });
+    const run = await store.mutate((r) => withFlexWindow(r, 600));
+    const before = remember(store);
+    const draft = shortWindowDraft(run);
+    turns.push(
+      [call(TRY_VARIANT, {}), call(TRY_VARIANT, { deadlineMin: draft.readyMin + 600 }), call(TRY_VARIANT, { deadlineMin: draft.readyMin + 599 })],
+      [call(PRESENT_OPTIONS, { options: [
+        { resultId: 'r2', label: 'Flexible', summary: 'A later deliver-by, a lower price.' },
+        { resultId: 'r3', label: 'One minute short', summary: 'Not flexible yet.' },
+      ] })],
+    );
+
+    const body = await adviseOk(draft);
+
+    expect(body.source).toBe('gemini');
+    expect(body.options.map((o) => [o.label, o.changes, o.customerPriceCents])).toStrictEqual([
+      ['Flexible', { deadlineMin: draft.readyMin + 600 }, 600],
+      ['One minute short', { deadlineMin: draft.readyMin + 599 }, 700],
+    ]);
+    expect(expectEnginePrices(run, travel, draft, body).map((p) => p.flexible)).toStrictEqual([true, false]);
+    expect(sent).toHaveLength(2);
+    for (const text of sent) {
+      const prompt: string = JSON.parse(text).systemInstruction.parts[0].text;
+      expect(prompt).toBe(buildAdvisorPrompt(advisorEngine(run, travel, draft)));
+      expect(prompt).toContain('A deliver-by at least 10 hours after the ready time gets a flexibility discount.');
+      expect(prompt).not.toContain('18 hours');
+    }
     expectUntouched(store, before);
   }, T);
 });

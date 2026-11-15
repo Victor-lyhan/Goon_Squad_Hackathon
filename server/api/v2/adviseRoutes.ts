@@ -11,7 +11,7 @@ import { z } from 'zod';
 import type { AdviseResponse } from '../../../shared/v2/api';
 import type { ApiError } from '../../../shared/v2/schemas';
 import type { Run as RunV2, Shipment, TravelProvider } from '../../../shared/v2/types';
-import { advise, DEFAULT_FLEX_WINDOW_MIN, type AdviseDraft, type AdvisorEngine, type AdvisorGeminiSettings } from '../../ai/advisor';
+import { advise, type AdviseDraft, type AdvisorEngine, type AdvisorGeminiSettings } from '../../ai/advisor';
 import { assignShipments } from '../../domain/v2/matching';
 import type { Store } from '../../store';
 import { matchContext } from './pipeline';
@@ -69,10 +69,14 @@ export function checkDraft(run: RunV2, body: unknown): { draft: AdviseDraft } | 
   return Object.keys(fieldErrors).length > 0 ? { fieldErrors } : { draft };
 }
 
-/** The flexibility window of the run's settings (#861), or the default while the settings have none. */
-function flexWindowOf(settings: RunV2['scenario']['settings']): number {
-  const value = (settings as { flexWindowMin?: unknown }).flexWindowMin;
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_FLEX_WINDOW_MIN;
+/**
+ * The run's flexibility window: `settings.flexWindowMin` (#861), the same number `customerPriceCents` reads
+ * when the engine prices a plan. There is no fallback (#867): every run in the store has the field. A state
+ * file saved before #861 is set aside as stale at boot (the default settings are part of the fingerprint), and
+ * an imported run without it is refused.
+ */
+export function flexWindowOf(settings: RunV2['scenario']['settings']): number {
+  return settings.flexWindowMin;
 }
 
 /**
