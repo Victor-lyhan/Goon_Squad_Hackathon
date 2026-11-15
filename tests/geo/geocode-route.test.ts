@@ -94,7 +94,8 @@ let server: Server | undefined;
 async function serve(deps: GeocodeDeps): Promise<string> {
   const app = express();
   app.get('/api/v2/geocode', getGeocode(deps));
-  server = app.listen(0);
+  // 127.0.0.1 only (#821): on every address, another program on 127.0.0.1 with the same port number could answer.
+  server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server!.once('listening', resolve));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
