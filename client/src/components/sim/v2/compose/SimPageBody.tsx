@@ -1,6 +1,7 @@
 // The simulator page body (#426, completed in #460; one Play/Pause button in #648): the merged pieces in one workspace.
-// left = Play/Pause, the package panel, the focus and the direct-only vs relay comparison; center = the NYC map
-// with its legend; right = run summary / business or employee inspector / package journey.
+// left = the package panel, the focus and the direct-only vs relay comparison; center = the NYC map with its
+// legend and, floating at its bottom center, Play/Pause and "Back to start" (#831); right = run summary /
+// business or employee inspector / package journey.
 //
 // `SimPageBody` holds the page's UI state (focus, pan target, legend open, comparison) and takes the data hook's
 // value and the selection as props, so tests pass a hand-built hook value. `SimPageLayout` is the
@@ -51,6 +52,9 @@ import { useJourneyPlay } from './useJourneyPlay';
 import './compose.css';
 
 // ---------- The one Play/Pause button ----------
+
+/** The accessible name of the floating playback group on the map (#831); it was the left panel's "Playback" heading. */
+export const PLAYBACK_LABEL = 'Playback';
 
 /** The picked package's journey as the right panel has it: null in network mode, while pending and when missing. */
 function journeyOf(view: SimReadyView): JourneyResult | null {
@@ -273,13 +277,8 @@ function ReadyLayout({
           <button type="button" className="sw-btn" onClick={handlers.dismissActionError}>Dismiss</button>
         </div>
       )}
-      {/* The one Play/Pause button (#648): the picked package's journey, or with no package every commute (#790). */}
-      <PanelSection title="Playback">
-        <PlaybackControls button={pagePlayButton(view, play)} status={stepLineHeld ? '' : playStatusText(journey, play, view.controls.clock.timeMin)}
-          error={playErrorText(play, view.actionError)} resetDisabled={resetDisabledReason(view.controls.busy)}
-          onToggle={handlers.togglePlay} onReset={handlers.backToStart} />
-      </PanelSection>
-      {/* Directly under Playback (#607, pass 61): the list that opens a journey is reached without scrolling. */}
+      {/* First in the panel (#607, pass 61; Playback moved onto the map in #831): the list that opens a
+          journey is reached without scrolling. */}
       <PanelSection title="Packages">
         {pk.kind === 'panel' ? (
           <PackagePanel sim={pk.sim} map={pk.map} selectedId={view.selectedPackageId} onSelect={handlers.selectPackage} />
@@ -297,6 +296,15 @@ function ReadyLayout({
   );
   const map = (
     <div className="spc-map">
+      {/* The one Play/Pause button (#648): the picked package's journey, or with no package every commute
+          (#790). #831: it floats at the bottom center of the map with "Back to start" next to it, so it is on
+          screen whatever the panels show (scrolled, collapsed). Before the map in the page, so Tab reaches
+          it before the map's own stops. */}
+      <div className="spc-playbar" role="group" aria-label={PLAYBACK_LABEL}>
+        <PlaybackControls button={pagePlayButton(view, play)} status={stepLineHeld ? '' : playStatusText(journey, play, view.controls.clock.timeMin)}
+          error={playErrorText(play, view.actionError)} resetDisabled={resetDisabledReason(view.controls.busy)}
+          onToggle={handlers.togglePlay} onReset={handlers.backToStart} />
+      </div>
       <GoogleBaseMap {...view.map} movers={movers ?? view.map.movers} panTo={panTo} onSelect={handlers.mapSelect} />
       <div className="spc-legend" data-legend-mode={view.legend.label}>
         <MapLegend mode={view.legend.mode} hasSelection={view.legend.hasSelection}

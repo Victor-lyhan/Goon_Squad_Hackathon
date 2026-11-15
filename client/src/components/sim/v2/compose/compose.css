@@ -59,15 +59,49 @@
 .spc-banner--quiet { border-color: var(--border, #E3E3DE); color: var(--muted, #5B6472); }
 .spc-banner + .spc-banner { top: calc(var(--space-3, 12px) + 32px); }
 
-/* The legend sits in the bottom-left corner, above the Google logo; the zoom buttons are bottom-right. */
+/* The legend sits in the top-left corner, under the map's day/night badge (12px + its 27px + a gap).
+   #831: it left the bottom-left corner, where it is 240px wide and covered the floating Play/Pause
+   control in every map narrower than about 830px (a 1440px window with both panels open has 760px).
+   The bottom of the map is the control's (center), the Google logo's (left) and the zoom buttons'
+   (right). In a short window it scrolls instead of reaching down to the control. */
 .spc-legend {
   position: absolute;
   left: var(--space-3, 12px);
-  bottom: 32px;
+  top: 48px;
   z-index: 2;
-  max-height: calc(100% - 96px);
+  max-height: calc(100% - 200px);
   overflow-y: auto;
 }
+
+/* ---------- Map: the floating Play/Pause control (#831) ---------- */
+/* Bottom center of the map, level with the legend and above Google's attribution strip. The workspace
+   fills the viewport and never scrolls, so the control is on screen whatever the panels show. One fixed
+   width, so the buttons do not move as the step line changes; it grows upward when a note or the step
+   line appears. Never wider than the map: in the narrowest map (220 px: a 900 px window with both
+   panels open) the two buttons wrap onto two rows. Flat like the legend: panel fill, hairline border. */
+.spc-playbar {
+  position: absolute;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  /* Above the legend and the banners, so nothing can cover Play. */
+  z-index: 3;
+  box-sizing: border-box;
+  width: 300px;
+  max-width: calc(100% - 2 * var(--space-3, 12px));
+  padding: var(--space-2, 8px);
+  background: var(--panel, #FFFFFF);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  text-align: center;
+}
+/* The step line is in the page while empty (controls.css), so the rows are spaced by margins, not by a
+   grid gap: an empty line then adds no room under the buttons. */
+.spc-playbar .ctl-block { gap: 0; }
+.spc-playbar .ctl-row { justify-content: center; }
+.spc-playbar .ctl-note,
+.spc-playbar .ctl-status:not(:empty),
+.spc-playbar .ctl-error { margin-top: var(--space-2, 8px); }
 
 /* ---------- Left panel: failed action ---------- */
 .spc-action-error {

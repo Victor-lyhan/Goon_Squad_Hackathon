@@ -240,10 +240,18 @@ export const packageLabels = (c: ParentNode) =>
 /** The numbered step buttons of the journey timeline. */
 export const journeySteps = (c: ParentNode) => [...c.querySelectorAll<HTMLButtonElement>('.jt__steps .jt-step__button')];
 
-/** The one Play/Pause button of the left panel (#648), whatever it reads now. */
+/** The floating playback group at the bottom center of the map (#831): Play/Pause, "Back to start", the step line. */
+export function playbar(c: ParentNode): HTMLElement {
+  const all = [...c.querySelectorAll<HTMLElement>('.sw-map .spc-playbar')];
+  if (all.length !== 1) throw new Error(`playbar(): ${all.length} playback groups on the map`);
+  return all[0];
+}
+
+/** The one Play/Pause button (#648), whatever it reads now. It is on the map (#831) and nowhere else on the page. */
 export function playPause(c: ParentNode): HTMLButtonElement {
-  const all = [...leftBody(c).querySelectorAll<HTMLButtonElement>('.ctl-playback button.ctl-primary')];
+  const all = [...c.querySelectorAll<HTMLButtonElement>('.ctl-playback button.ctl-primary')];
   if (all.length !== 1) throw new Error(`playPause(): ${all.length} Play/Pause buttons`);
+  if (!playbar(c).contains(all[0])) throw new Error('playPause(): the button is not in the map\'s playback group');
   return all[0];
 }
 

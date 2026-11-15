@@ -8,7 +8,7 @@ import { BACK_TO_NETWORK } from '../../client/src/components/sim/v2/compose/simP
 import { formatCents, formatMin } from '../../client/src/ui/format';
 import type { DeliveryPlan } from '../../shared/v2/types';
 import {
-  FOUR_STATES, SELECTED_STATES, accessibleName, all, byClass, elements, hasClass, one, parse, readText,
+  FOUR_STATES, SELECTED_STATES, accessibleName, all, ancestors, byClass, elements, hasClass, one, parse, readText,
   renderBody, textOf, type Node, type PageState,
 } from './sim-v2-pageqa-sample';
 import { RULES as SIM_RULES } from './sim-v2-qa-css-rules';
@@ -63,10 +63,13 @@ describe('doc §1: "No cards or metrics above the map. The simulator spans the w
     expect(all(s.root, (n) => /(^|[\s_-])card([\s_-]|$)/i.test(n.attrs.class ?? ''))).toEqual([]);
   });
 
-  it.each(STATES)('$name: the map region holds the map first, then its legend and banners only', (s) => {
+  it.each(STATES)('$name: the map region holds the floating playback group (#831), the map, then its legend and banners only', (s) => {
     const slot = one(s.mapRegion, (n) => hasClass(n, 'spc-map'), 'map slot');
     expect(elements(s.mapRegion)).toEqual([slot]);
-    const [map, legend, ...rest] = elements(slot);
+    const [playbar, map, legend, ...rest] = elements(slot);
+    // First, so Tab reaches Play before the map's own stops; CSS floats it at the bottom center.
+    expect(hasClass(playbar, 'spc-playbar')).toBe(true);
+    expect([playbar.attrs.role, playbar.attrs['aria-label']]).toEqual(['group', 'Playback']);
     expect(hasClass(map, 'map-v2')).toBe(true);
     expect(hasClass(legend, 'spc-legend')).toBe(true);
     // #725: last, the always-mounted live region the Overnight card is put into (empty here).
@@ -80,17 +83,21 @@ describe('doc §1: "No cards or metrics above the map. The simulator spans the w
 // docs/mvp3.md P1 + P2 (#648) replaces the doc's "scenario, playback, layer toggles, focus selector,
 // Start new planning cycle": the setup form, the speed, scrubber and next-event controls and the layer
 // toggles are deleted; playback is one Play/Pause button and "Back to start".
-describe('doc §1 with docs/mvp3.md P2: "Left panel (controls, collapsible)": playback, packages, focus selector, comparison', () => {
+// #831 (human request): playback left the left panel; it floats at the bottom center of the map.
+describe('doc §1 with docs/mvp3.md P2: "Left panel (controls, collapsible)": packages, focus selector, comparison; playback on the map (#831)', () => {
   it.each(STATES)('$name: every group is in the left panel, the panel has a collapse button', (s) => {
     expect(headings(s.left).filter((h) => ['Playback', 'Packages', 'Focus', 'Direct only vs relay points'].includes(h)))
-      .toEqual(['Playback', 'Packages', 'Focus', 'Direct only vs relay points']);
+      .toEqual(['Packages', 'Focus', 'Direct only vs relay points']);
     const toggle = buttonsNamed(s.root, 'Controls', s.left);
     expect(toggle).toHaveLength(1);
     expect(toggle[0].attrs['aria-expanded']).toBe('true');
   });
 
   it.each(STATES)('$name: playback: one Play/Pause button and Back to start, nothing else', (s) => {
-    const section = one(s.left, (n) => n.attrs['aria-labelledby'] === 'sw-section-playback', 'playback');
+    // One group on the page, in the map region: no panel scroll or collapse can hide it.
+    const section = one(s.root, (n) => hasClass(n, 'spc-playbar'), 'playback');
+    expect(ancestors(section)).toContain(s.mapRegion);
+    expect(all(s.left, (n) => hasClass(n, 'ctl-playback'))).toEqual([]);
     const names = all(section, (n) => n.tag === 'button').map((b) => accessibleName(b, s.root));
     expect(names).toEqual([s.sim.clock.playing ? PAUSE_LABEL : PLAY_LABEL, 'Back to start']);
     expect(all(section, (n) => ['input', 'select'].includes(n.tag))).toEqual([]);
@@ -267,13 +274,13 @@ describe('doc §1: package journey mode', () => {
     expect(byName('relay journey').sim.snapshot.deliveredAtMin['shp-2']).toBeUndefined();
   });
 
-  it.each(JOURNEYS)('$name: "Back to network" and the one "Play" are enabled buttons; Play is in the left panel', (s) => {
+  it.each(JOURNEYS)('$name: "Back to network" and the one "Play" are enabled buttons; Play is on the map (#831)', (s) => {
     const back = buttonsNamed(s.root, BACK_TO_NETWORK);
     expect(back.length).toBeGreaterThanOrEqual(1);
     expect(buttonsNamed(s.root, BACK_TO_NETWORK, s.right)).toHaveLength(1);
     const play = buttonsNamed(s.root, PLAY_LABEL);
     expect(play).toHaveLength(1);
-    expect(buttonsNamed(s.root, PLAY_LABEL, s.left)).toEqual(play);
+    expect(buttonsNamed(s.root, PLAY_LABEL, s.mapRegion)).toEqual(play);
     expect(buttonsNamed(s.root, /^(Play|Pause)( journey)?$/, s.right)).toEqual([]); // the journey panel has none of its own
     for (const b of [...back, ...play]) {
       expect(b.attrs.type).toBe('button');
@@ -284,7 +291,7 @@ describe('doc §1: package journey mode', () => {
   it.each(STATES.filter((s) => s.selection === null))('$name: no "Back to network" in network mode; the one button plays the clock', (s) => {
     expect(buttonsNamed(s.root, BACK_TO_NETWORK)).toEqual([]);
     expect(buttonsNamed(s.root, /^(Play|Pause)$/)).toHaveLength(1);
-    expect(buttonsNamed(s.root, /^(Play|Pause)$/, s.left)).toHaveLength(1);
+    expect(buttonsNamed(s.root, /^(Play|Pause)$/, s.mapRegion)).toHaveLength(1);
   });
 });
 

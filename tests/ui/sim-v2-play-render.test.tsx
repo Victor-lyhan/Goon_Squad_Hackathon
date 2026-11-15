@@ -1,6 +1,7 @@
 // #496, #648: the one Play/Pause button as the page lays it out (static renders, no DOM): every
 // state with its accessible name, the step line, the error, the overnight card, the order of the
 // left panel, and the handlers (one button for the journey and the clock; other actions pause the journey).
+// #831: the button, "Back to start" and their lines float at the bottom center of the map, not in the left panel.
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -68,10 +69,21 @@ const buttonsIn = (html: string) => [...html.matchAll(/<button([^>]*)>([\s\S]*?)
 /** The markup of the left ("Controls") panel body, and of the right ("Inspector") one. */
 const leftOf = (html: string) => html.slice(html.indexOf('id="sim-v2-left-body"'), html.indexOf('class="sw-map"'));
 const rightOf = (html: string) => html.slice(html.indexOf('id="sim-v2-right-body"'));
-/** The Play/Pause button of the left panel: the one primary button of the playback block. */
+/** The markup of the map slot (between the two panels). */
+const mapOf = (html: string) => html.slice(html.indexOf('class="sw-map"'), html.indexOf('id="sim-v2-right-body"'));
+/** The markup of the floating playback group (#831): the first thing in the map slot, up to the map itself. */
+const playbarOf = (html: string) => {
+  const map = mapOf(html);
+  const [start, end] = [map.indexOf('class="spc-playbar"'), map.indexOf('class="map-v2')];
+  expect(start).toBeGreaterThan(0);
+  expect(end).toBeGreaterThan(start); // before the map in the page, so Tab reaches it before the map's own stops
+  return map.slice(start, end);
+};
+/** The Play/Pause button: the one primary button of the page, in the map's playback group. */
 const playPauseIn = (html: string) => {
-  const all = buttonsIn(leftOf(html)).filter((b) => b.attrs.includes('ctl-primary'));
+  const all = buttonsIn(playbarOf(html)).filter((b) => b.attrs.includes('ctl-primary'));
   expect(all).toHaveLength(1);
+  expect(buttonsIn(html).filter((b) => b.attrs.includes('ctl-primary'))).toHaveLength(1);
   return all[0];
 };
 
@@ -143,18 +155,36 @@ describe('the one Play/Pause button in the page', () => {
   const pkg = (id: string): Selection => ({ kind: 'package', id });
   const controlsOf = (sim: SimulatorV2) => (sim.control as ReturnType<typeof vi.fn>).mock.calls.map(([r]) => r);
 
-  it('the left panel has, in order: Playback (Play, Back to start), Packages, Focus, the comparison; nothing else', () => {
+  it('the left panel has, in order: Packages, Focus, the comparison; nothing else, and no playback (#831)', () => {
     for (const selection of [null, pkg('shp-2')]) {
       const { html } = layout(journeyHook(), selection);
       const left = leftOf(html);
       const titles = [...left.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map((m) => m[1]);
-      expect(titles).toEqual(['Playback', 'Packages', 'Focus', 'Direct only vs relay points']);
-      const order = ['ctl-playback', 'Back to start', 'Search packages', 'Focus on employee', 'Direct only vs relay points'].map((t) => left.indexOf(t));
+      expect(titles).toEqual(['Packages', 'Focus', 'Direct only vs relay points']);
+      const order = ['Search packages', 'Focus on employee', 'Direct only vs relay points'].map((t) => left.indexOf(t));
       expect(order.every((i) => i >= 0)).toBe(true);
       expect([...order].sort((x, y) => x - y)).toEqual(order);
+      expect(left).not.toMatch(/ctl-playback|ctl-btn|Back to start/);
+      expect(buttonsIn(left).some((b) => /^(Play|Pause)$/.test(b.name))).toBe(false);
       expect(text(left)).not.toMatch(/Scenario|Planning cycle|Layers|Random|Generate|Recompute|Start new planning cycle/);
       expect(text(left)).not.toMatch(/Next event|Jump to morning|Finish|Reset playback|Speed|Simulation time|\b(1x|4x|20x)\b/);
       expect(left).not.toMatch(/type="range"|type="checkbox"|type="number"|aria-pressed="(true|false)"[^>]*>(1x|4x|20x)/);
+    }
+  });
+
+  it('Play/Pause and Back to start float on the map as one named group, next to each other (#831)', () => {
+    for (const selection of [null, pkg('shp-2'), pkg('shp-3')]) {
+      for (const play of [undefined, running, at('paused'), at('finished'), at('failed')]) {
+        const { html } = layout(journeyHook(), selection, play);
+        // Once on the page, in the map slot: not in a panel, so no scroll and no collapse can hide it.
+        expect(html.split('class="spc-playbar"')).toHaveLength(2);
+        expect(mapOf(html)).toContain('<div class="spc-playbar" role="group" aria-label="Playback">');
+        expect(leftOf(html)).not.toContain('spc-playbar');
+        expect(rightOf(html)).not.toContain('spc-playbar');
+        const bar = playbarOf(html);
+        expect(buttonsIn(bar).map((b) => b.name)).toEqual([playPauseIn(html).name, 'Back to start']);
+        expect(bar.split('role="status"')).toHaveLength(2); // the step line came along
+      }
     }
   });
 
@@ -219,7 +249,7 @@ describe('the one Play/Pause button in the page', () => {
 
   it('a failed step shows the error text from the hook under the button', () => {
     const { html } = layout(journeyHook({ actionError: 'Must be between 930 and 2160' }), pkg('shp-2'), at('failed'));
-    expect(leftOf(html)).toContain('role="alert">Play stopped: Must be between 930 and 2160</p>');
+    expect(playbarOf(html)).toContain('role="alert">Play stopped: Must be between 930 and 2160</p>');
   });
 
   it('unmatched package: the disabled button, described by the no-match sentence', () => {
@@ -245,13 +275,14 @@ describe('the one Play/Pause button in the page', () => {
 
     const finished = layout(clockHook({ timeMin: 2160 }), null).html;
     expect(playPauseIn(finished).attrs).toMatch(/aria-disabled="true"/);
-    expect(text(leftOf(finished))).toContain(FINISHED_REASON);
-    expect(buttonsIn(leftOf(finished)).find((b) => b.name === 'Back to start')!.attrs).not.toMatch(/disabled/);
+    expect(text(playbarOf(finished))).toContain(FINISHED_REASON);
+    expect(buttonsIn(playbarOf(finished)).find((b) => b.name === 'Back to start')!.attrs).not.toMatch(/disabled/);
 
     const busy = layout(journeyHook({ busy: true }), null).html;
     expect(playPauseIn(busy).attrs).toMatch(/aria-disabled="true"/);
-    expect(buttonsIn(leftOf(busy)).find((b) => b.name === 'Back to start')!.attrs).toMatch(/aria-disabled="true"/);
-    expect(leftOf(busy).split(BUSY_REASON)).toHaveLength(2); // the reason once
+    expect(buttonsIn(playbarOf(busy)).find((b) => b.name === 'Back to start')!.attrs).toMatch(/aria-disabled="true"/);
+    expect(busy.split(BUSY_REASON)).toHaveLength(2); // the reason once on the whole page
+    expect(playbarOf(busy)).toContain(BUSY_REASON);
   });
 
   it('togglePlay with a package: plays the journey when idle, pauses it when running; the server clock is not touched', () => {

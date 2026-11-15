@@ -110,7 +110,7 @@ describe('SimPageBody render', () => {
     const html = render(networkHook());
     const t = text(html);
     for (const s of [
-      'Playback', 'Pause', 'Back to start', // the clock in the fixture is playing
+      'Pause', 'Back to start', // the clock in the fixture is playing
       'Focus', 'Focus on employee', 'Focus on business', 'Maya Ortiz', 'Sunrise Bakery',
       'Packages', 'Astoria product proofs', 'Chelsea Print Studio → Sunrise Bakery', 'Unmatched',
       'Run summary', 'Delivered / requested', '0 / 3', 'Matched / requested', '2 / 3', '9 min',
@@ -131,22 +131,36 @@ describe('SimPageBody render', () => {
     assertClean(html);
   });
 
-  // #607 (pass 61): the list that opens a journey is directly under Playback. #648: then Focus and the comparison.
+  // #607 (pass 61): the list that opens a journey is reached without scrolling. #648: then Focus and the comparison.
+  // #831: Playback left the panel for the bottom center of the map, so Packages is the panel's first section.
   describe('the order of the left panel', () => {
     const leftOf = (html: string) => html.slice(0, html.indexOf('class="sw-map"'));
+    const mapOf = (html: string) => html.slice(html.indexOf('class="sw-map"'), html.indexOf('id="sim-v2-right-body"'));
     const sectionTitles = (html: string) =>
       [...leftOf(html).matchAll(/class="sw-section-title"[^>]*>([^<]+)</g)].map((m) => m[1]);
-    const playback = (html: string) => html.indexOf('id="sw-section-playback"');
+    const packagesHeading = (html: string) => html.indexOf('id="sw-section-packages"');
     const focusHeading = (html: string) => html.indexOf('id="sw-section-focus"');
-    const LEFT_ORDER = ['Playback', 'Packages', 'Focus', 'Direct only vs relay points'];
+    const LEFT_ORDER = ['Packages', 'Focus', 'Direct only vs relay points'];
+    /** No playback in the left panel: the block, its buttons and its old heading are in the map slot, once. */
+    const expectPlaybackOnMap = (html: string) => {
+      expect(leftOf(html)).not.toMatch(/sw-section-playback|ctl-playback|Back to start/);
+      const map = mapOf(html);
+      expect(html.split('class="spc-playbar"')).toHaveLength(2);
+      const bar = map.indexOf('class="spc-playbar" role="group" aria-label="Playback"');
+      expect(bar).toBeGreaterThan(0);
+      expect(map.indexOf('ctl-playback')).toBeGreaterThan(bar);
+      expect(map.indexOf('Back to start')).toBeGreaterThan(map.indexOf('ctl-primary'));
+      expect(map.indexOf('class="map-v2')).toBeGreaterThan(map.indexOf('Back to start')); // before the map itself
+    };
 
-    it('network mode: Playback, Packages, then the rest; the search field comes right after the playback buttons', () => {
+    it('network mode: Packages first, then the rest; the search field is the panel\'s first control; playback is on the map', () => {
       const html = render(networkHook());
       expect(sectionTitles(html)).toEqual(LEFT_ORDER);
+      expectPlaybackOnMap(html);
       const left = leftOf(html);
-      expect(playback(left)).toBeGreaterThan(0);
-      expect(left.indexOf('Back to start')).toBeGreaterThan(playback(left));
-      expect(left.indexOf('Search packages')).toBeGreaterThan(left.indexOf('Back to start'));
+      expect(packagesHeading(left)).toBeGreaterThan(0);
+      expect(left.slice(left.indexOf('id="sim-v2-left-body"'), left.indexOf('Search packages'))).not.toMatch(/<button|<select|<input/);
+      expect(left.indexOf('Search packages')).toBeGreaterThan(packagesHeading(left));
       expect(left.indexOf('Search packages')).toBeLessThan(focusHeading(left));
       expect(left.indexOf('Astoria product proofs')).toBeLessThan(focusHeading(left)); // the rows too
       expect(left.indexOf('Direct only vs relay points')).toBeGreaterThan(focusHeading(left));
@@ -155,26 +169,28 @@ describe('SimPageBody render', () => {
     it('before the map arrives the plain package list is in the same place', () => {
       const html = render(networkHook({ map: null }));
       expect(sectionTitles(html)).toEqual(LEFT_ORDER);
-      expect(leftOf(html).indexOf('Loading places…')).toBeGreaterThan(playback(html));
+      expectPlaybackOnMap(html);
+      expect(leftOf(html).indexOf('Loading places…')).toBeGreaterThan(packagesHeading(html));
       expect(leftOf(html).indexOf('Loading places…')).toBeLessThan(focusHeading(html));
     });
 
-    it('journey mode: the journey header stays on top, then Playback and Packages', () => {
+    it('journey mode: the journey header stays on top, then Packages; playback is on the map', () => {
       const html = render(journeyHook(), { kind: 'package', id: 'shp-2' });
       expect(sectionTitles(html)).toEqual(LEFT_ORDER);
+      expectPlaybackOnMap(html);
       const left = leftOf(html);
       const header = left.indexOf('class="sw-journey"');
       expect(header).toBeGreaterThan(0);
       expect(left.indexOf('Back to network')).toBeGreaterThan(header);
-      expect(left.indexOf('Back to network')).toBeLessThan(playback(left));
-      expect(playback(left)).toBeLessThan(left.indexOf('Search packages'));
+      expect(left.indexOf('Back to network')).toBeLessThan(packagesHeading(left));
+      expect(packagesHeading(left)).toBeLessThan(left.indexOf('Search packages'));
       expect(left.indexOf('Search packages')).toBeLessThan(focusHeading(left));
     });
 
-    it('an action error stays above Playback', () => {
+    it('an action error stays at the top of the left panel, above Packages', () => {
       const left = leftOf(render(networkHook({ actionError: 'Playback has started. Start a new planning cycle to recompute.' })));
       expect(left.indexOf('spc-action-error')).toBeGreaterThan(0);
-      expect(left.indexOf('spc-action-error')).toBeLessThan(playback(left));
+      expect(left.indexOf('spc-action-error')).toBeLessThan(packagesHeading(left));
     });
   });
 
