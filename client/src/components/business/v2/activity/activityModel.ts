@@ -79,7 +79,7 @@ export type NotificationRow = {
 /**
  * Newest first (server `createdSeq`). The role is read from the notification's own fields:
  * a business notification addressed to this business whose shipment this business neither sends
- * nor receives is about a package held here as a relay point. The message text is never parsed.
+ * nor receives is about a package held here as a relay point. The message text is never parsed for it.
  * `businesses` is accepted for the page's call signature; names already come in the server text.
  * `held` is the open delivery the page read with GET /shipments/:id because the dashboard does not list it.
  */
@@ -119,6 +119,28 @@ function roleOf(
   // No shipment at all: nothing is held here, so it is not a relay notification.
   if (!n.shipmentId || !n.shipmentId.trim()) return 'other';
   return 'relay';
+}
+
+/** One run of a notification sentence; `mono` marks a price ("$10.00"), which is set in IBM Plex Mono. */
+export type MessagePart = { text: string; mono: boolean };
+
+/** A price as the server writes it in a sentence: "$10.00", "$1,234.50". The full stop after it is not part of it. */
+const PRICE = /\$\d[\d,]*\.\d{2}(?!\d)/g;
+
+/**
+ * The server's sentence cut at its prices, for display only (docs/mvp3.md P4: prices are mono).
+ * Joining the parts gives the message back character for character; nothing is read from the price.
+ */
+export function messageParts(message: string): MessagePart[] {
+  const parts: MessagePart[] = [];
+  let at = 0;
+  for (const m of message.matchAll(PRICE)) {
+    if (m.index > at) parts.push({ text: message.slice(at, m.index), mono: false });
+    parts.push({ text: m[0], mono: true });
+    at = m.index + m[0].length;
+  }
+  if (at < message.length) parts.push({ text: message.slice(at), mono: false });
+  return parts;
 }
 
 /** First `VISIBLE_ROWS` rows unless expanded; `hiddenCount` > 0 means "Show all (N)" is offered. */

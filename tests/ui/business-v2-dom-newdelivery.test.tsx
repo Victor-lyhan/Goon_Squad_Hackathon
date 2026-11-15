@@ -228,7 +228,7 @@ describe('New delivery form in a real DOM', () => {
     expect(textOf(f.container)).toContain('From Bakery Row');
   }, T);
 
-  it('phase "locked" sends nothing and shows the note about a new planning cycle', async () => {
+  it('phase "locked" sends nothing and shows the note that names Back to start', async () => {
     const f = setup({ phase: 'locked' });
     fill(f);
     expect(f.send().disabled).toBe(true);
@@ -239,7 +239,8 @@ describe('New delivery form in a real DOM', () => {
     await flush();
     expect(f.onSubmit).not.toHaveBeenCalled();
     expect(f.alert()).toContain(RESULT_COPY.locked);
-    expect(f.alert()).toMatch(/next planning cycle/);
+    expect(f.alert()).toMatch(/Press Back to start in the simulator to reopen them\.$/);
+    expect(f.alert()).not.toMatch(/planning cycle/i);
 
     // A poll that brings the run back to planning re-opens the form with the typing intact.
     f.rerenderWith({ phase: 'planning' });

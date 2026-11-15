@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { BusinessDashboard, ShipmentView } from '../../../../../../shared/v2/api';
 import type { NetworkBusiness } from '../../../../../../shared/v2/types';
-import { EMPTY_TEXT, notificationRows, visibleRows, type NotificationRow } from './activityModel';
+import { EMPTY_TEXT, messageParts, notificationRows, visibleRows, type NotificationRow } from './activityModel';
 import './activity.css';
 
 type Props = {
@@ -73,7 +73,12 @@ export function NotificationItem({ row: r, onOpen }: { row: NotificationRow; onO
       <span className="ba-note__text">
         {r.isNew && <span className="ba-note__new">New</span>}
         {r.tag && <span className="ba-note__tag">{r.tag}</span>}
-        <span className="ba-note__msg">{r.message}</span>
+        {/* The server's sentence, unchanged; a price in it is its own mono element (docs/mvp3.md P4). */}
+        <span className="ba-note__msg">
+          {messageParts(r.message).map((part, i) => (
+            part.mono ? <span key={i} className="ba-mono">{part.text}</span> : part.text
+          ))}
+        </span>
       </span>
     </>
   );

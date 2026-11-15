@@ -215,7 +215,8 @@ export function deliveryDetails(view: ShipmentView, lookups: DetailsLookups): De
   };
 }
 
-export const LOCKED_NOTE = 'Playback has started, so this request can’t be changed until a new planning cycle.';
+/** "Back to start" is the simulator's control that returns the run to planning (DECISIONS pass 74). */
+export const LOCKED_NOTE = 'Playback has started, so this request can’t be changed. Press Back to start in the simulator to reopen requests.';
 
 /** Retry / edit actions: only for an unmatched outgoing request. While locked, no actions and one line saying why. */
 export function requestActions(model: DeliveryDetailsModel, phase: Phase): { show: boolean; lockedNote: string | null } {

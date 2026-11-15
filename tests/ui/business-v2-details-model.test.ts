@@ -127,6 +127,9 @@ describe('requestActions', () => {
     const unmatched = deliveryDetails(unmatchedView(), asSender);
     expect(requestActions(unmatched, 'planning')).toEqual({ show: true, lockedNote: null });
     expect(requestActions(unmatched, 'locked')).toEqual({ show: false, lockedNote: LOCKED_NOTE });
+    // The way out is the simulator's "Back to start" (DECISIONS pass 74); the old control is gone (#700).
+    expect(LOCKED_NOTE).toBe('Playback has started, so this request can’t be changed. Press Back to start in the simulator to reopen requests.');
+    expect(LOCKED_NOTE).not.toMatch(/planning cycle/i);
     expect(requestActions(deliveryDetails(unmatchedView(), asRecipient), 'planning')).toEqual({ show: false, lockedNote: null });
     expect(requestActions(deliveryDetails(view(directPlan, 'scheduled'), asSender), 'planning')).toEqual({ show: false, lockedNote: null });
   });
