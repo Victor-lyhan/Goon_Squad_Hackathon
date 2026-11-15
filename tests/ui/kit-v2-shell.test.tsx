@@ -7,6 +7,7 @@ import { AppShell } from '../../client/src/App';
 import * as shellModel from '../../client/src/ui/shellModel';
 import { activeDestination, DESTINATIONS } from '../../client/src/ui/shellModel';
 import type { V2BusinessDirectory, V2Directory } from '../../client/src/ui/shell';
+import { parseCss } from './employee-v2-qa-helpers';
 
 const businesses = [{ id: 'biz-01', name: 'Brooklyn Roasters' }, { id: 'biz-02', name: 'Hudson Print Co' }];
 const employees = [{ id: 'emp-01', name: 'Maya Chen' }];
@@ -26,6 +27,13 @@ const navLabels = (html: string) => [...nav(html).matchAll(/class="shell-nav-lin
 const current = (html: string) => [...nav(html).matchAll(/<a [^>]*aria-current="page"[^>]*>([^<]*)</g)].map((m) => m[1]);
 const css = readFileSync('client/src/ui/shell.css', 'utf8');
 const app = readFileSync('client/src/App.tsx', 'utf8');
+const shellRules = parseCss(css);
+/** What shell.css gives `prop` for `selector`: outside any media query, or inside the `max-width: <px>` one. */
+function value(selector: string, prop: string, maxWidthPx?: number): string | undefined {
+  const hits = shellRules.filter((r) => r.selector.split(',').map((s) => s.trim()).includes(selector)
+    && (maxWidthPx === undefined ? r.media.length === 0 : r.media.some((m) => new RegExp(`max-width:\\s*${maxWidthPx}px`).test(m))));
+  return hits.flatMap((r) => r.decls).filter((d) => d.prop === prop).pop()?.value;
+}
 
 /** The line the header's top right held until #854 (the homepage lost it in #833). */
 const OLD_ENV_TEXT = 'Real NYC locations · simulated deliveries';
@@ -39,7 +47,8 @@ describe('environment indicator (#854)', () => {
   });
   it('the empty tools box takes no row of its own in a narrow header', () => {
     // Headless Chrome at 390 px: without this rule the header of /simulator was 89 px (a blank 8 px row
-    // under the nav); with it 81 px.
+    // under the nav); with it 81 px. Since #868 the empty box would be a 17 px row with a hairline
+    // under the 64 px bar.
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).toMatch(/\.shell-tools:has\(> \.demo-account-slot:empty\) \{ display: none; \}/);
   });
   it.each([
@@ -142,15 +151,17 @@ describe('shell CSS', () => {
     // No MVP II value is left as a fallback (#651).
     expect(css).not.toMatch(/#151B26|#F7F8FA|#D7DDE5|#28618A|#1F4E70|IBM Plex Sans|var\(--radius, 2px\)/i);
   });
-  it('the logo is 28 px beside the word, and does not make the 48 px header taller (#784)', () => {
+  it('the logo is 28 px beside the word, centered in the bar by its link (#784, #868)', () => {
     const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
     expect(noComments).toMatch(/\.shell-logo \{[^}]*width: 28px; height: 28px/);
     expect(noComments).toMatch(/\.shell-logo \{[^}]*flex: none/); // never squeezed at 390 px
     const wordmark = /\.shell-wordmark \{([^}]*)\}/.exec(noComments)![1];
     expect(wordmark).toMatch(/display: inline-flex; align-items: center; gap: var\(--space-2, 8px\)/);
-    // 28 px logo + the header's 8 px padding above and below = 44 px, under the 48 px min-height.
     expect(wordmark).toMatch(/padding: 0;/);
-    expect(noComments).toMatch(/\.shell-header \{[^}]*min-height: 48px; padding: var\(--space-2, 8px\)/);
+    // The logo stays at the left end of the bar; the link is a 44 px target, lower than the 64 px bar.
+    expect(value('.shell-wordmark', 'justify-self')).toBe('start');
+    expect(value('.shell-wordmark', 'min-height')).toBe('44px');
+    expect(value('.shell-header', 'align-items')).toBe('center');
   });
   it('every nav item and the selector have a focus-visible style', () => {
     const focus = /([^{}]*)\{[^}]*outline: 2px solid/.exec(css.slice(css.indexOf('.shell-wordmark:focus-visible')))![1];
@@ -158,13 +169,122 @@ describe('shell CSS', () => {
       expect(focus).toContain(sel);
     }
   });
-  it('at 390 px the nav wraps and the selector goes full width', () => {
+  it('at 390 px the links wrap inside the nav, and the selector has a full-width row under the bar', () => {
     const narrow = /@media \(max-width: 480px\) \{([\s\S]*?)\n\}/.exec(css)![1];
-    expect(narrow).toMatch(/\.shell-tools \{ flex: 1 1 100%/);
     expect(narrow).toMatch(/\.demo-account select \{[^}]*width: 100%/);
-    const mid = /@media \(max-width: 600px\) \{([\s\S]*?)\n\}/.exec(css)![1];
-    expect(mid).toMatch(/\.shell-nav \{[^}]*flex-wrap: wrap/);
-    expect(css).toMatch(/\.shell-header \{[^}]*flex-wrap: wrap/);
+    expect(value('.shell-nav', 'flex-wrap', 600)).toBe('wrap');
+    // Two columns: the logo, then the nav in a column that may shrink to nothing, so the links wrap
+    // before anything runs past the window's edge. Every header child may shrink.
+    expect(value('.shell-header', 'grid-template-columns', 600)).toBe('auto minmax(0, 1fr)');
+    expect(value('.shell-header > *', 'min-width')).toBe('0');
+    // The selector's row spans the header from 900 px down (so at 390 px too) and takes its whole width.
+    expect(value('.shell-tools', 'grid-column', 900)).toBe('1 / -1');
+    expect(value('.shell-tools', 'justify-self', 900)).toBe('stretch');
+    for (const px of [600, 480]) expect(value('.shell-tools', 'grid-column', px)).toBeUndefined();
+  });
+});
+
+describe('taller header with centered, stronger links (#868)', () => {
+  const px = (v: string | undefined) => Number(/^(\d+(?:\.\d+)?)px$/.exec(v ?? '')![1]);
+
+  it('the bar is 64 to 72 px high, and the simulator below it reads the same number', () => {
+    const h = px(value(':root', '--app-header-h'));
+    expect(h).toBeGreaterThanOrEqual(64);
+    expect(h).toBeLessThanOrEqual(72);
+    // The first grid row is the bar: its height less the 1 px hairline under it. No vertical padding adds to it.
+    expect(value('.shell-header', 'grid-template-rows')).toBe('minmax(calc(var(--app-header-h, 64px) - 1px), auto)');
+    expect(value('.shell-header', 'padding')).toBe('0 var(--shell-pad)');
+    expect(value('.shell-header', 'border-bottom')).toMatch(/^1px solid /);
+    expect(value('.shell-header', 'min-height')).toBeUndefined();
+    // The simulator workspace and its loading state are fixed at that height from the top.
+    for (const file of ['client/src/components/sim/v2/SimWorkspace.css', 'client/src/components/sim/v2/compose/compose.css']) {
+      expect(readFileSync(file, 'utf8'), file).toMatch(/position: fixed;\s*top: var\(--app-header-h, \d+px\);/);
+    }
+    // One definition, and no narrow rule changes it: the simulator is only shown from 900 px up, where
+    // the header is one row on every page without a selector.
+    expect(css.match(/--app-header-h:/g)).toHaveLength(1);
+  });
+
+  it('the link group is in the middle of the bar: two equal side columns around it, the logo left, the tools right', () => {
+    expect(value('.shell-header', 'display')).toBe('grid');
+    expect(value('.shell-header', 'grid-template-columns')).toBe('minmax(0, 1fr) auto minmax(0, 1fr)');
+    expect(value('.shell-wordmark', 'justify-self')).toBe('start');
+    expect(value('.shell-tools', 'justify-self')).toBe('end');
+    // The tools never grow out of their column over the links.
+    expect(value('.shell-tools', 'max-width')).toBe('100%');
+    // DOM order is logo, nav, tools, which is the column order.
+    expect(app.indexOf('className="shell-wordmark"')).toBeLessThan(app.indexOf('className="shell-nav"'));
+    expect(app.indexOf('className="shell-nav"')).toBeLessThan(app.indexOf('className="shell-tools"'));
+  });
+
+  it('link text is 15 to 16 px at weight 500 to 600, a weight Inter is loaded at, with room between the links', () => {
+    const size = px(value('.shell-nav-link', 'font-size'));
+    expect(size).toBeGreaterThanOrEqual(15);
+    expect(size).toBeLessThanOrEqual(16);
+    const weight = Number(value('.shell-nav-link', 'font-weight'));
+    expect(weight).toBeGreaterThanOrEqual(500);
+    expect(weight).toBeLessThanOrEqual(600);
+    expect(readFileSync('client/src/styles/fonts.css', 'utf8')).toContain(`@fontsource/inter/latin-${weight}.css`);
+    expect(value('.shell-header', 'font-family')).toMatch(/^var\(--font-sans, 'Inter'/);
+    // 16 px on each side of a word and 8 px between two links: 40 px from word to word.
+    expect(value('.shell-nav-link', 'padding')).toBe('0 var(--space-4, 16px)');
+    expect(value('.shell-nav', 'gap')).toBe('var(--space-2, 8px)');
+    expect(value('.shell-nav-link', 'white-space')).toBe('nowrap');
+  });
+
+  it('a link is as high as the bar and never lower than 44 px; the word is in its middle', () => {
+    expect(value('.shell-nav', 'align-self')).toBe('stretch');
+    expect(value('.shell-nav-link', 'min-height')).toBe('44px');
+    expect(value('.shell-nav-link', 'display')).toBe('inline-flex');
+    expect(value('.shell-nav-link', 'align-items')).toBe('center');
+    // The same border above and below, so the bar under the active link does not push the word up.
+    expect(value('.shell-nav-link', 'border-width')).toBe('2px 0');
+    // On a phone the three links share the row, so each is wider than its word.
+    expect(value('.shell-nav-link', 'flex', 600)).toBe('1 1 auto');
+    // The selector is 44 px high where it has its own row (a touch width).
+    expect(value('.shell-header .demo-account select', 'min-height', 900)).toBe('44px');
+  });
+
+  it('the active link is shown by colour and a bar, not by a heavier weight that would move the links', () => {
+    const active = ".shell-nav a.shell-nav-link[aria-current='page']";
+    expect(value(active, 'color')).toBe('var(--accent-dark, #173E5B)');
+    expect(value(active, 'border-bottom-color')).toBe('var(--accent, #1D5075)');
+    expect(value(active, 'font-weight')).toBeUndefined();
+    expect(value('.shell-nav-link', 'color')).toBe('var(--muted, #5B6472)');
+    expect(value('.shell-nav a.shell-nav-link:hover', 'color')).toBe('var(--text, #171C24)');
+  });
+
+  it('an unavailable link has the box of a link, so the group does not move when the lists arrive', () => {
+    const pending = '.shell-header .nav-pending';
+    for (const prop of ['padding', 'border-width']) expect(value(pending, prop), prop).toBe(value('.shell-nav-link', prop));
+    // Not only faded: a dashed bar where the active link has a solid one.
+    expect(value(pending, 'border-bottom-style')).toBe('dashed');
+    expect(value(pending, 'cursor')).toBe('not-allowed');
+    // The narrow rule changes both paddings together.
+    const both = shellRules.find((r) => r.media.some((m) => m.includes('600px')) && r.decls.some((d) => d.prop === 'padding'))!;
+    expect(both.selector.split(',').map((s) => s.trim()).sort()).toEqual(['.shell-header .nav-pending', '.shell-nav-link']);
+  });
+
+  it("a link's focus ring is drawn inside it, where the top of the window cannot cut it", () => {
+    expect(value('.shell-nav-link:focus-visible', 'outline-offset')).toBe('-2px');
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/outline:\s*(none|0)\b/);
+  });
+
+  it('the row of the selector starts with a hairline as wide as the header', () => {
+    expect(value('.shell-tools', 'border-top', 900)).toBe('1px solid var(--border, #E3E3DE)');
+    expect(value('.shell-tools', 'margin', 900)).toBe('0 calc(-1 * var(--shell-pad))');
+    expect(value('.shell-tools', 'padding', 900)).toBe('var(--space-2, 8px) var(--shell-pad)');
+    expect(value('.shell-tools', 'max-width', 900)).toBe('none');
+    // The room at the two ends: 24 px, 12 px on a phone.
+    expect(value('.shell-header', '--shell-pad')).toBe('var(--space-6, 24px)');
+    expect(value('.shell-header', '--shell-pad', 600)).toBe('var(--space-3, 12px)');
+  });
+
+  it('every page renders the same header markup: logo link, the nav, the tools', () => {
+    for (const path of ['/', `/business/${bid}`, `/employee/${eid}`, '/simulator', '/nope']) {
+      const h = header(render(path));
+      expect(h, path).toMatch(/^<a class="shell-wordmark" href="\/"[^>]*>.*?<\/a><nav aria-label="Workspaces" class="shell-nav">.*?<\/nav><div class="shell-tools">/);
+    }
   });
 });
 

@@ -295,17 +295,15 @@ describe('keyboard order of / and the header (headless Chrome pass, 1440 px and 
     });
 
     it('never draws the header in another order than Tab visits it: nav before tools at every width', () => {
-      // DOM order is wordmark, nav, tools. Where the nav is moved to its own row, the tools follow it.
-      const orders = (rules: string) => Object.fromEntries(
-        [...rules.matchAll(/(\.shell-[a-z-]+) \{[^}]*\border: (\d+)/g)].map((m) => [m[1], Number(m[2])]),
-      );
-      const wide = orders(css.replace(/@media[\s\S]*?\n\}/g, ''));
-      expect(wide).toEqual({});
-      const mid = orders(block(600));
-      expect(mid['.shell-nav']).toBe(3);
-      expect(mid['.shell-tools']).toBeGreaterThan(mid['.shell-nav']);
-      // The 480 px block does not take the order back.
-      expect(orders(block(480))).toEqual({});
+      // DOM order is wordmark, nav, tools. Since #868 the header is a grid that places them in that
+      // order at every width (the tools in the last column, or in a row of their own under the bar),
+      // so no rule reorders or places a part by hand.
+      expect(css).not.toMatch(/(^|[;{\s])order:/);
+      expect(css).not.toMatch(/grid-(row|area|column-start|row-start):|grid-auto-flow|direction:|-reverse/);
+      // The one placement: the tools span the row after the bar.
+      const columns = [...css.matchAll(/(\.shell-[a-z-]+) \{[^}]*\bgrid-column: ([^;]+);/g)].map((m) => `${m[1]} ${m[2]}`);
+      expect(columns).toEqual(['.shell-tools 1 / -1']);
+      expect(block(900)).toMatch(/\.shell-tools \{[^}]*grid-column: 1 \/ -1/);
     });
 
     it('the line of a bare path uses tokens only', () => {
