@@ -220,7 +220,8 @@ export function Header({ employees, businesses }: { employees: V2Directory; busi
               {label}
             </Link>
           ) : (
-            <span key={key} className="shell-nav-link nav-pending" aria-disabled="true">{label}</span>
+            // A link that cannot be used yet: a screen reader says "link, unavailable"; Tab skips it (#918).
+            <span key={key} className="shell-nav-link nav-pending" role="link" aria-disabled="true">{label}</span>
           );
         })}
       </nav>

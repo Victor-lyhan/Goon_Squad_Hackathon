@@ -71,7 +71,12 @@
 /* No selector (every page but Business and Employee): the empty box takes no row of its own, so a narrow
    header does not end with a blank 8 px gap under the nav (#854). */
 .shell-tools:has(> .demo-account-slot:empty) { display: none; }
-.shell-header .demo-account-slot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); max-width: 100%; }
+/* Two lines (a note under the selector) both end at the header's right edge, so the selector stays where
+   it is without a note (#918). */
+.shell-header .demo-account-slot {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+  gap: var(--space-2, 8px); max-width: 100%;
+}
 .shell-header .demo-account {
   display: inline-flex; align-items: center; gap: var(--space-2, 8px); min-width: 0; max-width: 100%;
   font-size: var(--text-sm, 13px); color: var(--muted, #5B6472);
@@ -85,6 +90,8 @@
   max-width: 20rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .shell-header .demo-account-status { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+/* "Accounts unavailable" is an error: the rule above is more specific than global.css's and made it grey (#918). */
+.shell-header .demo-account-error { color: var(--danger, #A4322A); }
 
 /* Focus: every header control gets a visible outline. */
 .shell-wordmark:focus-visible,
@@ -109,6 +116,22 @@
     border-top: 1px solid var(--border, #E3E3DE);
   }
   .shell-header .demo-account select { min-height: 44px; }
+  /* "Loading accounts…" and "Accounts unavailable" are as high as the selector that follows them, so the
+     page under the header does not move when the list arrives (#918: it moved 27 px). The stale-link
+     note is the words, then "Switch" as a 44 px target of its own. */
+  .shell-header .demo-account-status { display: flex; align-items: center; gap: var(--space-2, 8px); min-height: 44px; }
+  .shell-header .demo-account-status a {
+    flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--space-2, 8px);
+  }
+}
+/* A stale link's note (Business and Employee pages) is a sentence: beside the selector it does not fit
+   in the bar's right column, and under it the two lines made the bar higher than 64 px and put the
+   selector at the window's top edge (#918). So with a note the tools have the row under the bar at every
+   width, as they have up to 900 px. */
+.shell-tools:has(.demo-account-status[role='status']) {
+  grid-column: 1 / -1; justify-self: stretch; justify-content: flex-end; max-width: none;
+  margin: 0 calc(-1 * var(--shell-pad)); padding: var(--space-2, 8px) var(--shell-pad);
+  border-top: 1px solid var(--border, #E3E3DE);
 }
 /* 390 px: the logo at the left and the three links share the rest of the bar. In a window too narrow
    for that the links wrap inside the nav; they never run past the edge. */

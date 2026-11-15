@@ -1,11 +1,14 @@
-/** Path after switching the demo account: same portal type, new id, no query/hash. null = not an identity route. */
+/**
+ * Path after switching the demo account: same portal type, new id, no query/hash. null = not an identity route.
+ * Any case, as the router reads a path: on `/Business/<id>` the selector is shown, so it must work (#918).
+ */
 export function switchIdentityPath(
   pathname: string,
   id: string,
 ): { kind: 'business' | 'employee'; path: string } | null {
-  const m = /^\/(business|employee)\/[^/]+\/?$/.exec(pathname);
+  const m = /^\/(business|employee)\/[^/]+\/?$/i.exec(pathname);
   if (!m || !id) return null;
-  const kind = m[1] as 'business' | 'employee';
+  const kind = m[1].toLowerCase() as 'business' | 'employee';
   return { kind, path: `/${kind}/${encodeURIComponent(id)}` };
 }
 
