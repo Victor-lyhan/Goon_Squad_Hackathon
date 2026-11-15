@@ -210,7 +210,12 @@ describe('the study page', () => {
 
   it('prints assumption values in the page\'s units', () => {
     const by = Object.fromEntries(ASSUMPTIONS.map(assumption => [assumption.key, assumptionValueParts(assumption)]));
-    expect(by.relayPriceCents).toEqual({ figure: '$10.00', rest: 'per package' });
+    // #861: the four pricing values and the flexible window.
+    expect(by.legRewardCents).toEqual({ figure: '$3.00', rest: 'per commute that carries the package' });
+    expect(by.hubCostCents).toEqual({ figure: '$0.50', rest: 'per package held overnight at a relay point' });
+    expect(by.platformFeeCents).toEqual({ figure: '$4.00', rest: 'per package' });
+    expect(by.flexDiscountCents).toEqual({ figure: '$1.00', rest: 'off per package with a flexible delivery window' });
+    expect(by.flexWindowMin).toEqual({ figure: '1080', rest: 'minutes from the ready time to the deadline (18 hours)' });
     expect(by.courierEnvelopeCents).toEqual({ figure: '$14.00', rest: 'per package' });
     expect(by.courierSmallBoxCents).toEqual({ figure: '$18.00', rest: 'per package' });
     expect(by.courierPromisedByMin).toEqual({ figure: '10:30 a.m.', rest: '(630 minutes after midnight on the next business day)' });

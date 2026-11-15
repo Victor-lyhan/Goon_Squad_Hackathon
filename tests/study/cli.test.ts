@@ -449,7 +449,14 @@ describe('the summary table', () => {
     expect(table[6]).toMatch(row('', 'Courier', figure.kg));
     expect(table[7]).toMatch(row('On-time rate', 'Relay', figure.rate));
     expect(table[8]).toMatch(row('', 'Courier', figure.rate, ' \\(assumed\\)'));
-    expect(table[1]).toMatch(/Relay +\$10\.00 +\$10\.00 +\$10\.00 to \$10\.00$/);
+    // #861: Relay's price is per plan. Every simulated package has the flexible window, so a per-package
+    // average lies between the flexible direct price ($6.00) and the flexible relay price ($9.50).
+    const relayCost = [...table[1]!.matchAll(/\$(\d+\.\d\d)/g)].map(match => Number(match[1]));
+    expect(relayCost).toHaveLength(4);
+    for (const dollarsPerPackage of relayCost) {
+      expect(dollarsPerPackage).toBeGreaterThanOrEqual(6);
+      expect(dollarsPerPackage).toBeLessThanOrEqual(9.5);
+    }
     // The columns line up: every figure of a column starts where its heading starts.
     for (const heading of ['Average', 'Median', '10th to 90th']) {
       const at = table[0]!.indexOf(heading);

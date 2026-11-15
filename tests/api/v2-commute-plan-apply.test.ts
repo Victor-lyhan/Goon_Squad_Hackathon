@@ -148,7 +148,7 @@ describe('applyCommute', () => {
     // emp-1 already carries shp-1 on the way home: Studio -> Cafe -> home-001.
     const plan: DeliveryPlan = {
       id: 'plan-shp-1', shipmentId: 'shp-1', kind: 'direct', deliveryMin: 1064,
-      customerPriceCents: 1000, platformContributionCents: 650,
+      customerPriceCents: 700, platformContributionCents: 350,
       legs: [{
         tripId: 'emp-1-eve', employeeId: 'emp-1', placeIds: [STUDIO, CAFE, HOME_1],
         stops: [stop(STUDIO, 'pickup', 1050), stop(CAFE, 'delivery', 1062)],

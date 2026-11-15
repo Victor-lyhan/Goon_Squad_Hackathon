@@ -204,8 +204,8 @@ const ScenarioSchema = z.object({
     pickupInstructions: z.string(), dropoffInstructions: z.string(), createdSeq: num,
   })),
   settings: z.object({
-    handlingMin: num, defaultMaxExtraMin: num, priceCents: num, legRewardCents: num, hubCostCents: num,
-    platformVariableCostCents: num, courierPriceCents: num, simStartMin: minute, simEndMin: minute,
+    handlingMin: num, defaultMaxExtraMin: num, legRewardCents: num, hubCostCents: num,
+    platformFeeCents: num, flexDiscountCents: num, flexWindowMin: num, platformVariableCostCents: num, courierPriceCents: num, simStartMin: minute, simEndMin: minute,
     allowRelay: z.boolean(),
   }),
 });

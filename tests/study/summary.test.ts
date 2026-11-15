@@ -76,8 +76,16 @@ describe('the spread across runs', () => {
       }
     }
     expect(summary.onTimeRate.courier).toEqual({ average: 1, median: 1, low: 1, high: 1 });
-    // Relay's price is flat, so its cost does not vary; the courier's does (envelopes and boxes).
-    expect(summary.costCents.relay).toEqual({ average: 1000, median: 1000, low: 1000, high: 1000 });
+    // #861: Relay's price is per plan. Every simulated package has the flexible window (4 p.m. to 10 a.m.), so a
+    // package costs $6.00 on one commute or $9.50 on two, and every per-package average lies between the two.
+    for (const run of results.runs) {
+      for (const row of run.packages) expect(row.relayCostCents, `${run.id} ${row.shipmentId}`).toBe(row.kind === 'direct' ? 600 : 950);
+    }
+    for (const cents of Object.values(summary.costCents.relay)) {
+      expect(cents!).toBeGreaterThanOrEqual(600);
+      expect(cents!).toBeLessThanOrEqual(950);
+    }
+    // The courier's cost varies too (envelopes and boxes).
     expect(summary.costCents.courier.high!).toBeGreaterThan(summary.costCents.courier.low!);
   });
 

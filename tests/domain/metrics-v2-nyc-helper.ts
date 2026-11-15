@@ -436,10 +436,13 @@ export function describeCompareRules(title: string, request: GenerateScenarioReq
     }, METRICS_TIMEOUT_MS);
 
     it('matching more packages never costs the customers more, while Relay is not dearer than the courier', () => {
-      const { priceCents, courierPriceCents } = run.scenario.settings;
+      const { courierPriceCents } = run.scenario.settings;
       const direct = response.directOnly.metrics;
       const relay = response.withRelay.metrics;
-      if (priceCents <= courierPriceCents) {
+      // Prices are per plan (#861): the dearest Relay price on either side against the courier.
+      const dearestCents = Math.max(0, ...[response.directOnly, response.withRelay]
+        .flatMap(side => side.result.plans.map(plan => plan.customerPriceCents)));
+      if (dearestCents <= courierPriceCents) {
         expect(relay.projectedCustomerSpendCents).toBeLessThanOrEqual(direct.projectedCustomerSpendCents);
         expect(relay.projectedCustomerSavingsCents).toBeGreaterThanOrEqual(direct.projectedCustomerSavingsCents);
         // Each package costs the courier price, either paid to the courier or split into Relay's price and the saving.

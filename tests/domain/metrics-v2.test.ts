@@ -9,7 +9,7 @@ const shipment = (id: string): Shipment => ({
   deadlineMin: 100, category: 'envelope', description: '', weightGrams: 1, pickupInstructions: '', dropoffInstructions: '', createdSeq: 1,
 });
 const plan: DeliveryPlan = {
-  id: 'plan-a', shipmentId: 'shp-a', kind: 'direct', deliveryMin: 20, customerPriceCents: 1000, platformContributionCents: 650,
+  id: 'plan-a', shipmentId: 'shp-a', kind: 'direct', deliveryMin: 20, customerPriceCents: 700, platformContributionCents: 350,
   legs: [{ tripId: 'trip-a', employeeId: 'emp-a', placeIds: [], stops: [
     { placeId: 'biz-a', kind: 'pickup', arrivalMin: 8, serviceStartMin: 8, serviceEndMin: 10 },
     { placeId: 'biz-b', kind: 'delivery', arrivalMin: 18, serviceStartMin: 18, serviceEndMin: 20 },
@@ -35,7 +35,7 @@ describe('v2 computeMetrics', () => {
     const complete = computeMetrics({ ...base, occurredEvents: buildTimeline([plan], []) });
 
     expect(projected).toMatchObject({ requested: 1, matched: 1, delivered: 0, direct: 1, relay: 0, avgExtraMinPerTrip: 5, maxExtraMin: 5, earnedRewardsCents: 0, earnedPlatformContributionCents: 0, extraDistanceM: 500 });
-    expect(complete).toMatchObject({ delivered: 1, earnedRewardsCents: 300, projectedPlatformContributionCents: 650, earnedPlatformContributionCents: 650 });
+    expect(complete).toMatchObject({ delivered: 1, earnedRewardsCents: 300, projectedPlatformContributionCents: 350, earnedPlatformContributionCents: 350 });
     expectFinite(projected);
     expectFinite(complete);
   });

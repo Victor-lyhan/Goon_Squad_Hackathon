@@ -70,7 +70,7 @@ describe('the nine read routes answer 200 with the body of the pure view (clock 
     expect(result.body.business).toEqual(studio);
     expect(result.body.outgoing.map((v: any) => [v.shipment.id, v.status])).toEqual([['shp-3', 'unmatched'], ['shp-1', 'at_hub']]);
     expect(result.body.incoming.map((v: any) => [v.shipment.id, v.status])).toEqual([['shp-2', 'delivered']]);
-    expect(result.body.totals).toEqual({ sent: 2, matched: 1, delivered: 0, spendCents: 1000 });
+    expect(result.body.totals).toEqual({ sent: 2, matched: 1, delivered: 0, spendCents: 1050 });
     expect(result.body).toMatchObject({ phase: 'locked', version: 12 });
     expect(calls).toEqual([{ run: sampleRun, timeMin: 1110 }]);
   });

@@ -102,7 +102,7 @@ const directDeliver = stop('biz-studio', 'delivery', 1106);
 
 export const relayPlan: DeliveryPlan = {
   id: planIdFor('shp-1'), shipmentId: 'shp-1', kind: 'relay', relayBusinessId: 'biz-cafe', deliveryMin: 1952,
-  customerPriceCents: 1000, platformContributionCents: 300, // 1000 - 2 x 300 - 50 relay point - 50 variable
+  customerPriceCents: 1050, platformContributionCents: 350, // price 2 x 300 + 50 relay point + 400 platform fee (window under 18 h: no discount); 1050 - 600 - 50 - 50 variable
   legs: [
     { tripId: samEve.id, employeeId: 'emp-1', placeIds: ['biz-studio', 'biz-cafe', 'home-001'], stops: [relayPickup, relayDrop], finishMin: 1086, extraMin: 6, extraDistanceM: 900, rewardCents: 300 },
     { tripId: anaMorn.id, employeeId: 'emp-2', placeIds: ['home-story-ana', 'biz-cafe', 'biz-agency'], stops: [relayCollect, relayDeliver], finishMin: 1952, extraMin: 8, extraDistanceM: 1500, rewardCents: 300 },
@@ -110,7 +110,7 @@ export const relayPlan: DeliveryPlan = {
 };
 export const directPlan: DeliveryPlan = {
   id: planIdFor('shp-2'), shipmentId: 'shp-2', kind: 'direct', deliveryMin: 1108,
-  customerPriceCents: 1000, platformContributionCents: 650, // 1000 - 300 - 50 variable
+  customerPriceCents: 700, platformContributionCents: 350, // price 300 + 400 platform fee (window under 18 h: no discount); 700 - 300 - 50 variable
   legs: [
     { tripId: anaEve.id, employeeId: 'emp-2', placeIds: ['biz-agency', 'biz-studio', 'home-story-ana'], stops: [directPickup, directDeliver], finishMin: 1128, extraMin: 8, extraDistanceM: 2100, rewardCents: 300 },
   ],
@@ -161,7 +161,7 @@ export const events: SimEvent[] = [
 ];
 
 export const settings: Settings = {
-  handlingMin: 2, defaultMaxExtraMin: 8, priceCents: 1000, legRewardCents: 300, hubCostCents: 50,
+  handlingMin: 2, defaultMaxExtraMin: 8, legRewardCents: 300, hubCostCents: 50, platformFeeCents: 400, flexDiscountCents: 100, flexWindowMin: 1080,
   platformVariableCostCents: 50, courierPriceCents: 1400, simStartMin: 930, simEndMin: 2160, allowRelay: true,
 };
 
@@ -195,9 +195,9 @@ const metrics = (delivered: number, earnedRewardsCents: number, earnedPlatformCo
   requested: 3, matched: 2, delivered, direct: 1, relay: 1, unmatched: 1,
   avgExtraMinPerTrip: (6 + 8 + 8) / 3, maxExtraMin: 8,
   earnedRewardsCents,
-  projectedCustomerSavingsCents: 800,         // 2 matched x (1400 - 1000)
-  projectedCustomerSpendCents: 3400,          // 2 x 1000 + 1 unmatched x 1400
-  projectedPlatformContributionCents: 950,    // 300 + 650
+  projectedCustomerSavingsCents: 1050,        // (1400 - 1050) + (1400 - 700)
+  projectedCustomerSpendCents: 3150,          // 1050 + 700 + 1 unmatched x 1400
+  projectedPlatformContributionCents: 700,    // 350 + 350
   earnedPlatformContributionCents,
   extraDistanceM: 4500,                       // 900 + 1500 + 2100
 });
@@ -220,7 +220,7 @@ export const snapshotEvening: Snapshot = deepFreeze({
   markers: [{ employeeId: 'emp-2', lat: 40.7242, lng: -73.9531, servicing: false }],
   packagePositions: { 'shp-1': { lat: cafe.lat, lng: cafe.lng }, 'shp-2': { lat: studio.lat, lng: studio.lng } },
   occurredEvents: events.slice(0, 4),
-  metrics: metrics(1, 600, 650),
+  metrics: metrics(1, 600, 350),
 });
 
 /** t = 2160, end of the run: both matched packages delivered. */
@@ -233,7 +233,7 @@ export const snapshotEnd: Snapshot = deepFreeze({
   markers: [],
   packagePositions: { 'shp-1': { lat: agency.lat, lng: agency.lng }, 'shp-2': { lat: studio.lat, lng: studio.lng } },
   occurredEvents: events,
-  metrics: metrics(2, 900, 950),
+  metrics: metrics(2, 900, 700),
 });
 
 // ---------- Travel ----------

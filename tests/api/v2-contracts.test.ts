@@ -39,7 +39,7 @@ const scenario = {
     pickupInstructions: '', dropoffInstructions: '', createdSeq: 1,
   }],
   settings: {
-    handlingMin: 2, defaultMaxExtraMin: 8, priceCents: 1000, legRewardCents: 300, hubCostCents: 50,
+    handlingMin: 2, defaultMaxExtraMin: 8, legRewardCents: 300, hubCostCents: 50, platformFeeCents: 400, flexDiscountCents: 100, flexWindowMin: 1080,
     platformVariableCostCents: 50, courierPriceCents: 1400, simStartMin: 930, simEndMin: 2160, allowRelay: true,
   },
 } satisfies Scenario;
@@ -61,7 +61,7 @@ const run = {
   assignments: {
     plans: [{
       id: planId, shipmentId: 'shp-1', kind: 'relay', relayBusinessId: 'biz-cafe', deliveryMin: 1952,
-      customerPriceCents: 1000, platformContributionCents: 300,
+      customerPriceCents: 1050, platformContributionCents: 350,
       legs: [
         { tripId: eveTrip, employeeId: 'emp-1', placeIds: ['biz-studio', 'biz-cafe', 'home-001'], stops: [pickAtOrigin, dropAtRelay], finishMin: 1085, extraMin: 10, extraDistanceM: 1200, rewardCents: 300 },
         { tripId: mornTrip, employeeId: 'emp-2', placeIds: ['home-story-ana', 'biz-cafe', 'biz-agency'], stops: [pickAtRelay, deliver], finishMin: 1952, extraMin: 22, extraDistanceM: 3000, rewardCents: 300 },

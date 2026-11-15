@@ -114,7 +114,7 @@ describe('v2 materializeAssignment', () => {
     const again = materializeAssignment(run, run.assignments, sampleDeps());
     expect(again.notifications.map((n) => [n.id, n.createdSeq])).toEqual(run.notifications.map((n) => [n.id, n.createdSeq]));
     expect(again.notifications[0].message)
-      .toBe('Delivery arranged: "Poster proofs (v2)" to Midtown Agency via Corner Bakery (relay point), $10.00.');
+      .toBe('Delivery arranged: "Poster proofs (v2)" to Midtown Agency via Corner Bakery (relay point), $10.50.');
     // The relay point's own message says "here", so only the label changes in it.
     expect(again.notifications[2].message)
       .toBe('Relay point: "Poster proofs (v2)" from Northside Print Shop to Midtown Agency is dropped here in the evening and collected the next morning.');
@@ -127,12 +127,12 @@ describe('v2 materializeAssignment', () => {
     run.scenario.businesses = run.scenario.businesses.filter((b) => b.id === PRINT);
     const { notifications } = materializeAssignment(run, run.assignments, sampleDeps());
     expect(notifications.map((n) => n.message)).toEqual([
-      'Delivery arranged: "Poster proofs" to Unknown place via a relay point, $10.00.',
+      'Delivery arranged: "Poster proofs" to Unknown place via a relay point, $10.50.',
       'Incoming delivery: "Poster proofs" from Northside Print Shop via a relay point.',
       'Relay point: "Poster proofs" from Northside Print Shop to Unknown place is dropped here in the evening and collected the next morning.',
       'New delivery job: "Poster proofs". Drop at the relay point; another employee completes delivery. Reward $3.00.',
       'New delivery job: "Poster proofs". Collect from the relay point and deliver to Unknown place. Reward $3.00.',
-      'Delivery arranged: "Signed contract" to Northside Print Shop, $10.00.',
+      'Delivery arranged: "Signed contract" to Northside Print Shop, $7.00.',
       'Incoming delivery: "Signed contract" from Unknown place.',
       'New delivery job: "Signed contract". Collect from Unknown place and deliver to Northside Print Shop. Reward $3.00.',
     ]);
@@ -219,7 +219,7 @@ describe('v2 relay-point notification (#535)', () => {
     const relay = { ...planFor(run, 'shp-1'), relayBusinessId: PRINT };
     const out = materializeAssignment(run, { ...run.assignments, plans: [relay] }, sampleDeps());
     expect(forBusiness(out.notifications, PRINT).map((n) => [n.id, n.message])).toEqual([
-      ['ntf-plan-shp-1-biz-print-shop', 'Delivery arranged: "Poster proofs" to Midtown Agency via Northside Print Shop (relay point), $10.00.'],
+      ['ntf-plan-shp-1-biz-print-shop', 'Delivery arranged: "Poster proofs" to Midtown Agency via Northside Print Shop (relay point), $10.50.'],
     ]);
   });
 });
@@ -272,7 +272,7 @@ describe('v2 relay-point notification in GET /businesses/:id/dashboard (#535)', 
     expect(res.status).toBe(200);
     // Newest first.
     expect(res.body.notifications.map((n: Notification) => [n.id, n.shipmentId, n.message])).toEqual([
-      ['ntf-plan-shp-3-biz-cafe', 'shp-3', 'Delivery arranged: "Pastry box" to Northside Print Shop, $10.00.'],
+      ['ntf-plan-shp-3-biz-cafe', 'shp-3', 'Delivery arranged: "Pastry box" to Northside Print Shop, $7.00.'],
       ['ntf-plan-shp-1-biz-cafe', 'shp-1', RELAY_NOTE],
     ]);
     for (const n of res.body.notifications as Notification[]) {
