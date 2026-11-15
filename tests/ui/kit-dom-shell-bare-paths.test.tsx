@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // #724: `/business` and `/employee` without an ID replace-redirect to the account the header's link of that
 // kind points to (the remembered one, else the first); while the list is loading or failed they say so and
-// are never the 404 page. The homepage says "Real NYC locations · simulated deliveries" once, in the header.
+// are never the 404 page. No page says "Real NYC locations · simulated deliveries" (#833, #854).
 // And the keyboard order of `/` and the header, as found in headless Chrome at 1440 px and 390 px.
 // The real AppShell, header and homepage in a real DOM against a fake /api/v2; the three workspace pages are
 // stand-ins.
@@ -12,7 +12,7 @@ import { IDENTITY_KEY, readIdentity } from '../../client/src/demoIdentity';
 import { NYC_UNAVAILABLE_TEXT, type NycSummary } from '../../client/src/pages/landingModel';
 import { DIRECTORY_RETRY_MS } from '../../client/src/ui/shell';
 import {
-  ACCOUNTS_ERROR_TEXT, ACCOUNTS_LOADING_TEXT, bareWorkspace, ENV_LABELS,
+  ACCOUNTS_ERROR_TEXT, ACCOUNTS_LOADING_TEXT, bareWorkspace,
 } from '../../client/src/ui/shellModel';
 import { fakeApi, renderShell, type FakeList } from './kit-dom-shell-helper';
 import { click, deferred, flush, link, tabOrder, textOf } from './kitDom';
@@ -48,6 +48,8 @@ const hrefOf = (root: ParentNode, label: string) => link(root, label).getAttribu
 /** The page a stand-in route rendered ("BusinessV2 at /business/biz-01"), or null. */
 const pageOf = (main: HTMLElement) => main.querySelector('[data-page]')?.textContent ?? null;
 const count = (text: string, part: string) => text.split(part).length - 1;
+/** The line the header's top right held until #854 (the homepage lost it in #833). */
+const OLD_ENV_TEXT = 'Real NYC locations · simulated deliveries';
 
 beforeEach(() => { localStorage.clear(); });
 afterEach(() => {
@@ -201,11 +203,11 @@ describe('bareWorkspace', () => {
   });
 });
 
-describe('the homepage does not say the environment (#833)', () => {
-  it('not in the header (no text at its top right), not in the page: no footer, no stats line', async () => {
+describe('no page says the environment (#833 the homepage, #854 every page)', () => {
+  it('/: not in the header (no text at its top right), not in the page: no footer, no stats line', async () => {
     api();
     const s = await renderShell('/', [], { initialNycSummary: SUMMARY });
-    expect(count(textOf(s.container), ENV_LABELS.nyc)).toBe(0);
+    expect(count(textOf(s.container), OLD_ENV_TEXT)).toBe(0);
     expect(s.header().querySelector('.shell-env')).toBeNull();
     expect(textOf(s.header().querySelector('.shell-tools')!)).toBe('');
     expect(s.container.querySelector('footer, .landing-footer, .op-summary')).toBeNull();
@@ -213,10 +215,32 @@ describe('the homepage does not say the environment (#833)', () => {
     expect(s.main().querySelector('.landing')!.lastElementChild!.className).toBe('landing-how');
   }, T);
 
-  it('every other page keeps the line in the header', async () => {
+  it.each(['/simulator', '/nowhere'])('%s: the top right of the header is empty', async (path) => {
     api();
-    const s = await renderShell('/simulator');
-    expect(textOf(s.header().querySelector('.shell-env')!)).toBe('Real NYC locations · simulated deliveries');
+    const s = await renderShell(path);
+    expect(count(textOf(s.container), OLD_ENV_TEXT)).toBe(0);
+    expect(s.header().querySelector('.shell-env')).toBeNull();
+    expect(textOf(s.header().querySelector('.shell-tools')!)).toBe('');
+    expect(s.header().querySelector('.shell-tools')!.querySelectorAll('a, button, select, input')).toHaveLength(0);
+    // The header's own text is the brand and the three destinations, nothing else.
+    expect(textOf(s.header()).replace(/\s+/g, '')).toBe('RelayBusinessEmployeeSimulator');
+  }, T);
+
+  it.each([
+    ['/business/biz-02', 'Demo accountBrooklyn RoastersHudson Print CoTitan Foods'],
+    ['/employee/emp-02', 'Demo accountMaya ChenLuis OrtegaAna Ruiz'], // the fake employees have no employer
+  ])('%s: the top right holds the Demo account selector (a control) and no other text', async (path, text) => {
+    api();
+    const s = await renderShell(path);
+    const tools = s.header().querySelector('.shell-tools')!;
+    expect(count(textOf(s.container), OLD_ENV_TEXT)).toBe(0);
+    expect(s.header().querySelector('.shell-env')).toBeNull();
+    // One child, the slot; in it one labelled <select>. Its label and options are the only text.
+    expect([...tools.children].map((el) => el.className)).toEqual(['demo-account-slot']);
+    expect([...tools.firstElementChild!.children].map((el) => el.tagName)).toEqual(['LABEL']);
+    expect(tools.querySelectorAll('select')).toHaveLength(1);
+    expect(s.selector()!.value).toBe(path.split('/')[2]);
+    expect(textOf(tools)).toBe(text);
   }, T);
 
   it('landing.css has no footer rule left, Landing.tsx no footer', () => {

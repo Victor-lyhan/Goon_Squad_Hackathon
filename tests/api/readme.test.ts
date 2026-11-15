@@ -9,7 +9,6 @@ import { LOCKED_TEXT } from '../../client/src/components/employee/v2/employeeWor
 import { TRAVEL_DATA_MISSING_TEXT } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
 import { NETWORK_OVERNIGHT_TEXT } from '../../client/src/components/sim/v2/compose/journeyPlay';
 import { FINISHED_REASON, RESET_LABEL } from '../../client/src/components/sim/v2/controls/controlsModel';
-import { ENV_INDICATOR_TEXT } from '../../client/src/ui/shellModel';
 import { DEFAULT_V2_STATE_PATH, sourcePathFor } from '../../server/api/v2/bootRun';
 import { SERVER_KEY_NAME } from '../../server/geo/env';
 import {
@@ -74,7 +73,6 @@ describe('README after the cutover', () => {
   it('opens with Relay on real NYC locations with simulated deliveries', () => {
     expect(intro).toMatch(/^# Relay\n/);
     expect(intro).toMatch(/Real NYC locations, simulated deliveries/);
-    expect(ENV_INDICATOR_TEXT).toBe('Real NYC locations · simulated deliveries'); // the header says the same
     expect(intro).toContain('relay point');
     expect(intro).toContain('`fixtures/nyc/`');
     expect(intro).toMatch(/shown by neighborhood only/);

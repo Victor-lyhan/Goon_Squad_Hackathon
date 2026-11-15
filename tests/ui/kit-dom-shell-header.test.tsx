@@ -5,7 +5,7 @@
 // The pages are stand-ins.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDENTITY_KEY, readIdentity } from '../../client/src/demoIdentity';
-import { ENV_LABELS, staleNote } from '../../client/src/ui/shellModel';
+import { staleNote } from '../../client/src/ui/shellModel';
 import { fakeApi, renderShell } from './kit-dom-shell-helper';
 import { click, flush, link, select, tabOrder, textOf } from './kitDom';
 
@@ -108,8 +108,9 @@ describe('workspace links use the stored identity', () => {
   it('the header never calls an MVP 1 route', async () => {
     for (const p of ['/', '/simulator', '/business/biz-01', '/employee/emp-01', '/nowhere']) {
       const s = await renderShell(p);
-      // The environment line is on every page but the homepage (#833).
-      expect(textOf(s.header()).includes(ENV_LABELS.nyc), p).toBe(p !== '/');
+      // The environment line is on no page (#833 the homepage, #854 every page).
+      expect(textOf(s.header()), p).not.toMatch(/simulated deliveries|Real NYC locations/i);
+      expect(s.header().querySelector('.shell-env'), p).toBeNull();
       s.unmount();
     }
     expect(api.calls.filter((u) => MVP1_ROUTE.test(u))).toEqual([]);

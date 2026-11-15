@@ -7,8 +7,10 @@ import { AppShell } from '../../client/src/App';
 import Landing from '../../client/src/pages/Landing';
 import { nycSummaryFrom, nycWorkspacePaths, NYC_UNAVAILABLE_TEXT, type NycSummary } from '../../client/src/pages/landingModel';
 import type { V2BusinessDirectory, V2Directory } from '../../client/src/ui/shell';
-import { ENV_LABELS } from '../../client/src/ui/shellModel';
 import { businesses as v2b, employees as v2e, simulator, storySimulator } from './landing-nyc-sample';
+
+/** The line the header's top right held until #854 (the homepage lost it in #833). */
+const OLD_ENV_TEXT = 'Real NYC locations · simulated deliveries';
 
 const v2: V2Directory = { status: 'ready', employees: [{ id: 'emp-7', name: 'Employee 7' }] };
 const v2Biz: V2BusinessDirectory = { status: 'ready', businesses: [{ id: 'biz-a', name: 'Alpha' }] };
@@ -40,7 +42,7 @@ describe('/', () => {
     expect(body).toContain('href="/simulator"'); // the sample run has no plans: the button opens the plain simulator
     expect(body).not.toContain('Guided demo');
     expect(body).not.toContain('href="/help"');
-    expect(html).not.toContain(ENV_LABELS.nyc); // not in the page (#724), and not in its header either (#833)
+    expect(html).not.toContain(OLD_ENV_TEXT); // not in the page (#724), and not in its header either (#833)
     expect(body).not.toMatch(/hub|synthetic/i);
     expect(body).not.toContain('nav-pending');
     noPreviewLinks(html);

@@ -2,10 +2,10 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import { AppShell, BADGE_TEXT } from '../../client/src/App';
-import {
-  activeDestination, DESTINATIONS, ENV_INDICATOR_TEXT, ENV_LABELS,
-} from '../../client/src/ui/shellModel';
+import * as appModule from '../../client/src/App';
+import { AppShell } from '../../client/src/App';
+import * as shellModel from '../../client/src/ui/shellModel';
+import { activeDestination, DESTINATIONS } from '../../client/src/ui/shellModel';
 import type { V2BusinessDirectory, V2Directory } from '../../client/src/ui/shell';
 
 const businesses = [{ id: 'biz-01', name: 'Brooklyn Roasters' }, { id: 'biz-02', name: 'Hudson Print Co' }];
@@ -27,11 +27,36 @@ const current = (html: string) => [...nav(html).matchAll(/<a [^>]*aria-current="
 const css = readFileSync('client/src/ui/shell.css', 'utf8');
 const app = readFileSync('client/src/App.tsx', 'utf8');
 
-describe('environment indicator', () => {
-  it('is one constant, NYC since the cutover (#548)', () => {
-    expect(ENV_INDICATOR_TEXT).toBe('Real NYC locations · simulated deliveries');
-    expect(BADGE_TEXT).toBe(ENV_INDICATOR_TEXT);
-    expect(ENV_LABELS.nyc).toBe('Real NYC locations · simulated deliveries');
+/** The line the header's top right held until #854 (the homepage lost it in #833). */
+const OLD_ENV_TEXT = 'Real NYC locations · simulated deliveries';
+
+describe('environment indicator (#854)', () => {
+  it('is gone from the shell: no constant, no element, no CSS rule', () => {
+    for (const name of ['ENV_INDICATOR_TEXT', 'ENV_LABELS', 'ENV_DATASET']) expect(shellModel).not.toHaveProperty(name);
+    expect(appModule).not.toHaveProperty('BADGE_TEXT');
+    expect(app).not.toMatch(/shell-env|simulated deliveries/);
+    expect(css).not.toContain('shell-env');
+  });
+  it('the empty tools box takes no row of its own in a narrow header', () => {
+    // Headless Chrome at 390 px: without this rule the header of /simulator was 89 px (a blank 8 px row
+    // under the nav); with it 81 px.
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).toMatch(/\.shell-tools:has\(> \.demo-account-slot:empty\) \{ display: none; \}/);
+  });
+  it.each([
+    '/', `/business/${bid}`, `/employee/${eid}`, '/simulator', '/business', '/employee', '/nope', '/nyc/simulator',
+  ])('%s: the header has no text at its top right', (path) => {
+    const html = render(path);
+    expect(html).not.toContain(OLD_ENV_TEXT);
+    expect(html).not.toMatch(/simulated deliveries|Real NYC locations/i);
+    expect(header(html)).not.toContain('shell-env');
+    // After the nav the header holds the tools only, and the tools hold the Demo account slot only.
+    const tools = header(html).slice(header(html).indexOf('</nav>') + '</nav>'.length);
+    expect(tools).toMatch(/^<div class="shell-tools"><div class="demo-account-slot" data-slot="demo-account-selector">/);
+    const slot = /^<div class="shell-tools"><div class="demo-account-slot" data-slot="demo-account-selector">([\s\S]*)<\/div><\/div>$/.exec(tools)![1];
+    // An account page: the selector (a real control, kept). Every other page: nothing at all.
+    const account = /^\/(business|employee)\/[^/]+$/.test(path);
+    if (account) expect(slot).toMatch(/^<label class="demo-account"><span>Demo account<\/span><select>[\s\S]*<\/select><\/label>$/);
+    else expect(slot).toBe('');
   });
 });
 
@@ -54,13 +79,13 @@ describe('compact header', () => {
     ['/', null], [`/business/${bid}`, 'Business'], [`/employee/${eid}`, 'Employee'],
     ['/simulator', 'Simulator'],
   ];
-  it.each(routes)('%s: three nav links in order, correct active one, indicator once', (path, active) => {
+  it.each(routes)('%s: three nav links in order, correct active one, no indicator', (path, active) => {
     const html = render(path);
     expect(navLabels(html)).toEqual(['Business', 'Employee', 'Simulator']);
     expect(nav(html).match(/<a /g)).toHaveLength(3);
     expect(current(html)).toEqual(active ? [active] : []);
-    // The header says it once; on the homepage it does not say it (#833).
-    expect(header(html).split(ENV_INDICATOR_TEXT)).toHaveLength(path === '/' ? 1 : 2);
+    // No page's header says the environment line (#833 the homepage, #854 every page).
+    expect(header(html)).not.toContain(OLD_ENV_TEXT);
     // The brand link (#784): to "/", the logo first (decorative, so the link's name is the word), then "Relay".
     const brand = /<a ([^>]*)>(.*?)<\/a>/.exec(header(html))!;
     expect(brand[1]).toContain('class="shell-wordmark"');
@@ -68,8 +93,7 @@ describe('compact header', () => {
     expect(brand[2]).toBe('<img class="shell-logo" src="/brand/relay-logo.png" alt="" width="28" height="28"/>Relay');
     expect(header(html).match(/<img /g)).toHaveLength(1);
     expect(header(html)).not.toContain('href="/help"'); // the Help page is deleted (#623)
-    if (path === '/') expect(header(html)).not.toContain('shell-env');
-    else expect(header(html)).toContain(`class="shell-env">${ENV_INDICATOR_TEXT}<`);
+    expect(header(html)).not.toContain('shell-env');
   });
   it('nav links point to the current identity portals', () => {
     const h = nav(render('/'));
@@ -111,8 +135,7 @@ describe('shell CSS', () => {
       }
     }
   });
-  it('uses tokens with fallbacks and a mono xs indicator', () => {
-    expect(css).toMatch(/\.shell-env \{[^}]*var\(--font-mono, [^}]*var\(--text-xs, 12px\)/);
+  it('uses tokens with fallbacks', () => {
     expect(css).toContain('var(--border, #E3E3DE)');
     expect(css).toContain('var(--accent, #1D5075)');
     expect(css).toContain("var(--font-sans, 'Inter', 'Geist', system-ui");
