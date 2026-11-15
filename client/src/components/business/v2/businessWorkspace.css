@@ -4,14 +4,16 @@
    Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
    IDs, weights and prices; Inter (--font-sans) for everything else.
    Design audit (#881): labels and column headers are sentence case (no tracked capitals), the state boxes are
-   left-aligned like the rest of the page, and controls are 44 px tall where the rows stack. */
+   left-aligned like the rest of the page, and controls are 44 px tall where the rows stack.
+   Design pass (#940): controls are 36 px tall like the page's other buttons, gaps are 8 or 16 px, the labels
+   and column headers are medium weight so the rows carry the weight, and the columns share 16 px gutters. */
 
 .bw-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-3, 12px);
-  padding: var(--space-3, 12px) 0;
+  gap: var(--space-2, 8px) var(--space-4, 16px);
+  padding: 0 0 var(--space-4, 16px);
   border-bottom: 1px solid var(--border, #E3E3DE);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   color: var(--text, #171C24);
@@ -20,13 +22,13 @@
 .bw-toolbar__search { flex: 1 1 240px; }
 .bw-toolbar__label {
   font-size: var(--text-xs, 12px);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--muted, #5B6472);
 }
 .bw-toolbar__new { margin-left: auto; }
 
 .bw-input {
-  height: 32px;
+  height: 36px;
   padding: 0 var(--space-2, 8px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
@@ -40,7 +42,7 @@
 
 .bw-segmented { display: flex; }
 .bw-segmented__btn {
-  height: 32px;
+  height: 36px;
   padding: 0 var(--space-3, 12px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: 0;
@@ -62,7 +64,7 @@
 .bw-segmented__btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: -2px; }
 
 .bw-btn {
-  height: 32px;
+  height: 36px;
   padding: 0 var(--space-4, 16px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
@@ -73,7 +75,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.bw-btn:hover { background: var(--bg, #F7F7F4); }
+.bw-btn:hover { border-color: var(--muted, #5B6472); }
 .bw-btn--primary { background: var(--accent, #1D5075); border-color: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
 .bw-btn--primary:hover { background: var(--accent-dark, #173E5B); border-color: var(--accent-dark, #173E5B); }
 .bw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -95,7 +97,7 @@
 .bw-table__caption {
   caption-side: top;
   text-align: left;
-  padding: var(--space-3, 12px) 0 var(--space-2, 8px);
+  padding: 0 0 var(--space-2, 8px);
   font-size: var(--text-md, 14px);
   font-weight: 600;
 }
@@ -110,7 +112,7 @@
 }
 .bw-table th,
 .bw-table td {
-  padding: var(--space-2, 8px) var(--space-3, 12px);
+  padding: var(--space-2, 8px) var(--space-4, 16px);
   border-bottom: 1px solid var(--border, #E3E3DE);
   text-align: left;
   vertical-align: top;
@@ -118,7 +120,7 @@
 .bw-table th {
   background: var(--bg, #F7F7F4);
   font-size: var(--text-xs, 12px);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--muted, #5B6472);
   white-space: nowrap;
 }
@@ -190,7 +192,7 @@ th[aria-sort] .bw-sort { color: var(--text, #171C24); }
 
 /* ---------- The list's states without rows: loading, error, no deliveries yet, no match ---------- */
 .bw-empty {
-  padding: var(--space-6, 24px) var(--space-4, 16px);
+  padding: var(--space-6, 24px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);

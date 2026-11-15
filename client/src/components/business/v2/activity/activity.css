@@ -3,15 +3,17 @@
    client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
    Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
    IDs, weights and prices; Inter (--font-sans) for everything else.
-   No cards and no row fills. Fluid widths only: works at 390 px. */
+   No cards and no row fills. Fluid widths only: works at 390 px.
+   Design pass (#940): 8 / 16 / 24 px gaps; the Notifications heading starts on the toolbar's line; the
+   "Held here overnight" mark is plain coloured words, so three of them do not outshout New delivery. */
 
 .ba-header {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-3, 12px) var(--space-6, 24px);
-  padding: var(--space-3, 12px) 0 var(--space-4, 16px);
+  gap: var(--space-2, 8px) var(--space-6, 24px);
+  padding: var(--space-2, 8px) 0 var(--space-6, 24px);
   border-bottom: 1px solid var(--border, #E3E3DE);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, sans-serif);
   color: var(--text, #171C24);
@@ -91,13 +93,13 @@
 }
 .ba-notes__title {
   margin: 0;
-  padding: var(--space-3, 12px) 0 var(--space-2, 8px);
+  padding: 0 0 var(--space-2, 8px);
   font-size: var(--text-md, 14px);
   font-weight: 600;
   border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .ba-notes__count { margin-left: var(--space-1, 4px); font-weight: 400; color: var(--muted, #5B6472); }
-.ba-notes__empty { margin: 0; padding: var(--space-3, 12px) 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.ba-notes__empty { margin: 0; padding: var(--space-4, 16px) 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
 .ba-notes__list { list-style: none; margin: 0; padding: 0; }
 /* Read out, not shown: the polite live region for a notification that arrives (#892). It is in the page from
    the first render, so only its text changes. */
@@ -146,7 +148,7 @@
   font-weight: 600;
 }
 .ba-note__new { color: var(--panel, #FFFFFF); background: var(--accent, #1D5075); border: 1px solid var(--accent, #1D5075); }
-.ba-note__tag { color: var(--warn, #8A5A00); border: 1px solid var(--warn, #8A5A00); }
+.ba-note__tag { padding: 0; color: var(--warn, #8A5A00); }
 .ba-note__foot {
   display: flex;
   flex-wrap: wrap;
@@ -161,11 +163,12 @@
 
 .ba-notes__more {
   min-height: 36px;
-  margin-top: var(--space-2, 8px);
-  padding: 0 var(--space-3, 12px);
+  margin-top: var(--space-4, 16px);
+  padding: 0 var(--space-4, 16px);
   font: inherit;
   font-size: var(--text-sm, 13px);
-  color: var(--accent-dark, #173E5B);
+  font-weight: 600;
+  color: var(--text, #171C24);
   background: var(--panel, #FFFFFF);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);

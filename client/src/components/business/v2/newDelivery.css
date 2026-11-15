@@ -2,15 +2,20 @@
    MVP III look (docs/mvp3.md P4, #684): every colour, radius, size and font is a token of
    client/src/styles/tokens.css, written as var(--name, fallback) with the token's own value as the fallback.
    Hairline 1px borders, radius var(--radius), no shadows, no gradients. IBM Plex Mono (--font-mono) for times,
-   IDs, weights and prices; Inter (--font-sans) for everything else. No pills. */
+   IDs, weights and prices; Inter (--font-sans) for everything else. No pills.
+   Design pass (#940): the New delivery box is the page's one bold element. It is as wide as the toolbar and
+   the table (up to 880 px), has the primary colour as its border with a 3 px stripe on the left (the only stripe MVP III allows), 24 px of padding, the
+   page's largest title and the sentence set at 18 px. Everything else on the page stays hairline and quiet.
+   Labels are sentence case (no tracked capitals). */
 
 .nd {
   display: flex;
   flex-direction: column;
   gap: var(--space-4, 16px);
-  max-width: 640px;
-  padding: var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
+  max-width: 880px;
+  padding: var(--space-6, 24px);
+  border: 1px solid var(--accent, #1D5075);
+  border-left-width: 3px;
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   color: var(--text, #171C24);
@@ -19,7 +24,7 @@
 }
 
 .nd-head { display: flex; flex-direction: column; gap: var(--space-1, 4px); }
-.nd-title { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; }
+.nd-title { margin: 0; font-size: var(--text-xl, 28px); font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; }
 .nd-from { margin: 0; color: var(--muted, #5B6472); }
 
 .nd-group {
@@ -27,7 +32,7 @@
   flex-direction: column;
   gap: var(--space-3, 12px);
   margin: 0;
-  padding: var(--space-3, 12px) 0 0;
+  padding: var(--space-4, 16px) 0 0;
   border: 0;
   border-top: 1px solid var(--border, #E3E3DE);
   min-width: 0;
@@ -37,11 +42,9 @@
   font-size: var(--text-xs, 12px);
   font-weight: 600;
   color: var(--muted, #5B6472);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
-.nd-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3, 12px); }
+.nd-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4, 16px); }
 
 .nd-field { display: flex; flex-direction: column; gap: var(--space-1, 4px); min-width: 0; }
 .nd-label { font-weight: 600; font-size: var(--text-sm, 13px); }
@@ -129,8 +132,8 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
 .nd > .nd-actions {
   position: sticky;
   bottom: 0;
-  margin: 0 calc(-1 * var(--space-4, 16px)) calc(-1 * var(--space-4, 16px));
-  padding: var(--space-3, 12px) var(--space-4, 16px);
+  margin: 0 calc(-1 * var(--space-6, 24px)) calc(-1 * var(--space-6, 24px));
+  padding: var(--space-4, 16px) var(--space-6, 24px);
   border-top: 1px solid var(--border, #E3E3DE);
   border-radius: 0 0 var(--radius, 4px) var(--radius, 4px);
   background: var(--panel, #FFFFFF);
@@ -142,8 +145,8 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
 body:has(.nd) { overflow-x: clip; }
 /* A field that gets the focus by Tab is scrolled clear of the bar, not under it. So is the answer to a
    press, which the form brings on screen (#719): it sits right above the bar. */
-.nd .nd-input, .nd .nd-btn { scroll-margin-bottom: 76px; }
-.nd .nd-result, .nd .nd-alert { scroll-margin-bottom: 76px; }
+.nd .nd-input, .nd .nd-btn { scroll-margin-bottom: 84px; }
+.nd .nd-result, .nd .nd-alert { scroll-margin-bottom: 84px; }
 .nd-btn {
   height: 36px;
   padding: 0 var(--space-4, 16px);
@@ -155,7 +158,7 @@ body:has(.nd) { overflow-x: clip; }
   font-weight: 600;
   cursor: pointer;
 }
-.nd-btn:hover { border-color: var(--text, #171C24); }
+.nd-btn:hover { border-color: var(--muted, #5B6472); }
 .nd-btn--primary {
   background: var(--accent, #1D5075);
   border-color: var(--accent, #1D5075);
@@ -178,21 +181,22 @@ body:has(.nd) { overflow-x: clip; }
   display: flex;
   flex-direction: column;
   gap: var(--space-4, 16px);
-  max-width: 640px;
-  padding: var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
+  max-width: 880px;
+  padding: var(--space-6, 24px);
+  border: 1px solid var(--accent, #1D5075);
+  border-left-width: 3px;
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   color: var(--text, #171C24);
   font-size: var(--text-sm, 13px);
 }
-/* One large box: the sentence is the main thing on this view, so it is set larger than a form field. */
+/* One large box: the sentence is the main thing on this view, so it is set larger than anything but the title. */
 .nd-request__text {
   height: auto;
   min-height: 120px;
-  padding: var(--space-3, 12px);
-  font-size: var(--text-md, 14px);
-  line-height: 1.5;
+  padding: var(--space-4, 16px);
+  font-size: var(--text-lg, 18px);
+  line-height: 1.45;
   resize: vertical;
 }
 .nd-request__meta { display: flex; justify-content: space-between; gap: var(--space-3, 12px); }
@@ -210,17 +214,19 @@ body:has(.nd) { overflow-x: clip; }
   display: flex;
   flex-direction: column;
   gap: var(--space-2, 8px);
-  max-width: 640px;
+  max-width: 880px;
   box-sizing: border-box;
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
+  padding: var(--space-4, 16px) var(--space-6, 24px);
+  border: 1px solid var(--accent, #1D5075);
+  border-left-width: 3px;
   border-bottom: 0;
   border-radius: var(--radius, 4px) var(--radius, 4px) 0 0;
   background: var(--bg, #F7F7F4);
   color: var(--text, #171C24);
   font-size: var(--text-sm, 13px);
 }
-.nd-parsed + .nd { border-radius: 0 0 var(--radius, 4px) var(--radius, 4px); }
+/* One card: between the note and the form under it the line is a hairline, not the primary colour. */
+.nd-parsed + .nd { border-top: 1px solid var(--border, #E3E3DE); border-radius: 0 0 var(--radius, 4px) var(--radius, 4px); }
 .nd-parsed__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2, 8px); }
 /* "Read by Gemini" / "Read by Relay’s rules": a small label, not a pill. */
 .nd-parsed__source {
@@ -228,8 +234,6 @@ body:has(.nd) { overflow-x: clip; }
   font-size: var(--text-xs, 12px);
   font-weight: 600;
   color: var(--muted, #5B6472);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .nd-parsed__text { margin: 0; font-size: var(--text-md, 14px); overflow-wrap: anywhere; }
 .nd-parsed__notes { display: flex; flex-direction: column; gap: var(--space-2, 8px); }
@@ -248,11 +252,11 @@ body:has(.nd) { overflow-x: clip; }
 .nd-options {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3, 12px);
-  max-width: 640px;
+  gap: var(--space-4, 16px);
+  max-width: 880px;
   box-sizing: border-box;
-  margin: 0 0 var(--space-3, 12px);
-  padding: var(--space-4, 16px);
+  margin: 0 0 var(--space-4, 16px);
+  padding: var(--space-4, 16px) var(--space-6, 24px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
@@ -289,8 +293,6 @@ body:has(.nd) { overflow-x: clip; }
   font-size: var(--text-xs, 12px);
   font-weight: 600;
   color: var(--accent, #1D5075);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 .nd-option__tag--ok { color: var(--ok, #2F6B4F); }
@@ -316,13 +318,14 @@ body:has(.nd) { overflow-x: clip; }
 
 /* 390 px: one column, controls at least 40 px high, full-width actions. */
 @media (max-width: 480px) {
-  .nd-options { padding: var(--space-3, 12px); max-width: none; }
+  .nd-options { padding: var(--space-4, 16px); max-width: none; }
   .nd-option__top { flex-wrap: wrap; }
   .nd-option__choose { width: 100%; }
   /* "In the form" is a state: as wide as its words, so it does not read as the button to press next. */
   .nd-option__choose[aria-pressed='true'] { width: auto; }
   /* The form sits inside the page's padding, so it keeps all four borders (#714). */
-  .nd { padding: var(--space-3, 12px); max-width: none; }
+  .nd { padding: var(--space-4, 16px); max-width: none; }
+  .nd-title { font-size: var(--text-lg, 18px); line-height: 1.25; letter-spacing: 0; }
   .nd-row { grid-template-columns: 1fr; }
   .nd-input, .nd-btn { height: 44px; min-height: 44px; }
   .nd-btn--link { min-height: 40px; }
@@ -331,8 +334,8 @@ body:has(.nd) { overflow-x: clip; }
   /* The form's send bar: the two buttons side by side, so the bar covers 68 px of a phone screen, not 124. */
   .nd > .nd-actions {
     flex-direction: row;
-    margin: 0 calc(-1 * var(--space-3, 12px)) calc(-1 * var(--space-3, 12px));
-    padding: var(--space-3, 12px);
+    margin: 0 calc(-1 * var(--space-4, 16px)) calc(-1 * var(--space-4, 16px));
+    padding: var(--space-3, 12px) var(--space-4, 16px);
   }
   .nd > .nd-actions .nd-btn { width: auto; padding: 0 var(--space-3, 12px); }
   .nd > .nd-actions .nd-btn--primary { flex: 1; }
@@ -342,11 +345,11 @@ body:has(.nd) { overflow-x: clip; }
   .nd-option__facts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2, 8px) var(--space-3, 12px); }
   .nd-result__actions { flex-direction: column; }
   .nd-result__actions .nd-btn { width: 100%; justify-content: center; }
-  .nd-request { padding: var(--space-3, 12px); max-width: none; }
-  .nd-request__text { height: auto; min-height: 132px; }
+  .nd-request { padding: var(--space-4, 16px); max-width: none; }
+  .nd-request__text { height: auto; min-height: 132px; padding: var(--space-3, 12px); font-size: var(--text-md, 14px); line-height: 1.5; }
   .nd-request__meta { flex-direction: column; gap: var(--space-1, 4px); }
   .nd-request__read { justify-content: center; }
-  .nd-parsed { padding: var(--space-3, 12px); max-width: none; }
+  .nd-parsed { padding: var(--space-4, 16px); max-width: none; }
 }
 
 /* Reduced motion (#497): nothing in this file animates or transitions, now or later. */
