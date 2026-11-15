@@ -337,3 +337,8 @@ One line per decision: date, decision, why. Humans seeded the first block from t
 - 2026-11-14 (planner, pass 75) CI on main is red for the billing reason of pass 61 (runs of #724, #725 and the 19:08 planner commit). No fix issue.
 - 2026-11-14 (planner, pass 75) **IBM Plex Mono 600 is loaded (#737)** instead of lowering every bold mono rule to 500: one import in `fonts.css` fixes the faked bold everywhere (PR #730 note), and the journey badges at 700 drop to 600. The font-weight test now covers every client CSS file, not only `ui/` and `styles/`.
 - 2026-11-14 (planner, pass 75) **The no-key map card names both fixes (#737):** restart `npm run dev`, or `npm run build` again before `npm start`, because the key is read at build time (pass 73). "Google Maps key missing." stays.
+
+- 2026-11-14 (planner, pass 76) CI on main is red for the billing reason of pass 61 (runs of #734 and the 19:08 and 19:16 planner commits). No fix issue.
+- 2026-11-14 (planner, pass 76) **Pass 2 ("`reset_playback` keeps the phase") is replaced by pass 74, now merged (PR #736):** `reset_playback` returns the run to `planning`; `play` is the only control that locks.
+- 2026-11-14 (planner, pass 76) **Journeys other than Navy Yard get a browser check (#739):** a direct, another relay and an unmatched package, plus network Play → Back to start → a journey. `.tsx`/`.ts` fixes only, not `map/GoogleBaseMap.tsx` (#737 holds it and the journey CSS).
+- 2026-11-14 (planner, pass 76) **The rehearse-twice path gets a UI test (#740)** over the real Business and Employee pages; it asserts the locked state, not its sentence, so #719 and #735 can still change the copy. Faults it finds become `it.fails` checks and come back as issues, not fixes in `business/v2` or `employee/v2`.
