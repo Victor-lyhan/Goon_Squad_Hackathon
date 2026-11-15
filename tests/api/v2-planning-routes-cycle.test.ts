@@ -203,7 +203,7 @@ describe('POST /api/v2/matches/recompute', () => {
 
     expect(status).toBe(409);
     expect(body).toEqual({ error: RECOMPUTE_LOCKED });
-    expect(body.error).toBe('Planning is locked. Start a new planning cycle to recompute.');
+    expect(body.error).toBe('The simulation is playing. Press Back to start in the simulator to recompute.');
     await expectUntouched(api, before.run, before.saved, before.simulator);
   }, T);
 

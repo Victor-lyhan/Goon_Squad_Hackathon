@@ -115,7 +115,12 @@ function LegLine({ carrier }: { carrier: JourneyCarrier }) {
  * not on every poll, so a reader who scrolled up is left alone. No hook, so Step stays a plain function.
  */
 function showCurrentStep(el: HTMLLIElement | null): void {
-  el?.scrollIntoView?.({ block: 'nearest' });
+  if (!el) return;
+  // #725: scrollIntoView never moves focus, but it could scroll a focused step out of sight. While keyboard
+  // focus is on another step of this list, the list stays where the reader put it.
+  const active = el.ownerDocument.activeElement;
+  if (active && !el.contains(active) && el.parentElement?.contains(active)) return;
+  el.scrollIntoView?.({ block: 'nearest' });
 }
 
 type StepProps = { step: JourneyStep; next: JourneyStep | undefined; onSeek: JourneyTimelineProps['onSeek'] };
@@ -188,7 +193,9 @@ export function JourneyTimeline({ journey, onSeek }: JourneyTimelineProps) {
       <header className="jt__header">
         <h2 className="jt__title">{journey.title}</h2>
         <p className="jt__kind">{journey.planKind === 'relay' ? 'Relay through a network business' : 'Direct'}</p>
-        <p className="jt__status" aria-live="polite">
+        {/* Not a live region (#725): the step line under Play/Pause is the one that announces a step, so a
+            screen reader does not hear every step twice. */}
+        <p className="jt__status">
           <span className="jt__status-label">Status</span> <strong>{journey.statusLabel}</strong>
         </p>
         <Times journey={journey} />

@@ -148,18 +148,38 @@ describe('planControl: finish and reset_playback', () => {
     expect(applied(run, { action: 'finish' })).toEqual({ phase: 'locked', playing: false, timeMin: 2160, speed: 120 });
   });
 
-  it('reset_playback rewinds to simStartMin and pauses, and the run stays locked', () => {
+  it('reset_playback rewinds to simStartMin, pauses and unlocks: the run is in planning again (#734)', () => {
     const run = runWith({ phase: 'locked', playing: true, timeMin: 1700, speed: 600 });
-    expect(applied(run, { action: 'reset_playback' })).toEqual({ phase: 'locked', playing: false, timeMin: 930, speed: 600 });
+    expect(applied(run, { action: 'reset_playback' })).toEqual({ phase: 'planning', playing: false, timeMin: 930, speed: 600 });
   });
 
-  it('play, finish, reset, play: locked the whole way', () => {
+  it('reset_playback changes only the clock: the plan carries no plans, jobs, shipments or runId', () => {
+    const run = runWith({ phase: 'locked', playing: true, timeMin: 1700, speed: 600 });
+    const plan = planControl(run, { action: 'reset_playback' });
+    expect(Object.keys(plan).sort()).toEqual(['clock', 'kind']);
+  });
+
+  it('play, finish, reset, play, pause: locked by Play, unlocked only by the reset, locked again by Play', () => {
     let run = runWith({ phase: 'planning', playing: false, timeMin: 930, speed: 30 });
+    const phases: string[] = [];
     for (const action of ['play', 'finish', 'reset_playback', 'play', 'pause'] as const) {
       run = { ...run, clock: applied(run, { action }) };
-      expect(run.clock.phase).toBe('locked');
+      phases.push(run.clock.phase);
     }
+    expect(phases).toEqual(['locked', 'locked', 'planning', 'locked', 'locked']);
     expect(run.clock).toEqual({ phase: 'locked', playing: false, timeMin: 930, speed: 30 });
+  });
+
+  it('pause, seek, next event, jump to morning and finish never unlock a locked run', () => {
+    let run = runWith({ phase: 'locked', playing: true, timeMin: 930, speed: 30 });
+    const bodies = [
+      { action: 'pause' }, { action: 'seek', timeMin: 930 }, { action: 'next_event' }, { action: 'jump_to_morning' },
+      { action: 'seek', timeMin: 2160 }, { action: 'finish' }, { action: 'speed', speed: 600 },
+    ];
+    for (const body of bodies) {
+      run = { ...run, clock: applied(run, body) };
+      expect(run.clock.phase, body.action).toBe('locked');
+    }
   });
 });
 

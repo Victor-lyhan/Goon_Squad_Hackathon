@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { readIdentity } from '../demoIdentity';
 import {
-  NYC_ENV_TEXT, NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, watchPackageHref, type NycSummary,
+  NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, watchPackageHref, type NycSummary,
 } from './landingModel';
 import '../styles/landing.css';
 
@@ -124,6 +124,7 @@ function nycFacts(s: NycSummary): SummaryFacts {
 /**
  * The homepage (docs/mvp3.md P4): one sentence, one large "Watch a package" button that opens the simulator
  * on the story package and plays it, Business and Employee as two smaller entries, one stats line.
+ * The environment line ("Real NYC locations · simulated deliveries") is the header's, not repeated here (#724).
  */
 export default function Landing({ initialSummary }: {
   /**
@@ -143,9 +144,6 @@ export default function Landing({ initialSummary }: {
       </section>
       <WorkspaceEntries paths={nycWorkspacePaths(summary, readIdentity())} />
       <OperationalSummary facts={nycFacts(summary)} />
-      <footer className="landing-footer">
-        <span>{NYC_ENV_TEXT}</span>
-      </footer>
     </div>
   );
 }

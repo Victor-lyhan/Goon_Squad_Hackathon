@@ -19,7 +19,9 @@ export const controlError = (plan: Extract<ControlPlan, { kind: 'invalid' }>): A
 
 /**
  * What a control request does to the run's clock. Never mutates `run`; the caller stores `clock`.
- * `play` locks the run (and stays locked: only a new planning cycle unlocks, DECISIONS pass 2).
+ * `play` locks the run and `reset_playback` ("Back to start") returns it to `planning` (#734, which
+ * replaces "reset stays locked" of DECISIONS pass 2). No other control changes the phase: pause, seek,
+ * next event, jump to morning and finish keep it, so journey playback (seek steps) never locks.
  */
 export function planControl(run: Pick<Run, 'clock' | 'events' | 'scenario'>, body: unknown): ControlPlan {
   const parsed = SimControlRequest.safeParse(body);

@@ -191,7 +191,8 @@ describe('what is never stored', () => {
 
   it('pages that are not an account page store nothing', async () => {
     api();
-    for (const p of ['/', '/simulator', '/business', '/business/biz-02/extra', '/nowhere']) {
+    // Not the bare /business: it redirects to the account page (#724, kit-dom-shell-bare-paths.test.tsx).
+    for (const p of ['/', '/simulator', '/business/biz-02/extra', '/nowhere']) {
       const s = await renderShell(p);
       expect(hrefOf(s.header(), 'Business'), p).toBe('/business/biz-01');
       s.unmount();

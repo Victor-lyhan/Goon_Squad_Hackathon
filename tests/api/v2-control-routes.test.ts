@@ -62,7 +62,8 @@ describe('POST /api/v2/simulator/control: valid controls', () => {
       [{ action: 'seek', timeMin: 2160 }, { phase: 'locked', playing: false, timeMin: 2160, speed: 600 }],
       [{ action: 'seek', timeMin: 930 }, { phase: 'locked', playing: false, timeMin: 930, speed: 600 }],
       [{ action: 'finish' }, { phase: 'locked', playing: false, timeMin: 2160, speed: 600 }],
-      [{ action: 'reset_playback' }, { phase: 'locked', playing: false, timeMin: 930, speed: 600 }],
+      // "Back to start" is the one control that unlocks (#734).
+      [{ action: 'reset_playback' }, { phase: 'planning', playing: false, timeMin: 930, speed: 600 }],
     ];
     for (const [i, [request, clock]] of steps.entries()) {
       const { status, body } = await server.control(request);
@@ -74,7 +75,7 @@ describe('POST /api/v2/simulator/control: valid controls', () => {
     // the state file holds the last clock
     await server.store.flush();
     const saved = JSON.parse(fs.readFileSync(server.stateFile, 'utf8'));
-    expect(saved.run.clock).toEqual({ phase: 'locked', playing: false, timeMin: 930, speed: 600 });
+    expect(saved.run.clock).toEqual({ phase: 'planning', playing: false, timeMin: 930, speed: 600 });
     expect(saved.run.version).toBe(start + steps.length);
   }, T);
 

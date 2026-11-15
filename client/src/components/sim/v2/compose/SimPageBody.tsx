@@ -188,6 +188,8 @@ export type SimPageLayoutProps = {
   movers?: MapMover[];
   /** The journey player's state for the package on screen; defaults to idle. */
   play?: PlayState;
+  /** `useJourneyPlay().settling`: the step line stays empty until Play's first step has landed (#725). */
+  stepLineHeld?: boolean;
 };
 
 function StateScreen({ title, message, reconnecting, onRetry }: { title: string; message: string; reconnecting: boolean; onRetry: () => void }) {
@@ -265,7 +267,7 @@ function RightPanel({ right, handlers, play }: RightPanelProps) {
 }
 
 function ReadyLayout({
-  view, focus, panTo, legendOpen, compare, handlers, movers, play = PLAY_IDLE,
+  view, focus, panTo, legendOpen, compare, handlers, movers, play = PLAY_IDLE, stepLineHeld = false,
 }: SimPageLayoutProps & { view: SimReadyView }) {
   const pk = view.packageList;
   const journey = journeyOf(view);
@@ -280,7 +282,7 @@ function ReadyLayout({
       )}
       {/* The one Play/Pause button (#648): the picked package's journey, or with no package the clock. */}
       <PanelSection title="Playback">
-        <PlaybackControls button={pagePlayButton(view, play)} status={playStatusText(journey, play)}
+        <PlaybackControls button={pagePlayButton(view, play)} status={stepLineHeld ? '' : playStatusText(journey, play)}
           error={playErrorText(play, view.actionError)} resetDisabled={resetDisabledReason(view.controls.busy)}
           onToggle={handlers.togglePlay} onReset={handlers.backToStart} />
       </PanelSection>
@@ -309,7 +311,9 @@ function ReadyLayout({
       </div>
       {view.reconnecting && <p className="spc-banner" role="status">{RECONNECTING_TEXT}</p>}
       {view.mapPending && <p className="spc-banner spc-banner--quiet" role="status">{MAP_PENDING_TEXT}</p>}
-      {overnight && <OvernightCard text={overnight} />}
+      {/* #725: the live region is always in the page and the card goes into it, so a screen reader announces
+          the card once when it appears (a region inserted together with its text is often not read). */}
+      <div className="spc-announce" role="status">{overnight && <OvernightCard text={overnight} />}</div>
     </div>
   );
   return (
@@ -461,6 +465,6 @@ export function SimPageBody({ sim, selection, onSelectionChange, initialFocus, k
   return (
     <SimPageLayout view={view} focus={focus} panTo={panTo} legendOpen={legendOpen}
       compare={compareView(compare, view, polled?.runId ?? null)} handlers={handlers}
-      movers={movers} play={journeyPlay.state} />
+      movers={movers} play={journeyPlay.state} stepLineHeld={journeyPlay.settling} />
   );
 }

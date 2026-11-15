@@ -143,6 +143,34 @@ export function workspaceHrefs(businessId: string | undefined, employeeId: strin
   };
 }
 
+/** The header's words for an account list that is loading or failed; the bare workspace paths use them too. */
+export const ACCOUNTS_LOADING_TEXT = 'Loading accounts…';
+export const ACCOUNTS_ERROR_TEXT = 'Accounts unavailable';
+
+/** What `/business` or `/employee` without an ID shows (#724). */
+export type BareWorkspace =
+  | { kind: 'redirect'; to: string }
+  /** The account list has not answered yet, or failed: the header's loader asks again until it is ready. */
+  | { kind: 'loading' | 'unavailable' | 'error' }
+  /** The list is loaded and empty: there is no account to open. */
+  | { kind: 'none' };
+
+/**
+ * Where a bare `/business` or `/employee` goes: the path the header's link of that kind points to (the
+ * remembered account if it is in the list, else the first one: `pickAccount` + `workspaceHrefs`). Until the
+ * list is ready it is the list's own state, never a guess.
+ */
+export function bareWorkspace(
+  kind: 'business' | 'employee',
+  list: { status: 'loading' | 'unavailable' | 'error' } | { status: 'ready'; ids: readonly string[] },
+  storedId: string | undefined,
+): BareWorkspace {
+  if (list.status !== 'ready') return { kind: list.status };
+  const id = pickAccount(storedId, list.ids);
+  const to = workspaceHrefs(id, id)[kind];
+  return to ? { kind: 'redirect', to } : { kind: 'none' };
+}
+
 /** Pages that use the full window width instead of the 960 px column. */
 export function isFullWidthPath(pathname: string): boolean {
   return /^\/simulator\/?$/.test(pathname);

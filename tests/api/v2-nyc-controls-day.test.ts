@@ -2,7 +2,7 @@
 // the committed NYC cache: once on the default run and once on a Random city.
 //   Play (locks the run, DECISIONS pass 28) -> Jump to morning -> Finish: every matched package is delivered.
 //   While locked, the routes that change plans or people answer 409 (pass 3 and 6) and change nothing.
-//   Reset playback rewinds the same plans and keeps the lock.
+//   Reset playback ("Back to start") rewinds the same plans and unlocks the same run (#734).
 //   Start new planning cycle (pass 6) gives a new `runId` in `planning`, and a new delivery request,
 //   a commute save and Recompute are accepted again.
 // The server is the real one with no key, booted from a temp copy of `fixtures/nyc` (v2-nyc-controls-helper.ts);
@@ -105,7 +105,9 @@ describe.each<[string, Prepare]>([
       // One sentence, and not a form error: there is no field to correct.
       expect(body.error.trim(), route).not.toBe('');
       expect(body.fieldErrors, route).toBeUndefined();
-      expect(body.error, route).toMatch(/new planning cycle/i);
+      // The sentence names the control that unlocks, and none the app no longer has (#734).
+      expect(body.error, route).toMatch(/Press Back to start in the simulator/);
+      expect(body.error, route).not.toMatch(/planning cycle/i);
     }
     await expectSimulatorStill(api, end, 'the refused writes');
     expect((await api.savedRun())?.version).toBe(end.version);
@@ -131,11 +133,12 @@ describe.each<[string, Prepare]>([
     await expectMapOfRun(api, end, `the locked end of ${name}`);
   }, T);
 
-  it('Reset playback rewinds the same plans to the first minute and keeps the run locked', async () => {
+  it('Reset playback ("Back to start") rewinds the same plans to the first minute and unlocks the run (#734)', async () => {
     const rewound = await api.control({ action: 'reset_playback' });
-    expect(rewound.clock).toStrictEqual({ ...end.clock, timeMin: city.settings.simStartMin });
-    expect(rewound.clock.phase).toBe('locked');
+    expect(rewound.clock).toStrictEqual({ ...end.clock, phase: 'planning', timeMin: city.settings.simStartMin });
+    expect(rewound.clock).toStrictEqual(start.clock);
     expect(rewound.runId).toBe(end.runId);
+    expect(rewound.version).toBe(end.version + 1);
     expect(planning(rewound)).toStrictEqual(planning(start));
     // Nothing has happened again: the snapshot is the one of the first minute.
     expect(rewound.snapshot.occurredEvents).toStrictEqual([]);
@@ -144,14 +147,19 @@ describe.each<[string, Prepare]>([
     expectRunAdds(rewound);
     await expectMapOfRun(api, rewound, `Reset playback on ${name}`);
 
-    // Still locked at the first minute: a rewind is not a new planning cycle.
-    const [origin, destination] = city.businesses.map((b) => b.id).sort();
-    const again = await api.post<ApiError>('/shipments', deliveryRequest(`controls-day-rewound-${end.runId}`, origin, destination, city.settings));
-    expect(again.status).toBe(409);
-    expect(again.body).toStrictEqual(refused[0].body);
-    await expectSimulatorStill(api, rewound, 'the refused request after Reset playback');
+    // The same run, not a new planning cycle: the state file holds it unlocked, with the plans it had.
+    const saved = await api.savedRun();
+    expect(saved?.runId).toBe(end.runId);
+    expect(saved?.clock).toStrictEqual(rewound.clock);
+    expect(saved?.assignments.plans).toStrictEqual(start.plans);
+    // (That a new request is accepted after it is tests/api/v2-reset-unlocks.test.ts: a stored request
+    // here would change the plans the next tests compare.)
 
-    // Finish again: the same end as the first time.
+    // Finish alone moves the clock and does not lock (pass 28).
+    const ended = await api.control({ action: 'finish' });
+    expect(ended.clock).toStrictEqual({ ...end.clock, phase: 'planning' });
+    // Play and Finish again: locked again, at the same end as the first time.
+    await api.control({ action: 'play' });
     const finished = await api.control({ action: 'finish' });
     expect(finished.clock).toStrictEqual(end.clock);
     expect(finished.snapshot.shipmentStatus).toStrictEqual(end.snapshot.shipmentStatus);

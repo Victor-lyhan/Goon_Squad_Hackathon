@@ -40,7 +40,8 @@ describe('/', () => {
     expect(body).toContain('href="/simulator"'); // the sample run has no plans: the button opens the plain simulator
     expect(body).not.toContain('Guided demo');
     expect(body).not.toContain('href="/help"');
-    expect(body).toContain(ENV_LABELS.nyc);
+    expect(body).not.toContain(ENV_LABELS.nyc); // the header says it, once (#724)
+    expect(html.split(ENV_LABELS.nyc)).toHaveLength(2);
     expect(body).not.toMatch(/hub|synthetic/i);
     expect(body).not.toContain('nav-pending');
     noPreviewLinks(html);
