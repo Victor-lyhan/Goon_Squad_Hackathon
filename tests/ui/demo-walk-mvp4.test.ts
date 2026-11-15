@@ -22,6 +22,9 @@
 // Written here are the sentence and the demo numbers the issue names (Etsy, $10.00, Elena Rossi, Reese Green,
 // Day 1, 6:22 PM). Everything else is read from the README's ```demo-request block or from the run, by name.
 // "See the numbers" (`/study.html`) is not part of this file: it is a static page outside the API (#841).
+// The walk's last row opened it in the browser (200, no console error). Its tests are elsewhere: the production
+// server's answer (200, text/html, the committed file) in tests/api/production-mvp4.test.ts, and the link on `/`
+// in tests/ui/landing-dom-study-link.test.tsx.
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { EmployeeDashboard, JobResponse, ShipmentResponse, SimulatorResponse } from '../../shared/v2/api';
 import type { ParseRequestResponse } from '../../shared/v2/parseRequest';
