@@ -12,7 +12,7 @@ import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequ
 import type { CreateShipmentRequest } from '../../shared/v2/schemas';
 import { ApiRequestError } from '../../client/src/api/v2';
 import {
-  ADVICE_COPY, WAITING_ROWS, adviceCard, adviceSourceLine, noOptions, optionName, type AdviseCall,
+  ADVICE_COPY, WAITING_ROWS, adviceCard, noOptions, optionName, type AdviseCall,
 } from '../../client/src/components/business/v2/adviceModel';
 import { RESULT_COPY } from '../../client/src/components/business/v2/newDeliveryModel';
 import { BusinessPageView } from '../../client/src/components/business/v2/page/BusinessPageView';
@@ -213,18 +213,17 @@ describe('an offline answer says so in one plain line', () => {
     for (const s of [undefined, null, 'GEMINI', 'offline']) expect(sourceLine(s)).toBe(REQUEST_COPY.offlineLine);
   }, T);
 
-  it('the options: one line under the title, and a Gemini answer names Gemini there', async () => {
+  it('the options: no line about who made them, whatever the answer\'s source (#960)', async () => {
     const offline = setup();
     await offline.read();
-    expect(textOf(offline.cardStatus())).toBe('Priced by Relay, with no AI model.');
-    expect(textOf(offline.card()!)).not.toContain('Gemini');
+    expect(textOf(offline.cardStatus())).toBe('');
+    expect(textOf(offline.card()!)).not.toMatch(/Gemini|AI model|Priced by|Planned by/);
     offline.unmount();
 
     const model = setup({ parse: async () => read('gemini'), advise: async () => options('gemini') });
     await model.read();
-    expect(textOf(model.cardStatus())).toBe('Planned by Gemini, priced by Relay.');
-    // Anything but "gemini" never claims the model.
-    for (const s of [undefined, null, 'GEMINI', 'offline']) expect(adviceSourceLine(s)).toBe(ADVICE_COPY.offlineLine);
+    expect(textOf(model.cardStatus())).toBe('');
+    expect(textOf(model.card()!)).not.toMatch(/Gemini|AI model|Priced by|Planned by/);
   }, T);
 });
 
@@ -236,7 +235,7 @@ describe('while the Options card waits (up to 10 s)', () => {
     expect(p.card()!.getAttribute('aria-busy')).toBe('true');
     expect(p.cardStatus().getAttribute('role')).toBe('status');
     expect(textOf(p.cardStatus())).toBe(
-      'Pricing your request and a few other times. This takes up to 10 seconds; you can send the request as it is meanwhile.',
+      'Pricing your request. This takes up to 10 seconds; you can send the request as it is meanwhile.',
     );
     // Still rows stand in for the options: not buttons, and hidden from a screen reader.
     const still = [...p.card()!.querySelectorAll('.nd-option--skeleton')];
@@ -249,7 +248,7 @@ describe('while the Options card waits (up to 10 s)', () => {
     pricing.resolve(options('offline'));
     await flush();
     expect(p.card()!.hasAttribute('aria-busy')).toBe(false);
-    expect(textOf(p.cardStatus())).toBe(ADVICE_COPY.offlineLine); // the same region: the line changes in place
+    expect(textOf(p.cardStatus())).toBe(''); // the same region, now empty (#960): the rows speak for themselves
     expect(p.rows()).toHaveLength(2);
   }, T);
 
@@ -319,13 +318,13 @@ describe('an /advise that fails is one plain sentence, and the form still sends'
 });
 
 describe('each option is one Tab stop whose name holds its price', () => {
-  it('the names: what the button says, the option, its price, and "cheapest" in words', async () => {
+  it('the names: what the button says, the option and its price (its badges too: business-v2-dom-advice-tags.test.tsx)', async () => {
     const p = setup();
     await p.read();
     const buttons = p.optionButtons();
     expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
       'In the form: As requested, $10.50',
-      'Choose this option: Deliver by Day 2, 12:00 PM, $9.50, cheapest',
+      'Choose this option: Deliver by Day 2, 12:00 PM, $9.50',
     ]);
     // The name starts with the words on the button, so what is seen is what is heard.
     for (const b of buttons) expect(b.getAttribute('aria-label')!.startsWith(`${textOf(b)}: `)).toBe(true);
@@ -346,22 +345,24 @@ describe('each option is one Tab stop whose name holds its price', () => {
     expect(p.optionButtons().map((b) => [textOf(b), b.getAttribute('aria-pressed')])).toEqual([
       ['Choose this option', 'false'], ['In the form', 'true'],
     ]);
-    expect(p.optionButtons()[1].getAttribute('aria-label')).toBe('In the form: Deliver by Day 2, 12:00 PM, $9.50, cheapest');
+    expect(p.optionButtons()[1].getAttribute('aria-label')).toBe('In the form: Deliver by Day 2, 12:00 PM, $9.50');
     expect(document.activeElement).toBe(p.optionButtons()[1]); // the pressed button keeps the focus
     expect((byLabel(p.form()!, 'Deliver by: time') as HTMLInputElement).value).toBe('12:00');
     expect(p.createShipment).not.toHaveBeenCalled(); // choosing sends nothing
   }, T);
 
-  it('the cheapest is marked by a word next to its price, and prices are in the mono class', async () => {
+  it('the price stands alone in the mono class; a mark is the server\'s tag, shown as a badge, never the page\'s own', async () => {
     const p = setup();
     await p.read();
-    expect(p.rows().map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$10.50', 'Cheapest $9.50']);
+    // #960: no word inside the price, and an answer without tags (these options) gets no badge: the page compares no price.
+    expect(p.rows().map((r) => textOf(r.querySelector('.nd-option__price')!))).toEqual(['$10.50', '$9.50']);
+    expect(p.rows().map((r) => [...r.querySelectorAll('.nd-option__tag')].map(textOf))).toEqual([[], []]);
     for (const r of p.rows()) expect(r.querySelector('.nd-option__cents')!.classList.contains('nd-mono')).toBe(true);
-    expect(optionName({ label: 'As requested', priceText: '$9.50', cheapest: false }, false)).toBe('Choose this option: As requested, $9.50');
+    expect(optionName({ label: 'As requested', priceText: '$9.50', tags: [] }, false)).toBe('Choose this option: As requested, $9.50');
     // #954: a label with its price at the end does not say the price twice.
-    expect(optionName({ label: 'Relay via Etsy, $9.50', priceText: '$9.50', cheapest: true }, false))
+    expect(optionName({ label: 'Relay via Etsy, $9.50', priceText: '$9.50', tags: ['cheapest'] }, false))
       .toBe('Choose this option: Relay via Etsy, $9.50, cheapest');
-    expect(optionName({ label: 'Direct with Theo Martin, $7.00', priceText: '$7.00', cheapest: false }, true))
+    expect(optionName({ label: 'Direct with Theo Martin, $7.00', priceText: '$7.00', tags: [] }, true))
       .toBe('In the form: Direct with Theo Martin, $7.00');
   }, T);
 

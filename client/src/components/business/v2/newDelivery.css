@@ -300,18 +300,36 @@ body:has(.nd) { overflow-x: clip; }
 }
 /* The option the form holds: the accent stripe and tint add to the words "In the form" on its button. */
 .nd-option--chosen { border-color: var(--accent, #1D5075); background: var(--accent-soft, #E8EEF1); }
-.nd-option__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3, 12px); }
+/* The top of a row (#960): its badges over its name on the left, its price over its arrival time on the right. */
+.nd-option__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2, 8px) var(--space-4, 16px); }
+.nd-option__head { display: flex; flex-direction: column; gap: var(--space-2, 8px); min-width: 0; }
 .nd-option__label { margin: 0; min-width: 0; font-size: var(--text-md, 14px); font-weight: 600; overflow-wrap: anywhere; }
-.nd-option__price { display: flex; flex: none; align-items: baseline; gap: var(--space-2, 8px); margin: 0; }
-.nd-option__cents { font-size: var(--text-lg, 18px); font-weight: 600; white-space: nowrap; }
-/* "Cheapest": a small word in a token colour, no box around it. The word carries it; the colour only adds. */
+/* What the option is marked as: small filled badges, one per tag. The word carries it; the colour only adds.
+   Fastest is the palette's amber (the nearest it has to a signal orange), Cheapest its green, Recommended
+   the primary blue; Balanced, the plain third choice, is the base badge with a hairline and no fill. */
+.nd-option__tags { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px); margin: 0; }
 .nd-option__tag {
+  padding: 0 var(--space-2, 8px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  background: var(--panel, #FFFFFF);
+  color: var(--muted, #5B6472);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
-  color: var(--accent, #1D5075);
+  line-height: 1.5;
   white-space: nowrap;
 }
-.nd-option__tag--ok { color: var(--ok, #2F6B4F); }
+.nd-option__tag--fastest { border-color: var(--warn, #8A5A00); background: var(--warn, #8A5A00); color: var(--panel, #FFFFFF); }
+.nd-option__tag--cheapest { border-color: var(--ok, #2F6B4F); background: var(--ok, #2F6B4F); color: var(--panel, #FFFFFF); }
+.nd-option__tag--recommended { border-color: var(--accent, #1D5075); background: var(--accent, #1D5075); color: var(--panel, #FFFFFF); }
+/* The price is the largest thing in the row; the arrival time sits under it, on the same right edge. */
+.nd-option__deal { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: var(--space-1, 4px); }
+.nd-option__price { margin: 0; }
+.nd-option__cents { font-size: var(--text-xl, 28px); font-weight: 600; line-height: 1; white-space: nowrap; }
+.nd-option__arrives { display: flex; align-items: baseline; gap: var(--space-2, 8px); margin: 0; }
+.nd-option__arrives dt { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.nd-option__arrives dd { margin: 0; font-weight: 600; white-space: nowrap; }
+/* One sentence under them: about the option, or why it is the recommended one. */
 .nd-option__summary { margin: 0; overflow-wrap: anywhere; }
 /* Each fact as wide as its value, so a time or "+7 min · +0.4 mi" stays on one line; a narrow card wraps whole facts. */
 .nd-option__facts { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px) var(--space-6, 24px); margin: 0; }
@@ -335,7 +353,9 @@ body:has(.nd) { overflow-x: clip; }
 /* 390 px: one column, controls at least 40 px high, full-width actions. */
 @media (max-width: 480px) {
   .nd-options { padding: var(--space-4, 16px); max-width: none; }
+  /* A row's price and arrival time move under its name when the two do not fit side by side, on its left edge. */
   .nd-option__top { flex-wrap: wrap; }
+  .nd-option__deal { align-items: flex-start; }
   .nd-option__choose { width: 100%; }
   /* "In the form" is a state: as wide as its words, so it does not read as the button to press next. */
   .nd-option__choose[aria-pressed='true'] { width: auto; }
@@ -357,7 +377,7 @@ body:has(.nd) { overflow-x: clip; }
   .nd > .nd-actions .nd-btn--primary { flex: 1; }
   .nd .nd-input, .nd .nd-btn { scroll-margin-bottom: 84px; }
   .nd .nd-result, .nd .nd-alert { scroll-margin-bottom: 84px; }
-  /* An option's facts in two columns: four stacked facts made one option 308 px high. */
+  /* An option's facts in two columns: stacked facts made one option 308 px high. */
   .nd-option__facts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2, 8px) var(--space-3, 12px); }
   .nd-result__actions { flex-direction: column; }
   .nd-result__actions .nd-btn { width: 100%; justify-content: center; }

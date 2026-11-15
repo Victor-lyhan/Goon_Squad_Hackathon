@@ -7,7 +7,7 @@ import path from 'node:path';
 import {
   NETWORK_FINISHED_TEXT, NETWORK_PLAYING_TEXT, PAUSED_TEXT, PLAY_IDLE, playButtonView, stepAnnouncement,
 } from '../../client/src/components/sim/v2/compose/journeyPlay';
-import { ADVICE_COPY, MAX_OPTIONS, adviceCard, adviceSourceLabel } from '../../client/src/components/business/v2/adviceModel';
+import { ADVICE_COPY, ADVICE_TAGS, MAX_OPTIONS, adviceCard } from '../../client/src/components/business/v2/adviceModel';
 import { FINISHED_REASON } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { DEFAULT_GRID, gridRuns } from '../../scripts/study/grid';
 import { DEFAULT_STUDY_CSV, DEFAULT_STUDY_OUT, DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
@@ -17,6 +17,7 @@ import { DEFAULT_GEMINI_TIMEOUT_MS, GeminiUnavailable } from '../../server/ai/ge
 import { INVALID_ANSWER_MESSAGE } from '../../server/ai/geminiParser';
 import { fallbackLogLine, geminiLogLine, NO_KEY_LOG_LINE } from '../../server/api/v2/parseRequestRoutes';
 import { DEFAULT_SETTINGS } from '../../server/domain/pricing';
+import type { AdviseTag } from '../../shared/v2/api';
 import { ParseRequestBody } from '../../shared/v2/parseRequest';
 
 const root = path.resolve(__dirname, '../..');
@@ -144,14 +145,17 @@ describe('README: Options for a request (the Options card and POST /api/v2/advis
     expect(section).toMatch(/It only reads the run: it stores nothing and sends no delivery\./);
   });
 
-  it('gives the three cases with their source and the label the card shows', () => {
+  it('gives the three cases with their source, which the card no longer shows as a label (#960)', () => {
     expect(rows).toHaveLength(3);
     const [noKey, answered, failed] = rows;
-    expect([adviceSourceLabel('offline'), adviceSourceLabel('gemini')]).toEqual([ADVICE_COPY.offline, ADVICE_COPY.byModel]);
     expect(noKey.startsWith('| No `GEMINI_API_KEY` |')).toBe(true);
-    expect(noKey.endsWith(`| \`offline\` | "${ADVICE_COPY.offline}" |`)).toBe(true);
-    expect(answered.endsWith(`| \`gemini\` | "${ADVICE_COPY.byModel}" |`)).toBe(true);
-    expect(failed.endsWith(`| \`offline\` | "${ADVICE_COPY.offline}" |`)).toBe(true);
+    expect(noKey.endsWith('| `offline` |')).toBe(true);
+    expect(answered.endsWith('| `gemini` |')).toBe(true);
+    expect(failed.endsWith('| `offline` |')).toBe(true);
+    // The card has no label for the source, so README names none: not in the table, not in the demo.
+    expect(section).toContain('The card does not say who made the options; the `source` is only in the answer.');
+    expect(readme).not.toMatch(/Priced by Relay|Planned by Gemini/);
+    expect(Object.values<string>(ADVICE_COPY).filter((line) => /Gemini|AI model/.test(line))).toEqual([]);
     // #959: the engine picks the fastest and the cheapest; the third is Gemini's in one call within the advisor's
     // own limit, else the balanced plan.
     expect(section).toContain('the **fastest** (the earliest arrival; on a tie the lower price), the **cheapest** (the lowest price; on a tie the earlier arrival)');
@@ -175,18 +179,29 @@ describe('README: Options for a request (the Options card and POST /api/v2/advis
   it('names the marks and the button of the card as the page has them, and says up to three options', () => {
     expect([MAX_OPTIONS, SERVER_MAX_OPTIONS]).toEqual([3, 3]);
     expect(section).toContain(`the Business page shows an **${ADVICE_COPY.title}** card above the draft: up to three ways to send the request`);
-    expect(section).toContain(`the option whose times the form holds is marked "${ADVICE_COPY.chosen}", and the lowest price is marked "${ADVICE_COPY.cheapest}" when the prices differ`);
+    // #960: the badges, in the card's own words and order; a row's name leaves the words of its badges out.
+    const badges = ADVICE_TAGS.map((tag) => `"${ADVICE_COPY[tag]}"`);
+    expect(badges).toEqual(['"Fastest"', '"Cheapest"', '"Recommended"', '"Balanced"']);
+    expect(section).toContain(`On the card each option shows its tags as badges, ${badges.slice(0, 2).join(', ')}, ${badges[2]} or ${badges[3]} (one plan can have two), so its name leaves those words out ("Relay via Etsy, $9.50").`);
+    expect(section).toContain('Then come its price, its arrival time and its summary, or for a recommended option the reason.');
+    expect(section).toContain('The rows are in the order Fastest, Cheapest, then Recommended or Balanced.');
+    expect(section).toContain(`The option whose times the form holds is marked "${ADVICE_COPY.chosen}".`);
     expect(section).toContain(`**${ADVICE_COPY.choose}** puts that option's ready and deliver-by times in the form and sends nothing`);
     expect(section).toMatch(/If the call fails or finds no option, the card is not shown and the form works as before\./);
-    // "when the prices differ" is the card's rule: one option, or options at one price, have no mark.
+    // The card as README says it, on an answer in the server's order turned around: the rows by their badges,
+    // each named without the words of its badges, and the reason on the recommended one.
     const draft = { originBusinessId: 'a', destinationBusinessId: 'b', label: null, category: null, description: null, weightKg: null, readyMin: 960, deadlineMin: 1980 };
-    const option = (customerPriceCents: number, changes = {}) => ({ label: 'x', summary: '', kind: 'relay', customerPriceCents, deliveryMin: 1972, changes });
-    const cheapest = (prices: number[]) => adviceCard(
-      { source: 'offline', options: prices.map((cents, i) => option(cents, i === 0 ? {} : { deadlineMin: 1980 + 60 * i })) }, { draft, businesses: [] },
-    )?.rows.map((row) => row.cheapest);
-    expect(cheapest([1050, 950])).toEqual([false, true]);
-    expect(cheapest([950])).toEqual([false]);
-    expect(cheapest([950, 950])).toEqual([false, false]);
+    const option = (tags: AdviseTag[], reason?: string) => ({
+      label: `${tagWords(tags)}: Relay via Etsy, $9.50`, summary: 'A summary.', kind: 'relay', customerPriceCents: 950, deliveryMin: 1972, changes: {}, tags, reason,
+    });
+    const card = adviceCard(
+      { source: 'gemini', options: [option(['recommended'], 'A reason.'), option(['cheapest']), option(['fastest'])] }, { draft, businesses: [] },
+    );
+    expect(card?.rows.map((row) => [row.tags, row.label, row.summary])).toEqual([
+      [['fastest'], 'Relay via Etsy, $9.50', 'A summary.'], [['cheapest'], 'Relay via Etsy, $9.50', 'A summary.'], [['recommended'], 'Relay via Etsy, $9.50', 'A reason.'],
+    ]);
+    expect(adviceCard({ source: 'offline', options: [option(['fastest', 'cheapest'])] }, { draft, businesses: [] })?.rows.map((row) => [row.tags, row.label]))
+      .toEqual([[['fastest', 'cheapest'], 'Relay via Etsy, $9.50']]);
     // The card is drawn above the parsed note and the form (BusinessPageView), and not at all without an answer.
     const page = read('client/src/components/business/v2/page/BusinessPageView.tsx');
     expect(page.indexOf('<AdviceOptions')).toBeGreaterThan(0);
@@ -204,11 +219,12 @@ describe('README: Options for a request (the Options card and POST /api/v2/advis
     expect(step2).toContain(
       // #959: one relay is both the fastest and the cheapest, the balanced one is next, both at the block's price;
       // the note says why there is no direct one (#954). v2-advise-readme-demo.test.ts gets this answer on the run.
-      `for this sentence it has two options, "${tagWords(['fastest', 'cheapest'])}: Relay via Etsy, ${price}" and "${tagWords(['balanced'])}: Relay via Etsy, ${price}", `
-      + `the first marked "${ADVICE_COPY.chosen}", with a note on why there is no direct one, and without a Gemini key its label reads "${ADVICE_COPY.offline}".`,
+      // #960: on the card the tags are badges, so both rows have the same name.
+      `for this sentence it has two options, both named "Relay via Etsy, ${price}": the first has the badges "${ADVICE_COPY.fastest}" and "${ADVICE_COPY.cheapest}" `
+      + `and is marked "${ADVICE_COPY.chosen}", the second has the badge "${ADVICE_COPY.balanced}", with a note on why there is no direct one.`,
     );
     expect(step2).toContain(
-      `The card lists up to three options, marks the lowest price "${ADVICE_COPY.cheapest}" when they differ, and each **${ADVICE_COPY.choose}** button `
+      `The card lists up to three options, in the order Fastest, Cheapest, then Recommended or Balanced, and each **${ADVICE_COPY.choose}** button `
       + 'only sets the ready and deliver-by times in the form ([Options for a request](#options-for-a-request)).',
     );
     // The label is the advisor's own: the tags, then the route, then the price (advisor.ts `optionLabel`).

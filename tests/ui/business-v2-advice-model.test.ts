@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AdviseOption, AdviseResponse } from '../../shared/v2/api';
 import {
-  ADVICE_COPY, adviceCard, adviceSourceLabel, adviseDraft, appliedText, chosenKey, type AdviseDraft,
+  adviceCard, adviseDraft, appliedText, chosenKey, type AdviseDraft,
 } from '../../client/src/components/business/v2/adviceModel';
 import { draftTimes, emptyDraft, sameTimes, type NewDeliveryDraft } from '../../client/src/components/business/v2/newDeliveryModel';
 import { ACME, ATLAS, BAKERY, BUSINESSES } from './business-v2-details-sample';
@@ -78,41 +78,41 @@ describe('draftTimes: minutes as the form holds them', () => {
 describe('adviceCard: the rows of the Options card', () => {
   it('formats every number of the answer and computes none', () => {
     const c = card(answer([option(), EARLIER, LATER]))!;
-    expect(c.sourceLabel).toBe('Planned by Gemini, priced by Relay');
+    // The card is its sentence and its rows: who made the options is not part of it (#960).
+    expect(Object.keys(c).sort()).toEqual(['note', 'rows']);
     expect(c.note).toBeNull();
     expect(c.rows).toEqual([
       {
         key: 'option-0', label: 'As requested', summary: 'Next-morning relay through Atlas Books.', priceText: '$16.00',
-        cheapest: false, arrivalText: 'Day 2, 9:05 AM', routeText: 'Via Atlas Books', extraText: '+17\u00a0min · +2.4\u00a0mi',
+        tags: [], arrivalText: 'Day 2, 9:05 AM', routeText: 'Via Atlas Books', extraText: '+17\u00a0min · +2.4\u00a0mi',
         carriersText: 'Maya Chen, Luis Ortega', times: { readyTime: '16:00', deadlineDay: 2, deadlineTime: '10:00' },
       },
       {
         key: 'option-1', label: 'Ready 30 minutes earlier', summary: 'One carrier takes it tonight.', priceText: '$12.50',
-        cheapest: true, arrivalText: 'Day 1, 6:30 PM', routeText: 'Direct', extraText: '+9\u00a0min · +1.0\u00a0mi',
+        tags: [], arrivalText: 'Day 1, 6:30 PM', routeText: 'Direct', extraText: '+9\u00a0min · +1.0\u00a0mi',
         carriersText: 'Maya Chen', times: { readyTime: '15:30', deadlineDay: 2, deadlineTime: '10:00' },
       },
       {
         key: 'option-2', label: 'Deliver by noon', summary: 'A wider window earns the flexibility discount.', priceText: '$14.00',
-        cheapest: false, arrivalText: 'Day 2, 9:30 AM', routeText: 'Via Atlas Books', extraText: '+17\u00a0min · +2.4\u00a0mi',
+        tags: [], arrivalText: 'Day 2, 9:30 AM', routeText: 'Via Atlas Books', extraText: '+17\u00a0min · +2.4\u00a0mi',
         carriersText: 'Maya Chen, Luis Ortega', times: { readyTime: '16:00', deadlineDay: 2, deadlineTime: '12:00' },
       },
     ]);
   });
 
-  it('the source label never claims Gemini unless the server says so', () => {
-    expect(adviceSourceLabel('gemini')).toBe(ADVICE_COPY.byModel);
-    expect(adviceSourceLabel('offline')).toBe('Priced by Relay, no AI model');
-    expect(adviceSourceLabel(undefined)).toBe(ADVICE_COPY.offline);
-    expect(card(answer([option()], { source: 'offline' }))!.sourceLabel).toBe('Priced by Relay, no AI model');
-    expect(card({ options: [option()] })!.sourceLabel).toBe('Priced by Relay, no AI model');
+  it('the answer\'s source changes nothing on the card: the same rows with or without it (#960)', () => {
+    const rows = card(answer([option(), EARLIER, LATER]))!.rows;
+    expect(card(answer([option(), EARLIER, LATER], { source: 'offline' }))!.rows).toEqual(rows);
+    expect(card({ options: [option(), EARLIER, LATER] })!.rows).toEqual(rows);
   });
 
-  it('marks the lowest price, every row that has it, and none when all cost the same or there is one row', () => {
-    const cheapest = (options: AdviseOption[]) => card(answer(options))!.rows.map((r) => r.cheapest);
-    expect(cheapest([option(), EARLIER, LATER])).toEqual([false, true, false]);
-    expect(cheapest([option({ customerPriceCents: 1250 }), EARLIER, LATER])).toEqual([true, true, false]);
-    expect(cheapest([option(), option({ changes: { readyMin: 900 } })])).toEqual([false, false]);
-    expect(cheapest([option()])).toEqual([false]);
+  // The tags of an answer: business-v2-dom-advice-tags.test.tsx.
+  it('marks no price itself (#960): a row has the tags of its option, and none when the answer gives none', () => {
+    const tags = (options: AdviseOption[]) => card(answer(options))!.rows.map((r) => r.tags);
+    expect(tags([option(), EARLIER, LATER])).toEqual([[], [], []]);
+    expect(tags([option({ tags: ['fastest'] }), { ...EARLIER, tags: ['cheapest'] }])).toEqual([['fastest'], ['cheapest']]);
+    // The lowest price without the tag is not marked, and the tag on a higher price is shown: the server's word.
+    expect(tags([option({ tags: ['cheapest'] }), { ...EARLIER, tags: ['fastest'] }])).toEqual([['fastest'], ['cheapest']]);
   });
 
   it('shows at most three rows, in the server\'s order', () => {

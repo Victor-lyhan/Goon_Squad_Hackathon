@@ -331,7 +331,7 @@ describe('3. the card asks again when the form changes and it has no option to s
     expect(p.asked()).toEqual([[null, 960, 2160], [BAKERY.id, 960, 2160]]);
     expect(p.advise.mock.calls[0][1]!.signal!.aborted).toBe(true); // the first call is over and dropped
     expect(p.rows().map((r) => textOf(r.querySelector('h3')!))).toEqual(['As requested', 'Deliver by 10:00 AM']);
-    expect(p.status()).toBe(ADVICE_COPY.offlineLine);
+    expect(p.status()).toBe(''); // the options are there: no line about the wait, or about who made them (#960)
     expect(p.card()!.hasAttribute('aria-busy')).toBe(false);
     expect(p.createShipment).not.toHaveBeenCalled(); // asking is never sending
   }, T);

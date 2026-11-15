@@ -13,7 +13,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { adviceCard, ADVICE_COPY } from '../../client/src/components/business/v2/adviceModel';
+import { adviceCard } from '../../client/src/components/business/v2/adviceModel';
 import { draftFromParsed, NEEDS_INPUT_HINT } from '../../client/src/components/business/v2/newDeliveryModel';
 import { advise as adviseCore, adviseOffline, candidateSet } from '../../server/ai/advisor';
 import { createGeminiPause } from '../../server/ai/geminiPause';
@@ -329,14 +329,13 @@ describe('POST /api/v2/advise with no key: priced options for the demo sentence 
     expect(readme).toContain('price: $9.50');
     expect(first.summary).toContain('$9.50.');
 
-    // Offline, said once and plainly: the answer's `source`, which the Options card turns into its one line.
+    // Offline: the answer's `source` says so. The Options card no longer turns it into a line (#960): it
+    // shows the tags as badges and names each row without their words.
     expect(body.source).toBe('offline');
     const card = adviceCard(body, { draft, businesses: store.get().scenario.businesses });
     if (!card) throw new Error('the Options card shows nothing for the demo sentence');
-    expect(card.sourceLine).toBe(ADVICE_COPY.offlineLine);
-    expect(card.sourceLine).toMatch(/^Priced by Relay, with no AI model\.$/);
-    expect(card.sourceLine.slice(0, -1)).not.toMatch(/[.!?;]/);
-    expect(wordCount(card.sourceLine)).toBeLessThanOrEqual(MAX_WORDS);
+    expect(Object.keys(card).sort()).toStrictEqual(['note', 'rows']);
+    expect(card.rows[0]).toMatchObject({ tags: ['fastest', 'cheapest'], label: 'Relay via Etsy, $9.50' });
     expect(card.rows.map((row) => row.priceText)).toStrictEqual(body.options.map((o) => money(o.customerPriceCents)));
   }, T);
 
@@ -370,8 +369,8 @@ describe('POST /api/v2/advise with no key: priced options for the demo sentence 
     const priced = expectEnginePrices(store.get(), travel, draft, body);
     expect(priced.map((p) => p.flexible)).toStrictEqual([false, false]);
     const card = adviceCard(body, { draft, businesses: store.get().scenario.businesses });
-    expect(card?.rows.map((row) => [row.priceText, row.cheapest])).toStrictEqual([['$10.50', false], ['$10.50', false]]);
-    expect(card?.sourceLine).toBe(ADVICE_COPY.offlineLine);
+    // The card shows the server's tags as badges (#960), also when both rows cost the same.
+    expect(card?.rows.map((row) => [row.priceText, row.tags])).toStrictEqual([['$10.50', ['fastest', 'cheapest']], ['$10.50', ['balanced']]]);
   }, T);
 
   it('"by 8 this evening": no commute arrives that day, so the options are for a later deliver-by and the note says why', async () => {
