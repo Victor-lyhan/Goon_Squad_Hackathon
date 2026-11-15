@@ -89,14 +89,15 @@ const CARDS: Card[] = [
     checks: ['Weight (kg)', 'Deliver by: day', 'Deliver by: time'], notes: [CONFIRM], focus: 'Weight (kg)',
   },
   {
+    // #827: the server now reads what is sent as the Package name and the Contents; the Type stays to check.
     n: 3, what: 'no category',
     text: 'Send espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow.',
     answer: offline({
-      originBusinessId: null, destinationBusinessId: 'biz-blue-bottle-wall', label: null, category: null,
-      description: null, weightKg: null, readyMin: 930, deadlineMin: 2040,
-    }, ['originBusinessId', 'label', 'category', 'description', 'weightKg']),
-    fields: [BLUE_BOTTLE, '', 'envelope', '0.5', '', '15:30', '2', '10:00'],
-    checks: ['Package name', 'Type', 'Weight (kg)', 'Contents'], notes: [CONFIRM], focus: 'Package name',
+      originBusinessId: null, destinationBusinessId: 'biz-blue-bottle-wall', label: 'Espresso blend samples', category: null,
+      description: 'Espresso blend samples', weightKg: null, readyMin: 930, deadlineMin: 2040,
+    }, ['originBusinessId', 'category', 'weightKg']),
+    fields: [BLUE_BOTTLE, 'Espresso blend samples', 'envelope', '0.5', 'Espresso blend samples', '15:30', '2', '10:00'],
+    checks: ['Type', 'Weight (kg)'], notes: [CONFIRM], focus: 'Type',
   },
   {
     n: 4, what: 'a street address as the recipient',

@@ -129,6 +129,49 @@ describe('POST /api/v2/parse-request', () => {
     });
   }, T);
 
+  // #827: the sentence of the F1 browser check (#807) that came back with an empty Package name and Contents.
+  it('a sentence with no package word: what is sent is the package name and the contents, and the Type stays open', async () => {
+    const { api: server, store } = await start();
+    const run = store.get();
+    const text = 'Send espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow.';
+
+    const body = expectDraft(await post({ text }), run);
+
+    expect(body).toEqual({
+      draft: {
+        originBusinessId: null,
+        destinationBusinessId: 'biz-blue-bottle-wall',
+        label: 'Espresso blend samples',
+        category: null,                // the Type is the user's choice
+        description: 'Espresso blend samples',
+        weightKg: null,
+        readyMin: 930,
+        deadlineMin: 2040,
+      },
+      missing: ['originBusinessId', 'category', 'weightKg'],
+      rejected: null,
+      source: 'offline',
+    });
+    expect(body).toEqual(parseOffline(text, { businesses: run.scenario.businesses, nowMin: run.clock.timeMin }));
+
+    const weighed = expectDraft(await post({ text: 'Send 2 kg of coffee beans to Etsy.' }), run);
+    expect(weighed.draft).toMatchObject({
+      destinationBusinessId: 'biz-etsy', label: 'Coffee beans', category: null, description: 'Coffee beans', weightKg: 2,
+    });
+
+    // With the sender, the Type and the weight filled in on the card, the draft is a request POST /shipments stores.
+    const sent = await server.v2.post('/shipments', {
+      ...body.draft, clientRequestId: 'parse-request-test-827', originBusinessId: 'biz-brooklyn-roasting',
+      category: 'small_box', weightKg: 0.5,
+    });
+    expect(sent.status, JSON.stringify(sent.body)).toBe(201);
+    expect(sent.body.shipment).toMatchObject({
+      originBusinessId: 'biz-brooklyn-roasting', destinationBusinessId: 'biz-blue-bottle-wall',
+      label: 'Espresso blend samples', description: 'Espresso blend samples', category: 'small_box',
+      readyMin: 930, deadlineMin: 2040, weightGrams: 500,
+    });
+  }, T);
+
   it('never changes the run, its version or the state file, whatever it answers', async () => {
     const { api: server, store } = await start();
     const before = remember(store);
