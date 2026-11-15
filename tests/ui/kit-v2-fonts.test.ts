@@ -214,6 +214,40 @@ describe('self-hosted Inter and IBM Plex Mono (#408, #651)', () => {
     for (const m of paragraphs) expect(['jt__status', 'jt__time']).toContain(m[1]);
   });
 
+  it('strong, b and th get 600 from one rule in global.css, not the 700 the browser gives them (#743)', () => {
+    // No stylesheet says 700 for these: it is the browser's own weight, and no 700 face is loaded, so the
+    // bold was faked (seen in headless Chrome on the New delivery form's result line, #743).
+    const sheet = SHEETS.filter((s) => s.file.endsWith('styles/global.css'));
+    expect(sheet).toHaveLength(1);
+    const { uses } = weightUses(sheet);
+    const sans = importedWeights('sans');
+    const mono = importedWeights('mono');
+    for (const tag of ['strong', 'b', 'th']) {
+      const own = uses.filter((u) => u.where.split(': ')[1] === tag);
+      expect(own.map((u) => u.weight), tag).toEqual([600]);
+      // The tag takes its family from the text around it, so the weight must be a loaded face of both.
+      for (const u of own) {
+        expect(u.weight, tag).toBeLessThanOrEqual(600);
+        expect(sans.has(u.weight), `${tag}: Inter ${u.weight}`).toBe(true);
+        expect(mono.has(u.weight), `${tag}: IBM Plex Mono ${u.weight}`).toBe(true);
+      }
+    }
+    // One rule for the three tags, with no class in front, so it reaches every page.
+    const rule = rulesOf(sheet[0].css).filter((r) => ['strong', 'b', 'th'].some((t) => r.selectors.includes(t)));
+    expect(rule).toHaveLength(1);
+    expect([...rule[0].selectors].sort()).toEqual(['b', 'strong', 'th']);
+    expect([...rule[0].decls]).toEqual([['font-weight', '600']]);
+    // global.css is the stylesheet App.tsx loads for every page.
+    expect(readFileSync('client/src/App.tsx', 'utf8')).toMatch(/import\s+['"]\.\/styles\/global\.css['"]/);
+    // No stylesheet sets one of these tags back to a weight with no face (also caught by the test above).
+    const heavier = weightUses(SHEETS).uses.filter((u) => /(^|[\s>+~])(strong|b|th)([.:[][^\s>+~]*)?$/.test(u.where.split(': ')[1]) && u.weight > 600);
+    expect(heavier).toEqual([]);
+    // What the check reports when the rule is missing its weight or says bold.
+    const found = (css: string) => weightUses([{ file: 'x.css', css }]).uses.map((u) => `${u.where.split(': ')[1]} = ${u.family} ${u.weight}`);
+    expect(found('strong, b, th { font-weight: bold; }')).toEqual(['strong = sans 700', 'b = sans 700', 'th = sans 700']);
+    expect(found('strong, b, th { color: red; }')).toEqual([]);
+  });
+
   it('the check itself: what it reports for a faked bold, an inherited family and an unreadable weight', () => {
     const run = (css: string) => weightUses([{ file: 'x.css', css }]);
     const found = (css: string) => run(css).uses.map((u) => `${u.where.split(': ')[1]} = ${u.family} ${u.weight}`);
