@@ -7,9 +7,9 @@ import type { Run } from '../../../shared/v2/types';
 import type {
   BusinessesResponse, BusinessDashboard, ShipmentResponse, EmployeesResponse,
   EmployeeDashboard, CommuteResponse, JobResponse, MapResponse, SimulatorResponse,
-  CompareResponse, ExportFile, GeocodeResponse, TravelUnavailable,
+  CompareResponse, ExportFile, GeocodeResponse, TravelUnavailable, AdviseResponse,
 } from '../../../shared/v2/api';
-import type { ParseRequestResponse } from '../../../shared/v2/parseRequest';
+import type { ParseDraft, ParseRequestResponse } from '../../../shared/v2/parseRequest';
 import type {
   CreateShipmentRequest, PatchShipmentRequest, PutCommuteRequest,
   SimControlRequest, GenerateScenarioRequest,
@@ -104,3 +104,13 @@ export const geocode = (q: string, opts?: RequestOptions) =>
  */
 export const parseRequest = (text: string, opts?: RequestOptions) =>
   request<ParseRequestResponse>('POST', v2('/parse-request'), { text }, opts);
+
+/**
+ * Asks the AI advisor (#862) for 2-3 priced what-if options for a parsed draft: the request as typed, an
+ * earlier ready time or a later deliver-by. Read-only: nothing is reserved or saved. Every number comes from
+ * the engine. A draft without both businesses, a ready time and a deliver-by rejects with a 400.
+ * The server may take up to 10 s (the AI's budget), so the default time limit here is 15 s, not 8 s.
+ */
+export const ADVISE_TIMEOUT_MS = 15_000;
+export const advise = (draft: ParseDraft, opts?: RequestOptions) =>
+  request<AdviseResponse>('POST', v2('/advise'), { draft }, { timeoutMs: ADVISE_TIMEOUT_MS, ...opts });

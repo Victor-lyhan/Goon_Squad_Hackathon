@@ -13,7 +13,7 @@ import {
 } from '../../server/api/v2/bodyGuard';
 import {
   BAD_MINUTES, BROKEN_BODIES, HUGE_TEXT, MISSING, NO_BODY, T, WRITE_SPECS, fieldAt, json, rawJson, startSweepApi,
-  validCommute, validDelivery, validGenerate, validImport, validParseRequest, withField, withProtoKey, wrongTypeOf,
+  validAdvise, validCommute, validDelivery, validGenerate, validImport, validParseRequest, withField, withProtoKey, wrongTypeOf,
   type Sent, type SweepApi, type SweepContext,
 } from './v2-sweep-helper';
 
@@ -176,6 +176,20 @@ const CONTROL_CASES: Case[] = [
 
 const generate = validGenerate;
 const sentence = validParseRequest;
+/** A bad draft for POST /advise: `draft` with one field changed. */
+const adviseWith = (field: string, value: unknown) => (ctx: SweepContext): Body => {
+  const valid = validAdvise(ctx);
+  return { draft: { ...(valid.draft as Body), [field]: value } };
+};
+const ADVISE_CASES: Case[] = [
+  ['an empty object', () => ({})],
+  ['a draft of null', () => ({ draft: null })],
+  ['an unknown sender', adviseWith('originBusinessId', 'biz-sweep-unknown')],
+  ['a ready time before the window', adviseWith('readyMin', 0)],
+  ['a deliver-by after the window', adviseWith('deadlineMin', 99999)],
+  ['a fraction of a minute', adviseWith('readyMin', 990.5)],
+  ['a huge text as the sender', adviseWith('originBusinessId', HUGE_TEXT)],
+];
 const PARSE_CASES: Case[] = [
   ['an empty object', () => ({})],
   ['an empty text', broken(sentence, 'text', '')],
@@ -456,6 +470,16 @@ describe.each([
 
     it.each(PARSE_CASES)('refuses %s', async (name, build) => {
       await sweep.refused('POST', '/parse-request', asSent(build(sweep.ctx())), [400], name);
+    }, T);
+  });
+
+  describe('POST /advise', () => {
+    itOnFresh('refuses each draft field with the wrong type, null, in a list or left out', async () => {
+      await sweepFields('POST', '/advise', validAdvise(sweep.ctx()), [400], { objectPath: 'draft' });
+    }, T);
+
+    it.each(ADVISE_CASES)('refuses %s', async (name, build) => {
+      await sweep.refused('POST', '/advise', asSent(build(sweep.ctx())), [400], name);
     }, T);
   });
 

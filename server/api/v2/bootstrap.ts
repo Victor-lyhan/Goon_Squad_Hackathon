@@ -5,6 +5,7 @@
 //   + businesses.json, neighborhoods.json, demoStory.json   -> bootV2Run -> the v2 store (data/state-v2.json)
 //   + the five route groups, GET /geocode and
 //     POST /parse-request (parseRequestRoutes.ts)           -> `deps.extraRoutes` for createV2Router
+//     POST /advise (adviseRoutes.ts)                        -> `deps.extraRoutes` for createV2Router
 // - Every group gets the same snapshot function and the same travel provider: the service's provider, which
 //   reads the cache object the service writes to. So the pairs of a newly saved home and the route lines of
 //   a new delivery are visible to the next request without a restart.
@@ -24,6 +25,7 @@ import { createTravelService, type TravelService } from '../../geo/travelService
 import type { Store } from '../../store';
 import { getGeocode, nycNeighborhoodLookup } from '../geo';
 import { bootV2Run, readNycFixtures, type NycFixtures } from './bootRun';
+import { registerAdviseRoutes } from './adviseRoutes';
 import { registerCommuteRoutes } from './commuteRoutes';
 import { registerControlRoutes } from './controlRoutes';
 import { registerParseRequestRoutes } from './parseRequestRoutes';
@@ -53,6 +55,8 @@ export type V2RuntimeOptions = {
     apiKey: string | null | undefined;
     model?: string;
     timeoutMs?: number;
+    /** The whole Gemini budget of one POST /advise (#862). Defaults to 10 s; tests make it short. */
+    adviseTimeoutMs?: number;
     fetch?: FetchLike;
     log?: (line: string) => void;
     info?: (line: string) => void;
@@ -159,6 +163,18 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       },
       log: gemini?.log ?? ((line) => console.warn(line)),
       info: gemini?.info,
+    });
+    // The AI advisor (#862): reads the run and asks the engine about what-if variants; never changes the run.
+    // Same key and model as parse-request; its own 10 s budget for the whole Gemini conversation. Logs nothing.
+    registerAdviseRoutes(router, {
+      store,
+      travel,
+      gemini: gemini && {
+        apiKey: gemini.apiKey,
+        model: gemini.model ?? DEFAULT_GEMINI_MODEL,
+        fetchImpl: gemini.fetch ?? options.fetch,
+        ...(gemini.adviseTimeoutMs === undefined ? {} : { timeoutMs: gemini.adviseTimeoutMs }),
+      },
     });
     router.get('/geocode', getGeocode({
       key: () => (key === '' ? null : key),
