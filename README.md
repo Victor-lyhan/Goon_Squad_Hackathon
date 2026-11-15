@@ -226,7 +226,7 @@ curl -s -X POST http://localhost:3001/api/v2/parse-request \
 The answer ends with `"source":"gemini"` when Gemini wrote the draft and with `"source":"offline"` when the offline parser did.
 
 ## The numbers: Relay vs traditional delivery
-`/study.html` compares Relay with traditional delivery: the same packages sent two ways, on a commute an employee already drives or on a dedicated courier trip. The page is one committed file, `client/public/study.html`, with its charts inside. It needs no key, no network and no study run: open http://localhost:5173/study.html with `npm run dev`, or http://localhost:3001/study.html with `npm start` after `npm run build`.
+`/study.html` compares Relay with traditional delivery: the same packages sent two ways, on a commute an employee already drives or on a dedicated courier trip. The page is one committed file, `client/public/study.html`, with its charts inside; every run behind it is in `client/public/study/runs.csv`, which the page links to as **Download every run (CSV)**. It needs no key, no network and no study run: open http://localhost:5173/study.html with `npm run dev`, or http://localhost:3001/study.html with `npm start` after `npm run build`.
 
 **The baseline is a standard next-day B2B courier, not a same-hour one**: one dedicated trip from sender to recipient, promised by 10:30 AM on the next business day, and assumed to always keep that promise.
 
@@ -234,20 +234,20 @@ The headline numbers of the committed page, per package that Relay matched:
 
 | Measure | Relay against the courier | In figures |
 | --- | --- | --- |
-| Cost to the sender | 37.4% less | Relay $10.00 vs courier $15.99 per package |
-| Added vehicle miles | 74.8% less | Relay 1.3 mi vs courier 5.2 mi per package |
-| CO₂ | 74.8% less | Relay 0.52 kg vs courier 2.07 kg per package |
-| Delivered by the courier's promised time | 100.0% | 32.2% a day early, 0.0% late |
-| Match rate | 53.4% | 1,211 of 2,268 packages found a commute |
+| Cost to the sender | 37.5% less | Relay $10.00 vs courier $16.00 per package |
+| Added vehicle miles | 77.0% less | Relay 1.2 mi vs courier 5.0 mi per package |
+| CO₂ | 77.0% less | Relay 0.46 kg vs courier 2.01 kg per package |
+| Delivered by the courier's promised time | 100.0% | 33.4% a day early, 0.0% late |
+| Match rate | 58.2% | 49,254 of 84,672 packages found a commute |
 
-They are averages over 81 simulated runs: every combination of 3 seeds, of 30, 60 and 120 commuting employees, of 12, 24 and 48 packages, and of detour limits of 8, 12 and 16 minutes. Each run is a full two-day simulation on the committed travel cache.
+They are averages over 3,024 simulated runs: every combination of 112 seeds, of 30, 60 and 120 commuting employees, of 12, 24 and 48 packages, and of detour limits of 8, 12 and 16 minutes. Each run is a full two-day simulation on the committed travel cache.
 
 What the numbers mean, and what they do not:
 
-- **"Per package" means per package that Relay matched.** A package with no suitable commute would go by courier at the courier's price, so it is left out of the comparison and counted in the match rate. Read the savings together with the match rate: 53.4% of the requested packages got them.
+- **"Per package" means per package that Relay matched.** A package with no suitable commute would go by courier at the courier's price, so it is left out of the comparison and counted in the match rate. Read the savings together with the match rate: 58.2% of the requested packages got them. The match rate rises as more employees join: 37.4% with 30 employees, 77.8% with 120.
 - **"100% on time" holds by construction. It is not a measured reliability.** Every simulated deadline is at or before Day 2, 10:00 AM, which is before the courier's promise (Day 2, 10:30 AM), and Relay only accepts a package it can deliver by its deadline. So a matched package cannot be late. The cost of that rule shows in the match rate, not in lateness: a package Relay cannot deliver in time is not matched.
 - **CO₂ follows the miles.** Both sides are counted with the same CO₂ per mile, so the two percentages are equal.
-- **The saving varies from run to run.** Relay is ahead on cost in 81 of 81 runs, and on miles and CO₂ in 78 of 81 runs. In the other three only 1 to 3 packages matched. The page has the distribution and a table of every run.
+- **The saving varies from run to run.** Relay is ahead on cost in 3,013 of 3,013 runs, and on miles and CO₂ in 3,003 of 3,013 runs. In the other ten only 1 to 4 packages matched, and 11 of the 3,024 runs matched no package, so they have no per-package value. The page has the spread across runs (median and 10th to 90th percentile), the match rate by number of employees and the results by detour limit; every run is in the CSV.
 - **Every assumption is listed on the page with its value and the reason for it**: the prices of Relay and of the courier, the courier's promise, how the miles of each side are counted and the CO₂ per mile. No other number is typed in; the rest is travel data from the cache and simulation output. The values are in `scripts/study/assumptions.ts`.
 
 ### Run the study again
@@ -255,12 +255,13 @@ What the numbers mean, and what they do not:
 npm run study
 ```
 
-It runs the 81 simulations on the committed cache in a few seconds, with no key and no network, prints five summary lines and writes two files:
+It runs the 3,024 simulations on the committed cache with no key and no network, on worker threads: one per CPU core, less one (`npm run study -- --workers 4` sets the number; the results are the same for every number). That takes a few seconds on a laptop, about 12 seconds on one thread. It prints a progress line every 100 runs, then a summary table (runs, packages, match rate, Relay against the courier per package, match rate by employee count, wall time and workers), and writes three files:
 
 - `data/study/results.json`: every run and every package (gitignored).
 - `client/public/study.html`: the page, generated again from the results (committed).
+- `client/public/study/runs.csv`: one row per run, the file behind **Download every run (CSV)** (committed).
 
-The same inputs give the same bytes, so on an unchanged checkout `git status` is clean after it. **After a change to the travel cache or the other files of `fixtures/nyc/`, to the engine (`server/domain/v2/`) or to the study itself (`scripts/study/`), run it again and commit `client/public/study.html`.** If the headline numbers moved, change them in the table above too. A server started with `npm start` shows the new page after the next `npm run build`.
+The same inputs give the same bytes, so on an unchanged checkout `git status` is clean after it. **After a change to the travel cache or the other files of `fixtures/nyc/`, to the engine (`server/domain/v2/`) or to the study itself (`scripts/study/`), run it again and commit `client/public/study.html` and `client/public/study/runs.csv`.** `npm run study -- --check` writes nothing and tells whether the two committed files are still what a fresh run gives. If the headline numbers moved, change them in the table above too. A server started with `npm start` shows the new page after the next `npm run build`.
 
 ## Repository layout
 - `client/` React + Vite frontend: `src/pages`, `src/components` (`business/`, `employee/`, `sim/`, `map/` for the Google map and its deck.gl layers), `src/ui`, `src/api`

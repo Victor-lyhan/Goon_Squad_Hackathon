@@ -12,13 +12,16 @@ export type GridSpec = {
   detourLimitsMin: readonly number[];
 };
 
+/** How many seeds the default grid has: seeds 1, 2, ... SEED_COUNT. */
+export const SEED_COUNT = 112;
+
 /**
- * 3 x 3 x 3 x 3 = 81 runs around the default run (60 employees, 24 packages):
- * half and double the employees and the packages, and detour limits from the engine's default (8 minutes)
- * through the generator's default (12) to 16.
+ * 112 x 3 x 3 x 3 = 3,024 runs around the default run (60 employees, 24 packages):
+ * seeds 1 to 112, half and double the employees and the packages, and detour limits from the engine's default
+ * (8 minutes) through the generator's default (12) to 16.
  */
 export const DEFAULT_GRID: GridSpec = {
-  seeds: [1, 2, 3],
+  seeds: Array.from({ length: SEED_COUNT }, (_, index) => index + 1),
   employeeCounts: [30, 60, 120],
   packageCounts: [12, 24, 48],
   detourLimitsMin: [8, 12, 16],
