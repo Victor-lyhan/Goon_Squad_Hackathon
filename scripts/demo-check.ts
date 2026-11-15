@@ -10,6 +10,8 @@
 //   4. the NYC travel data             MISSING (fatal) without fixtures/nyc/matrix.json + polylines.json, or
 //                                      when the run every page starts from cannot be built from fixtures/nyc.
 //   5. the saved run                   WARN unless data/state-v2.json is absent or at the start of the day.
+//                                      The line says that npm run dev starts fresh (scripts/fresh-run.mjs
+//                                      removes the file, #965) and how to reset for npm start, which keeps it.
 //   6. the built client                WARN without client/dist, or when it was built without the browser key.
 // Exit code: 0 when nothing is MISSING, 1 otherwise. A WARN never changes the exit code.
 //
@@ -143,7 +145,8 @@ function checkTravel(fixturesDir: string, show: (file: string) => string): { lin
 
 function checkSavedRun(statePath: string, fresh: FreshRun | null, show: (file: string) => string): CheckLine {
   const file = show(statePath);
-  const reset = `Stop the server, delete ${file}, start.`;
+  // `npm run dev` removes the file before the servers start (scripts/fresh-run.mjs, #965); `npm start` opens it.
+  const reset = `npm run dev starts fresh (it removes ${file}). For npm start: stop the server, delete ${file}, start.`;
   let raw: string;
   try {
     raw = fs.readFileSync(statePath, 'utf8');
@@ -264,7 +267,7 @@ export function runDemoCheck(opts: DemoCheckOptions): number {
     // The file the server would open: RELAY_STATE_PATH (the environment or .env) wins over the default.
     lines.push(checkSavedRun(statePathFrom(env, opts.statePath ?? DEFAULT_V2_STATE_PATH), travel.fresh, show));
   } catch {
-    lines.push(line('WARN', 'Saved run: the check could not read the saved run. Stop the server, delete the saved run file, start.'));
+    lines.push(line('WARN', 'Saved run: the check could not read the saved run. npm run dev starts fresh (it removes the saved run file). For npm start: stop the server, delete the saved run file, start.'));
   }
 
   try {
