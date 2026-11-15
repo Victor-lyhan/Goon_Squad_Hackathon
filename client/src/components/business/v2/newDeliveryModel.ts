@@ -414,6 +414,14 @@ export function submitReducer(state: SubmitState, action: SubmitAction): SubmitS
 // ---------- Copy ----------
 
 export const RESULT_COPY = {
+  /**
+   * The send action has one name from the button to the wait (#880): the form's button reads "Find a
+   * delivery match", then these while the server answers. A retry of a saved delivery ("Try matching
+   * again", "Matching…") keeps the words of the same button in Delivery details.
+   */
+  sending: 'Finding a match…',
+  sendingLine: 'Finding a delivery match for your request…',
+  retryingLine: 'Finding a delivery match again…',
   matched: 'Delivery arranged.',
   unmatched: 'No matching commute yet.',
   /** "Back to start" is the simulator's control that returns the run to planning (DECISIONS pass 74). */

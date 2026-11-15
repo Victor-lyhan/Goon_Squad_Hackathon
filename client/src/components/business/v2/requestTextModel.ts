@@ -18,12 +18,20 @@ export const REQUEST_COPY = {
   hint: 'One sentence: what to send, to which business and by when. Stops must be businesses in the network.',
   read: 'Read my request',
   reading: 'Reading…',
-  /** The pending button's name for a screen reader (the kit spinner's label). */
-  readingLabel: 'Reading your request',
+  /**
+   * The line beside the disabled button while the server reads (#880): the wait is at most the 6 s the
+   * model gets before the offline parser takes over (docs/mvp4.md F1), so the line says what happens and how long.
+   */
+  readingLine: 'Reading your request. This takes a few seconds at most.',
   fillForm: 'Fill in the form instead',
   edit: 'Edit request',
   parsedByModel: 'Parsed by Gemini',
   parsedOffline: 'Parsed offline',
+  /**
+   * What "Parsed offline" means, in one plain line under the label (#880). Not shown when the model read
+   * the sentence, and it does not name the model: an offline card never does.
+   */
+  offlineLine: 'Read by Relay’s built-in rules, with no AI model.',
   /** Under the source label: the form below is the confirmation card, and only its button sends. */
   confirm: 'Check the details below. Nothing is sent until you press Find a delivery match.',
   failed: 'Your request could not be read. Try again, or fill in the form instead.',
@@ -34,6 +42,11 @@ export const REQUEST_COPY = {
 /** "Parsed by Gemini" only when the server says so; anything else never claims the model read it. */
 export function sourceLabel(source: unknown): string {
   return source === 'gemini' ? REQUEST_COPY.parsedByModel : REQUEST_COPY.parsedOffline;
+}
+
+/** The plain line under "Parsed offline"; null when the server says the model read the sentence. */
+export function sourceLine(source: unknown): string | null {
+  return source === 'gemini' ? null : REQUEST_COPY.offlineLine;
 }
 
 /**
@@ -118,6 +131,8 @@ export type ParsedRequest = {
   /** Fields that still need the user (the form's "Check this" hints), in screen order. */
   needsInput: DraftField[];
   sourceLabel: string;
+  /** One plain line that says the sentence was read without the model; null when the model read it. */
+  sourceLine: string | null;
   senderNote: string | null;
   /** The server's plain sentence about a stop that is not a network business, or null. */
   rejected: string | null;
@@ -135,6 +150,7 @@ export function parsedRequest(
     draft,
     needsInput,
     sourceLabel: sourceLabel(response.source),
+    sourceLine: sourceLine(response.source),
     senderNote: senderNote(response.draft.originBusinessId, context.origin),
     rejected,
   };
