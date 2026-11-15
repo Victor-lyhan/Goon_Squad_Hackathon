@@ -5,8 +5,8 @@ import type { CommuteResponse, GeocodeResponse } from '../../../../../../shared/
 import type { Phase } from '../../../../../../shared/v2/types';
 import { ApiRequestError, isTravelUnavailable, type RequestOptions, type TravelUnavailableCode } from '../../../../api/v2';
 import type { AddressResult, SearchFn } from '../addressSearchModel';
-import { unavailableMessage } from '../commuteFormModel';
-import { COMMUTE_SAVE_TIMEOUT_MS } from '../live/useEmployeeWorkspace';
+import { SAVE_FAILED_TEXT, unavailableMessage } from '../commuteFormModel';
+import { ownSentence } from '../errorWording';
 import { SERVER_ERROR_TEXT, TRAVEL_DATA_MISSING_TEXT, type EmployeeWorkspaceState } from '../live/employeeWorkspaceState';
 
 // ---------- Screens ----------
@@ -92,17 +92,19 @@ export type SaveOutcome =
 export const SAVING_TEXT = 'Saving. A new home address can take a few seconds.';
 export const SAVED_TEXT = 'Commute saved';
 export const LOCKED_FALLBACK_TEXT = 'The run is playing, so the commute cannot be changed now.';
-export const TIMEOUT_TEXT =
-  `The server did not answer within ${COMMUTE_SAVE_TIMEOUT_MS / 1000} seconds. Your changes are still in the form. Try again.`;
-export const NETWORK_TEXT = 'Could not reach the server. Your changes are still in the form. Try again.';
-export const FAILED_TEXT = 'The commute could not be saved. Try again.';
+// #916: what failed and what to do, with no "server" and no number of seconds. Both keep the form open.
+export const TIMEOUT_TEXT = 'Saving took too long. Your changes are still in the form, so try again.';
+export const NETWORK_TEXT = "Can't reach Relay. Your changes are still in the form, so try again.";
+export const FAILED_TEXT = SAVE_FAILED_TEXT;
 
 export function outcomeFromResponse(res: CommuteResponse): SaveOutcome {
   return { kind: 'saved', matched: res.rematchedShipmentIds.length };
 }
 
 export function outcomeFromError(e: unknown): SaveOutcome {
-  const message = e instanceof Error && e.message.trim() ? e.message : '';
+  // Only a sentence the server wrote is shown as it is. The HTTP client's own wording ("Request failed
+  // (500)") and an error that is not from the API client fall back to the page's sentence (#916).
+  const message = e instanceof ApiRequestError ? ownSentence(e.message) : '';
   if (e instanceof ApiRequestError) {
     if (e.kind === 'timeout') return { kind: 'timeout' };
     if (e.status === 0) return { kind: 'network' };

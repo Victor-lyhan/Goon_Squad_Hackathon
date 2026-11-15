@@ -110,7 +110,8 @@ describe('CommuteForm in a real DOM: save', () => {
   }, T);
 
   it('a rejected save shows the error in a live region and keeps the draft', async () => {
-    const f = setup(async () => { throw new Error('The server could not save the commute.'); });
+    // A sentence written for the person is shown as sent (#916: one that says "server" would be replaced).
+    const f = setup(async () => { throw new Error('That workplace is no longer in the run.'); });
     typeCommute(f);
     click(f.saveButton());
     await flush();
@@ -119,7 +120,7 @@ describe('CommuteForm in a real DOM: save', () => {
     const msg = f.message();
     expect(msg.getAttribute('role')).toBe('alert');
     expect(msg.getAttribute('aria-live')).toBe('assertive');
-    expect(textOf(msg)).toBe('The server could not save the commute.');
+    expect(textOf(msg)).toBe('That workplace is no longer in the run.');
     // Every typed value is still there, and Save is enabled again for a retry.
     expect(f.workplace().value).toBe('biz-luna');
     expect(f.evening().value).toBe('18:15');

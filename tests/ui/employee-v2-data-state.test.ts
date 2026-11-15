@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '../../client/src/api/v2';
 import {
-  CANT_REACH_TEXT, employeeWorkspaceReducer as reduce, initialWorkspaceState as init, TRAVEL_DATA_MISSING_TEXT,
+  CANT_REACH_TEXT, employeeWorkspaceReducer as reduce, initialWorkspaceState as init, TRAVEL_DATA_MISSING_TEXT, TRAVEL_UNAVAILABLE_TEXT,
   type EmployeeWorkspaceState, type WorkspaceAction,
 } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
 import { dash, jobResponse } from './employeeV2DataSample';
@@ -66,15 +66,16 @@ describe('employee workspace state: failures', () => {
     expect(reduce(init, fail(new ApiRequestError(404, 'Unknown employee'))).view).toBe('not_found');
   });
 
-  it('travel_data_missing shows the fixed text, the other codes the server text, and recovers', () => {
+  // #916: the text is the page's own for every code; the server's sentence for a 503 is never printed.
+  it('travel_data_missing shows its fixed text, the other codes theirs, and recovers', () => {
     const missing = reduce(listed, fail(travel('travel_data_missing', 'no cache')));
     expect(missing.view).toBe('unavailable');
     expect(missing.unavailable).toEqual({ code: 'travel_data_missing', message: TRAVEL_DATA_MISSING_TEXT });
-    expect(TRAVEL_DATA_MISSING_TEXT).toBe('NYC travel data is not loaded on this server yet.');
+    expect(TRAVEL_DATA_MISSING_TEXT).toBe('Travel times for New York are not loaded yet. Try again in a moment.');
     for (const code of ['google_key_missing', 'google_unavailable']) {
       const s = reduce(init, fail(travel(code, `Server says ${code}`)));
       expect(s.view).toBe('unavailable');
-      expect(s.unavailable).toEqual({ code, message: `Server says ${code}` });
+      expect(s.unavailable).toEqual({ code, message: TRAVEL_UNAVAILABLE_TEXT });
     }
     const back = reduce(missing, ok(1, ['job-1']));
     expect(back.view).toBe('ready');
@@ -87,7 +88,7 @@ describe('employee workspace state: failures', () => {
     expect(s.view).toBe('ready');
     expect(s.dashboard?.version).toBe(1);
     expect(s.reconnecting).toBe(true);
-    expect(s.unavailable?.message).toBe('Google is down');
+    expect(s.unavailable).toEqual({ code: 'google_unavailable', message: TRAVEL_UNAVAILABLE_TEXT });
     const back = reduce(s, ok(1, ['job-1']));
     expect(back.reconnecting).toBe(false);
     expect(back.unavailable).toBeNull();

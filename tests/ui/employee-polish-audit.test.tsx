@@ -125,7 +125,7 @@ describe('#882 states: loading, empty and error in plain words', () => {
       expect(html, name).toMatch(/<section class="ep-state ep-problem" role="alert">/);
     }
     expect(ERROR_TITLE).toBe('Your commute and deliveries could not be loaded');
-    expect(CANT_REACH_TEXT).toMatch(/^Can't reach the Relay server\./); // the header banner's and the simulator's sentence
+    expect(CANT_REACH_TEXT).toMatch(/^Can't reach Relay\./); // #916: the page's own sentences do not say "server"
   });
 
   it('a sentence the server wrote itself is shown as it is', () => {
@@ -312,7 +312,7 @@ describe('#882 words: the simulator\'s status words, no jargon, numbers in mono'
       for (const d of r.decls) expect(`${r.selector} { ${d.prop}: ${d.value} }`).not.toMatch(/text-transform:\s*uppercase/);
     }
     expect(base(cssOf('JobDetailV2.css'), '.job-v2__kind', 'letter-spacing')).toBeUndefined();
-    expect(jobHtml(relayLeg1())).toContain('<p class="job-v2__kind">Relay leg 1 of 2: drop at the relay point</p>');
+    expect(jobHtml(relayLeg1())).toContain('<p class="job-v2__kind">Relay: you take it to River Cafe Roasters; another carrier takes it from there</p>');
   });
 });
 

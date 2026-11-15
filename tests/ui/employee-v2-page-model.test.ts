@@ -77,7 +77,7 @@ describe('save outcomes', () => {
   it('timeout after the 20 s limit', () => {
     const n = notice(new ApiRequestError(0, 'Request timed out', undefined, 'timeout'));
     expect(n).toEqual({ at: 'page', role: 'alert', text: TIMEOUT_TEXT, formOpen: true });
-    expect(TIMEOUT_TEXT).toContain('20 seconds');
+    expect(TIMEOUT_TEXT).toBe('Saving took too long. Your changes are still in the form, so try again.'); // #916: no number of seconds
   });
 
   it('network error', () => {

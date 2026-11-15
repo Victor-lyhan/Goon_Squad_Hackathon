@@ -3,6 +3,7 @@
 import type { CommuteResponse, TravelUnavailable } from '../../../../../shared/v2/api';
 import { PutCommuteRequest } from '../../../../../shared/v2/schemas';
 import type { Employee, Home, Phase } from '../../../../../shared/v2/types';
+import { ownSentence } from './errorWording';
 
 export const DAY_MIN = 1440;
 export const MAX_DETOUR_MIN = 30;
@@ -180,6 +181,9 @@ export const INITIAL_SAVE_STATE: SaveState = { status: 'idle' };
 
 const CODES: readonly UnavailableCode[] = ['google_key_missing', 'travel_data_missing', 'google_unavailable'];
 
+/** A save that failed with no sentence of the server's own. */
+export const SAVE_FAILED_TEXT = 'The commute could not be saved. Try again.';
+
 type ErrorLike = {
   status?: unknown; message?: unknown; code?: unknown; fieldErrors?: unknown;
   body?: { code?: unknown; error?: unknown; fieldErrors?: unknown } | null;
@@ -194,10 +198,9 @@ export function classifySaveError(error: unknown): SaveState {
   if (status === 503 && typeof code === 'string' && (CODES as readonly string[]).includes(code)) {
     return { status: 'unavailable', code: code as UnavailableCode };
   }
-  const rawMessage = typeof e.message === 'string' && e.message.trim() ? e.message
-    : typeof e.body?.error === 'string' && e.body.error.trim() ? e.body.error
-      : typeof error === 'string' && error.trim() ? error : '';
-  const message = rawMessage || 'The commute could not be saved. Try again.';
+  // A sentence the server wrote is shown as it is; the HTTP client's own wording never is (#916).
+  const rawMessage = ownSentence(e.message) || ownSentence(e.body?.error) || ownSentence(error);
+  const message = rawMessage || SAVE_FAILED_TEXT;
   const rawFields = e.fieldErrors ?? e.body?.fieldErrors;
   const fieldErrors: FieldErrors = {};
   if (rawFields && typeof rawFields === 'object') {
@@ -236,10 +239,16 @@ export function saveReducer(state: SaveState, action: SaveAction): SaveState {
 export const LOCKED_MESSAGE =
   'The run is playing, so the commute is read-only until you press Back to start in the simulator.';
 
+/** A new home cannot be saved at all right now (`google_key_missing`): the way on is the saved home. */
+export const NEW_HOME_UNAVAILABLE_TEXT =
+  'A new home address cannot be saved right now, so your commute is unchanged. Keep your saved home, or try again later.';
+/** The travel times of the new home did not arrive this time: saving again can work. */
+export const TRAVEL_TIMES_FAILED_TEXT =
+  'Travel times for this address could not be loaded. Your saved commute is unchanged. Try again.';
+
+/** The form's sentence for a 503 by its `code` (#916): what failed and what to do, never how it is set up. */
 export function unavailableMessage(code: UnavailableCode): string {
-  return code === 'google_key_missing'
-    ? 'Travel times for a new address need the Google key on the server. Your saved commute is unchanged.'
-    : 'Travel times for this address could not be loaded. Your saved commute is unchanged. Try again.';
+  return code === 'google_key_missing' ? NEW_HOME_UNAVAILABLE_TEXT : TRAVEL_TIMES_FAILED_TEXT;
 }
 
 export function savedMessage(matched: number): string {
