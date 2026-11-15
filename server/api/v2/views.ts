@@ -36,7 +36,18 @@ function buildJobView(run: Run, snapshot: Snapshot, job: Job): EmployeeJobView |
   return {
     job, status: snapshot.jobStatus[job.id] ?? 'assigned', shipment, plan,
     stopsDone: stopsDoneAt(job, plan, snapshot.timeMin),
+    departed: departedAt(run, job, plan, snapshot.timeMin),
   };
+}
+
+// Has the job's commute left at the snapshot's minute (#791)? Yes from its trip's `departureMin` on: the
+// time the page shows on the "Leave work" / "Leave home" row. A job whose trip is gone (a broken run; its
+// job view answers 404) counts as left once the carrier is at the first stop, which is never too early.
+function departedAt(run: Run, job: Job, plan: DeliveryPlan, timeMin: number): boolean {
+  const trip = run.trips.find((t) => t.id === job.tripId);
+  if (trip) return trip.departureMin <= timeMin;
+  const first = plan.legs[job.legIndex]?.stops?.[0] ?? job.pickup;
+  return first.arrivalMin <= timeMin;
 }
 
 // How many of the job's leg stops are done at the snapshot's minute (#781): the stops, in order, whose

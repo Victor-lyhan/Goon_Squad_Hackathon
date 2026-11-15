@@ -31,7 +31,8 @@ export type RouteRow = {
   instructions: string;
   /**
    * A stop is done per the API's `stopsDone` count (#781); without it, per the job status (first stop once
-   * in progress, all once completed). The start and end rows follow the job status.
+   * in progress, all once completed). The start row is done per the API's `departed` (#791); without it,
+   * once the job is no longer assigned. The end row follows the job status.
    */
   done: boolean;
 };
@@ -67,6 +68,14 @@ const STATUS_NOTE: Record<JobStatus, string> = {
   in_progress: 'On your commute now.',
   completed: 'Done. Thanks for carrying it.',
 };
+/** Still "Assigned" (no stop handled yet) but the API says the commute has left (`departed`, #791). */
+export const STATUS_NOTE_LEFT = 'Your commute has left. The package is not collected yet.';
+
+/** The line under the status label. Only the words depend on `departed`; the status itself is the API's. */
+function statusNote(job: JobResponse): string {
+  if (job.status === 'assigned' && job.departed === true) return STATUS_NOTE_LEFT;
+  return STATUS_NOTE[job.status] ?? '';
+}
 
 export const TIME_UNAVAILABLE = 'Time unavailable';
 
@@ -137,7 +146,7 @@ function stopDone(status: JobStatus, index: number, stopsDone: number | undefine
 export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeNeighborhood: string): RouteRow[] {
   const leg = job.plan.legs[job.job.legIndex];
   const stops = leg?.stops?.length ? leg.stops : [job.job.pickup, job.job.dropoff];
-  const { shipment, trip, status, stopsDone } = job;
+  const { shipment, trip, status, stopsDone, departed } = job;
   const start = resolvePlace(trip.originPlaceId, businesses, homeNeighborhood);
   const end = resolvePlace(trip.destinationPlaceId, businesses, homeNeighborhood);
   const lastStop = stops[stops.length - 1];
@@ -146,7 +155,9 @@ export function routeRows(job: JobResponse, businesses: NetworkBusiness[], homeN
     key: 'start', kind: 'start', time: momentText(trip.departureMin),
     place: start.name, address: start.address,
     action: trip.direction === 'evening' ? 'Leave work' : 'Leave home',
-    instructions: '', done: status !== 'assigned',
+    // The server says when the commute has left (`departed`, #791). An answer without it (an older sample)
+    // keeps the old rule: left once the first stop is handled, which is when the job stops being "assigned".
+    instructions: '', done: typeof departed === 'boolean' ? departed : status !== 'assigned',
   }];
   stops.forEach((s, i) => {
     const p = resolvePlace(s.placeId, businesses, homeNeighborhood);
@@ -215,7 +226,7 @@ export function jobDetail(job: JobResponse, businesses: NetworkBusiness[], homeN
     trip: tripLine(job),
     status: job.status,
     statusLabel: STATUS_LABEL[job.status] ?? 'Assigned',
-    statusNote: STATUS_NOTE[job.status] ?? '',
+    statusNote: statusNote(job),
     route: routeRows(job, businesses, homeNeighborhood),
     numbers: [
       // Reward first: it is what the carrier gets; then what it costs them (#551).
