@@ -175,5 +175,6 @@ export function earnings(dashboard: EmployeeDashboard): EarningsModel {
   return { earned: formatCents(dashboard.earnedCents), projected: formatCents(dashboard.projectedCents) };
 }
 
-export const LOCKED_TEXT = 'The run is playing. Commute edits need a new planning cycle.';
+/** "Back to start" is the simulator's control that returns a locked run to planning (#734, DECISIONS pass 74). */
+export const LOCKED_TEXT = 'The run is playing, so commute edits are closed until you press Back to start in the simulator.';
 export const EMPTY_TEXT = 'No deliveries assigned yet. Packages that fit your commute appear here automatically.';

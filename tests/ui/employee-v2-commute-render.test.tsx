@@ -113,7 +113,9 @@ describe('CommuteForm static renders', () => {
 
   it('is read-only with the lock wording when locked', () => {
     for (const h of [states.locked, states.locked409]) {
-      expect(h).toMatch(/role="alert"[^>]*>The run is playing[^<]*new planning cycle/);
+      expect(h).toMatch(/role="alert"[^>]*>The run is playing, so the commute is read-only until you press Back to start in the simulator\.</);
+      expect(h.split('Back to start')).toHaveLength(2); // the locked sentence once
+      expect(h).not.toMatch(/planning cycle/i);
       expect(isDisabled(saveBtn(h))).toBe(true);
       for (const t of [...tags(h, 'select'), ...tags(h, 'input').filter((x) => attr(x, 'type') !== 'checkbox')]) {
         expect(isDisabled(t), t).toBe(true);

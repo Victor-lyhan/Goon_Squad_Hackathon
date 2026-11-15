@@ -183,9 +183,12 @@ describe('commute editor', () => {
   });
 
   it("a 409 keeps the form open with the server's text", () => {
-    const outcome = outcomeFromError(new ApiRequestError(409, 'Planning is locked: start a new planning cycle.'));
+    // The server's own sentence (COMMUTE_LOCKED in server/api/v2/commutePlan.ts) is shown as it was sent.
+    const sent = 'The simulation is playing. Press Back to start in the simulator to edit commutes.';
+    const outcome = outcomeFromError(new ApiRequestError(409, sent));
     const h = render(ready(), { initialEditing: true, initialOutcome: outcome });
-    expect(text(h)).toContain('Planning is locked: start a new planning cycle.');
+    expect(text(h)).toContain(sent);
+    expect(text(h)).not.toMatch(/planning cycle/i);
     expect(h).toContain('aria-label="Commute"');
     expect(h).not.toContain(LOCKED_MESSAGE);
   });

@@ -204,13 +204,17 @@ describe('commute editor messages: a locked run (#598)', () => {
 
     expect(textOf(f.message())).toBe(LOCKED_MESSAGE);
     expect(f.message().getAttribute('role')).toBe('alert');
-    // #720: the simulator has no "Start new planning cycle" button since MVP III (#700), so the sentence
-    // may not send the reader to it, or to any other button.
-    expect(LOCKED_MESSAGE).toBe('The run is playing, so the commute is read-only until a new planning cycle starts.');
-    expect(LOCKED_MESSAGE).not.toMatch(/Start new planning cycle|press|click|simulator/i);
+    // #745: the sentence names the one control that unlocks, the simulator's "Back to start" (#734,
+    // DECISIONS pass 74), and not the button that went with MVP III (#700, #720).
+    expect(LOCKED_MESSAGE).toBe('The run is playing, so the commute is read-only until you press Back to start in the simulator.');
+    expect(LOCKED_MESSAGE).not.toMatch(/planning cycle/i);
     const formText = textOf(f.form());
-    expect(count(formText, 'planning cycle')).toBe(1);
+    expect(count(formText, 'Back to start')).toBe(1);
     expect(count(formText, 'read-only')).toBe(1);
+    expect(formText).not.toMatch(/planning cycle/i);
+    // The workspace note above the editor is the page's only other locked sentence, and names the same control.
+    expect(count(textOf(f.c), 'Back to start')).toBe(2);
+    expect(textOf(f.c)).not.toMatch(/planning cycle/i);
     expect(textOf(f.c)).not.toContain('Setup drawer');
     expect(textOf(f.c)).not.toContain('Planning is locked');
   }, T);
@@ -265,7 +269,7 @@ describe('commute editor messages: nothing in the home control works during a sa
     expect(button(f.search(), 'Cancel').matches(':disabled')).toBe(true);
     expect(f.input().readOnly).toBe(false); // off, but not in the locked (read-only) look
     expect(textOf(f.editor())).not.toContain(LOCKED_MESSAGE);
-    expect(textOf(f.editor())).not.toContain('planning cycle');
+    expect(textOf(f.editor())).not.toMatch(/Back to start|planning cycle/i);
 
     // The result list stays as it was, but a click on an option picks nothing and changes nothing.
     expect(f.options()).toHaveLength(2);
@@ -310,7 +314,7 @@ describe('commute editor messages: nothing in the home control works during a sa
     click(change);
     expect(f.form().querySelector('[role="combobox"]')).toBeNull();
     expect(textOf(f.search())).toBe('Change'); // no locked sentence, no other text
-    expect(textOf(f.editor())).not.toContain('planning cycle');
+    expect(textOf(f.editor())).not.toMatch(/Back to start|planning cycle/i);
 
     pending.reject(new ApiRequestError(0, 'Failed to fetch', undefined, 'network'));
     await settle();
