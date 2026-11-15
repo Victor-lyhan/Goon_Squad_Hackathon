@@ -1,9 +1,9 @@
 // The simulator's one Play/Pause button, as pure data (#648, DECISIONS pass 63): the requests the
-// server clock gets, and what the button shows and does for each page state.
+// server clock gets, and what the button shows and does for each page state. #790: with no package
+// picked Play steps with seeks (network Play), so no `play` or `speed` request is left here.
 import { describe, expect, it } from 'vitest';
 import {
-  BUSY_REASON, FINISHED_REASON, PAUSE_REQUEST, PLAY_SPEED, RESET_LABEL, RESET_REQUEST, isRunFinished,
-  playClockRequests, resetDisabledReason,
+  BUSY_REASON, FINISHED_REASON, PAUSE_REQUEST, RESET_LABEL, RESET_REQUEST, isRunFinished, resetDisabledReason,
 } from '../../client/src/components/sim/v2/controls/controlsModel';
 import * as controlsModel from '../../client/src/components/sim/v2/controls/controlsModel';
 import {
@@ -17,20 +17,9 @@ const SIM_END = 2160;
 const clock = (over: Partial<Clock> = {}): Clock => ({ phase: 'planning', playing: false, timeMin: 930, speed: 120, ...over });
 
 describe('server clock requests', () => {
-  it('Play at the fixed speed is one request', () => {
-    expect(PLAY_SPEED).toBe(120);
-    expect(playClockRequests(clock({ speed: 120 }))).toEqual([{ action: 'play' }]);
-  });
-
-  it('a clock left at another speed gets `speed` 120 once, then play', () => {
-    for (const speed of [30, 600] as const) {
-      expect(playClockRequests(clock({ speed }))).toEqual([{ action: 'speed', speed: 120 }, { action: 'play' }]);
-    }
-  });
-
-  it('every request is a valid SimControlRequest', () => {
-    const all = [...playClockRequests(clock({ speed: 30 })), PAUSE_REQUEST, RESET_REQUEST];
-    expect(all.map((r) => r.action)).toEqual(['speed', 'play', 'pause', 'reset_playback']);
+  it('every request is a valid SimControlRequest: pause and Back to start only (#790: no play, no speed)', () => {
+    const all = [PAUSE_REQUEST, RESET_REQUEST];
+    expect(all.map((r) => r.action)).toEqual(['pause', 'reset_playback']);
     for (const req of all) expect(SimControlRequest.parse(req)).toEqual(req);
   });
 
@@ -50,6 +39,8 @@ describe('server clock requests', () => {
       'SPEED_OPTIONS', 'speedRequest', 'playbackRequest', 'toPlaybackView', 'scrubDrag', 'scrubRelease', 'scrubShown',
       'minToScrub', 'scrubToMin', 'validateScenario', 'toScenarioForm', 'toPlanningView', 'NO_NEXT_EVENT_REASON',
       'PAST_MORNING_REASON', 'LOCKED_RECOMPUTE_REASON',
+      // #790: network Play steps with seeks; the fixed clock speed and its requests are gone.
+      'PLAY_SPEED', 'playClockRequests',
     ];
     for (const name of gone) expect(controlsModel, name).not.toHaveProperty(name);
   });
@@ -63,9 +54,21 @@ describe('the one Play/Pause button', () => {
     playButtonView({ packagePicked: false, journey: null, play: PLAY_IDLE, clock: clock(), busy: false, simEndMin: SIM_END, ...over });
   const picked = (over: Partial<PlayButtonInput> = {}) => view({ packagePicked: true, journey, ...over });
 
-  it('no package: Play plays the server clock, Pause pauses it', () => {
-    expect(view()).toEqual({ label: 'Play', action: 'play_clock', note: null });
+  it('no package: Play plays every commute (network Play, #790); a clock playing on its own reads Pause and is paused', () => {
+    expect(view()).toEqual({ label: 'Play', action: 'play_network', note: null });
     expect(view({ clock: clock({ playing: true, phase: 'locked' }) })).toEqual({ label: 'Pause', action: 'pause_clock', note: null });
+  });
+
+  it('no package: running network Play reads Pause (also while the overnight card is up); paused, finished and failed read Play', () => {
+    const network = { shipmentId: null, runId: 'run-1' };
+    for (const overnight of [false, true]) {
+      expect(view({ play: { status: 'running', overnight, ...network } })).toEqual({ label: 'Pause', action: 'pause_journey', note: null });
+    }
+    for (const status of ['paused', 'finished', 'failed'] as const) {
+      expect(view({ play: { status, ...network } })).toEqual({ label: 'Play', action: 'play_network', note: null });
+    }
+    // Finished at the end of the run: the button is disabled and names Back to start.
+    expect(view({ play: { status: 'finished', ...network }, clock: clock({ timeMin: 2160 }) })).toEqual({ label: 'Play', action: null, note: FINISHED_REASON });
   });
 
   it('no package, run finished: disabled, and the note names Back to start', () => {

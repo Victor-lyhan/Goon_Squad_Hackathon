@@ -20,7 +20,7 @@ export const RESET_NOTE_ID = 'ctl-reset-note';
 
 /**
  * The simulator's playback block (#648): one Play/Pause button and "Back to start". Stateless:
- * the page says what the button plays (the picked package's journey, or the server clock).
+ * the page says what the button plays (the picked package's journey, or with no package every commute, #790).
  */
 export function PlaybackControls({ button, status = '', error = null, resetDisabled = null, onToggle, onReset }: PlaybackControlsProps) {
   const noteId = PLAY_NOTE_ID;

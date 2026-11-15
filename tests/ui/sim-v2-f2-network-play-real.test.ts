@@ -6,7 +6,8 @@
 //   leg is a big lettered marker at its trip's origin when it departs and at its trip's destination at
 //   `finishMin`; the package rides on it as a badge exactly between its pickup and its drop; a relay package
 //   waits at the relay business with "Overnight" through the night; a delivered package has the flag; no
-//   background commuter is ever drawn as a mover.
+//   background commuter is ever drawn as a mover. Played at the real pace (#790: seeks, like a journey), every
+//   carrier is drawn in at least 3 steps of its commute and the whole network plays in at most 60 s.
 // - Journeys: the Navy Yard relay (the homepage's package) and one direct evening journey, played with the
 //   real journey player and fake timers: start, carry, the overnight skip, the delivery, and each carrier
 //   reaching the other end of its commute. The direct evening journey's step line says the carrier is heading
@@ -25,7 +26,8 @@ import {
   SIM_END_MIN, firstNameInitial, simPageView, type SimReadyView,
 } from '../../client/src/components/sim/v2/compose/simPageView';
 import {
-  PAUSE_LABEL, PLAY_LABEL, createJourneyPlayer, journeyWindows, playButtonView, playStatusText,
+  NETWORK_STEP_MIN, PAUSE_LABEL, PLAY_LABEL, createJourneyPlayer, journeyWindows, networkWindows, playButtonView,
+  playStatusText,
 } from '../../client/src/components/sim/v2/compose/journeyPlay';
 import { buildJourney, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
 import { journeyEndMin, JOURNEY_STEP_MIN, JOURNEY_STEP_MS } from '../../client/src/components/sim/v2/motion/journeyPlayback';
@@ -228,23 +230,44 @@ describe('network Play on the real run: the employees are the movers (#780)', ()
     }
   });
 
-  // Network Play is the server clock at PLAY_SPEED (120 simulated minutes per real second, DECISIONS pass 63)
-  // polled every SIM_POLL_MS (1 s): a poll lands every 120 simulated minutes, longer than any carrier's commute
-  // here, so most carriers are drawn in at most one poll and are never seen moving. The views above are right at
-  // every minute; the pace is not. Fixing it needs a slower clock than the contract allows (30 | 120 | 600) or
-  // network Play stepping with seeks like a journey (a pace decision for the planner). Measured, not fixed here.
-  it.fails('at the real pace (120 sim-min per s, 1 s polls) every carrier is drawn in at least 3 polls of its commute', () => {
-    const POLL_STEP_MIN = 120;
+  // #790: network Play steps with seeks like a journey (it used to be the server clock at 120 sim-min/s polled
+  // every 1 s, so a poll landed every 120 simulated minutes and most carriers were drawn in at most one poll).
+  // Played here by the real player with fake timers from Back to start (the run's start minute) to the end, over
+  // the real windows and step; every seek is drawn as the map draws it.
+  it('network Play: every carrier is drawn in at least 3 seek steps of its commute, and Back to start to the end takes at most 60 s', async () => {
+    const windows = networkWindows(sim, SIM_END_MIN);
+    const seeks: number[] = [];
+    let cards = 0;
+    const player = createJourneyPlayer({
+      control: async (req: SimControlRequest) => {
+        if (req.action !== 'seek') throw new Error(`network Play sent ${req.action}`);
+        seeks.push(req.timeMin);
+        return {};
+      },
+      setTimer: (fn, ms) => setTimeout(fn, ms),
+      clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+      onChange: (s) => { if (s.status === 'running' && s.overnight) cards += 1; },
+    });
+    const startedAt = Date.now();
+    player.start({ shipmentId: null, runId: sim.runId, windows, fromMin: sim.clock.timeMin, clockPlaying: false });
+    for (let guard = 0; guard < 10_000 && player.state().status === 'running'; guard += 1) await vi.advanceTimersByTimeAsync(100);
+    const realMs = Date.now() - startedAt;
+    expect(player.state().status).toBe('finished');
+    expect(seeks[seeks.length - 1]).toBe(SIM_END_MIN);
+    expect(cards).toBe(1); // the one night, between the evening and the morning
+    // Each step is at most NETWORK_STEP_MIN inside a window; nothing is played twice or backwards.
+    for (let i = 1; i < seeks.length; i += 1) expect(seeks[i]).toBeGreaterThan(seeks[i - 1]);
+
     let worst = Infinity;
-    for (let phase = 0; phase < POLL_STEP_MIN; phase += 10) {
-      for (const { leg, trip } of legs) {
-        let polls = 0;
-        for (let t = 930 + phase; t <= SIM_END_MIN; t += POLL_STEP_MIN) if (t >= trip.departureMin && t <= leg.finishMin) polls += 1;
-        worst = Math.min(worst, polls);
-      }
+    for (const { leg, trip } of legs) {
+      const drawnSteps = seeks.filter((t) => t >= trip.departureMin && t <= leg.finishMin
+        && frame(t).vehicles.some((v) => v.id === leg.employeeId)).length;
+      worst = Math.min(worst, drawnSteps);
     }
-    console.log(`[#780] network Play: the fewest polls inside one carrier's commute is ${worst}`);
+    console.log(`[#790] network Play: ${seeks.length} seeks of ${NETWORK_STEP_MIN} sim-min per ${JOURNEY_STEP_MS} ms, `
+      + `${(realMs / 1000).toFixed(1)} s from Back to start to the end; the fewest steps drawn in one carrier's commute is ${worst}`);
     expect(worst).toBeGreaterThanOrEqual(3);
+    expect(realMs).toBeLessThanOrEqual(60_000);
   });
 });
 

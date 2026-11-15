@@ -5,7 +5,7 @@
 //   (DECISIONS pass 68);
 // - a relay other than Navy Yard: plays to Delivered with "Overnight at <its own relay point>";
 // - an unmatched package: `play=1` plays nothing, the one button is disabled with its note, no control is sent;
-// - `/simulator` with no package: Play, Pause, Back to start (which reopens planning, pass 74), then the Navy Yard
+// - `/simulator` with no package: Play (seeks only since #790), Pause, Back to start, then the Navy Yard
 //   package and Play: it plays to Delivered, and Play/Pause and Back to start keep focus and the right enabled
 //   state at every step.
 //
@@ -210,21 +210,28 @@ describe('/simulator with no package: Play, Pause, Back to start, then the Navy 
     const navy = navyYard(server.simulator());
     expect(server.simulator().clock.phase).toBe('planning');
 
-    // Play: the server clock plays; focus stays on the one button, which now reads Pause.
+    // Play (#790): network Play steps with seeks, so the clock is never played and the run stays in planning;
+    // focus stays on the one button, which now reads Pause.
     const button = playPause(c);
+    const start = server.simulator().clock.timeMin;
     click(button);
     await advance(100);
-    expect(server.controls().at(-1)).toEqual({ action: 'play' });
-    expect(server.simulator().clock).toMatchObject({ playing: true, phase: 'locked' });
+    expect(server.controls().at(-1)).toMatchObject({ action: 'seek' });
+    expect(server.simulator().clock).toMatchObject({ playing: false, phase: 'planning' });
+    expect(server.simulator().clock.timeMin).toBeGreaterThan(start);
     expect(document.activeElement).toBe(playPause(c));
     expect(textOf(playPause(c))).toBe('Pause');
     expect(enabled(playPause(c)) && enabled(backToStart(c))).toBe(true);
 
-    // Pause: focus stays, the button reads Play and is enabled.
+    // Pause: no further seek, the clock stays where it is; focus stays, the button reads Play and is enabled.
     await advance(1_000);
     click(playPause(c));
     await advance(100);
-    expect(server.controls().at(-1)).toEqual({ action: 'pause' });
+    const paused = { sent: server.controls().length, at: server.simulator().clock.timeMin };
+    await advance(2_000);
+    expect(server.controls()).toHaveLength(paused.sent);
+    expect(server.simulator().clock.timeMin).toBe(paused.at);
+    expect(server.controls().every((r) => r.action === 'seek')).toBe(true);
     expect(document.activeElement).toBe(playPause(c));
     expect(textOf(playPause(c))).toBe('Play');
     expect(enabled(playPause(c)) && enabled(backToStart(c))).toBe(true);

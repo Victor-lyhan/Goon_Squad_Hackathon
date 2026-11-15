@@ -10,8 +10,8 @@
 // #496: the map's movers are tweened between polls along their route lines (motion/useTweenedMovers,
 // lines from moverPaths.ts). #648: with a package picked the one Play/Pause button plays its journey
 // (journeyPlay.ts), which steps the server clock with `seek` and shows the overnight card in place
-// of the night; with no package it plays the server clock. Every position on screen is a polled one
-// or a point between two.
+// of the night; with no package (#790) the same player steps through every carrier's commute. Every
+// position on screen is a polled one or a point between two.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Spinner } from '../../../../ui';
 import { GoogleBaseMap } from '../../../map/GoogleBaseMap';
@@ -28,9 +28,7 @@ import { RunSummary } from '../RunSummary';
 import { SimWorkspace } from '../SimWorkspace';
 import { DEFAULT_LAYERS, NO_FOCUS, type Focus, type FocusKind } from '../workspaceModel';
 import { PlaybackControls } from '../controls/PlaybackControls';
-import {
-  PAUSE_REQUEST, RESET_REQUEST, playClockRequests, resetDisabledReason, type PlayButtonView,
-} from '../controls/controlsModel';
+import { PAUSE_REQUEST, RESET_REQUEST, resetDisabledReason, type PlayButtonView } from '../controls/controlsModel';
 import { JourneyLegend } from '../journey/JourneyLegend';
 import { JourneyTimeline } from '../journey/JourneyTimeline';
 import type { JourneyResult } from '../journey/journeyModel';
@@ -76,7 +74,8 @@ export function pagePlayButton(view: SimReadyView, play: PlayState): PlayButtonV
 export type SimPageHandlers = {
   /**
    * The one Play/Pause button, and the Space key: plays or pauses the picked package's journey, or
-   * with no package the server clock at the one fixed speed. Nothing while the button is disabled.
+   * with no package every carrier's commute (#790); pauses a server clock playing on its own.
+   * Nothing while the button is disabled.
    */
   togglePlay: () => void;
   /** "Back to start": the server's `reset_playback`. */
@@ -115,7 +114,7 @@ export type SimPageHandlerDeps = {
   nextPanSeq: () => number;
   /** The play state on screen; decides what the one button does. Defaults to idle. */
   play?: PlayState;
-  /** Absent where the body has no player (tests of the handlers alone): the button plays the clock only. */
+  /** Absent where the body has no player (tests of the handlers alone): Play does nothing, Pause pauses the clock. */
   journeyPlay?: JourneyPlayControls;
 };
 
@@ -128,19 +127,13 @@ export function createSimPageHandlers(d: SimPageHandlerDeps): SimPageHandlers {
     d.setPanTo(undefined);
     select(null);
   };
-  /** One after the other; a refused request stops the rest (the hook shows its error). */
-  const sendInOrder = async (requests: ReturnType<typeof playClockRequests>) => {
-    for (const req of requests) {
-      if ((await d.sim.control(req)) === null) return;
-    }
-  };
   return {
     togglePlay: () => {
       if (d.view.view !== 'ready') return;
       switch (pagePlayButton(d.view, d.play ?? PLAY_IDLE).action) {
-        case 'play_journey': d.journeyPlay?.play(); return;
+        case 'play_journey':
+        case 'play_network': d.journeyPlay?.play(); return;
         case 'pause_journey': d.journeyPlay?.pause(); return;
-        case 'play_clock': void sendInOrder(playClockRequests(d.view.controls.clock)); return;
         case 'pause_clock': void d.sim.control(PAUSE_REQUEST); return;
         case null: return;
       }
@@ -280,7 +273,7 @@ function ReadyLayout({
           <button type="button" className="sw-btn" onClick={handlers.dismissActionError}>Dismiss</button>
         </div>
       )}
-      {/* The one Play/Pause button (#648): the picked package's journey, or with no package the clock. */}
+      {/* The one Play/Pause button (#648): the picked package's journey, or with no package every commute (#790). */}
       <PanelSection title="Playback">
         <PlaybackControls button={pagePlayButton(view, play)} status={stepLineHeld ? '' : playStatusText(journey, play, view.controls.clock.timeMin)}
           error={playErrorText(play, view.actionError)} resetDisabled={resetDisabledReason(view.controls.busy)}
@@ -353,7 +346,7 @@ export function SimPageLayout(props: SimPageLayoutProps) {
 
 /** What the page's key map asks of the body (#496, #648). */
 export type SimBodyKeys = {
-  /** Esc asks this first: it pauses a running journey and returns true, so the next Esc goes back to the network. */
+  /** Esc asks this first: it pauses a running journey or network Play and returns true, so the next Esc goes back to the network. */
   stopJourney: () => boolean;
   /** Space: exactly the one Play/Pause button. */
   togglePlay: () => void;
@@ -412,6 +405,8 @@ export function SimPageBody({ sim, selection, onSelectionChange, initialFocus, k
     clockMin: polled?.clock.timeMin ?? 0,
     shipmentId: selection?.kind === 'package' ? selection.id : null,
     journey: ready?.right.kind === 'journey' ? ready.right.journey : null,
+    network: polled,
+    endMin: ready?.controls.simEndMin,
   });
 
   // ---- Movers between polls, along their route lines ----

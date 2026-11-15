@@ -1,5 +1,6 @@
 // The card a relay journey shows in place of the night (#648, docs/mvp3.md P1): "Overnight at
-// <relay point>" over the map for about 1 s, between the evening leg and the morning leg.
+// <relay point>" over the map for about 1 s, between the evening leg and the morning leg. Network
+// Play (no package picked, #790) shows it the same way between the evening and the morning commutes.
 // Stateless: the page body says when (journeyPlay.ts `overnightText`); the driver times it.
 
 function MoonIcon() {
