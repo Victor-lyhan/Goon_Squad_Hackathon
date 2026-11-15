@@ -56,10 +56,13 @@ export const DESTINATIONS: readonly { key: Destination; label: string }[] = [
   { key: 'simulator', label: 'Simulator' },
 ];
 
-/** Which destination the current path belongs to (any id counts), or null. */
+/**
+ * Which destination the current path belongs to (any id counts), or null. Any case, as the router reads a
+ * path: `/Business/<id>` shows the Business page, so its link is the current one (#918).
+ */
 export function activeDestination(pathname: string): Destination | null {
-  const m = /^\/(business|employee|simulator)(?:\/|$)/.exec(pathname);
-  return m ? (m[1] as Destination) : null;
+  const m = /^\/(business|employee|simulator)(?:\/|$)/i.exec(pathname);
+  return m ? (m[1].toLowerCase() as Destination) : null;
 }
 
 export const HOME_PATH = '/';
