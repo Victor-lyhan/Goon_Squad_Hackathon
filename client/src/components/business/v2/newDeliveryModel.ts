@@ -178,6 +178,24 @@ export function draftFromParsed(
   return { draft, needsInput: DRAFT_FIELDS.filter((f) => needs.has(f)) };
 }
 
+/** The form's three time fields: what an option of the Options card sets (#863, adviceModel.ts). */
+export type DraftTimes = Pick<NewDeliveryDraft, 'readyTime' | 'deadlineDay' | 'deadlineTime'>;
+
+/**
+ * Ready and deliver-by minutes as the form holds them, by the rules of `draftFromParsed`: the ready time on
+ * Day 1, the deliver-by time on Day 1 or Day 2. Null when the form cannot hold one of them.
+ */
+export function draftTimes(readyMin: number, deadlineMin: number): DraftTimes | null {
+  const whole = (n: number, days: number) => Number.isInteger(n) && n >= 0 && n < days * DAY;
+  if (!whole(readyMin, 1) || !whole(deadlineMin, 2)) return null;
+  const deadline = minToDayTime(deadlineMin);
+  return { readyTime: minToDayTime(readyMin).time, deadlineDay: deadline.day === 1 ? 1 : 2, deadlineTime: deadline.time };
+}
+
+export function sameTimes(a: DraftTimes, b: DraftTimes): boolean {
+  return a.readyTime === b.readyTime && a.deadlineDay === b.deadlineDay && a.deadlineTime === b.deadlineTime;
+}
+
 /** The listed field that comes first on screen: the one that gets focus when a prefilled form opens. */
 export function firstNeedsInput(needsInput: readonly DraftField[]): DraftField | null {
   return DRAFT_FIELDS.find((f) => needsInput.includes(f)) ?? null;

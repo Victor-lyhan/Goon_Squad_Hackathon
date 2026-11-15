@@ -10,7 +10,8 @@ import {
   DEFAULT_WINDOW, NEEDS_INPUT_HINT, RESULT_COPY, arrangedCard, draftAfterResult, emptyDraft, firstInvalidField,
   firstNeedsInput, initialSubmitState, mapServerFieldErrors, newClientRequestId, recipientOptions, retryShipmentId, submitReducer,
   toRequest, validate, windowTimes,
-  type ArrangedCard, type DraftField, type FieldErrors, type NewDeliveryDraft, type SubmitStatus, type TimeWindow,
+  type ArrangedCard, type DraftField, type DraftTimes, type FieldErrors, type NewDeliveryDraft, type SubmitStatus,
+  type TimeWindow,
 } from './newDeliveryModel';
 import './newDelivery.css';
 
@@ -54,6 +55,13 @@ export type NewDeliveryFormProps = {
    * the first one on screen gets focus when the form opens. Read once, like `initialDraft`.
    */
   needsInput?: readonly DraftField[];
+  /**
+   * Times to put in the draft (#863: an option chosen in the Options card above the form). Applied once per
+   * `seq`, as if the user had typed them; the one the form mounts with is not applied. Nothing is sent.
+   */
+  timesPatch?: { seq: number; times: DraftTimes };
+  /** Told the draft after every change of it (and once when the form opens). The draft stays the form's own. */
+  onDraftChange?: (draft: NewDeliveryDraft) => void;
 };
 
 const NO_EMPLOYEES: CarrierNames = [];
@@ -170,6 +178,24 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
     setSeen({ phase: props.phase, version: props.dashboardVersion });
     dispatch({ type: 'dashboard', phase: props.phase });
   }
+
+  // An option chosen above the form (adjusting state during render, like above): its times go into the draft
+  // the way typed ones do, so their "Check this" hints go and errors on screen follow. Not while a request
+  // is on its way: the fields are disabled then, and the answer is about the draft that was sent.
+  const [patchSeq, setPatchSeq] = useState(props.timesPatch?.seq);
+  if (props.timesPatch && props.timesPatch.seq !== patchSeq) {
+    setPatchSeq(props.timesPatch.seq);
+    if (submitState.status.kind !== 'submitting') {
+      const { times } = props.timesPatch;
+      const next = { ...draft, ...times };
+      setDraft(next);
+      setUnchecked(unchecked.filter((f) => !(f in times)));
+      if (Object.keys(clientErrors).length > 0) setClientErrors(validate(next, origin.id, timeWindow));
+    }
+  }
+
+  const { onDraftChange } = props;
+  useEffect(() => { onDraftChange?.(draft); }, [draft, onDraftChange]);
 
   const focusFirst = (errors: FieldErrors) => {
     const f = firstInvalidField(errors);
