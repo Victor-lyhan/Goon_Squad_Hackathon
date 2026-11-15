@@ -34,7 +34,7 @@ The main paths:
 
 | Path | Page |
 | --- | --- |
-| `/` | Homepage: one sentence on what Relay does, the **Watch a package** button (it opens the simulator on an example package and plays it), the Business and Employee entries, and one line with the numbers of the current run. |
+| `/` | Homepage: one sentence on what Relay does, the **Watch a package** button (it opens the simulator on an example package and plays it), the Business and Employee entries, the link **The numbers** to the study page, and one line with the numbers of the current run. |
 | `/business/<id>` | Business workspace, for example `/business/biz-brooklyn-roasting`: the **Shipments** table, **New delivery**, delivery details. |
 | `/employee/<id>` | Employee workspace, for example `/employee/emp-7`: the saved commute, assigned deliveries, earnings. |
 | `/simulator` | Simulator: the whole network, the package list, playback, and the journey of one package. |
@@ -79,27 +79,36 @@ It is not an error. The deliveries made before the pull are in the `.stale-<n>` 
 
 A second server (a QA run next to the demo one) keeps its own run when `RELAY_STATE_PATH` names another file, for example `RELAY_STATE_PATH=/tmp/relay-qa/state-v2.json PORT=3002 npm start`. It reads and writes that file, with its `.source.json` next to it, and leaves `data/state-v2.json` alone. Its first start line then reads "State file: /tmp/relay-qa/state-v2.json (RELAY_STATE_PATH)".
 
-In the Simulator, **Play** with no package picked runs the whole network and locks the run: while it is locked, new deliveries and commute changes are refused. The Business page then says "Locked", its **New delivery** button is disabled, and a line above the table reads "The simulation has started, so new requests are closed. Press Back to start in the simulator to reopen them." On the Employee page **Edit commute** is disabled, and a line above the saved commute reads "The run is playing, so commute edits are closed until you press Back to start in the simulator." **Back to start** in the Simulator unlocks it, as both lines say: the clock returns to Day 1, 3:30 PM, paused, and every delivery keeps its plan. No reset is needed. **Pause** does not unlock it, and neither does a restart. Playing one package's journey does not lock the run.
+In the Simulator, **Play** with no package picked plays every carrier's commute, the evening ones and then the morning ones, and does not lock the run. On the default run it takes about 40 seconds: the clock jumps to the first departure, an "Overnight: skipping to the morning commute" card stands in for the night, and it ends at Day 2, 12:00 PM with every delivery **Delivered**. The line under the buttons then reads "Run finished. Use Back to start to watch again."; **Back to start** returns the clock to Day 1, 3:30 PM, paused. New deliveries and commute changes stay open while it plays and after it, and a new delivery puts the clock back at the start by itself. Playing one package's journey does not lock the run either.
+
+No button of the pages locks the run. Only the `play` control of the API does (`POST /api/v2/simulator/control` with the body `{"action":"play"}`): while the run is locked, new deliveries and commute changes are refused. The Business page then says "Locked", its **New delivery** button is disabled, and a line above the table reads "The simulation has started, so new requests are closed. Press Back to start in the simulator to reopen them." On the Employee page **Edit commute** is disabled, and a line above the saved commute reads "The run is playing, so commute edits are closed until you press Back to start in the simulator." **Back to start** in the Simulator unlocks it, as both lines say: the clock returns to Day 1, 3:30 PM, paused, and every delivery keeps its plan. No reset is needed. **Pause** does not unlock it, and neither does a restart.
 
 ## Demo accounts
 On the Business and Employee pages the header's **Demo account** selector lists the businesses and employees of the run; the homepage and the Simulator do not show it. An employee is listed with the employer, for example "Elena Rossi · Brooklyn Roasting Company". Opening `/business/<id>` or `/employee/<id>` by its URL chooses that account too. The header's **Business** and **Employee** links open the chosen account, and the first business and the first employee of the run in a browser that has not chosen yet. The chosen account is the only thing stored in the browser; all delivery data lives on the server.
 
 ## 30-second demo
-Open `/` and choose **Watch a package**. The simulator opens on the package "Navy Yard grinder burrs" and plays its journey by itself, in about 10 seconds. Nothing else to press:
+Open `/` and choose **Watch a package**. The simulator opens on the package "Navy Yard grinder burrs" and plays its journey by itself, in about 16 seconds. Nothing else to press:
 
-- ■ Sender: a square marks Blue Bottle Coffee. Carrier **A** (blue) picks the package up on the evening commute home. It is evening, so the map is dark and the badge at the top shows a moon and the time.
-- ◆ Overnight: a diamond marks the relay point, Etsy, where carrier A leaves the package. An "Overnight at Etsy" card stands in for the night for about a second.
-- ⇄ Handoff: in the morning the swap symbol at the relay point names carrier **B** (green), who collects the package on the commute to work. The map is light and the badge shows a sun.
+- ■ Sender: a square marks Blue Bottle Coffee. Carrier **A** (blue) leaves work and picks the package up there on the evening commute home. It is evening, so the map is dark and the badge at the top shows a moon and the time.
+- ◆ Overnight: a diamond marks the relay point, Etsy, where carrier A leaves the package and drives on home. An "Overnight at Etsy" card stands in for the night for about a second.
+- ⇄ Handoff: in the morning the swap symbol at the relay point names carrier **B** (green), who leaves home and collects the package on the commute to work. The map is light and the badge shows a sun.
 - ⚑ Delivered: a flag marks the delivery at Brooklyn Roasting Company, with the time.
 
-Each carrier's whole commute is a thin line in the carrier's color; the part with the package on board is thick. The package is the orange marker. The panel on the right lists the same four steps with the same symbols, and both carriers with their extra minutes and reward.
+Each carrier is a large marker with its letter and drives the whole commute: a thin line in the carrier's color, thick on the part with the package on board. The package is an orange badge that rides on its carrier's marker, and an orange marker at the business where it waits. The panel on the right lists the same four steps with the same symbols, and both carriers with their extra minutes and reward.
 
 - **Without the browser key** the map area says "Google Maps key missing." The playback, the moon and sun badge, the Overnight card and the panel on the right work the same, so the journey can still be followed there. The map itself needs the key ([Google setup](#google-setup-keys-and-travel-data)); with `npm start` the key must be there when `npm run build` runs ([Production build](#production-build)).
 - **Pause** stops the journey where it is, **Play** goes on from there, and **Back to start** rewinds to Day 1, 3:30 PM and waits for **Play**. When the journey has ended, the line under the buttons reads "Journey complete: Delivered to recipient at Brooklyn Roasting Company." and **Play** plays it again from the start.
 - Playing one package's journey does not lock the run, so the 2-minute demo below can follow at once, without a reset.
+- **Play** with no package picked ("← Back to network" in a journey, or **Simulator** in the header) plays every carrier's commute in about 40 seconds, and does not lock the run either ([State file and reset](#state-file-and-reset)).
 
 ## 2-minute demo
-Known-good request for the default run, on a fresh clone with no key. `tests/api/v2-readme-demo.test.ts` reads the block below and runs it over HTTP: it matches as a relay, and the package stays at the relay point overnight.
+Known-good request for the default run, on a fresh clone with no key. In the demo it is typed as one sentence into the Business text box (step 2):
+
+```text
+Send a 0.5 kg envelope of espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow, ready at 4 p.m.
+```
+
+The block below is the delivery this sentence makes and the match the backend answers with. `tests/api/v2-readme-demo.test.ts` reads the block and runs it over HTTP: it matches as a relay, and the package stays at the relay point overnight. `tests/api/v2-f1-demo-sentence.test.ts` sends the sentence itself, with no key, and gets the same match.
 
 ```demo-request
 employee: Elena Rossi
@@ -108,10 +117,10 @@ sender: Brooklyn Roasting Company
 sender_url: /business/biz-brooklyn-roasting
 recipient: Blue Bottle Coffee
 recipient_url: /business/biz-blue-bottle-wall
-package: Espresso blend samples
+package: Envelope
 type: Envelope
 weight_kg: 0.5
-contents: Three sample bags of the new espresso blend
+contents: Espresso blend samples
 ready: Day 1, 4:00 PM
 deliver_by: Day 2, 10:00 AM
 relay_point: Etsy
@@ -120,18 +129,22 @@ morning_carrier: Reese Green
 price: $10.00
 ```
 
-The type, the weight and the times are the defaults of the **New delivery** form, so leave them as they are: only the recipient, the package name and the contents are entered. The form shows the times as its fields hold them: "Ready for pickup (Day 1)" 16:00, "Deliver by: day" Day 2 and "Deliver by: time" 10:00 (the browser may write the two times as 04:00 PM and 10:00 AM).
+The package name is "Envelope" because the offline parser names a delivery by its item word; "Espresso blend samples" becomes the contents. The sender is not in the sentence: a request is always sent from the business whose page it is typed on. The card shows the times as its fields hold them: "Ready for pickup (Day 1)" 16:00, "Deliver by: day" Day 2 and "Deliver by: time" 10:00 (the browser may write the two times as 04:00 PM and 10:00 AM).
+
+With a Gemini key in `.env`, check the key once before the demo: `npx tsx scripts/gemini-check.ts "<sentence>"` prints `source: gemini` and exits with code 0 when Gemini wrote the draft, or `source: offline` with the reason (`reason: no key`, for example) and code 1 when the offline parser did ([Requests in plain English (Gemini)](#requests-in-plain-english-gemini)). Gemini may give the package another name than "Envelope"; the pages of the later steps then show that name.
 
 Rehearsing and the demo share one run. Use a fresh run for the real demo: the request is planned on commutes that are still free, and a rehearsal that chose **Find a delivery match** uses them up, so reset the run after it ([State file and reset](#state-file-and-reset)). One run arranges the request as the block says once: sent a second time it comes with other carriers than the block names, and a third time it is not matched ("Every matching commute is already carrying a package"). A rehearsal of only **Play**, **Back to start** and a package's journey adds no delivery and needs no reset.
 
-If the Simulator's **Play** was pressed earlier with no package picked, the run is locked and the **New delivery** button is disabled: press **Back to start** in the Simulator first.
+Press **Back to start** in the Simulator before step 2 if a journey or **Play** was watched earlier, the 30-second demo included: it leaves the clock on Day 2, and the offline parser then reads "ready at 4 p.m." as 4 p.m. of Day 2, which is outside the run. The card still holds 16:00 and the match is the same, but "Ready for pickup (Day 1)" is marked "Check this: not in your request". An earlier **Play** does not close **New delivery**. Should the Business page say "Locked" all the same, **Back to start** reopens it ([State file and reset](#state-file-and-reset)).
 
 1. **Employee** (`/employee/emp-7`, or choose **Elena Rossi** as the **Demo account**, where she is listed as "Elena Rossi · Brooklyn Roasting Company"): show the **Saved commute** between the Upper East Side and Brooklyn Roasting Company, the two departure times and the **Detour limit**.
-2. **Business** (`/business/biz-brooklyn-roasting`, Brooklyn Roasting Company): choose **New delivery**, then **Fill in the form instead** (New delivery opens on a text box for a request in one sentence; the form is one press away), pick **Blue Bottle Coffee** as the recipient (the list names it with its neighborhood, "Blue Bottle Coffee · Financial District"), enter the package from the block above and choose **Find a delivery match**: the backend looks for a matching commute.
+2. **Business** (`/business/biz-brooklyn-roasting`, Brooklyn Roasting Company): choose **New delivery**, which opens on the text box "Describe the delivery". Type the sentence above and choose **Read my request**. The form opens filled in, as the card to check: the label above it reads "Parsed offline" without a Gemini key and "Parsed by Gemini" with one (the page prints it in capitals), with the sentence next to it, and the fields hold the recipient "Blue Bottle Coffee · Financial District", the package name "Envelope", the type Envelope, 0.5 kg and the contents "Espresso blend samples". Nothing is sent yet. Then choose **Find a delivery match**: the backend looks for a matching commute. If the sentence is not read as above, **Fill in the form instead** in the text box opens the same form empty: pick the recipient and enter the package name and the contents of the block (the type, the weight and the times are the form's defaults).
 3. The form answers **Delivery arranged** with the shipment ID, under the form's fields. **View delivery** opens the details on the right: plan **Relay via Etsy (relay point)**, the ETA, price **$10.00**, and the carriers Elena Rossi (evening commute, Day 1) and Reese Green (morning commute, Day 2).
-4. Back in **Employee** as Elena Rossi, without refreshing (the header's link opens her page, because step 1 chose her): the new job is under **Assigned deliveries**, with its pickup, drop-off, extra time and reward. Her leg of "Navy Yard grinder burrs" is listed there too.
-5. **Simulator**: on the new delivery, "Espresso blend samples", choose **Watch in simulator** (or **View journey** in the Business delivery details). Both open `/simulator?package=<shipment ID>&play=1`, and the journey starts playing by itself. The package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (an "Overnight at Etsy" card stands in for the wait), and is delivered to Blue Bottle Coffee in the morning. **Pause** stops it where it is, **Play** goes on from there, and **Back to start** rewinds. Let it play to the end before step 6.
+4. Back in **Employee** as Elena Rossi, without refreshing (the header's link opens her page, because step 1 chose her): the new job, "Envelope", is under **Assigned deliveries**, with its pickup, drop-off, extra time and reward. Her leg of "Navy Yard grinder burrs" is listed there too.
+5. **Simulator**: on the new delivery, "Envelope", choose **Watch in simulator** (or **View journey** in the Business delivery details). Both open `/simulator?package=<shipment ID>&play=1`, and the journey starts playing by itself; it takes about 16 seconds. Elena Rossi leaves work, which is the sender: the package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (an "Overnight at Etsy" card stands in for the wait), and is delivered to Blue Bottle Coffee in the morning, on Reese Green's commute to work. **Pause** stops it where it is, **Play** goes on from there, and **Back to start** rewinds. Let it play to the end before step 6.
 6. The same run is in every workspace: once the journey has played to the end, the delivery reads **Delivered** for the sender (`/business/biz-brooklyn-roasting`) and for the recipient (`/business/biz-blue-bottle-wall`), and **Earnings** on the pages of Elena Rossi and Reese Green (choose each as the **Demo account**) show the reward as **Earned**. Elena Rossi's amount also counts her leg of "Navy Yard grinder burrs", which is delivered by the same minute.
+
+To end on the figures, open `/` and choose **The numbers**: it opens `/study.html`, Relay against a standard next-day courier ([The numbers](#the-numbers-relay-vs-traditional-delivery)).
 
 Message: Relay turns existing commutes into a coordinated delivery network. This prototype calculates the matches on real NYC travel times and simulates the complete delivery cycle.
 
