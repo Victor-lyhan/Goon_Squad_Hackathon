@@ -5,7 +5,7 @@
 //
 //   1. the README demo sentence, typed on the sender's Business page   POST /api/v2/parse-request (offline)
 //   2. "Find a delivery match" on the card it fills in                  POST /api/v2/shipments
-//      -> Relay via Etsy, $10.00, Elena Rossi (evening) then Reese Green (morning)
+//      -> Relay via Etsy, $9.50, Elena Rossi (evening) then Reese Green (morning)
 //   3. `/` -> "Watch a package": the journey plays to "Journey complete"   seeks
 //   4. "Back to start", then Play with no package (network Play)           reset_playback, then seeks to the
 //      end of the day; Elena Rossi's "Arrive home" (Day 1, 6:22 PM) is ticked only from that minute
@@ -19,7 +19,7 @@
 // The player's 500 ms timer is run by hand here, so the two Plays take no real time and each seek is checked
 // before the next one is sent.
 //
-// Written here are the sentence and the demo numbers the issue names (Etsy, $10.00, Elena Rossi, Reese Green,
+// Written here are the sentence and the demo numbers the issue names (Etsy, $9.50, Elena Rossi, Reese Green,
 // Day 1, 6:22 PM). Everything else is read from the README's ```demo-request block or from the run, by name.
 // "See the numbers" (`/study.html`) is not part of this file: it is a static page outside the API (#841).
 // The walk's last row opened it in the browser (200, no console error). Its tests are elsewhere: the production
@@ -57,7 +57,9 @@ vi.setConfig({ testTimeout: T, hookTimeout: T });
 /** The sentence of the demo (DECISIONS pass 85), typed on the Business page of the README's sender. */
 const SENTENCE = 'Send a 0.5 kg envelope of espresso blend samples to Blue Bottle Coffee by 10 a.m. tomorrow, ready at 4 p.m.';
 const RELAY_POINT = 'Etsy';
-const PRICE = '$10.00';
+// #861: a relay (2 x $3.00 carrier pay + $0.50 relay fee + $4.00 platform fee) with the $1.00 flexibility
+// discount: ready 4 p.m., due 10 a.m. the next day, is exactly the 18-hour flexible window.
+const PRICE = '$9.50';
 const EVENING_CARRIER = 'Elena Rossi';
 const MORNING_CARRIER = 'Reese Green';
 /** The end row of Elena Rossi's job view: she is home at this time, and the row is ticked from then on. */

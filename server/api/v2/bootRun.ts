@@ -19,6 +19,7 @@ import {
   type TravelMatrixFile, type TravelProvider,
 } from '../../../shared/v2/types';
 import { GenerateScenarioRequest } from '../../../shared/v2/schemas';
+import { DEFAULT_SETTINGS } from '../../domain/pricing';
 import { buildNycScenario } from '../../domain/v2/generator';
 import { buildTimeline } from '../../domain/v2/timeline';
 import { createStore, type Store } from '../../store';
@@ -152,8 +153,9 @@ function stableJson(value: unknown): string {
 }
 
 /**
- * SHA-256 (hex) over everything the default run is defined by: the three parsed fixture files and the
- * default generate request. The travel cache (`matrix.json`, `polylines.json`) is not part of it: it grows
+ * SHA-256 (hex) over everything the default run is defined by: the three parsed fixture files, the
+ * default generate request and the default settings (a run saved under other prices or rules is stale: #861
+ * added pricing settings an older saved run does not have). The travel cache (`matrix.json`, `polylines.json`) is not part of it: it grows
  * with every live commute save, and a place missing from it is already caught by `savedRunProblem`.
  */
 export function defaultRunFingerprint(fixtures: NycFixtures, request: GenerateScenarioRequest): string {
@@ -162,6 +164,7 @@ export function defaultRunFingerprint(fixtures: NycFixtures, request: GenerateSc
     neighborhoods: fixtures.neighborhoodsFile,
     story: fixtures.storyFile,
     request,
+    settings: DEFAULT_SETTINGS,
   };
   return createHash('sha256').update(stableJson(inputs)).digest('hex');
 }
@@ -395,7 +398,7 @@ export function bootV2Run(input: BootV2RunInput): V2Boot {
       }
       const why = savedFingerprint === null
         ? `${shown(statePath)} has no record of the NYC story files it was saved from (${shown(sourcePath)} is missing or unreadable).`
-        : `The NYC story files or the default detour limit changed since ${shown(statePath)} was saved.`;
+        : `The NYC story files, the default detour limit or the default prices changed since ${shown(statePath)} was saved.`;
       notice = `${why} Started from the new default run; the old run is kept as ${shown(copy)}.`;
     }
     // After the set-aside, so a crash in between leaves no state file and an old sidecar: the next boot

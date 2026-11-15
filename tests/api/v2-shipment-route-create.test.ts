@@ -45,7 +45,7 @@ describe('POST /api/v2/shipments: a new delivery', () => {
       pickupInstructions: 'Ask at the front desk', dropoffInstructions: 'Hand to the barista', createdSeq: 4,
     });
     expect(body).toMatchObject({ matched: true, status: 'scheduled', deliveredAtMin: null, unmatchedReason: null });
-    expect(body.plan).toMatchObject({ id: 'plan-shp-4', kind: 'direct', deliveryMin: 1054, customerPriceCents: 1000 });
+    expect(body.plan).toMatchObject({ id: 'plan-shp-4', kind: 'direct', deliveryMin: 1054, customerPriceCents: 700 });
     expect(body.plan).not.toHaveProperty('relayBusinessId');
     expect(body.plan!.legs).toHaveLength(1);
     expect(body.plan!.legs[0]).toMatchObject({ tripId: 'emp-2-eve', employeeId: 'emp-2', placeIds: [AGENCY, CAFE, 'home-002'] });
@@ -60,7 +60,7 @@ describe('POST /api/v2/shipments: a new delivery', () => {
     });
     // Sender, recipient and the carrier.
     expect(notesFor(app, 'shp-4')).toEqual([
-      [AGENCY, 'Delivery arranged: "Catering order" to Corner Cafe, $10.00.'],
+      [AGENCY, 'Delivery arranged: "Catering order" to Corner Cafe, $7.00.'],
       [CAFE, 'Incoming delivery: "Catering order" from Midtown Agency.'],
       ['emp-2', 'New delivery job: "Catering order". Collect from Midtown Agency and deliver to Corner Cafe. Reward $3.00.'],
     ]);
@@ -103,7 +103,7 @@ describe('POST /api/v2/shipments: a new delivery', () => {
     // The relay business gets its own message, which says "here" (DECISIONS pass 57).
     const notes = notesFor(app, 'shp-1');
     expect(notes).toEqual([
-      [PRINT, 'Delivery arranged: "Poster proofs" to Midtown Agency via Corner Cafe (relay point), $10.00.'],
+      [PRINT, 'Delivery arranged: "Poster proofs" to Midtown Agency via Corner Cafe (relay point), $10.50.'],
       [AGENCY, 'Incoming delivery: "Poster proofs" from Northside Print Shop via Corner Cafe (relay point).'],
       [CAFE, 'Relay point: "Poster proofs" from Northside Print Shop to Midtown Agency is dropped here in the evening and collected the next morning.'],
       ['emp-1', 'New delivery job: "Poster proofs". Drop at Corner Cafe; another employee completes delivery. Reward $3.00.'],

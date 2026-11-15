@@ -17,7 +17,11 @@
 
 /** The keys of `assumptions`. The math reads its constants only through these (scripts/study/assumptions.ts). */
 export type AssumptionKey =
-  | 'relayPriceCents'
+  | 'legRewardCents'
+  | 'hubCostCents'
+  | 'platformFeeCents'
+  | 'flexDiscountCents'
+  | 'flexWindowMin'
   | 'courierEnvelopeCents'
   | 'courierSmallBoxCents'
   | 'courierPromisedByMin'

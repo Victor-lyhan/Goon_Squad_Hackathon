@@ -80,7 +80,7 @@ export const shipments: Shipment[] = [
 // Direct: Day 1 17:30 pickup at DUMBO Studio, 17:50 delivered at Etsy.
 const directPlan: DeliveryPlan = {
   id: 'plan-shp-1', shipmentId: 'shp-1', kind: 'direct', deliveryMin: 1072,
-  customerPriceCents: 1000, platformContributionCents: 650,
+  customerPriceCents: 700, platformContributionCents: 350,
   legs: [{
     tripId: 'emp-1-eve', employeeId: 'emp-1', placeIds: ['biz-dumbo', 'biz-etsy', 'home-story-ana'],
     stops: [stop('biz-dumbo', 'pickup', 1050), stop('biz-etsy', 'delivery', 1070)],
@@ -91,7 +91,7 @@ const directPlan: DeliveryPlan = {
 // Relay: Day 1 17:20 pickup, 17:40 drop at Brooklyn Roasting; Day 2 8:30 pickup there, 8:55 delivered.
 const relayPlan: DeliveryPlan = {
   id: 'plan-shp-2', shipmentId: 'shp-2', kind: 'relay', relayBusinessId: 'biz-roast', deliveryMin: 1977,
-  customerPriceCents: 1000, platformContributionCents: 300,
+  customerPriceCents: 1050, platformContributionCents: 350,
   legs: [
     {
       tripId: 'emp-3-eve', employeeId: 'emp-3', placeIds: ['biz-dumbo', 'biz-roast', 'home-007'],

@@ -57,8 +57,8 @@ describe('v2 businessDashboard', () => {
       outgoing: [unmatched, relayAtCafe],   // shp-3 (seq 3) before shp-1 (seq 1)
       incoming: [directDelivered],
       notifications: [noteStudioIncoming, noteStudioSent], // seq 6 before seq 1
-      // By hand: Studio sent shp-1 and shp-3; only shp-1 is matched (1000 cents) and it is not delivered yet.
-      totals: { sent: 2, matched: 1, delivered: 0, spendCents: 1000 },
+      // By hand: Studio sent shp-1 and shp-3; only shp-1 is matched (a relay, 1050 cents) and it is not delivered yet.
+      totals: { sent: 2, matched: 1, delivered: 0, spendCents: 1050 },
       phase: 'locked', version: 12,
     });
   });
@@ -69,7 +69,7 @@ describe('v2 businessDashboard', () => {
       outgoing: [directDelivered],
       incoming: [unmatched, relayAtCafe],
       notifications: [noteAgencySent, noteAgencyIncoming], // seq 5 before seq 2
-      totals: { sent: 1, matched: 1, delivered: 1, spendCents: 1000 },
+      totals: { sent: 1, matched: 1, delivered: 1, spendCents: 700 }, // shp-2, a direct plan
       phase: 'locked', version: 12,
     });
   });
@@ -83,13 +83,13 @@ describe('v2 businessDashboard', () => {
   });
 
   it('spend is committed spend: the same before any delivery and after all of them', () => {
-    // Studio's only matched outgoing plan is plan-shp-1 (1000). The unmatched shp-3 adds nothing.
-    expect(businessDashboard(run, snapshotStart, 'biz-studio')!.totals).toEqual({ sent: 2, matched: 1, delivered: 0, spendCents: 1000 });
-    expect(businessDashboard(run, snapshotEnd, 'biz-studio')!.totals).toEqual({ sent: 2, matched: 1, delivered: 1, spendCents: 1000 });
+    // Studio's only matched outgoing plan is plan-shp-1 (1050). The unmatched shp-3 adds nothing.
+    expect(businessDashboard(run, snapshotStart, 'biz-studio')!.totals).toEqual({ sent: 2, matched: 1, delivered: 0, spendCents: 1050 });
+    expect(businessDashboard(run, snapshotEnd, 'biz-studio')!.totals).toEqual({ sent: 2, matched: 1, delivered: 1, spendCents: 1050 });
   });
 
   it('spend sums every matched outgoing plan and ignores incoming ones', () => {
-    // A second matched Studio package at 1250 cents: 1000 + 1250 = 2250. The incoming plan-shp-2 (1000) is not Studio's spend.
+    // A second matched Studio package at 1250 cents: 1050 + 1250 = 2300. The incoming plan-shp-2 (700) is not Studio's spend.
     const shp4 = { ...shp3, id: 'shp-4', clientRequestId: 'req-4', createdSeq: 4 };
     const plan4 = { ...relayPlan, id: 'plan-shp-4', shipmentId: 'shp-4', customerPriceCents: 1250 };
     const bigger: Run = {
@@ -99,7 +99,7 @@ describe('v2 businessDashboard', () => {
     };
     const dashboard = businessDashboard(bigger, snapshotEvening, 'biz-studio')!;
     expect(dashboard.outgoing.map((v) => v.shipment.id)).toEqual(['shp-4', 'shp-3', 'shp-1']);
-    expect(dashboard.totals).toEqual({ sent: 3, matched: 2, delivered: 0, spendCents: 2250 });
+    expect(dashboard.totals).toEqual({ sent: 3, matched: 2, delivered: 0, spendCents: 2300 });
   });
 
   it('follows the run phase and version', () => {

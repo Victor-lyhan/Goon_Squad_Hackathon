@@ -10,7 +10,7 @@ const shipment = (id: string): Shipment => ({
 
 const relay: DeliveryPlan = {
   id: 'plan-relay', shipmentId: 'shp-relay', kind: 'relay', relayBusinessId: 'biz-relay', deliveryMin: 40,
-  customerPriceCents: 1000, platformContributionCents: 300,
+  customerPriceCents: 1050, platformContributionCents: 350,
   legs: [
     { tripId: 'eve', employeeId: 'emp-a', placeIds: [], stops: [
       { placeId: 'biz-a', kind: 'pickup', arrivalMin: 8, serviceStartMin: 8, serviceEndMin: 10 },

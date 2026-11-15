@@ -22,7 +22,7 @@ const mkRunV2 = (): RunV2 => ({
     }],
     shipments: [],
     settings: {
-      handlingMin: 2, defaultMaxExtraMin: 8, priceCents: 1000, legRewardCents: 300, hubCostCents: 50,
+      handlingMin: 2, defaultMaxExtraMin: 8, legRewardCents: 300, hubCostCents: 50, platformFeeCents: 400, flexDiscountCents: 100, flexWindowMin: 1080,
       platformVariableCostCents: 50, courierPriceCents: 1400, simStartMin: 930, simEndMin: 2160, allowRelay: true,
     },
   },

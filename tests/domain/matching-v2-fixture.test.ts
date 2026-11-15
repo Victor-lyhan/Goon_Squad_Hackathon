@@ -25,7 +25,8 @@ describe('v2 spec §9 on a shortest-path table', () => {
     expect(result.plans).toHaveLength(1);
     const plan = result.plans[0];
     expect(plan).toMatchObject({ kind: 'relay', relayBusinessId: 'biz-h', deliveryMin: 1961,
-      customerPriceCents: 1000, platformContributionCents: 300 });
+      // #861: two legs at 300 + relay fee 50 + platform fee 400 (window 960 to 1980, under 18 h); 1050 - 600 - 50 - 50 = 350.
+      customerPriceCents: 1050, platformContributionCents: 350 });
     expect(plan.legs.map(l => l.employeeId)).toEqual(['emp-1', 'emp-2']);
     expect(plan.legs.map(l => l.placeIds)).toEqual([['biz-a', 'biz-h', 'home-x'], ['home-y', 'biz-h', 'biz-b']]);
     for (const [i, expected] of fixture.expected.legs.entries()) {

@@ -56,7 +56,7 @@ describe('PATCH /api/v2/shipments/:id', () => {
     expect(run.scenario.shipments.map((s) => s.id)).toEqual(['shp-1', 'shp-2', 'shp-3', 'shp-4']);
     expect(run.assignments.unmatched).toEqual([{ shipmentId: 'shp-3', reason: NO_COMMUTE }]);
     expect(notesFor(app, 'shp-4')).toEqual([
-      [AGENCY, 'Delivery arranged: "Catering order (evening)" to Corner Cafe, $10.00.'],
+      [AGENCY, 'Delivery arranged: "Catering order (evening)" to Corner Cafe, $7.00.'],
       [CAFE, 'Incoming delivery: "Catering order (evening)" from Midtown Agency.'],
       ['emp-2', 'New delivery job: "Catering order (evening)". Collect from Midtown Agency and deliver to Corner Cafe. Reward $3.00.'],
     ]);
@@ -188,7 +188,7 @@ describe('POST /api/v2/shipments/:id/match', () => {
     expect(run.assignments.unmatched).toEqual([]);
     expect(run.scenario.shipments).toEqual(before.copy.scenario.shipments);
     expect(notesFor(app, 'shp-3')).toEqual([
-      [CAFE, 'Delivery arranged: "Pastry box" to Northside Print Shop, $10.00.'],
+      [CAFE, 'Delivery arranged: "Pastry box" to Northside Print Shop, $7.00.'],
       [PRINT, 'Incoming delivery: "Pastry box" from Corner Cafe.'],
       ['emp-1', 'New delivery job: "Pastry box". Collect from Corner Cafe and deliver to Northside Print Shop. Reward $3.00.'],
     ]);
