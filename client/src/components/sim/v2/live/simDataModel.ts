@@ -13,7 +13,10 @@ export type SimDataState = {
   /** loading: nothing yet; ready: `sim` is shown; unavailable: the server answered a TravelUnavailable 503; error: the first load failed. */
   view: SimDataView;
   unavailable: SimUnavailable | null;
-  /** Message for `view: 'error'` (the first load failed and polling keeps retrying). */
+  /**
+   * The one sentence of the last failed poll (#894): the message of `view: 'error'` (the first load
+   * failed and polling keeps retrying), and the banner's text while `reconnecting` with data on screen.
+   */
   error: string | null;
   /** True when a poll failed after data was shown: the last data stays on screen. */
   reconnecting: boolean;
@@ -38,7 +41,12 @@ export const INITIAL_SIM_DATA: SimDataState = {
 
 export const TRAVEL_DATA_MISSING_MESSAGE =
   'NYC travel data is not loaded on this server yet. Run npm run fetch:routes and restart.';
-export const CONNECTION_LOST_MESSAGE = "Can't reach the Relay server. Retrying every second.";
+/** A request got no answer. Said alone for a failed action, which is not sent again. */
+export const SERVER_UNREACHABLE_MESSAGE = "Can't reach the Relay server.";
+/** A poll got no answer (#894): one plain sentence; the poll runs again every second. */
+export const CONNECTION_LOST_MESSAGE = `${SERVER_UNREACHABLE_MESSAGE} Retrying…`;
+/** A poll got an answer that is an error (a 500, a body that is not JSON); the poll runs again as well. */
+export const SERVER_ERROR_MESSAGE = 'The Relay server returned an error. Retrying…';
 
 /** The map depends on the run and the set of plans: `runId` plus the sorted plan IDs. */
 export function mapKey(sim: Pick<SimulatorResponse, 'runId' | 'plans'>): string {
@@ -90,11 +98,20 @@ export function unavailableMessage(code: SimUnavailable['code'], serverText: str
   return code === 'travel_data_missing' ? TRAVEL_DATA_MISSING_MESSAGE : serverText;
 }
 
-/** Message for any failed request; also used for action errors. */
+/** Message for a failed action (a control, the comparison): the server's own text when it answered. */
 export function errorMessage(e: unknown): string {
-  if (isNetworkError(e)) return CONNECTION_LOST_MESSAGE;
+  if (isNetworkError(e)) return SERVER_UNREACHABLE_MESSAGE;
   if (isTravelUnavailable(e)) return unavailableMessage(e.code, e.message);
   return e instanceof Error && e.message ? e.message : 'Request failed';
+}
+
+/**
+ * The page's sentence for a failed poll (#894): no answer, or an answer that is an error. The server's
+ * own error text ("Request failed (500)") is not shown: the poll retries by itself and the reader
+ * can do nothing with it.
+ */
+export function pollErrorMessage(e: unknown): string {
+  return isNetworkError(e) ? CONNECTION_LOST_MESSAGE : SERVER_ERROR_MESSAGE;
 }
 
 /** True when `next` is older than or equal to `shown` (same run, version not higher). */
@@ -124,14 +141,15 @@ function pollFailed(state: SimDataState, e: unknown): SimDataState {
     return { ...state, view: 'unavailable', unavailable: { code: e.code, message }, error: null, reconnecting: false };
   }
   if (state.sim !== null && state.view !== 'unavailable') {
-    // After a first success: keep the last data and say we are reconnecting.
-    return state.reconnecting ? state : { ...state, reconnecting: true };
+    // After a first success: keep the last data and say, in one sentence, why it is not moving.
+    const error = pollErrorMessage(e);
+    return state.reconnecting && state.error === error ? state : { ...state, reconnecting: true, error };
   }
   if (state.view === 'unavailable') {
     // The 503 screen stays; a dropped connection on top of it only adds the reconnecting note.
     return state.reconnecting ? state : { ...state, reconnecting: true };
   }
-  const error = errorMessage(e);
+  const error = pollErrorMessage(e);
   const reconnecting = isNetworkError(e);
   if (state.view === 'error' && state.error === error && state.reconnecting === reconnecting) return state;
   return { ...state, view: 'error', error, reconnecting };

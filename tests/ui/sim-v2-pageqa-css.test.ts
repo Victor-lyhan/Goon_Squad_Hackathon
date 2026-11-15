@@ -198,7 +198,7 @@ const PAGE_CONTROLS: { control: string; classes: string[]; own: boolean }[] = [
   { control: 'Dismiss (failed action)', classes: ['.sw-btn'], own: false },
   { control: 'Play / Pause and Back to start (controls/PlaybackControls.tsx)', classes: ['.ctl-btn'], own: false },
   { control: 'Retry (503 and error screens)', classes: ['.ui-btn'], own: false },
-  { control: 'Choose a workspace (desktop-only notice)', classes: ['.sim-desktop-notice a'], own: true },
+  { control: 'Back to the homepage (desktop-only notice)', classes: ['.sim-desktop-notice a'], own: true },
 ];
 
 describe('compose.css + page.css: keyboard focus', () => {
@@ -213,7 +213,8 @@ describe('compose.css + page.css: keyboard focus', () => {
     // #648: the one Play/Pause button and "Back to start", both `.ctl-btn`; the overnight card has no control.
     expect(play.match(/className="ctl-btn[ "]/g)).toHaveLength(2);
     expect(card).not.toMatch(/<(button|a|input|select|textarea)\b/);
-    expect(notice).toMatch(/<a href="\/">Choose a workspace<\/a>/);
+    expect(notice).toMatch(/<a href="\/">\{DESKTOP_ONLY_LINK_TEXT\}<\/a>/);
+    expect(notice).toContain("DESKTOP_ONLY_LINK_TEXT = 'Back to the homepage'");
     // No other raw interactive element in these files.
     for (const src of [body, play, notice]) {
       expect((src.match(/<(button|a|input|select|textarea)\b/g) ?? []).length).toBeLessThanOrEqual(2);

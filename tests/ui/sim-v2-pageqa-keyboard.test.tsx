@@ -116,7 +116,7 @@ describe('every control in the page states: native, named, focus-visible, no pos
   it('the desktop-only notice: its one link is named and has a focus style', () => {
     const root = parse(renderToStaticMarkup(<DesktopOnlyNotice />));
     const { controls, bad } = checkControls(root);
-    expect(controls.map((c) => [c.tag, accessibleName(c, root)])).toEqual([['a', 'Choose a workspace']]);
+    expect(controls.map((c) => [c.tag, accessibleName(c, root)])).toEqual([['a', 'Back to the homepage']]);
     expect(bad).toEqual([]);
   });
 });

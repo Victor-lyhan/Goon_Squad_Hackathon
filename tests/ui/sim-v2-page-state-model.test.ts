@@ -27,7 +27,7 @@ describe('selectionFromSearch', () => {
     expect(selectionFromSearch('?business=biz-etsy&employee=emp-1')).toEqual({ kind: 'employee', id: 'emp-1' });
   });
 
-  it('keeps an ID the run does not know: the body shows it as not in the current scenario', () => {
+  it('keeps an ID the run does not know: the body says it is not in this run', () => {
     expect(selectionFromSearch('?package=shp-from-an-old-run')).toEqual({ kind: 'package', id: 'shp-from-an-old-run' });
     expect(selectionFromSearch('?employee=emp-404')).toEqual({ kind: 'employee', id: 'emp-404' });
   });

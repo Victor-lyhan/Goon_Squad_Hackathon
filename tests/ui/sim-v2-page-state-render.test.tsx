@@ -59,7 +59,7 @@ describe('URL -> selection on the page', () => {
     }
   });
 
-  it('a stale ID is passed down, so the body says it is not in the current city and offers Back to network', () => {
+  it('a stale ID is passed down, so the body says it is not in this run and offers Back to network', () => {
     const pkg = text(renderAt('/nyc/simulator?package=shp-from-an-old-run'));
     expect(pkg).toContain(MISSING_PACKAGE_TEXT);
     expect(pkg).toContain(BACK_TO_NETWORK);

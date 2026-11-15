@@ -108,9 +108,9 @@ export function isStale(resolved: ResolvedSelection): resolved is StaleSelection
 
 const KIND_NOUN: Record<SimSelectionKind, string> = { package: 'package', employee: 'employee', business: 'business' };
 
-/** "This package is not in the current scenario", and the same for an employee or a business. */
+/** "That package isn't in this run.", and the same for an employee or a business (#894). */
 export function staleMessage(kind: SimSelectionKind): string {
-  return `This ${KIND_NOUN[kind]} is not in the current scenario`;
+  return `That ${KIND_NOUN[kind]} isn't in this run.`;
 }
 
 export const BACK_TO_NETWORK = 'Back to network';
