@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADVISOR_FUNCTIONS, MAX_LABEL_CHARS, MAX_SUMMARY_CHARS, MAX_TOOL_CALLS, PRESENT_OPTIONS, TRY_VARIANT,
-  advise, adviseOffline, buildAdvisorPrompt, cleanText, offlineVariants, resolveVariant, timeText,
+  advise, adviseOffline, buildAdvisorPrompt, cleanText, flexWindowText, offlineVariants, resolveVariant, timeText,
   type AdvisorEngine,
 } from '../../server/ai/advisor';
 import { GEMINI_MODELS_URL } from '../../server/ai/gemini';
@@ -17,25 +17,26 @@ const KEY = 'AQ.FAKE_advisor-key-41c9';
 const MODEL = 'gemini-2.5-flash';
 
 /**
- * A fake engine. Price: 700, or 600 when the deliver-by is at least 18 h after ready (the flexibility
- * discount of #861). Arrival: 2000, 1 minute earlier for each 3 minutes the package is ready earlier.
- * A deliver-by before 1990 finds no carrier.
+ * A fake engine. Price: 700, or 600 when the deliver-by is at least `flexWindowMin` (18 h unless `over` says
+ * otherwise) after ready: the flexibility discount of #861. Arrival: 2000, 1 minute earlier for each 3 minutes
+ * the package is ready earlier. A deliver-by before 1990 finds no carrier.
  */
 function fakeEngine(over: Partial<AdvisorEngine> = {}) {
   const calls: [number, number][] = [];
+  const flexWindowMin = over.flexWindowMin ?? 1080;
   const engine: AdvisorEngine = {
     draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 960, deadlineMin: 2040 },
     clockMin: 930,
     windowStartMin: 930,
     windowEndMin: 2160,
-    flexWindowMin: 1080,
+    flexWindowMin,
     match(readyMin, deadlineMin) {
       calls.push([readyMin, deadlineMin]);
       if (deadlineMin < 1990) return { reason: 'No commute can arrive before the deadline' };
       const deliveryMin = 2000 - Math.round((960 - readyMin) / 3);
       const plan: DeliveryPlan = {
         id: 'pln-x', shipmentId: 'shp-advice', kind: 'relay', relayBusinessId: 'biz-r', deliveryMin,
-        customerPriceCents: deadlineMin - readyMin >= 1080 ? 600 : 700, platformContributionCents: 0,
+        customerPriceCents: deadlineMin - readyMin >= flexWindowMin ? 600 : 700, platformContributionCents: 0,
         legs: [
           { tripId: 't1', employeeId: 'emp-1', placeIds: [], stops: [], finishMin: 0, extraMin: 4, extraDistanceM: 1609.344, rewardCents: 300 },
           { tripId: 't2', employeeId: 'emp-2', placeIds: [], stops: [], finishMin: 0, extraMin: 3, extraDistanceM: 804.672, rewardCents: 300 },
@@ -192,6 +193,28 @@ describe('offline options', () => {
     ]);
   });
 
+  // #867: the window is the run's `settings.flexWindowMin`, not a number of the advisor's own.
+  it('the discount variant follows the engine\'s flexWindowMin: ready + 10 h for 600, ready + 19 h for 1140', () => {
+    const draft = { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 1000, deadlineMin: 1400 };
+    const deadlines = (flexWindowMin: number) =>
+      offlineVariants(fakeEngine({ draft, flexWindowMin }).engine).map((v) => v.changes.deadlineMin);
+    expect(deadlines(600)).toStrictEqual([undefined, undefined, 1600]);
+    expect(deadlines(1080)).toStrictEqual([undefined, undefined, 2080]);
+    expect(deadlines(1140)).toStrictEqual([undefined, undefined, 2140]);
+    // A window the draft already leaves: no "later deliver-by" variant at all.
+    expect(deadlines(400)).toStrictEqual([undefined, undefined]);
+  });
+
+  it('under a 19 h window the request that was flexible at 18 h is not, and the later deliver-by is the cheaper option', () => {
+    // 960 -> 2040 is 18 h. At the default it has the discount as typed (the test above); at 19 h it has not.
+    const answer = adviseOffline(fakeEngine({ flexWindowMin: 1140 }).engine);
+    expect(answer.options.map((o) => [o.label, o.customerPriceCents, o.changes])).toStrictEqual([
+      ['As requested', 700, {}],
+      ['Ready 30 min earlier', 700, { readyMin: 930 }],             // 930 -> 2040 is 18.5 h: still no discount
+      ['Deliver by Day 2, 11:00 AM', 600, { deadlineMin: 2100 }],   // 960 + 1140
+    ]);
+  });
+
   it('a variant that is no cheaper and arrives no earlier than one already kept is dropped', () => {
     const base = fakeEngine().engine.match(960, 2000);
     if (!('plan' in base)) throw new Error('the fake engine should match');
@@ -271,6 +294,27 @@ describe('the Gemini agent loop', () => {
     expect(body.systemInstruction.parts[0].text).toBe(buildAdvisorPrompt(engine));
     expect(body.systemInstruction.parts[0].text).toContain('readyMin from 930');
     expect(body.systemInstruction.parts[0].text).toContain('up to 2160');
+  });
+
+  it('the prompt names the engine\'s flexibility window, and Gemini is sent that prompt (#867)', async () => {
+    const line = (flexWindowMin: number) =>
+      buildAdvisorPrompt(fakeEngine({ flexWindowMin }).engine).split('\n').find((l) => l.includes('flexibility discount'));
+    expect(line(1080)).toBe('A deliver-by at least 18 hours after the ready time gets a flexibility discount.');
+    expect(line(600)).toBe('A deliver-by at least 10 hours after the ready time gets a flexibility discount.');
+    expect(line(60)).toBe('A deliver-by at least 1 hour after the ready time gets a flexibility discount.');
+    // No whole number of hours: minutes, never a rounded "11 hours" (10 h 30 min would then be promised a discount
+    // from 11 h on, or, rounded down, from a window the engine does not discount).
+    expect(line(630)).toBe('A deliver-by at least 630 minutes after the ready time gets a flexibility discount.');
+    expect(flexWindowText(1080)).toBe('18 hours');
+    expect(flexWindowText(1081)).toBe('1081 minutes');
+
+    const { engine } = fakeEngine({ flexWindowMin: 600 });
+    const gemini = fakeGemini([[call(TRY_VARIANT, {})], [call(PRESENT_OPTIONS, { options: [{ resultId: 'r1', label: 'A', summary: 'B' }] })]]);
+    await advise(engine, settings(gemini.fetchImpl));
+    for (const body of gemini.bodies) {
+      expect(body.systemInstruction.parts[0].text).toContain('at least 10 hours after the ready time gets a flexibility discount');
+      expect(body.systemInstruction.parts[0].text).not.toContain('18 hours');
+    }
   });
 
   it(`runs at most ${MAX_TOOL_CALLS} try_variant calls; later ones get an error answer and never reach the engine`, async () => {

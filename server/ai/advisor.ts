@@ -32,8 +32,6 @@ export const MAX_LABEL_CHARS = 60;
 export const MAX_SUMMARY_CHARS = 140;
 /** The offline "earlier" variant: the package ready 2 hours earlier. */
 export const OFFLINE_EARLIER_MIN = 120;
-/** The flexibility window of "Pricing per plan" (#861): deliver-by at least 18 h after ready. Used when the settings have none. */
-export const DEFAULT_FLEX_WINDOW_MIN = 1080;
 
 const METERS_PER_MILE = 1609.344;
 
@@ -53,7 +51,10 @@ export type AdvisorEngine = {
   /** `settings.simStartMin` and `settings.simEndMin`. */
   windowStartMin: number;
   windowEndMin: number;
-  /** `settings.flexWindowMin` when the run has it (#861), else DEFAULT_FLEX_WINDOW_MIN. */
+  /**
+   * The run's `settings.flexWindowMin` (#861): a deliver-by at least this many minutes after the ready time
+   * gets the flexibility discount. Always the run's own value; the advisor has no default of its own (#867).
+   */
   flexWindowMin: number;
   /**
    * The matcher for the draft with these two times, against the current run (trips already reserved stay
@@ -326,6 +327,16 @@ export const ADVISOR_FUNCTIONS: GeminiFunctionDeclaration[] = [
   },
 ];
 
+/**
+ * The run's flexibility window in words: "18 hours" for 1080. A window that is no whole number of hours is
+ * written in minutes ("630 minutes"), so the prompt never names a rounded window the engine would not discount.
+ */
+export function flexWindowText(flexWindowMin: number): string {
+  if (flexWindowMin % 60 !== 0) return `${flexWindowMin} minutes`;
+  const hours = flexWindowMin / 60;
+  return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+}
+
 /** The system instruction: the job, the allowed variants with their bounds, the limits. */
 export function buildAdvisorPrompt(engine: AdvisorEngine): string {
   const earliest = earliestReady(engine);
@@ -339,7 +350,7 @@ export function buildAdvisorPrompt(engine: AdvisorEngine): string {
     `- an earlier ready time: readyMin from ${earliest} (${timeText(earliest)}) up to ${draft.readyMin};`,
     `- a later deliver-by: deadlineMin from ${draft.deadlineMin} up to ${latest} (${timeText(latest)});`,
     '- or both.',
-    `A deliver-by at least ${Math.round(engine.flexWindowMin / 60)} hours after the ready time gets a flexibility discount.`,
+    `A deliver-by at least ${flexWindowText(engine.flexWindowMin)} after the ready time gets a flexibility discount.`,
     `Call ${TRY_VARIANT} at most ${MAX_TOOL_CALLS} times. Then call ${PRESENT_OPTIONS} once with 2 or 3 matched results`,
     'that are worth choosing between, preferring results that differ in price or arrival time.',
     `Each label is at most ${MAX_LABEL_CHARS} characters, each summary one plain sentence of at most ${MAX_SUMMARY_CHARS}.`,
