@@ -11,10 +11,11 @@
 .app-main:has(.landing) { max-width: none; padding: 0; }
 
 .landing {
-  /* One centered column for the hero and the section under it (#853): 1200 px at most, 48 px of room at
-     each side, less on a phone. */
+  /* One centered column for the hero and the section under it (#853): 1200 px at most, with twice
+     --space-6 (48 px) of room at each side, and --space-6 on a phone (the last rule of this file). Both
+     are steps of the spacing scale, so the text's left edge is on a whole pixel at every width (#879). */
   --landing-max: 1200px;
-  --landing-pad: clamp(16px, 6vw, 48px);
+  --landing-pad: calc(2 * var(--space-6, 24px));
   max-width: 100%;
   overflow-wrap: anywhere;
   color: var(--text, #171C24);
@@ -40,23 +41,24 @@
 
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  /* The header (ui/shell.css) is 48 px high wherever its links fit on one row. On a phone it has two rows,
-     and the hero then ends a little below the fold. The first line is for a browser without dvh. */
-  min-height: calc(100vh - var(--app-header-h, 48px));
-  min-height: calc(100dvh - var(--app-header-h, 48px));
+  /* The header (ui/shell.css) is 64 px high wherever its links fit on one row (#868). In a window too
+     narrow for that it has two rows, and the hero then ends a little below the fold. The first line is for
+     a browser without dvh. */
+  min-height: calc(100vh - var(--app-header-h, 64px));
+  min-height: calc(100dvh - var(--app-header-h, 64px));
   background: var(--hero-ground, #171C24);
   color: var(--hero-light, #FFFFFF);
 }
 /* The centered column (#853): it lies over both halves and takes the band's height, and the auto margins
    center it once the window is wider than its limit. Its own two halves meet on the hero's middle line,
-   so the text in the first one never reaches the map. */
+   so the text in the first one never reaches the map: it ends --space-6 before that line. */
 .landing-hero-inner {
   grid-column: 1 / -1;
   grid-row: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-6, 24px) clamp(24px, 4vw, 48px);
+  gap: var(--space-6, 24px) calc(2 * var(--space-6, 24px));
   width: 100%;
   min-width: 0;
   max-width: var(--landing-max, 1200px);
@@ -69,8 +71,10 @@
   align-items: flex-start;
   min-width: 0;
 }
+/* The title, the button and the two entries are three groups: the same room above and below the button
+   sets it apart, and the entries under it are close together (#879). */
 .landing-hero h1 {
-  margin: 0 0 var(--space-6, 24px);
+  margin: 0 0 var(--space-8, 32px);
   max-width: 17ch;
   font-size: clamp(30px, 4vw, 50px);
   line-height: 1.12;
@@ -94,19 +98,22 @@
   vertical-align: -0.04em;
 }
 
-/* The primary button: light on the dark ground, ink text, the play mark in the package orange. */
+/* The primary button, the one dominant thing in the hero (#879): the only filled surface, light on the
+   dark ground with ink text and the play mark in the package orange. It is taller and set larger than
+   the two entries under it (#714) and never narrower than they are. */
 .watch-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-3, 12px);
-  min-height: 56px;
+  min-width: min(320px, 100%);
+  min-height: 72px;
   padding: var(--space-3, 12px) var(--space-8, 32px);
   background: var(--panel, #FFFFFF);
   border: 1px solid var(--panel, #FFFFFF);
   border-radius: var(--radius-lg, 6px);
   color: var(--text, #171C24);
-  font-size: var(--text-lg, 18px);
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.2;
   text-decoration: none;
@@ -123,14 +130,15 @@
 
 /* Business and Employee: two smaller entries under the button, the whole surface is the link. They are
    one under the other and as wide as the button at projector widths: side by side they do not fit the
-   hero's left half, and each entry's line of text stays on one row (#714, #869). */
+   hero's left half, and each entry's line of text stays on one row (#714, #869). They are one quiet
+   group: outlined, not filled, lower than the button, close together, and with no arrow (#879). */
 .workspaces {
   list-style: none;
-  margin: var(--space-4, 16px) 0 0;
+  margin: var(--space-6, 24px) 0 0;
   padding: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3, 12px);
+  gap: var(--space-2, 8px);
   width: 100%;
   max-width: 320px;
 }
@@ -139,8 +147,6 @@
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3, 12px);
   padding: var(--space-2, 8px) var(--space-4, 16px);
   border: 1px solid var(--hero-shore, #44526A);
   border-radius: var(--radius, 4px);
@@ -148,12 +154,10 @@
   text-decoration: none;
   transition: border-color 120ms ease;
 }
-.workspace-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.workspace-body { display: flex; flex-direction: column; min-width: 0; }
 .workspace-title { font-size: var(--text-md, 14px); font-weight: 600; }
 .workspace-text { font-size: var(--text-sm, 13px); color: var(--hero-faded, #A8ABB2); }
-.workspace-arrow { flex: none; color: var(--hero-faded, #A8ABB2); }
 a.workspace-entry:hover { border-color: var(--hero-light, #FFFFFF); }
-a.workspace-entry:hover .workspace-arrow { color: var(--hero-light, #FFFFFF); }
 a.workspace-entry:focus-visible {
   outline: 2px solid var(--panel, #FFFFFF);
   outline-offset: 2px;
@@ -240,7 +244,9 @@ a.workspace-entry:focus-visible {
 
 /* The key to the drawing: letters and shapes, so nothing is told apart by color alone. It sits at the
    bottom of the map and ends on the centered column's right edge: the map box is half the hero, so that
-   edge is the box's width less half the column, plus the column's padding, from the box's right side. */
+   edge is the box's width less half the column, plus the column's padding, from the box's right side.
+   Its words are set in the page's Inter: the mono face is for times, ids and numbers (docs/mvp3.md P4),
+   so only the letters A and B in the marks keep it (#879). */
 .hero-legend {
   position: absolute;
   left: var(--space-4, 16px);
@@ -253,7 +259,6 @@ a.workspace-entry:focus-visible {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-family: var(--font-mono, ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   color: var(--hero-faded, #A8ABB2);
 }
@@ -262,11 +267,13 @@ a.workspace-entry:focus-visible {
 .hero-key-letter { font-size: 10px; }
 .hero-key-package { fill: var(--hero-package, #E8590C); }
 
-/* 3. How it works: three numbered lines and the button to the study page, in the hero's column (#853). */
+/* 3. How it works: three numbered lines and the button to the study page, in the hero's column (#853).
+   One heading size (--text-xl) and one body size (--text-lg) for the lines and their numbers; the room
+   above the heading is the room under the button (#879). */
 .landing-how {
   max-width: var(--landing-max, 1200px);
   margin: 0 auto;
-  padding: var(--space-8, 32px) var(--landing-pad, 48px) calc(2 * var(--space-6, 24px));
+  padding: calc(2 * var(--space-6, 24px)) var(--landing-pad, 48px);
 }
 .landing-how h2 {
   margin: 0 0 var(--space-4, 16px);
@@ -283,7 +290,7 @@ a.workspace-entry:focus-visible {
   gap: var(--space-3, 12px);
   padding: var(--space-3, 12px) 0;
   border-top: 1px solid var(--border, #E3E3DE);
-  font-size: 16px;
+  font-size: var(--text-lg, 18px);
   line-height: 1.4;
 }
 .landing-steps li:last-child { border-bottom: 1px solid var(--border, #E3E3DE); }
@@ -291,7 +298,6 @@ a.workspace-entry:focus-visible {
   flex: none;
   min-width: 2ch;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--text-md, 14px);
   font-weight: 600;
   color: var(--accent, #1D5075);
 }
@@ -305,7 +311,7 @@ a.workspace-entry:focus-visible {
   background: var(--accent, #1D5075);
   border: 1px solid var(--accent, #1D5075);
   border-radius: var(--radius-lg, 6px);
-  color: #FFFFFF;
+  color: var(--panel, #FFFFFF);
   font-size: var(--text-md, 14px);
   font-weight: 600;
   line-height: 1.2;
@@ -319,11 +325,6 @@ a.workspace-entry:focus-visible {
   border-radius: var(--radius-lg, 6px);
 }
 
-/* Projector widths: the button is taller, wider and set larger than the two entries under it (#714). */
-@media (min-width: 600px) {
-  .watch-button { min-width: 320px; min-height: 64px; font-size: 20px; }
-}
-
 /* Tablets, phones and upright windows: one column, the text first and the map under it, still from edge to
    edge and at least half the window tall. The upright windows are here because half of one is too narrow a
    box for the route. The map fades in from its top, and its key starts at the text's left edge. */
@@ -334,10 +335,13 @@ a.workspace-entry:focus-visible {
   .hero-legend { left: var(--landing-pad, 48px); right: var(--landing-pad, 48px); justify-content: flex-start; }
 }
 
+/* A phone: --space-6 at the sides, and the button and the entries take the whole width. The button is a
+   little lower there, still higher than an entry. */
 @media (max-width: 480px) {
+  .landing { --landing-pad: var(--space-6, 24px); }
   .landing-hero-inner { padding-top: var(--space-6, 24px); padding-bottom: var(--space-6, 24px); }
   .landing-hero-copy { align-items: stretch; }
-  .watch-button { display: flex; }
+  .watch-button { display: flex; min-height: 64px; font-size: var(--text-lg, 18px); }
   .workspaces { max-width: none; }
   .numbers-button { display: flex; }
 }
