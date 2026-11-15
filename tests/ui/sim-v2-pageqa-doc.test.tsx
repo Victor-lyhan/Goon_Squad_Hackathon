@@ -38,7 +38,9 @@ describe('doc §1: "No cards or metrics above the map. The simulator spans the w
   it.each(STATES)('$name: the workspace is left panel | map | right panel, nothing before it', (s) => {
     const page = one(s.root, (n) => hasClass(n, 'sim-v2'), 'workspace');
     expect(s.root.children).toEqual([page]); // nothing rendered before or around the workspace
-    const [frame, ...rest] = elements(page);
+    // #907: the page's one h1 comes first, visually hidden (a title for screen readers, no card on screen).
+    const [title, frame, ...rest] = elements(page);
+    expect([title.tag, title.attrs.class, readText(title)]).toEqual(['h1', 'sw-visually-hidden', 'Simulator']);
     expect(hasClass(frame, 'sw-frame')).toBe(true);
     expect(rest.map((n) => n.attrs.class)).toEqual(['sw-narrow']); // the narrow-screen note only
     expect(elements(frame)).toEqual([s.left, s.mapRegion, s.right]);

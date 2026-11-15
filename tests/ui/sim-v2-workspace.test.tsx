@@ -44,7 +44,9 @@ describe('SimWorkspace frame', () => {
     expect(left).toBeLessThan(map);
     expect(map).toBeLessThan(right);
     expect(html).not.toMatch(/class="mc[ "-]/);
-    expect(html).not.toContain('<h1');
+    // #907: one h1, the page title, visually hidden and before the panels: nothing shows above the map.
+    expect(tags(html, 'h1')).toEqual(['<h1 class="sw-visually-hidden">']);
+    expect(html.indexOf('<h1')).toBeLessThan(left);
   });
 
   it('includes the narrow-screen message in the markup', () => {
