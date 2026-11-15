@@ -34,6 +34,8 @@ export const NOT_FOUND_TITLE = 'This business is not in the current city';
 export const NOT_FOUND_TEXT = 'The city was changed, so this link is out of date.';
 export const NO_BUSINESSES_TEXT = 'There are no businesses in the current city yet.';
 export const ERROR_TITLE = 'The workspace could not be loaded';
+/** Under that title when the failed request left no sentence of its own. */
+export const ERROR_FALLBACK_TEXT = 'The Relay server did not answer. Check that it is running, then try again.';
 export const UNAVAILABLE_TITLE = 'Travel data unavailable';
 export const DELIVERY_MISSING_TITLE = 'This delivery is not in the current city';
 export const DELIVERY_MISSING_TEXT =
@@ -62,7 +64,7 @@ export function pageScreen(s: ScreenInput, shipmentId: string | null): PageScree
     case 'loading': return { kind: 'loading' };
     case 'not_found': return { kind: 'not_found', fallbackBusinessId: s.fallbackBusinessId };
     case 'unavailable': return { kind: 'unavailable', text: s.unavailable?.message ?? TRAVEL_DATA_MISSING_TEXT };
-    case 'error': return { kind: 'error', text: s.error ?? 'Request failed' };
+    case 'error': return { kind: 'error', text: s.error ?? ERROR_FALLBACK_TEXT };
     case 'ready': break;
   }
   if (!s.dashboard) return { kind: 'loading' };
@@ -86,6 +88,16 @@ export function isHeldHere(view: ShipmentView, businessId: string): boolean {
 export function newDeliveryClosedText(phase: Phase): string | null {
   return phase === 'planning' ? null : NEW_DELIVERY_CLOSED_TEXT;
 }
+
+// ---------- Layout ----------
+
+/**
+ * The width up to which the page is one column (businessPage.css uses the same number). There the open
+ * delivery is shown above the table, so the page also puts it before the table in the document, and Tab
+ * follows what the eye sees (#892).
+ */
+export const STACKED_MAX_WIDTH_PX = 1160;
+export const STACKED_QUERY = `(max-width: ${STACKED_MAX_WIDTH_PX}px)`;
 
 // ---------- Links ----------
 

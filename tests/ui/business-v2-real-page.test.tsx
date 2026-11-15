@@ -120,7 +120,8 @@ describe.each(real.moments)('every business at $name (minute $timeMin)', ({ time
       for (const [i, n] of d.notifications.slice(0, 20).entries()) {
         // The price is its own mono element inside the sentence (#742), so read it as the browser joins it.
         expect(textContent(notes[i])).toContain(n.message);
-        if (n.shipmentId) expect(text(notes[i])).toContain(`Open ${n.shipmentId}`);
+        // The action is words, then the delivery's ID (#892).
+        if (n.shipmentId) expect(text(notes[i])).toContain(`Open delivery ${n.shipmentId}`);
       }
       for (const n of d.notifications.filter((x) => x.message.includes('(relay point)'))) {
         const plan = run.assignments.plans.find((p) => p.shipmentId === n.shipmentId)!;
