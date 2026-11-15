@@ -21,6 +21,7 @@ import type { Run as RunV2, Shipment, TravelProvider } from '../../../shared/v2/
 import { adviseUnlessPaused, type AdviseDraft, type AdvisorEngine, type AdvisorGeminiSettings } from '../../ai/advisor';
 import { settleDeadline } from '../../ai/deadline';
 import { pausedMessage, type GeminiPause } from '../../ai/geminiPause';
+import { bestPlansByKind } from '../../domain/v2/kindMatch';
 import { assignShipments } from '../../domain/v2/matching';
 import type { Store } from '../../store';
 import { matchContext } from './pipeline';
@@ -143,7 +144,8 @@ export function flexWindowOf(settings: RunV2['scenario']['settings']): number {
 /**
  * The advisor's read-only view of the run: `match` asks the matcher (generateCandidates + rankCandidates via
  * assignShipments) about a throwaway shipment with the draft's businesses and the given times, keeping every
- * plan of the run, so only free trips can carry it. Nothing of `run` is changed.
+ * plan of the run, so only free trips can carry it. `matchKinds` asks for the best plan of each kind the same
+ * way (#954, server/domain/v2/kindMatch.ts). Nothing of `run` is changed.
  */
 export function advisorEngine(run: RunV2, travel: TravelProvider, draft: AdviseDraft): AdvisorEngine {
   const { scenario } = run;
@@ -157,29 +159,36 @@ export function advisorEngine(run: RunV2, travel: TravelProvider, draft: AdviseD
     windowEndMin: scenario.settings.simEndMin,
     flexWindowMin: flexWindowOf(scenario.settings),
     match(readyMin, deadlineMin) {
-      const shipment: Shipment = {
-        id: ADVICE_SHIPMENT_ID,
-        clientRequestId: ADVICE_SHIPMENT_ID,
-        label: 'Advice',
-        originBusinessId: draft.originBusinessId,
-        destinationBusinessId: draft.destinationBusinessId,
-        readyMin,
-        deadlineMin,
-        category: 'envelope',
-        description: '',
-        weightGrams: 0,
-        pickupInstructions: '',
-        dropoffInstructions: '',
-        createdSeq: Number.MAX_SAFE_INTEGER,
-      };
+      const shipment = adviceShipment(draft, readyMin, deadlineMin);
       const result = assignShipments([shipment], ctx, { existing: run.assignments.plans });
       const plan = result.plans.find((p) => p.shipmentId === ADVICE_SHIPMENT_ID);
       if (plan) return { plan };
       const reason = result.unmatched.find((u) => u.shipmentId === ADVICE_SHIPMENT_ID)?.reason;
       return { reason: reason ?? 'No carrier can take it' };
     },
+    matchKinds: (readyMin, deadlineMin) =>
+      bestPlansByKind(adviceShipment(draft, readyMin, deadlineMin), ctx, run.assignments.plans),
     employeeName: (id) => employees.get(id) ?? 'A carrier',
     businessName: (id) => businesses.get(id) ?? null,
+  };
+}
+
+/** The throwaway shipment the engine is asked about: the draft's two businesses and the given times. Never stored. */
+function adviceShipment(draft: AdviseDraft, readyMin: number, deadlineMin: number): Shipment {
+  return {
+    id: ADVICE_SHIPMENT_ID,
+    clientRequestId: ADVICE_SHIPMENT_ID,
+    label: 'Advice',
+    originBusinessId: draft.originBusinessId,
+    destinationBusinessId: draft.destinationBusinessId,
+    readyMin,
+    deadlineMin,
+    category: 'envelope',
+    description: '',
+    weightGrams: 0,
+    pickupInstructions: '',
+    dropoffInstructions: '',
+    createdSeq: Number.MAX_SAFE_INTEGER,
   };
 }
 

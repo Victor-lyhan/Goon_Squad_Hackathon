@@ -191,8 +191,9 @@ describe('README: Options for a request (the Options card and POST /api/v2/advis
     expect(at('Then choose **Find a delivery match**')).toBeGreaterThan(at(`Above the card, the **${ADVICE_COPY.title}** card`));
     const price = /^price: (.+)$/m.exec(demo)?.[1] ?? 'no price in the block';
     expect(step2).toContain(
-      `for this sentence it has one option, "As requested" at ${price}, marked "${ADVICE_COPY.chosen}", `
-      + `and without a Gemini key its label reads "${ADVICE_COPY.offline}".`,
+      // #954: the one option is the best relay as typed, labelled with its price; the note says why there is no direct one.
+      `for this sentence it has one option, "Relay via Etsy, ${price}", marked "${ADVICE_COPY.chosen}", `
+      + `with a note on why there is no direct one, and without a Gemini key its label reads "${ADVICE_COPY.offline}".`,
     );
     expect(step2).toContain(
       `The card lists up to three options, marks the lowest price "${ADVICE_COPY.cheapest}" when they differ, and each **${ADVICE_COPY.choose}** button `

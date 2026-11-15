@@ -230,6 +230,12 @@ async function advise(draft: unknown): Promise<AdviseResponse> {
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+/**
+ * #954: the demo sentence has no direct plan (every direct trip is over its carrier's added-time limit), so its
+ * options say so next to the relay.
+ */
+const NO_DIRECT = 'No direct: a direct trip would be a longer detour than its carrier allows.';
+
 // ---------- parse-request ----------
 
 describe('POST /api/v2/parse-request with no key: the demo sentence and what a presenter might type instead (#898)', () => {
@@ -309,12 +315,14 @@ describe('POST /api/v2/advise with no key: priced options for the demo sentence 
 
     expect(body.options.length).toBeGreaterThanOrEqual(1);
     expect(body.options.length).toBeLessThanOrEqual(3);
-    expect(body.note).toBeUndefined();
+    expect(body.note).toBe(NO_DIRECT);
+    expectPlain(body.note, 'the note');
     // Every option's price is customerPriceCents() of the plan the matcher picks for its two times.
     const priced = expectEnginePrices(store.get(), travel, draft, body);
     expect(priced).toHaveLength(body.options.length);
     const [asTyped] = body.options;
     expect(asTyped.changes).toStrictEqual({});
+    expect(asTyped.label).toBe('Relay via Etsy, $9.50');
     expect(money(asTyped.customerPriceCents)).toBe('$9.50');
     expect(readme).toContain('price: $9.50');
     expect(asTyped.summary).toContain('$9.50.');
@@ -346,7 +354,7 @@ describe('POST /api/v2/advise with no key: priced options for the demo sentence 
     expect(deals[0]).toStrictEqual([950, expect.any(Number), ['Elena Rossi', 'Reese Green']]);
 
     const body = await advise(draft);
-    expect(body.options.map((o) => [o.label, o.changes, o.customerPriceCents])).toStrictEqual([['As requested', {}, 950]]);
+    expect(body.options.map((o) => [o.label, o.changes, o.customerPriceCents])).toStrictEqual([['Relay via Etsy, $9.50', {}, 950]]);
     expect(body).toStrictEqual(adviseOffline(engine));
   }, T);
 
@@ -355,9 +363,9 @@ describe('POST /api/v2/advise with no key: priced options for the demo sentence 
     expect(draft.deadlineMin).toBe(1980);
     const body = await advise(draft);
 
-    expect(body.note).toBeUndefined();
+    expect(body.note).toBe(NO_DIRECT);
     expect(body.options.map((o) => [o.label, o.changes, money(o.customerPriceCents)])).toStrictEqual([
-      ['As requested', {}, '$10.50'],
+      ['Relay via Etsy, $10.50', {}, '$10.50'],
       ['Deliver by Day 2, 10:00 AM', { deadlineMin: 2040 }, '$9.50'],
     ]);
     const priced = expectEnginePrices(store.get(), travel, draft, body);
@@ -404,6 +412,8 @@ describe('the sentence of the #947 bug report, typed on Titan Foods\' page: a mi
   const READ_AS = 'Read "Kinshop coffee" as Kinship Coffee.';
   const CLAMPED = 'Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.';
   const ASSUMED = 'No deliver-by time given, so Relay delivers by 12:00 PM tomorrow.';
+  /** #954: why the options of Titan Foods -> Kinship Coffee have no relay next to the direct one. */
+  const NO_RELAY = 'No relay: a relay would add more than 12 minutes to a commute.';
 
   const business = (id: string) => {
     const found = store.get().scenario.businesses.find((b) => b.id === id);
@@ -471,18 +481,21 @@ describe('the sentence of the #947 bug report, typed on Titan Foods\' page: a mi
   // Before #947 /advise answered 400 for both (a deliver-by after the window, or none), and the card showed no
   // options. Ready at the clock (the window start) and the deliver-by at the window end is the widest window
   // the run has: no earlier ready time or later deliver-by exists to try, so the one option is the deal.
+  // #954: it is the best direct plan, and the note says why there is no relay next to it.
   it.each([
     ['the sentence, its deliver-by sent as typed (5 PM tomorrow)', HUMAN, 2460, CLAMPED],
     ['the sentence, its deliver-by sent as parsed', HUMAN, 2160, undefined],
     ['the sentence with no deliver-by, sent without one', NO_DEADLINE, null, ASSUMED],
     ['the sentence with no deliver-by, sent as parsed', NO_DEADLINE, 2160, undefined],
-  ])('/advise prices %s from Titan Foods: one option, as typed, with the note', async (_name, text, deadlineMin, note) => {
+  ])('/advise prices %s from Titan Foods: the direct option, as typed, with the notes', async (_name, text, deadlineMin, note) => {
     const { draft } = await parse(text);
     const sent = { ...draft, originBusinessId: 'biz-titan-foods', deadlineMin };
     const body = await advise(sent);
-    expect(body.options.map((o) => [o.changes, money(o.customerPriceCents)])).toStrictEqual([[{}, '$6.00']]);
-    expect(body.note).toBe(note);
+    expect(body.options.map((o) => [o.label, o.kind, o.changes, money(o.customerPriceCents)]))
+      .toStrictEqual([['Direct with Theo Martin, $6.00', 'direct', {}, '$6.00']]);
+    expect(body.note).toBe(note === undefined ? NO_RELAY : `${note} ${NO_RELAY}`);
     if (note !== undefined) expectPlain(note, 'the note');
+    expectPlain(NO_RELAY, 'the relay note');
     expectEnginePrices(store.get(), travel, { ...sent, deadlineMin: 2160 } as ParseDraft & DraftTimes, body);
   }, T);
 
@@ -493,7 +506,10 @@ describe('the sentence of the #947 bug report, typed on Titan Foods\' page: a mi
     expect(draft).toMatchObject({ destinationBusinessId: 'biz-kinship-coffee', readyMin: 1080, deadlineMin: 2040 });
     const sent = { ...draft, originBusinessId: 'biz-titan-foods' } as ParseDraft & DraftTimes;
     const body = await advise(sent);
-    expect(body.options.map((o) => [o.changes, money(o.customerPriceCents)])).toStrictEqual([[{}, '$7.00'], [{ readyMin: 960 }, '$6.00']]);
+    expect(body.options.map((o) => [o.label, o.changes, money(o.customerPriceCents)])).toStrictEqual([
+      ['Direct with Theo Martin, $7.00', {}, '$7.00'], ['Ready 2 h earlier', { readyMin: 960 }, '$6.00'],
+    ]);
+    expect(body.note).toBe(NO_RELAY);
     expectEnginePrices(store.get(), travel, sent, body);
   }, T);
 });
@@ -517,12 +533,18 @@ describe('every text the two routes write for a problem is one plain sentence (#
     const real = advisorEngine(store.get(), travel, draft);
     for (const reason of reasons) {
       // No variant matches: no option, and the note says more time did not help.
-      const none = adviseOffline({ ...real, match: () => ({ reason }) });
+      // #954: the best plan of each kind as typed comes from the same matcher, so it fails with it.
+      const none = adviseOffline({ ...real, match: () => ({ reason }), matchKinds: () => ({ direct: { reason }, relay: { reason } }) });
       expect(none.options).toStrictEqual([]);
       expect(none.note).toBe(`Even with more time, ${reason.charAt(0).toLowerCase()}${reason.slice(1)}.`);
       expectPlain(none.note, reason, MAX_WORDS + 1); // "about 14": the longest reason makes 15
       // Only the request as typed does not: the note says so, and the option below it is the way out.
-      const some = adviseOffline({ ...real, match: (readyMin, deadlineMin) => (deadlineMin === draft.deadlineMin ? { reason } : real.match(readyMin, deadlineMin)) });
+      const some = adviseOffline({
+        ...real,
+        match: (readyMin, deadlineMin) => (deadlineMin === draft.deadlineMin ? { reason } : real.match(readyMin, deadlineMin)),
+        matchKinds: (readyMin, deadlineMin) => (deadlineMin === draft.deadlineMin
+          ? { direct: { reason }, relay: { reason } } : real.matchKinds!(readyMin, deadlineMin)),
+      });
       expect(some.options.length).toBeGreaterThan(0);
       expect(some.note).toBe(`As typed, ${reason.charAt(0).toLowerCase()}${reason.slice(1)}.`);
       expectPlain(some.note, reason);
