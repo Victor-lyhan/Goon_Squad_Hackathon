@@ -5,14 +5,26 @@
 // - Pure and deterministic: the same results give the same text. No timestamp, no random id, no clock.
 // - One file, no network: inline CSS, charts as inline SVG, no script, no web font (system sans fallback).
 //   The tab icon is an empty data: URL, so the browser does not ask the server for /favicon.ico either.
-// - It shows numbers, it does not make them: totals and headline values are read from the results. The only
-//   arithmetic here is presentation (a run's saving per matched package, the match rate of a group of runs,
-//   a median, chart geometry), done from the exact totals with the helpers of units.ts.
+// - It shows numbers, it does not make them: totals and headline values are read from the results, and the
+//   spread across runs and the groups of runs from scripts/study/summary.ts. The only arithmetic here is
+//   presentation (a run's saving per matched package for the histograms, chart geometry).
+// - It stays small however many runs the study has: no row per run. Every run is in the CSV next to the page
+//   (scripts/study/csv.ts), which the page links to; nothing is fetched until the reader asks for it.
 // - Assumption text (label, unit, reason) is printed as it is in assumptions.ts, only HTML-escaped, so
 //   tests/study/page.test.ts can check the committed page against that file.
 // Colors are the MVP III palette (docs/mvp3.md, client/src/styles/tokens.css) in plain hex.
+import { HIGH_PERCENTILE, LOW_PERCENTILE, percentileOf, summarize, type GroupSummary, type SidesSpread, type StudySummary } from './summary';
 import type { Assumption, ComparisonTotals, StudyGrid, StudyResults, StudyRun } from './types';
-import { MINUTES_PER_DAY, average, dollars, percent, rate, roundTo } from './units';
+import { MINUTES_PER_DAY, dollars, percent, rate, roundTo } from './units';
+
+/**
+ * Where the page links to for "Download every run (CSV)": relative to the page, so the two files can be served
+ * from any folder. `npm run study` writes the CSV there (cli.ts, runsCsvFileFor).
+ */
+export const RUNS_CSV_HREF = 'study/runs.csv';
+
+/** At most this many skipped runs are listed on the page; the CSV has every one. */
+export const SKIPPED_RUNS_LISTED = 50;
 
 const COLOR = {
   bg: '#F7F7F4',
@@ -82,6 +94,14 @@ function duration(minutes: number): string {
 }
 
 const list = (values: readonly number[]): string => values.join(', ');
+
+/** Whole numbers that count up by one, from three on, as their ends ("1 to 112"); anything else as a list. */
+function listOrRange(values: readonly number[]): string {
+  const counting = values.length >= 3 && values.every((value, index) => index === 0 || value === values[index - 1]! + 1);
+  return counting ? `${values[0]} to ${values[values.length - 1]}` : list(values);
+}
+
+const runsWord = (runs: number): string => `${count(runs)} ${runs === 1 ? 'run' : 'runs'}`;
 
 /**
  * An assumption's value in the page's units, as the figure and the words after it: money in dollars (the list
@@ -203,16 +223,15 @@ function histogram(d: Distribution): string {
   // The "runs" axis title sits above the top count label and the bin labels sit below the "0" count label,
   // each with clear space between them (they touched at 390 px before #808).
   const height = 192;
-  const left = 30;
   const right = 24;
   const topY = 28;
   const baseY = 148;
   const xLabelY = baseY + 20;
-  const plotWidth = W - left - right;
   if (d.values.length === 0) {
     return svg(d.id, 40, `Runs by ${d.what}: no run matched a package`, `<text class="tm" x="0" y="24">No run matched a package.</text>`);
   }
-  const { start, step, bins } = niceBins(Math.min(...d.values), Math.max(...d.values), 12);
+  const sorted = [...d.values].sort((a, b) => a - b);
+  const { start, step, bins } = niceBins(sorted[0]!, sorted[sorted.length - 1]!, 12);
   const counts = new Array<number>(bins).fill(0);
   for (const value of d.values) {
     const index = Math.min(bins - 1, Math.max(0, Math.floor((value - start) / step + 1e-9)));
@@ -220,6 +239,9 @@ function histogram(d: Distribution): string {
   }
   const ticks = countTicks(Math.max(...counts));
   const topCount = ticks[ticks.length - 1]!;
+  // Room for the widest count label left of the plot (a monospace figure is 0.6 em wide): "1500" needs more than "2".
+  const left = Math.max(30, Math.ceil(String(topCount).length * CHART_TEXT_PX * 0.6) + 8);
+  const plotWidth = W - left - right;
   const yOf = (value: number): number => baseY - (value / topCount) * (baseY - topY);
   const slot = plotWidth / bins;
   const barWidth = Math.min(24, slot - 2);
@@ -237,9 +259,9 @@ function histogram(d: Distribution): string {
   const bars = counts.map((value, index) => {
     if (value === 0) return '';
     const x = left + index * slot + (slot - barWidth) / 2;
-    const title = `${d.format(edge(index))} to ${d.format(edge(index + 1))}: ${value} ${value === 1 ? 'run' : 'runs'}`;
+    const title = `${d.format(edge(index))} to ${d.format(edge(index + 1))}: ${runsWord(value)}`;
     return `<g><title>${escapeHtml(title)}</title>${barUp(x, baseY, barWidth, baseY - yOf(value), 'f-relay')}</g>`
-      + (index === peak ? `<text class="t num" x="${px(x + barWidth / 2)}" y="${px(yOf(value) - 5)}" text-anchor="middle">${value}</text>` : '');
+      + (index === peak ? `<text class="t num" x="${px(x + barWidth / 2)}" y="${px(yOf(value) - 5)}" text-anchor="middle">${count(value)}</text>` : '');
   }).join('');
   let edges = '';
   for (let index = 0; index <= bins; index += 1) {
@@ -251,20 +273,18 @@ function histogram(d: Distribution): string {
   }
   const axisTitle = `<text class="tm" x="${px(left + plotWidth / 2)}" y="${height - 6}" text-anchor="middle">${escapeHtml(d.what)}</text>`
     + `<text class="tm" x="0" y="12">runs</text>`;
-  const sorted = [...d.values].sort((a, b) => a - b);
-  const label = `Runs by ${d.what}: ${d.values.length} runs, from ${d.format(sorted[0]!)} to ${d.format(sorted[sorted.length - 1]!)}`;
+  const label = `Runs by ${d.what}: ${runsWord(d.values.length)}, from ${d.format(sorted[0]!)} to ${d.format(sorted[sorted.length - 1]!)}`;
   return svg(d.id, height, label, grid + bars + edges + axisTitle);
 }
 
-/** Median, range and how many runs Relay won, under a histogram. */
+/** Median, the 10th to 90th percentile and how many runs Relay won, under a histogram. */
 function distributionSummary(d: Distribution): string {
   if (d.values.length === 0) return '';
   const sorted = [...d.values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  const median = sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
+  const at = (percentile: number): string => d.format(percentileOf(sorted, percentile)!);
   const ahead = d.values.filter(value => value > 0).length;
-  return `<p class="note">Median ${d.format(median)} · range ${d.format(sorted[0]!)} to ${d.format(sorted[sorted.length - 1]!)} · `
-    + `Relay ahead in ${ahead} of ${d.values.length} runs</p>`;
+  return `<p class="note">Median ${at(50)} · 10th to 90th percentile ${at(LOW_PERCENTILE)} to ${at(HIGH_PERCENTILE)} · `
+    + `Relay ahead in ${count(ahead)} of ${runsWord(d.values.length)}</p>`;
 }
 
 /** A rate per named row against the same whole (0 to 100%): a bar on a lighter track, the figure at the end. */
@@ -332,14 +352,9 @@ function figure(title: string, chart: string, note = ''): string {
   return `<figure class="card"><figcaption>${title}</figcaption>${chart}${note}</figure>`;
 }
 
-/** The match rate of the runs that share one grid value, from their exact counts. */
-function groupRates(runs: readonly StudyRun[], values: readonly number[], pick: (run: StudyRun) => number, name: (value: number) => string) {
-  return values.map(value => {
-    const group = runs.filter(run => pick(run) === value);
-    const requested = group.reduce((sum, run) => sum + run.totals.packages, 0);
-    const matched = group.reduce((sum, run) => sum + run.totals.matched, 0);
-    return { name: name(value), fraction: rate(matched, requested) };
-  });
+/** The match rate of each group of runs, as the rows of a rate chart. */
+function groupRates(groups: readonly GroupSummary[], name: (value: number) => string) {
+  return groups.map(group => ({ name: name(group.value), fraction: group.headline.matchRate }));
 }
 
 /** A run's saving per matched package; runs that matched nothing have no value. */
@@ -355,22 +370,56 @@ function assumptionRows(assumptions: readonly Assumption[]): string {
     + `<td>${escapeHtml(assumption.reason)}</td></tr>`).join('\n');
 }
 
-function runRows(runs: readonly StudyRun[]): string {
-  return runs.map(({ id, params, totals: t }) => {
-    const per = (total: number, decimals: number): number | null => average(total, t.matched, decimals);
-    return `<tr><th scope="row">${escapeHtml(id)}</th><td>${params.employees}</td><td>${params.packages}</td><td>${params.maxExtraMin} min</td>`
-      + `<td>${t.matched}</td><td>${pct(t.matchRate)}</td>`
-      + `<td>${money(per(t.costSavedCents, 0))}</td>`
-      + `<td>${miles(per(t.relayAddedMiles, 3))}</td><td>${miles(per(t.courierMiles, 3))}</td>`
-      + `<td>${kg(per(t.relayCo2Kg, 3))}</td><td>${kg(per(t.courierCo2Kg, 3))}</td>`
-      + `<td>${t.early}</td><td>${t.onTime}</td><td>${t.late}</td></tr>`;
+/**
+ * Relay next to the courier for each per-package measure: the average over all matched packages, then the
+ * median and the 10th to 90th percentile of the runs' own values.
+ */
+function spreadRows(summary: StudySummary): string {
+  const measures: Array<{ name: string; sides: SidesSpread; format: (value: number | null) => string }> = [
+    { name: 'Cost to the sender', sides: summary.costCents, format: money },
+    { name: 'Added vehicle miles', sides: summary.miles, format: miles },
+    { name: 'CO₂', sides: summary.co2Kg, format: kg },
+  ];
+  return measures.map(({ name, sides, format }) => {
+    const cells = (side: 'relay' | 'courier'): string => {
+      const spread = sides[side];
+      return `<th scope="row">${side === 'relay' ? 'Relay' : 'Courier'}</th><td>${format(spread.average)}</td><td>${format(spread.median)}</td>`
+        + `<td><span>${format(spread.low)}</span> <span>to ${format(spread.high)}</span></td>`;
+    };
+    return `<tr><th scope="rowgroup" rowspan="2">${name}</th>${cells('relay')}</tr>\n<tr>${cells('courier')}</tr>`;
   }).join('\n');
 }
 
+/** One row per detour limit: the runs with that limit as a study of their own. */
+function detourRows(groups: readonly GroupSummary[]): string {
+  return groups.map(({ value, runs, headline: h }) =>
+    `<tr><th scope="row">${value} min</th><td>${pct(h.matchRate)}</td>`
+    + `<td>${miles(h.relayAddedMilesPerPackage)}</td><td>${miles(h.courierMilesPerPackage)}</td>`
+    + `<td>${kg(h.relayCo2KgPerPackage)}</td><td>${kg(h.courierCo2KgPerPackage)}</td>`
+    + `<td>${money(h.costSavedPerPackageCents)}</td><td>${pct(h.earlyRate)}</td><td>${count(runs)}</td></tr>`).join('\n');
+}
+
+/**
+ * The one line under the match-rate-by-employees chart. It says the rate rises only when it does: every
+ * group's rate is at least the one before it and the last is above the first.
+ */
+function employeesNote(groups: readonly GroupSummary[]): string {
+  const rated = groups.filter(group => group.headline.matchRate !== null);
+  if (rated.length < 2) return '';
+  const rates = rated.map(group => group.headline.matchRate!);
+  const first = rated[0]!;
+  const last = rated[rated.length - 1]!;
+  const rises = rates.every((value, index) => index === 0 || value >= rates[index - 1]!) && rates[rates.length - 1]! > rates[0]!;
+  const ends = `${pct(first.headline.matchRate)} with ${first.value} employees, ${pct(last.headline.matchRate)} with ${last.value}`;
+  return `<p class="note">${rises ? `The match rate rises as more employees join: ${ends}.` : `The match rate does not rise steadily with the number of employees here: ${ends}.`}</p>`;
+}
+
 function skippedBlock(grid: StudyGrid): string {
-  if (grid.skippedRuns.length === 0) return '';
-  const items = grid.skippedRuns.map(run => `<li><code>${escapeHtml(run.id)}</code> ${escapeHtml(run.reason)}</li>`).join('\n');
-  return `<details><summary>The ${count(grid.skippedRuns.length)} skipped ${grid.skippedRuns.length === 1 ? 'run' : 'runs'}</summary><ul class="skipped">\n${items}\n</ul></details>`;
+  const skipped = grid.skippedRuns.length;
+  if (skipped === 0) return '';
+  const items = grid.skippedRuns.slice(0, SKIPPED_RUNS_LISTED).map(run => `<li><code>${escapeHtml(run.id)}</code> ${escapeHtml(run.reason)}</li>`);
+  if (skipped > SKIPPED_RUNS_LISTED) items.push(`<li>and ${count(skipped - SKIPPED_RUNS_LISTED)} more: the CSV of every run has them all.</li>`);
+  return `<details><summary>The ${count(skipped)} skipped ${skipped === 1 ? 'run' : 'runs'}</summary><ul class="skipped">\n${items.join('\n')}\n</ul></details>`;
 }
 
 const CSS = `
@@ -382,11 +431,13 @@ a{color:${COLOR.relay}}
 a:focus-visible,summary:focus-visible{outline:2px solid ${COLOR.relay};outline-offset:2px}
 .back{display:inline-block;font-size:14px;font-weight:600;text-decoration:none;padding:6px 0}
 .back:hover{text-decoration:underline}
-h1{font-size:30px;line-height:1.2;margin:20px 0 8px;font-weight:600;letter-spacing:-0.01em}
+.eyebrow{font-size:14px;font-weight:600;color:${COLOR.muted};margin:20px 0 0}
+h1{font-size:30px;line-height:1.2;margin:2px 0 8px;font-weight:600;letter-spacing:-0.01em}
 h2{font-size:19px;line-height:1.3;margin:40px 0 4px;font-weight:600}
 p{margin:0 0 12px}
 .lede{font-size:17px;color:${COLOR.muted};max-width:760px}
 .intro{color:${COLOR.muted};max-width:760px}
+.after{margin-top:20px}
 .how{max-width:760px}
 .num,code{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));column-gap:12px;row-gap:0;margin:12px 0 0}
@@ -427,11 +478,16 @@ tbody th{font-weight:600}
 .assumptions .value{width:24%}
 .assumptions .value b{font-weight:600}
 .assumptions code{display:block;margin-top:2px;font-size:12px;font-weight:400;color:${COLOR.muted};overflow-wrap:anywhere}
-.runs{font-size:13px;font-variant-numeric:tabular-nums}
-.runs th,.runs td{padding:6px 10px;white-space:nowrap}
-.runs td{text-align:right;font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.runs thead th{text-align:right;white-space:normal;vertical-align:bottom}
-.runs thead th:first-child{text-align:left}
+.figures{font-size:13px;font-variant-numeric:tabular-nums}
+.figures th,.figures td{padding:8px 12px;white-space:nowrap}
+.figures td{text-align:right;font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.figures thead th{text-align:right;white-space:normal;vertical-align:bottom}
+.figures thead th:first-child,.figures.spread thead th:nth-child(2){text-align:left}
+.figures tbody th[rowspan]{white-space:normal}
+.figures td span{white-space:nowrap}
+.figures tbody th:not([rowspan]){font-weight:400}
+.figures.detour tbody th{font-weight:600}
+.download{display:inline-block;font-weight:600;padding:6px 0}
 details{margin-top:12px}
 summary{cursor:pointer;font-weight:600;color:${COLOR.relay};padding:6px 0}
 .skipped{font-size:13px;color:${COLOR.muted};padding-left:20px}
@@ -439,6 +495,8 @@ footer{margin-top:40px;padding-top:12px;border-top:1px solid ${COLOR.line};font-
 @media (max-width:640px){
 main{padding:12px 16px 40px}
 h1{font-size:25px}
+.figures th,.figures td{padding:6px}
+.figures.spread td:last-child{white-space:normal}
 .assumptions thead{display:none}
 .assumptions tr{display:block;padding:12px 14px;border-top:1px solid ${COLOR.line}}
 .assumptions tbody tr:first-child{border-top:0}
@@ -450,12 +508,13 @@ h1{font-size:25px}
 /** The whole page for one set of study results. Pure: same results, same text. */
 export function renderStudyPage(results: StudyResults): string {
   const { assumptions, grid, runs, totals, headline: h } = results;
+  const summary = summarize(results);
   const skipped = grid.skippedRuns.length;
   const promiseAssumption = assumptions.find(assumption => assumption.key === 'courierPromisedByMin');
   const promiseClock = promiseAssumption ? clock(promiseAssumption.value) : NA;
   const promisedByMin = promiseAssumption ? MINUTES_PER_DAY + promiseAssumption.value : null;
   const requestWindow = grid.requestWindow;
-  const noMatchRuns = runs.filter(run => run.totals.matched === 0).length;
+  const noMatchRuns = summary.runsWithoutMatch;
 
   const tiles = [
     tile('Cost to the sender', lessOrMore(h.costSavedRate),
@@ -506,11 +565,12 @@ export function renderStudyPage(results: StudyResults): string {
 
   const matchCharts = [
     figure('By number of commuting employees',
-      rateRows('match-employees', 'Match rate by number of employees', groupRates(runs, grid.employeeCounts, run => run.params.employees, value => `${value} employees`))),
+      rateRows('match-employees', 'Match rate by number of employees', groupRates(summary.byEmployees, value => `${value} employees`)),
+      employeesNote(summary.byEmployees)),
     figure('By number of packages requested',
-      rateRows('match-packages', 'Match rate by number of packages', groupRates(runs, grid.packageCounts, run => run.params.packages, value => `${value} packages`))),
+      rateRows('match-packages', 'Match rate by number of packages', groupRates(summary.byPackages, value => `${value} packages`))),
     figure('By detour limit per commute',
-      rateRows('match-detour', 'Match rate by detour limit', groupRates(runs, grid.detourLimitsMin, run => run.params.maxExtraMin, value => `${value} min detour`))),
+      rateRows('match-detour', 'Match rate by detour limit', groupRates(summary.byDetourLimit, value => `${value} min detour`))),
   ].join('\n');
 
   const timingParts: Part[] = [
@@ -558,8 +618,9 @@ export function renderStudyPage(results: StudyResults): string {
 <body>
 <main>
 <a class="back" href="/">← Back to Relay</a>
-<h1>Relay vs. a next-day courier: the numbers</h1>
-<p class="lede">The same packages sent two ways: on a commute an employee already drives, or on a dedicated courier trip. ${count(totals.runs)} simulated runs, ${count(totals.matched)} packages compared.</p>
+<p class="eyebrow">Relay vs. a next-day courier: the numbers</p>
+<h1>${count(totals.runs)} ${totals.runs === 1 ? 'simulation' : 'simulations'}</h1>
+<p class="lede">The same packages sent two ways: on a commute an employee already drives, or on a dedicated courier trip. ${count(totals.matched)} packages compared.</p>
 
 <section class="tiles" aria-label="Headline numbers">
 ${tiles}
@@ -568,7 +629,7 @@ ${tiles}
 <section>
 <h2>How we compared</h2>
 <p class="how">Each run is a full two-day Relay simulation of a random New York City scenario, on the committed cache of driving distances.
-We ran every combination of seeds ${list(grid.seeds)}; ${list(grid.employeeCounts)} commuting employees; ${list(grid.packageCounts)} packages; and detour limits of ${list(grid.detourLimitsMin)} minutes per commute:
+We ran every combination of seeds ${listOrRange(grid.seeds)}; ${list(grid.employeeCounts)} commuting employees; ${list(grid.packageCounts)} packages; and detour limits of ${list(grid.detourLimitsMin)} minutes per commute:
 ${count(grid.plannedRuns)} runs planned, ${count(grid.completedRuns)} simulated, ${count(skipped)} skipped (a skipped run needs a driving distance the cache does not have; it is never estimated).
 For every package Relay matched to a commute, the baseline is the same package sent with a <strong>standard next-day B2B courier</strong>: one dedicated trip from sender to recipient, promised by ${promiseClock} on the next business day. It is <strong>not a same-hour courier</strong>.
 “Per package” always means per package Relay matched. A package with no suitable commute would go by courier at the courier’s price, so it is left out of the comparison and counted in the match rate instead.
@@ -587,8 +648,17 @@ ${pairs}
 </section>
 
 <section>
-<h2>How much the saving varies from run to run</h2>
-<p class="intro">One value per run: what Relay saved per matched package in that run. Each column counts the runs in that range; a value below zero means the courier was ahead in that run.${noMatchRuns > 0 ? ` ${count(noMatchRuns)} ${noMatchRuns === 1 ? 'run' : 'runs'} matched no package and ${noMatchRuns === 1 ? 'is' : 'are'} not shown.` : ''}</p>
+<h2>Spread across runs</h2>
+<p class="intro">The average is over all ${count(totals.matched)} matched packages. The median and the percentiles are over the ${runsWord(summary.runsWithMatch)} that matched a package, one per-package value per run: 8 in 10 runs lie between the 10th and the 90th percentile.${noMatchRuns > 0 ? ` ${runsWord(noMatchRuns)} matched no package and ${noMatchRuns === 1 ? 'is' : 'are'} not shown.` : ''}</p>
+<div class="scroll">
+<table class="figures spread">
+<thead><tr><th scope="col">Per package</th><th scope="col">Sent with</th><th scope="col">Average</th><th scope="col">Median</th><th scope="col">10th to 90th percentile</th></tr></thead>
+<tbody>
+${spreadRows(summary)}
+</tbody>
+</table>
+</div>
+<p class="intro after">What Relay saved per matched package, run by run. Each column counts the runs in that range; a value below zero means the courier was ahead in that run.</p>
 <div class="grid3">
 ${histograms}
 </div>
@@ -599,6 +669,19 @@ ${histograms}
 <p class="intro">Relay matched ${count(totals.matched)} of ${count(totals.packages)} requested packages to a commute; the other ${count(totals.unmatched)} would go by courier. The rate depends on how many employees commute, how many packages are asked for and how long a detour is allowed.</p>
 <div class="grid3">
 ${matchCharts}
+</div>
+</section>
+
+<section>
+<h2>Results by detour limit</h2>
+<p class="intro">The detour limit is the most minutes a package may add to one commute. Each row is the runs with that limit, per package Relay matched.</p>
+<div class="scroll">
+<table class="figures detour">
+<thead><tr><th scope="col">Detour limit</th><th scope="col">Match rate</th><th scope="col">Relay added mi /&nbsp;pkg</th><th scope="col">Courier mi /&nbsp;pkg</th><th scope="col">Relay CO₂ /&nbsp;pkg</th><th scope="col">Courier CO₂ /&nbsp;pkg</th><th scope="col">Cost saved /&nbsp;pkg</th><th scope="col">A day early</th><th scope="col">Runs</th></tr></thead>
+<tbody>
+${detourRows(summary.byDetourLimit)}
+</tbody>
+</table>
 </div>
 </section>
 
@@ -626,17 +709,8 @@ ${assumptionRows(assumptions)}
 
 <section>
 <h2>Every run</h2>
-<details>
-<summary>Show the ${count(runs.length)} simulated ${runs.length === 1 ? 'run' : 'runs'} as a table</summary>
-<div class="scroll">
-<table class="runs">
-<thead><tr><th scope="col">Run</th><th scope="col">Employees</th><th scope="col">Packages</th><th scope="col">Detour limit</th><th scope="col">Matched</th><th scope="col">Match rate</th><th scope="col">Cost saved /&nbsp;pkg</th><th scope="col">Relay added mi /&nbsp;pkg</th><th scope="col">Courier mi /&nbsp;pkg</th><th scope="col">Relay CO₂ /&nbsp;pkg</th><th scope="col">Courier CO₂ /&nbsp;pkg</th><th scope="col">Early</th><th scope="col">On time</th><th scope="col">Late</th></tr></thead>
-<tbody>
-${runRows(runs)}
-</tbody>
-</table>
-</div>
-</details>
+<p class="intro">One row per run: its seed, employees, packages and detour limit, what Relay matched, and the totals of both sides over the matched packages. A skipped run is in the file with its reason.</p>
+<p><a class="download" href="${RUNS_CSV_HREF}" download>Download every run (CSV)</a></p>
 </section>
 
 <footer>Generated by <code>npm run study</code> from the study results. Run ids read s (seed), e (employees), p (packages), d (detour limit in minutes). <a href="/">Back to Relay</a></footer>

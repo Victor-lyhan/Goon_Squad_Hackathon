@@ -2,14 +2,13 @@
 // #548: the MVP II cutover in a real DOM. The real AppShell and the real pages on the four main paths, against
 // a real /api/v2 on a copy of the committed fixtures/nyc (no key, no network; startRealApi). Checks that each
 // path shows its MVP II page, that no request goes to an MVP 1 route, that "Synthetic" and "hub" are never
-// rendered, that the header reads the NYC indicator everywhere, and that /nyc/... redirects (replace) to the
+// rendered, that the header has no environment line (#854), and that /nyc/... redirects (replace) to the
 // main path with its query string and hash.
 import { act } from 'react';
 import { MemoryRouter, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppShell } from '../../client/src/App';
 import { IDENTITY_KEY, readIdentity } from '../../client/src/demoIdentity';
-import { ENV_LABELS } from '../../client/src/ui/shellModel';
 import type { BusinessesResponse, EmployeesResponse } from '../../shared/v2/api';
 import { startRealApi, type RealApi } from './business-v2-real-helper';
 import { flush, link, mount, select, textOf } from './kitDom';
@@ -81,7 +80,7 @@ const PAGES = () => [
 ];
 
 describe('the four main paths show the MVP II pages on the real NYC run', () => {
-  it('each page renders, the header reads the NYC indicator, nothing says Synthetic or hub, no MVP 1 request', async () => {
+  it('each page renders, the header has no environment line, nothing says Synthetic or hub, no MVP 1 request', async () => {
     for (const p of PAGES()) {
       const before = api.requests.length;
       const s = await renderApp(p.path);
@@ -92,9 +91,9 @@ describe('the four main paths show the MVP II pages on the real NYC run', () => 
       expect(s.main().querySelector('.error-fallback'), p.path).toBeNull();
       expect(textOf(s.main()), p.path).not.toMatch(/not found|unavailable|something went wrong/i);
       expect(s.main().className, p.path).toBe(p.full ? 'app-main app-main--full' : 'app-main');
-      // The NYC indicator, on every page but the homepage (#833).
-      if (p.path === '/') expect(s.header().querySelector('.shell-env'), p.path).toBeNull();
-      else expect(textOf(s.header().querySelector('.shell-env')!), p.path).toBe(ENV_LABELS.nyc);
+      // No environment line at the header's top right, on any page (#833, #854).
+      expect(s.header().querySelector('.shell-env'), p.path).toBeNull();
+      expect(textOf(s.header()), p.path).not.toMatch(/simulated deliveries|Real NYC locations/i);
       expect(link(s.header(), 'Relay').getAttribute('href')).toBe('/');
       expect(s.header().querySelector('a[href="/help"]'), p.path).toBeNull();
       expect(link(s.header(), 'Business').getAttribute('href')).toBe(`/business/${bizId}`);

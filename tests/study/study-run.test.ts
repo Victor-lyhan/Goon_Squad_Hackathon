@@ -254,26 +254,30 @@ describe('a run that needs an uncached pair', () => {
 });
 
 describe('the default grid', () => {
-  it('is several seeds x employee counts x package counts x detour limits, all distinct', () => {
-    for (const list of [DEFAULT_GRID.seeds, DEFAULT_GRID.employeeCounts, DEFAULT_GRID.packageCounts, DEFAULT_GRID.detourLimitsMin]) {
-      expect(list.length).toBeGreaterThanOrEqual(3);
-      expect(new Set(list).size).toBe(list.length);
-    }
+  it('is 112 seeds x 3 employee counts x 3 package counts x 3 detour limits: 3,024 runs, all distinct', () => {
+    expect(DEFAULT_GRID.seeds).toEqual(Array.from({ length: 112 }, (_, index) => index + 1));
+    expect(DEFAULT_GRID.employeeCounts).toEqual([30, 60, 120]);
+    expect(DEFAULT_GRID.packageCounts).toEqual([12, 24, 48]);
+    expect(DEFAULT_GRID.detourLimitsMin).toEqual([8, 12, 16]);
     const planned = gridRuns(DEFAULT_GRID);
-    expect(planned).toHaveLength(
-      DEFAULT_GRID.seeds.length * DEFAULT_GRID.employeeCounts.length * DEFAULT_GRID.packageCounts.length * DEFAULT_GRID.detourLimitsMin.length,
-    );
+    expect(planned).toHaveLength(3024);
     expect(new Set(planned.map(runIdOf)).size).toBe(planned.length);
+    // Seed outermost, detour limit innermost.
+    expect(planned.slice(0, 4).map(runIdOf)).toEqual(['s1-e30-p12-d8', 's1-e30-p12-d12', 's1-e30-p12-d16', 's1-e30-p24-d8']);
+    expect(runIdOf(planned.at(-1)!)).toBe('s112-e120-p48-d16');
   });
 
-  it('runs completely on the committed cache, and Relay beats the courier on cost, added miles and CO2', () => {
-    const results = runStudy(studyInput());
-    const { grid, totals, headline: h } = results;
-    expect(grid.plannedRuns).toBe(gridRuns(DEFAULT_GRID).length);
-    expect(grid.skippedRuns).toEqual([]); // the cache has every pair: nothing needs Google
-    expect(grid.completedRuns).toBe(grid.plannedRuns);
-    expect(results.runs).toHaveLength(grid.plannedRuns);
-    expect(totals.packages).toBe(sum(gridRuns(DEFAULT_GRID).map(params => params.packages)));
+  // The whole grid is run once per test run, by tests/study/committed-page.test.ts (`--check` on worker
+  // threads), which also reads the committed CSV of all 3,024 runs. Here: its first three seeds, 81 runs.
+  it('its first three seeds run completely on the committed cache, and Relay beats the courier on cost, added miles and CO2', () => {
+    const grid: GridSpec = { ...DEFAULT_GRID, seeds: DEFAULT_GRID.seeds.slice(0, 3) };
+    const results = runStudy(studyInput({ grid }));
+    const { totals, headline: h } = results;
+    expect(results.grid.plannedRuns).toBe(81);
+    expect(results.grid.skippedRuns).toEqual([]); // the cache has every pair: nothing needs Google
+    expect(results.grid.completedRuns).toBe(results.grid.plannedRuns);
+    expect(results.runs).toHaveLength(81);
+    expect(totals.packages).toBe(sum(gridRuns(grid).map(params => params.packages)));
     expect(totals.matched).toBeGreaterThan(0);
     for (const run of results.runs) expectConsistent(run.totals);
     expectConsistent(totals);

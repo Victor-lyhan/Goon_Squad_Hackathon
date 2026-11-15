@@ -6,7 +6,7 @@ import {
 } from './api/v2';
 import {
   ACCOUNTS_ERROR_TEXT, ACCOUNTS_LOADING_TEXT, activeDestination, bareWorkspace, cutoverPath, DESTINATIONS,
-  employeeOptions, ENV_INDICATOR_TEXT, HOME_PATH, isFullWidthPath, openAccount, pickAccount, reconcileSelection,
+  employeeOptions, HOME_PATH, isFullWidthPath, openAccount, pickAccount, reconcileSelection,
   RUN_POLL_MS, runChanged, staleNote, withOpenAccount, workspaceHrefs,
   type AccountOption,
 } from './ui/shellModel';
@@ -25,9 +25,6 @@ import Landing from './pages/Landing';
 import SimulatorV2 from './pages/v2/SimulatorV2';
 import EmployeeV2 from './pages/v2/EmployeeV2';
 import BusinessV2 from './pages/v2/BusinessV2';
-
-/** Header environment indicator (kept for existing imports; the source is ENV_INDICATOR_TEXT). */
-export const BADGE_TEXT = ENV_INDICATOR_TEXT;
 
 export { readIdentity, writeIdentity, resolveIdentity };
 
@@ -221,12 +218,12 @@ export function Header({ employees, businesses }: { employees: V2Directory; busi
           );
         })}
       </nav>
+      {/* The top right holds the Demo account selector only (Business and Employee pages). No page has a line
+          of text there (#833 the homepage, #854 every page). */}
       <div className="shell-tools">
         <div className="demo-account-slot" data-slot="demo-account-selector">
           <DemoAccountSelector employees={employees} businesses={businesses} />
         </div>
-        {/* Not on the homepage (#833): its header has no text at the top right. Every other page keeps the line. */}
-        {pathname !== HOME_PATH && <span className="shell-env">{ENV_INDICATOR_TEXT}</span>}
       </div>
     </header>
   );

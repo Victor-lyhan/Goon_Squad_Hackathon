@@ -177,8 +177,11 @@
 /* ---------- Package list ---------- */
 .sw-pkgs { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border, #E3E3DE); }
 .sw-pkgs li { border-bottom: 1px solid var(--border, #E3E3DE); }
+/* minmax(0, 1fr): the row's one column stays the button's width, so a long name gets the ellipsis of
+   .sw-pkg-label instead of pushing the status past the panel's right edge (#846). */
 .sw-pkg {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   width: 100%;
   padding: var(--space-2, 8px);

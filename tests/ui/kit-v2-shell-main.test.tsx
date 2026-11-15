@@ -10,7 +10,7 @@ import {
   startV2BusinessDirectory, startV2Directory, switchIdentityPath, type V2BusinessDirectory, type V2Directory,
 } from '../../client/src/ui/shell';
 import {
-  activeDestination, cutoverPath, ENV_LABELS, isFullWidthPath, isLegacyPreviewPath, pickAccount, workspaceHrefs,
+  activeDestination, cutoverPath, isFullWidthPath, isLegacyPreviewPath, pickAccount, workspaceHrefs,
 } from '../../client/src/ui/shellModel';
 
 const v2Employees = [
@@ -67,10 +67,10 @@ describe('route table', () => {
 });
 
 describe('header on /simulator', () => {
-  it('shows the NYC indicator and the three main links', () => {
+  it('shows the three main links and no environment line (#854)', () => {
     const html = render('/simulator');
-    expect(header(html)).toContain(`class="shell-env">${ENV_LABELS.nyc}<`);
-    expect(html).not.toContain(ENV_LABELS.synthetic);
+    expect(header(html)).not.toContain('shell-env');
+    expect(html).not.toMatch(/simulated deliveries|Real NYC locations|Synthetic city/i);
     expect(hrefOf(html, 'Business')).toBe('/business/biz-01');
     expect(hrefOf(html, 'Employee')).toBe('/employee/emp-01');
     expect(hrefOf(html, 'Simulator')).toBe('/simulator');
@@ -90,7 +90,7 @@ describe('header on /simulator', () => {
   });
   it('with a 503 the header renders, Employee is pending, no selector', () => {
     const html = render('/simulator', v2Down);
-    expect(header(html)).toContain(ENV_LABELS.nyc);
+    expect(header(html)).toContain('class="shell-wordmark"');
     expect(nav(html)).toContain('href="/simulator"');
     expect(nav(html)).toMatch(/nav-pending" aria-disabled="true">Employee</);
     expect(header(html)).not.toContain('<select');

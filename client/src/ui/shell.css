@@ -46,6 +46,9 @@
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-3, 12px);
   margin-left: auto;
 }
+/* No selector (every page but Business and Employee): the empty box takes no row of its own, so a narrow
+   header does not end with a blank 8 px gap under the nav (#854). */
+.shell-tools:has(> .demo-account-slot:empty) { display: none; }
 .shell-header .demo-account-slot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); max-width: 100%; }
 .shell-header .demo-account {
   display: inline-flex; align-items: center; gap: var(--space-2, 8px); min-width: 0; max-width: 100%;
@@ -60,11 +63,6 @@
   max-width: 20rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .shell-header .demo-account-status { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.shell-env {
-  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); white-space: nowrap;
-  padding-left: var(--space-3, 12px); border-left: 1px solid var(--border, #E3E3DE);
-}
 
 /* Focus: every header control gets a visible outline. */
 .shell-wordmark:focus-visible,
@@ -80,13 +78,11 @@
   .shell-header { padding: var(--space-2, 8px) var(--space-3, 12px); }
   .shell-nav { order: 3; flex: 1 1 100%; flex-wrap: wrap; }
   .shell-tools { margin-left: auto; order: 4; }
-  .shell-env { white-space: normal; }
 }
 @media (max-width: 480px) {
   .shell-tools { flex: 1 1 100%; margin-left: 0; }
   .shell-header .demo-account-slot, .shell-header .demo-account { width: 100%; }
   .shell-header .demo-account select { flex: 1 1 auto; width: 100%; max-width: 100%; }
-  .shell-env { padding-left: 0; border-left: 0; }
 }
 
 /* /business and /employee without an ID, while the account list loads or has failed (#724). */

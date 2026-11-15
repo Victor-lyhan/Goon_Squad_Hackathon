@@ -3,9 +3,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import Landing from '../../client/src/pages/Landing';
 import { nycSummaryFrom, nycSummaryFromError, type NycSummary } from '../../client/src/pages/landingModel';
-import { ENV_LABELS } from '../../client/src/ui/shellModel';
 import { ApiRequestError } from '../../client/src/api/v2';
 import { businesses, employees, simulator } from './landing-nyc-sample';
+
+/** The line the header's top right held until #854 (the homepage lost it in #833). */
+const OLD_ENV_TEXT = 'Real NYC locations · simulated deliveries';
 
 const page = (props: Parameters<typeof Landing>[0]) =>
   renderToStaticMarkup(<MemoryRouter><Landing {...props} /></MemoryRouter>);
@@ -48,14 +50,14 @@ describe('the homepage with sample /api/v2 responses', () => {
   });
 
   it('does not say the environment line, and has no footer (#724, #833)', () => {
-    expect(h).not.toContain(ENV_LABELS.nyc);
+    expect(h).not.toContain(OLD_ENV_TEXT);
     expect(h).not.toContain('<footer');
     const copy = /<div class="landing-hero-copy">([\s\S]*?)<\/div>/.exec(h)![1];
     expect(copy.match(/<h1[ >]/g)).toHaveLength(1);
     expect(copy).not.toMatch(/<p[ >]/);
     // in every state, also after a failed load
     for (const s of [{ status: 'loading' }, { status: 'error' }, unavailable] as NycSummary[]) {
-      expect(page({ initialSummary: s }), s.status).not.toContain(ENV_LABELS.nyc);
+      expect(page({ initialSummary: s }), s.status).not.toContain(OLD_ENV_TEXT);
     }
   });
 

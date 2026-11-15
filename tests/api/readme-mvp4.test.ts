@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_GRID, gridRuns } from '../../scripts/study/grid';
-import { DEFAULT_STUDY_OUT, DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
+import { DEFAULT_STUDY_CSV, DEFAULT_STUDY_OUT, DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
 import { DEFAULT_GEMINI_MODEL, GEMINI_KEY_NAME, GEMINI_MODEL_NAME, geminiKey } from '../../server/ai/env';
 import { DEFAULT_GEMINI_TIMEOUT_MS, GeminiUnavailable } from '../../server/ai/gemini';
 import { INVALID_ANSWER_MESSAGE } from '../../server/ai/geminiParser';
@@ -135,13 +135,20 @@ describe('README: The numbers: Relay vs traditional delivery', () => {
     expect(sectionOf('## Setup and run')).toMatch(/^\| `\/study\.html` \|/m);
   });
 
-  it('names the command, the two files it writes and the path of the page', () => {
+  it('names the command, the three files it writes and the path of the page', () => {
     const rel = (file: string) => path.relative(root, file).split(path.sep).join('/');
     expect(rel(DEFAULT_STUDY_OUT)).toBe('data/study/results.json');
     expect(rel(DEFAULT_STUDY_PAGE)).toBe('client/public/study.html');
-    for (const text of ['npm run study', '`data/study/results.json`', '`client/public/study.html`', '`/study.html`']) {
+    expect(rel(DEFAULT_STUDY_CSV)).toBe('client/public/study/runs.csv');
+    for (const text of ['npm run study', '`data/study/results.json`', '`client/public/study.html`', '`client/public/study/runs.csv`', '`/study.html`']) {
       expect(section).toContain(text);
     }
+    // #841: the CSV is committed, the page links to it under the name the README gives, and the worker flag is named.
+    expect(fs.existsSync(DEFAULT_STUDY_CSV)).toBe(true);
+    expect(pageText).toContain('Download every run (CSV)');
+    expect(section).toContain('**Download every run (CSV)**');
+    expect(section).toContain('`npm run study -- --workers 4`');
+    expect(section).toContain('`npm run study -- --check`');
     // Vite serves client/public at the root, and the results file is not committed.
     expect(read('vite.config.ts')).toContain("root: 'client'");
     expect(read('.gitignore').split(/\r?\n/)).toContain('/data/');
@@ -162,17 +169,22 @@ describe('README: The numbers: Relay vs traditional delivery', () => {
       // Fails after a study run that moved a number: copy the new value from client/public/study.html.
       expect(rowOf(section, label), `the README row of "${label}"`).toEqual([label, value, detail]);
     }
-    const runs = /(\d+) simulated runs/.exec(pageText)?.[1];
+    // The page's headline: "3,024 simulations".
+    const runs = /<h1>([\d,]+) simulations<\/h1>/.exec(committed)?.[1];
     expect(runs).toBeTruthy();
     expect(section).toContain(`averages over ${runs} simulated runs`);
     expect(section).toContain(`runs the ${runs} simulations`);
     const matchRate = tiles[4][1];
     expect(section).toContain(`${matchRate} of the requested packages`);
     // How often Relay is ahead: cost, miles, CO2, in the page's order.
-    const ahead = [...pageText.matchAll(/Relay ahead in (\d+ of \d+ runs)/g)].map((m) => m[1]);
+    const ahead = [...pageText.matchAll(/Relay ahead in ([\d,]+ of [\d,]+ runs)/g)].map((m) => m[1]);
     expect(ahead).toHaveLength(3);
     expect(ahead[1]).toBe(ahead[2]);
     expect(section).toContain(`on cost in ${ahead[0]}, and on miles and CO₂ in ${ahead[1]}`);
+    // The line under the match-rate chart, quoted with its two figures.
+    const rises = /The match rate rises as more employees join: [\d.]+% with \d+ employees, [\d.]+% with \d+\./.exec(pageText)?.[0];
+    expect(rises).toBeTruthy();
+    expect(section).toContain(rises);
   });
 
   it('describes the grid of scripts/study/grid.ts', () => {
@@ -182,7 +194,9 @@ describe('README: The numbers: Relay vs traditional delivery', () => {
       `every combination of ${seeds.length} seeds, of ${list(employeeCounts)} commuting employees, `
       + `of ${list(packageCounts)} packages, and of detour limits of ${list(detourLimitsMin)} minutes`,
     );
-    expect(pageText).toContain(`${gridRuns(DEFAULT_GRID).length} simulated runs`);
+    const planned = String(gridRuns(DEFAULT_GRID).length).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    expect(committed).toContain(`<h1>${planned} simulations</h1>`);
+    expect(section).toContain(`averages over ${planned} simulated runs`);
   });
 
   it('says "100% on time" holds by construction, with the times the page gives, and that the cost is the match rate', () => {
@@ -206,6 +220,6 @@ describe('README: The numbers: Relay vs traditional delivery', () => {
       expect(section).toContain(`\`${file}\``);
       expect(fs.existsSync(path.join(root, file)), file).toBe(true);
     }
-    expect(section).toMatch(/After a change to the travel cache .* run it again and commit `client\/public\/study\.html`\./);
+    expect(section).toMatch(/After a change to the travel cache .* run it again and commit `client\/public\/study\.html` and `client\/public\/study\/runs\.csv`\./);
   });
 });
