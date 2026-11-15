@@ -145,7 +145,9 @@ describe('README after the cutover', () => {
     const css = read('client/src/styles/landing.css');
     const rule = (selector: string) => new RegExp(`\\n\\${selector} \\{[^}]*\\}`).exec(css)?.[0] ?? '';
     // "fills the screen under the header": the window's height less the header's, which the shell sets.
-    expect(rule('.landing-hero')).toContain('min-height: calc(100dvh - var(--app-header-h, 48px));');
+    // The fallback is the header's own height (#879); the 100vh line is for a browser without dvh.
+    expect(rule('.landing-hero')).toContain('min-height: calc(100vh - var(--app-header-h, 64px));');
+    expect(rule('.landing-hero')).toContain('min-height: calc(100dvh - var(--app-header-h, 64px));');
     expect(read('client/src/ui/shell.css')).toContain(':root { --app-header-h: 64px; }');
     // "dark", and two halves: the text column and the map.
     expect(rule('.landing-hero')).toContain('background: var(--hero-ground, #171C24);');
