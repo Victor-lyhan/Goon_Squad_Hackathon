@@ -6,10 +6,17 @@ import type { NetworkBusiness, Notification } from '../../../../../../shared/v2/
 import { formatCents, formatClock } from '../../../../ui/format';
 
 export const DASH = '—';
-export const ROLE_LINE = 'Network business · relay point';
-export const RELAY_TAG = 'Relay point';
+/** What "relay point" means for this business, as one sentence (every network business is one; DECISIONS pass 79). */
+export const ROLE_LINE = 'This business is also a relay point: packages can be held here overnight.';
+/** On a notification about a package this business holds. The same words as the line above its details (#581). */
+export const RELAY_TAG = 'Held here overnight';
 export const VISIBLE_ROWS = 20;
-export const EMPTY_TEXT = 'No notifications yet.';
+/** True in both phases: the panel lists arranged, incoming and held deliveries, not their progress. */
+export const EMPTY_TEXT = 'No notifications yet. Deliveries you send, receive or hold overnight show up here.';
+/** In front of a row's time, which is the package's ready time (the table's "Ready" column), not when the note came. */
+export const TIME_LABEL = 'Ready';
+/** The words of a row's action; the delivery's ID follows them in mono. */
+export const OPEN_LABEL = 'Open delivery';
 
 export type TotalItem = { key: 'sent' | 'matched' | 'delivered' | 'spend'; label: string; value: string };
 
@@ -29,7 +36,7 @@ export type HeaderModel = {
 
 const PHASE: Record<BusinessDashboard['phase'], { label: string; text: string }> = {
   planning: { label: 'Planning', text: 'Deliveries can be added until the simulation starts.' },
-  locked: { label: 'Locked', text: 'The simulation is running; deliveries are read-only.' },
+  locked: { label: 'Locked', text: 'The simulation is running, so deliveries cannot be added or changed.' },
 };
 
 const count = (n: number) => (Number.isFinite(n) ? String(Math.round(n)) : DASH);
@@ -69,7 +76,7 @@ export type NotificationRow = {
   time: string;
   message: string;
   role: NotificationRole;
-  /** "Relay point" when the package is held at this business overnight; else null. */
+  /** "Held here overnight" when the package is held at this business as its relay point; else null. */
   tag: string | null;
   /** Shipment to open, or null when the notification has none. */
   shipmentId: string | null;
@@ -119,6 +126,36 @@ function roleOf(
   // No shipment at all: nothing is held here, so it is not a relay notification.
   if (!n.shipmentId || !n.shipmentId.trim()) return 'other';
   return 'relay';
+}
+
+/** True when the row has a time to show; a row without one shows no dash (#892). */
+export const hasTime = (row: Pick<NotificationRow, 'time'>): boolean => row.time !== DASH && row.time.trim() !== '';
+
+/**
+ * What a screen reader hears about a row: the marks, the server's sentence, the ready time, then the action.
+ * It holds every word the row shows, in the order it shows them.
+ */
+export function rowName(row: NotificationRow): string {
+  return [
+    row.isNew ? 'New.' : '',
+    row.tag ? `${row.tag}.` : '',
+    row.message,
+    hasTime(row) ? `${TIME_LABEL} ${row.time}.` : '',
+    row.shipmentId ? `${OPEN_LABEL} ${row.shipmentId}` : '',
+  ].filter(Boolean).join(' ');
+}
+
+/**
+ * The sentence for the panel's polite live region when notifications arrive after the first load:
+ * one is read in full, several are counted and the newest is read. `arrived` is newest first; '' for none.
+ */
+export function arrivalText(arrived: readonly NotificationRow[]): string {
+  if (arrived.length === 0) return '';
+  const first = arrived[0];
+  const sentence = `${first.tag ? `${first.tag}. ` : ''}${first.message}`;
+  return arrived.length === 1
+    ? `New notification: ${sentence}`
+    : `${arrived.length} new notifications. Newest: ${sentence}`;
 }
 
 /** One run of a notification sentence; `mono` marks a price ("$10.00"), which is set in IBM Plex Mono. */

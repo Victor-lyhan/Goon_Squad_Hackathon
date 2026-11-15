@@ -13,7 +13,7 @@ describe('headerModel', () => {
     expect(m.address).toBe('1 Test St');
     expect(m.area).toBe('Midtown · Manhattan');
     expect(m.role).toBe(ROLE_LINE);
-    expect(m.role).toBe('Network business · relay point');
+    expect(m.role).toBe('This business is also a relay point: packages can be held here overnight.');
     expect(m.phaseLabel).toBe('Planning');
     expect(headerModel({ ...DASHBOARD, phase: 'locked' }).phaseLabel).toBe('Locked');
   });

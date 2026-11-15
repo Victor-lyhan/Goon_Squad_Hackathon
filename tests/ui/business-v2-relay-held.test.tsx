@@ -130,7 +130,10 @@ describe('a business that is only the relay point of a package', () => {
     await p.until(() => p.notes().length === 1, 'the notification');
     // The dashboard lists no delivery of its own, and nothing was read for a closed page.
     expect(p.text()).toContain('No shipments yet');
-    expect(textOf(p.notes()[0].querySelector('.ba-note__time')!)).toBe('—');
+    // No time is known for it yet, and the row shows no dash in its place (#892).
+    expect(p.notes()[0].querySelector('.ba-note__time')).toBeNull();
+    expect(textOf(p.notes()[0])).not.toContain('—');
+    expect(textOf(p.notes()[0])).toContain('Held here overnight');
     expect(textOf(p.notes()[0])).toContain('Relay point');
     expect(shipmentReads('shp-8')).toBe(0);
 
@@ -139,7 +142,7 @@ describe('a business that is only the relay point of a package', () => {
     const watch = new MutationObserver(() => { seen.push(p.text()); });
     watch.observe(p.container, { childList: true, subtree: true, characterData: true });
 
-    click(button(p.notes()[0], /Open shp-8$/));
+    click(button(p.notes()[0], /Open delivery shp-8$/));
     expect(p.where.search).toBe('?shipment=shp-8');
     expect(p.text()).toContain('Loading this delivery');
     await p.until(() => p.details() !== null, 'the delivery details');
@@ -170,8 +173,9 @@ describe('a business that is only the relay point of a package', () => {
     // The delivery's route map opens for it too.
     await p.until(() => p.container.querySelector('section.bdr') !== null, 'the route map');
 
-    // Its notification now shows the package's time, not a dash.
+    // Its notification now shows the package's ready time.
     expect(textOf(p.notes()[0].querySelector('.ba-note__time')!)).toBe('5:00 PM');
+    expect(textOf(p.notes()[0].querySelector('.ba-note__ready')!)).toBe('Ready 5:00 PM');
     expect(p.text()).not.toContain(DELIVERY_MISSING_TITLE);
     expect(p.text()).not.toMatch(/undefined|NaN|\bhub\b/i);
   }, T);
@@ -211,7 +215,7 @@ describe('a business that is only the relay point of a package', () => {
     expect(p.text()).toContain('another business');
     expect(p.details()).toBeNull();
     expect(p.container.querySelector('.bp-held')).toBeNull();
-    expect(textOf(p.notes()[0].querySelector('.ba-note__time')!)).toBe('—');
+    expect(p.notes()[0].querySelector('.ba-note__time')).toBeNull();
     // Nothing of the other businesses' delivery is shown.
     expect(p.text()).not.toContain(DIRECT.shipment.label);
     expect(p.text()).not.toContain('$12.50');

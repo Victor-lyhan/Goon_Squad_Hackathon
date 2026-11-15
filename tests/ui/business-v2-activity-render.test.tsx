@@ -22,7 +22,7 @@ describe('BusinessHeader', () => {
     expect(html).toContain('biz-acme');
     expect(html).toContain('1 Test St');
     expect(html).toContain('Midtown · Manhattan');
-    expect(html).toContain('Network business · relay point');
+    expect(html).toContain('<p class="ba-header__role">This business is also a relay point: packages can be held here overnight.</p>');
     expect(html).toContain('Planning');
     expect(html).toContain('$30.50');
     expect(html).toContain('3 sent · 2 matched · 1 delivered · $30.50 spend');
@@ -33,7 +33,7 @@ describe('BusinessHeader', () => {
 describe('NotificationsPanel', () => {
   it('shows the empty state with 0 notifications', () => {
     const html = panel([]);
-    expect(html).toContain('No notifications yet.');
+    expect(html).toContain('<p class="ba-notes__empty">No notifications yet. Deliveries you send, receive or hold overnight show up here.</p>');
     expect(html).not.toContain('<li');
     expect(html).not.toContain('Show all');
   });
@@ -43,7 +43,7 @@ describe('NotificationsPanel', () => {
     expect(count(html, /<li /g)).toBe(3);
     expect(html.indexOf('Overnight drop')).toBeLessThan(html.indexOf('Incoming delivery'));
     expect(html.indexOf('Incoming delivery')).toBeLessThan(html.indexOf('Delivery arranged'));
-    expect(count(html, /class="ba-note__tag">Relay point</g)).toBe(1);
+    expect(count(html, /class="ba-note__tag">Held here overnight</g)).toBe(1);
     expect(count(html, /<button type="button" class="ba-note__btn"/g)).toBe(3);
     // First load flags nothing as New (DECISIONS pass 9).
     expect(html).not.toContain('class="ba-note__new"');
