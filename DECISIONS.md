@@ -346,3 +346,8 @@ One line per decision: date, decision, why. Humans seeded the first block from t
 - 2026-11-14 (planner, pass 77) CI on main is red for the billing reason of pass 61 (runs of #719, #737 and the 19:23 planner commit). No fix issue.
 - 2026-11-14 (planner, pass 77) **The Business locked notes name "Back to start" (#742)**, following pass 74, and the PR #722 markup faults go in the same issue now that #719 is merged: the notification price and the New delivery hint data (times, weight) get mono spans, not a CSS-only rule.
 - 2026-11-14 (planner, pass 77) **`strong, b, th { font-weight: 600 }` goes in `styles/global.css` (#743)** instead of a weight rule per component: no 700 face is loaded, so any unstyled bold was faked (PR #741 note). No 700 face is added.
+
+- 2026-11-14 (planner, pass 78) CI on main is red for the billing reason of pass 61 (runs of #728, #735 and the 19:30 planner commit). No fix issue.
+- 2026-11-14 (planner, pass 78) **The Employee locked notes name "Back to start" (#745)**, following passes 74 and 77, now that #735 (PR #744) has released `employee/v2`.
+- 2026-11-14 (planner, pass 78) **Pause must be final (#747):** a version change after the pause answer (PR #738 note 5) is treated as a possible server race first, because the demo's Pause should freeze what the judge sees; only if the server is clean does the test wait for a stable version.
+- 2026-11-14 (planner, pass 78) The dev-only React key-spread error on `/` (PR #738 note 4) is fixed in `Landing.tsx` (#746) before the freeze; the no-key map panel's `role="alert"` (PR #744 note) waits for #739, which holds `map/`.
