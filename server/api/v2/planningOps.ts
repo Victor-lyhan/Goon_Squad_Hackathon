@@ -15,7 +15,8 @@ import type {
 } from '../../../shared/v2/types';
 import { buildNycScenario } from '../../domain/v2/generator';
 
-export const RECOMPUTE_LOCKED = 'Planning is locked. Start a new planning cycle to recompute.';
+export const RECOMPUTE_LOCKED =
+  'The simulation is playing. Press Back to start in the simulator to recompute.';
 export const INVALID_GENERATE = 'Invalid scenario request';
 export const NOT_A_RELAY_FILE = 'This file is not a Relay scenario export, so it was not loaded.';
 export const MVP1_FILE =
@@ -75,7 +76,7 @@ function emptied(run: Run): Run {
  * "Start new planning cycle" (DECISIONS pass 6): a new `runId`, the clock back at `simStartMin`, paused,
  * in `planning`, at the speed it had. Entities, packages and trips are kept and nothing of the old cycle's
  * matching survives; the route runs the full match on the result at once, so the portals are never empty.
- * Allowed in any phase: it is the way out of `locked`.
+ * Allowed in any phase. It also unlocks, but with a new run; "Back to start" unlocks the same run (#734).
  */
 export function beginNewCycle(run: Run): Run {
   const next = emptied(run);

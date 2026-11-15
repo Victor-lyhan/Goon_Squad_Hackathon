@@ -42,9 +42,9 @@ describe('resolveCommute', () => {
     const run = sampleRun();
     run.clock.phase = 'locked';
     expect(resolveCommute(run, 'emp-1', commuteBody())).toEqual({
-      ok: false, status: 409, error: 'Start a new planning cycle to edit commutes',
+      ok: false, status: 409, error: 'The simulation is playing. Press Back to start in the simulator to edit commutes.',
     });
-    expect(COMMUTE_LOCKED).toBe('Start a new planning cycle to edit commutes');
+    expect(COMMUTE_LOCKED).toBe('The simulation is playing. Press Back to start in the simulator to edit commutes.');
   });
 
   it('an unknown employee is a 404 in a locked run too', () => {
