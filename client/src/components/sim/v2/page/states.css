@@ -1,0 +1,49 @@
+/* Simulator page states (#894): the first load and a failed first load, drawn in the workspace frame
+   (SimStateFrame.tsx). MVP III look (docs/mvp3.md P4): token colours as var(--name, fallback),
+   hairline borders, radius 2px on the bars, flat fills, no shadows, no gradients, no motion: the
+   spinner in the map area is the one thing that moves, and ui.css stops it under reduced motion. */
+
+/* The page-state area of compose.css (`.spc-state`: centered panel, page background, UI font) placed
+   in the map slot instead of over the whole page. The slot gives it its size; border-box keeps its
+   padding inside that size. */
+.spc-state.sps-map {
+  position: static;
+  box-sizing: border-box;
+}
+
+/* ---------- Placeholder rows in the two panels ---------- */
+/* Same hairlines and row padding as the package list (`.sw-pkgs`, `.sw-pkg`) and the run summary
+   (`.sw-summary-row`), so the rows that arrive sit where these were. */
+.sps-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border, #E3E3DE);
+}
+.sps-row {
+  display: grid;
+  gap: var(--space-2, 8px);
+  padding: var(--space-3, 12px) var(--space-2, 8px);
+  border-bottom: 1px solid var(--border, #E3E3DE);
+}
+.sps-row--pair {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: var(--space-3, 12px) 0;
+}
+.sps-bar {
+  display: block;
+  height: var(--space-2, 8px);
+  border-radius: 2px;
+  background: var(--border, #E3E3DE);
+}
+.sps-bar--name { width: 62%; }
+.sps-bar--route { width: 84%; height: var(--space-1, 4px); }
+.sps-bar--label { width: 96px; }
+.sps-bar--value { width: 48px; }
+/* Rows of one list are not all the same length, as real names are not. */
+.sps-row:nth-child(even) .sps-bar--name { width: 48%; }
+.sps-row:nth-child(3n) .sps-bar--route { width: 70%; }
+
+.sps-summary { padding: var(--space-3, 12px) 0; }
+.sps-rows--summary { border-top: 0; }

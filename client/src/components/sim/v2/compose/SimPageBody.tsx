@@ -14,7 +14,7 @@
 // of the night; with no package (#790) the same player steps through every carrier's commute. Every
 // position on screen is a polled one or a point between two.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Spinner } from '../../../../ui';
+import { Button } from '../../../../ui';
 import { GoogleBaseMap } from '../../../map/GoogleBaseMap';
 import type { MapMover, MapPanTarget } from '../../../map/types';
 import { FocusSelector } from '../FocusSelector';
@@ -48,6 +48,7 @@ import {
 } from './journeyPlay';
 import { buildMoverLines, pathForMovers } from './moverPaths';
 import { OvernightCard } from './OvernightCard';
+import { SimStateFrame } from '../page/SimStateFrame';
 import { useJourneyPlay } from './useJourneyPlay';
 import './compose.css';
 
@@ -311,7 +312,8 @@ function ReadyLayout({
         <MapLegend mode={view.legend.mode} hasSelection={view.legend.hasSelection}
           focus={view.legend.focus} open={legendOpen} onOpenChange={handlers.setLegendOpen} />
       </div>
-      {view.reconnecting && <p className="spc-banner" role="status">{RECONNECTING_TEXT}</p>}
+      {/* #894: one sentence (unreachable, or answering with an error) over the last good data. */}
+      {view.reconnecting && <p className="spc-banner" role="status">{view.reconnectingText ?? RECONNECTING_TEXT}</p>}
       {view.mapPending && <p className="spc-banner spc-banner--quiet" role="status">{MAP_PENDING_TEXT}</p>}
       {/* #725: the live region is always in the page and the card goes into it, so a screen reader announces
           the card once when it appears (a region inserted together with its text is often not read). */}
@@ -332,20 +334,15 @@ function ReadyLayout({
 export function SimPageLayout(props: SimPageLayoutProps) {
   const { view, handlers } = props;
   switch (view.view) {
+    // #894: the first load and a failed first load keep the workspace's frame (panels and map area),
+    // so the page is never blank; the map area holds the one line. The poll goes on under both.
     case 'loading':
-      return (
-        <div className="spc-state">
-          <div className="spc-state__panel spc-state__panel--loading">
-            <Spinner label={LOADING_TEXT} />
-            <span aria-hidden="true">{LOADING_TEXT}</span>
-            {view.reconnecting && <p className="spc-state__note">{RECONNECTING_TEXT}</p>}
-          </div>
-        </div>
-      );
+      return <SimStateFrame kind="loading" text={LOADING_TEXT} />;
+    case 'error':
+      return <SimStateFrame kind="error" text={view.message} onRetry={handlers.retry} />;
+    // A 503 from the travel data is a setup fault with its own instructions: the whole page says so.
     case 'unavailable':
       return <StateScreen title="Simulator unavailable" message={view.message} reconnecting={view.reconnecting} onRetry={handlers.retry} />;
-    case 'error':
-      return <StateScreen title="Simulator could not load" message={view.message} reconnecting={view.reconnecting} onRetry={handlers.retry} />;
     case 'ready':
       return <ReadyLayout {...props} view={view} />;
   }
