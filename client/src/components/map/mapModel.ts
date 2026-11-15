@@ -170,7 +170,8 @@ export function panDecision(
 /**
  * The hover tooltip's text (name and role) for the selected item, so it is reachable without a
  * mouse: GoogleBaseMap puts it in a visually hidden live region. The first selected ID that is a
- * place, mover or stop wins (route IDs have no name of their own). Empty when nothing resolves.
+ * place, mover or stop wins (route IDs have no name of their own). A carried package names its carrier.
+ * Empty when nothing resolves.
  */
 export function selectedItemText(
   selectedIds: readonly string[],
@@ -185,7 +186,11 @@ export function selectedItemText(
       return `${place.label}, ${role}`;
     }
     const mover = movers.find((m) => m.id === id);
-    if (mover) return `${mover.label}, ${roleOf(mover.kind)}`;
+    if (mover) {
+      // A carried package names its carrier, as its badge's tooltip does.
+      const carrier = mover.carrierId ? movers.find((m) => m.id === mover.carrierId && m.kind === 'vehicle') : undefined;
+      return carrier ? `${mover.label}, ${roleOf(mover.kind)} · with ${carrier.label}` : `${mover.label}, ${roleOf(mover.kind)}`;
+    }
     const stop = stops.find((s) => s.id === id);
     if (stop) return `${stop.label}, Stop ${stop.n}`;
   }

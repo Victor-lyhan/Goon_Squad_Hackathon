@@ -217,7 +217,7 @@ describe('JourneyLegend', () => {
     const html = renderToStaticMarkup(<JourneyLegend carriers={j.carriers} />);
     const rows = symbolRows(html);
     expect(rows.map((r) => [r.key, r.label])).toEqual([
-      ['package', 'Package'],
+      ['package', 'Package waiting at a business'],
       ['sender', 'Sender'],
       ['relay', 'Overnight at the relay point'],
       ['swap', 'Handoff'],

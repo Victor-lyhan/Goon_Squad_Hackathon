@@ -27,7 +27,7 @@ describe('MapLegend', () => {
     expect(html).toMatch(/<ul class="ml__list">/);
     expect(items(html)).toBe(6);
     const t = text(html);
-    for (const s of ['Network business · every one is a relay point', 'Home neighborhood', 'Commuter vehicle', 'Package', 'Normal commute', 'Delivery route']) {
+    for (const s of ['Network business · every one is a relay point', 'Home neighborhood', 'Carrier · letter = first name', 'Package · rides on its carrier, or waits at a business', 'Normal commute', 'Delivery route']) {
       expect(t).toContain(s);
     }
     // Swatches are drawn with CSS from the map constants and hidden from screen readers.
