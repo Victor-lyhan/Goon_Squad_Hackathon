@@ -5,10 +5,14 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ASSUMPTIONS, ASSUMPTION_KEYS } from '../../scripts/study/assumptions';
 import { DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
-import { CARD_MIN_WIDTH, CHART_TEXT_PX, CHART_WIDTH, assumptionValueParts, escapeHtml, headlineTiles, renderStudyPage } from '../../scripts/study/page';
+import {
+  CARD_MIN_WIDTH, CHART_TEXT_PX, CHART_WIDTH, RUNS_CSV_HREF, SKIPPED_RUNS_LISTED,
+  assumptionValueParts, escapeHtml, headlineTiles, renderStudyPage,
+} from '../../scripts/study/page';
 import { runStudy } from '../../scripts/study/runner';
+import { summarize } from '../../scripts/study/summary';
 import type { StudyResults } from '../../scripts/study/types';
-import { STUDY_TIMEOUT_MS, TWO_RUN_GRID, studyInput } from './study-helper';
+import { STUDY_TIMEOUT_MS, TWO_RUN_GRID, allSkipped, noneMatched, studyInput } from './study-helper';
 
 const sample: StudyResults = runStudy(studyInput({ grid: TWO_RUN_GRID }));
 const page = renderStudyPage(sample);
@@ -27,40 +31,28 @@ const pinned: StudyResults = {
 };
 
 /** A study where every run was skipped: no run, no package, every average null. */
-const empty: StudyResults = {
-  ...sample,
-  grid: {
-    ...sample.grid,
-    requestWindow: null,
-    completedRuns: 0,
-    skippedRuns: sample.runs.map(run => ({ id: run.id, params: run.params, reason: 'No travel matrix data for biz-a|home-001' })),
-  },
-  runs: [],
-  totals: {
-    ...(Object.fromEntries(Object.keys(sample.totals).map(key => [key, 0])) as unknown as StudyResults['totals']),
-    matchRate: null, skippedRuns: sample.runs.length,
-  },
-  headline: {
-    ...(Object.fromEntries(Object.keys(sample.headline).map(key => [key, null])) as unknown as StudyResults['headline']),
-    runs: 0, packages: 0, matched: 0,
-  },
-};
+const empty: StudyResults = allSkipped(sample);
 
 /** Runs that were simulated but matched nothing: the per-package values have nothing to divide by. */
-const unmatched: StudyResults = {
-  ...empty,
-  grid: { ...sample.grid },
-  runs: sample.runs.map(run => ({
-    ...run,
-    packages: [],
-    totals: {
-      ...(Object.fromEntries(Object.keys(run.totals).map(key => [key, 0])) as unknown as StudyResults['runs'][number]['totals']),
-      packages: run.totals.packages, unmatched: run.totals.packages, matchRate: 0,
-    },
-  })),
-  totals: { ...empty.totals, runs: sample.runs.length, skippedRuns: 0, packages: sample.totals.packages, unmatched: sample.totals.packages, matchRate: 0 },
-  headline: { ...empty.headline, runs: sample.runs.length, packages: sample.totals.packages, matchRate: 0 },
-};
+const unmatched: StudyResults = noneMatched(sample);
+
+/**
+ * The sample's two runs repeated until there are `runs` of them, each with its own seed: a study as large as
+ * the real one without simulating it.
+ */
+function manyRuns(runs: number): StudyResults {
+  const repeated = Array.from({ length: runs }, (_, index) => {
+    const run = sample.runs[index % sample.runs.length]!;
+    return { ...run, id: `s${index + 1}-e60-p24-d12`, params: { ...run.params, seed: index + 1 } };
+  });
+  return {
+    ...sample,
+    grid: { ...sample.grid, seeds: repeated.map(run => run.params.seed), plannedRuns: runs, completedRuns: runs },
+    runs: repeated,
+    totals: { ...sample.totals, runs },
+    headline: { ...sample.headline, runs },
+  };
+}
 
 const text = (html: string): string => html.replace(/<style>[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const charts = (html: string): string[] => [...html.matchAll(/<svg data-chart="([^"]+)"/g)].map(match => match[1]!);
@@ -117,6 +109,10 @@ describe('the study page', () => {
     expect(head.match(/<title>[^<]+<\/title>/g)).toHaveLength(1);
     expect(page).toContain('<title>Relay vs. a next-day courier: the numbers</title>');
     expect(page.match(/<h1[\s>]/g)).toHaveLength(1);
+    // The headline is the number of simulations; what they compare is the line above it.
+    expect(page).toContain('<p class="eyebrow">Relay vs. a next-day courier: the numbers</p>\n<h1>2 simulations</h1>');
+    expect(renderStudyPage(manyRuns(3024))).toContain('<h1>3,024 simulations</h1>');
+    expect(renderStudyPage({ ...sample, totals: { ...sample.totals, runs: 1 } })).toContain('<h1>1 simulation</h1>');
     expect(page).toMatch(/<h2>How we compared<\/h2>\s*<p class="how">/);
     expect(page).toContain('<a class="back" href="/">');
     expect(page).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">');
@@ -172,6 +168,30 @@ describe('the study page', () => {
     expect(words).toContain('2 runs planned, 0 simulated, 2 skipped');
     expect(words).toContain('The 2 skipped runs');
     for (const run of empty.grid.skippedRuns) expect(words).toContain(`${run.id} No travel matrix data for biz-a|home-001`);
+  });
+
+  it('lists at most 50 skipped runs and says the CSV has the rest, so the page stays small', () => {
+    expect(SKIPPED_RUNS_LISTED).toBe(50);
+    const skippedRuns = Array.from({ length: 3024 }, (_, index) => ({
+      id: `s${index + 1}-e120-p12-d12`, params: { seed: index + 1, employees: 120, packages: 12, maxExtraMin: 12 }, reason: 'No travel matrix data for biz-a|home-001',
+    }));
+    const html = renderStudyPage({ ...empty, grid: { ...empty.grid, plannedRuns: 3024, skippedRuns } });
+    const listed = html.match(/<ul class="skipped">[\s\S]*?<\/ul>/)![0];
+    expect(listed.match(/<li>/g)).toHaveLength(51);
+    expect(listed).toContain('<li><code>s50-e120-p12-d12</code>');
+    expect(listed).not.toContain('s51-e120-p12-d12');
+    expect(listed).toContain('<li>and 2,974 more: the CSV of every run has them all.</li>');
+    expect(text(html)).toContain('The 3,024 skipped runs');
+    expect(Buffer.byteLength(html)).toBeLessThan(150_000);
+  });
+
+  it('writes a list of seeds that count up by one as its two ends, and any other list in full', () => {
+    expect(text(page)).toContain('every combination of seeds 1, 2; 60 commuting employees; 24 packages; and detour limits of 12 minutes per commute');
+    const seeds = (list: number[]): string => text(renderStudyPage({ ...sample, grid: { ...sample.grid, seeds: list } }));
+    expect(seeds(Array.from({ length: 112 }, (_, index) => index + 1))).toContain('every combination of seeds 1 to 112; 60 commuting employees');
+    expect(seeds([1, 2, 3])).toContain('seeds 1 to 3;');
+    expect(seeds([1, 2, 4])).toContain('seeds 1, 2, 4;');
+    expect(seeds([7])).toContain('seeds 7;');
   });
 
   it('lists every assumption with its key, label, value and reason', () => {
@@ -251,20 +271,94 @@ describe('the study page', () => {
       const perBar = [...chart.matchAll(/<title>[^<]*: (\d+) runs?<\/title>/g)].map(match => Number(match[1]));
       expect(perBar.reduce((total, value) => total + value, 0)).toBe(counted);
     }
-    expect(text(page)).toMatch(/Relay ahead in \d of 2 runs/);
+    expect(text(page)).toMatch(/Median \$\d+\.\d\d · 10th to 90th percentile \$\d+\.\d\d to \$\d+\.\d\d · Relay ahead in \d of 2 runs/);
+    expect(text(page).match(/Relay ahead in \d of 2 runs/g)).toHaveLength(3);
   });
 
-  it('has a table row for every run', () => {
-    const table = page.match(/<table class="runs">[\s\S]*?<\/table>/)![0];
-    for (const run of sample.runs) {
-      expect(table).toContain(`<th scope="row">${run.id}</th><td>${run.params.employees}</td><td>${run.params.packages}</td><td>${run.params.maxExtraMin} min</td><td>${run.totals.matched}</td>`);
-    }
-    expect(table.match(/<tr>/g)).toHaveLength(sample.runs.length + 1);
+  it('has no row per run: the runs are summarised, and every run is one click away as a CSV', () => {
+    expect(page).not.toMatch(/<table class="runs">/);
+    for (const run of sample.runs) expect(page).not.toContain(run.id);
+    expect(page.match(/<table /g)).toHaveLength(3); // the spread, the detour limits and the assumptions
+    expect(page).toContain(`<h2>Every run</h2>`);
+    expect(page).toContain(`<a class="download" href="${RUNS_CSV_HREF}" download>Download every run (CSV)</a>`);
+    expect(RUNS_CSV_HREF).toBe('study/runs.csv'); // relative: next to the page wherever it is served
+    // As many runs as the real study add digits and a few chart marks, not rows: the page stays far below 150 KB.
+    const large = renderStudyPage(manyRuns(3024));
+    expect(Buffer.byteLength(large) - Buffer.byteLength(page)).toBeLessThan(5_000);
+    expect(Buffer.byteLength(large)).toBeLessThan(150_000);
+  });
+
+  it('shows the spread across runs: average, median and 10th to 90th percentile, Relay next to the courier', () => {
+    const table = page.match(/<table class="figures spread">[\s\S]*?<\/table>/)![0];
+    expect([...table.matchAll(/<th scope="col">([^<]*)<\/th>/g)].map(match => match[1])).toEqual(['Per package', 'Sent with', 'Average', 'Median', '10th to 90th percentile']);
+    expect([...table.matchAll(/<th scope="rowgroup" rowspan="2">([^<]*)<\/th>/g)].map(match => match[1])).toEqual(['Cost to the sender', 'Added vehicle miles', 'CO₂']);
+    expect([...table.matchAll(/<th scope="row">([^<]*)<\/th>/g)].map(match => match[1])).toEqual(['Relay', 'Courier', 'Relay', 'Courier', 'Relay', 'Courier']);
+    const rows = [...table.matchAll(/<th scope="row">[^<]*<\/th><td>([^<]*)<\/td><td>([^<]*)<\/td><td><span>([^<]*)<\/span> <span>to ([^<]*)<\/span><\/td><\/tr>/g)].map(match => match.slice(1, 5));
+    expect(rows).toHaveLength(6);
+
+    // The figures are the summary's, in the page's units; the averages are the headline's.
+    const summary = summarize(sample);
+    const h = sample.headline;
+    const dollars = (cents: number | null) => `$${(cents! / 100).toFixed(2)}`;
+    const mi = (value: number | null) => `${value!.toFixed(1)} mi`;
+    const kg = (value: number | null) => `${value!.toFixed(2)} kg`;
+    expect(rows[0]).toEqual([dollars(h.relayCostPerPackageCents), dollars(summary.costCents.relay.median), dollars(summary.costCents.relay.low), dollars(summary.costCents.relay.high)]);
+    expect(rows[1]).toEqual([dollars(h.courierCostPerPackageCents), dollars(summary.costCents.courier.median), dollars(summary.costCents.courier.low), dollars(summary.costCents.courier.high)]);
+    expect(rows[2]).toEqual([mi(h.relayAddedMilesPerPackage), mi(summary.miles.relay.median), mi(summary.miles.relay.low), mi(summary.miles.relay.high)]);
+    expect(rows[3]).toEqual([mi(h.courierMilesPerPackage), mi(summary.miles.courier.median), mi(summary.miles.courier.low), mi(summary.miles.courier.high)]);
+    expect(rows[4]).toEqual([kg(h.relayCo2KgPerPackage), kg(summary.co2Kg.relay.median), kg(summary.co2Kg.relay.low), kg(summary.co2Kg.relay.high)]);
+    expect(rows[5]).toEqual([kg(h.courierCo2KgPerPackage), kg(summary.co2Kg.courier.median), kg(summary.co2Kg.courier.low), kg(summary.co2Kg.courier.high)]);
+    expect(text(page)).toContain(`The average is over all ${sample.totals.matched} matched packages. The median and the percentiles are over the 2 runs that matched a package, one per-package value per run: 8 in 10 runs lie between the 10th and the 90th percentile.`);
+  });
+
+  it('shows the match rate by employee count as a chart with one line under it, which says "rises" only when it does', () => {
+    const groups = (rates: Array<number | null>) => rates.map((matchRate, index) => ({
+      ...sample.runs[0]!, id: `g${index}`, params: { ...sample.runs[0]!.params, employees: [30, 60, 120][index]! },
+      totals: { ...sample.runs[0]!.totals, packages: 1000, matched: matchRate === null ? 0 : Math.round(matchRate * 1000), matchRate },
+    }));
+    const withRates = (rates: Array<number | null>): string => renderStudyPage({
+      ...sample, grid: { ...sample.grid, employeeCounts: [30, 60, 120] }, runs: groups(rates),
+    });
+    const card = (html: string): string => html.match(/<figure class="card"><figcaption>By number of commuting employees<\/figcaption>[\s\S]*?<\/figure>/)![0];
+
+    const rising = card(withRates([0.374, 0.593, 0.778]));
+    expect(rising).toMatch(/<\/svg><p class="note">The match rate rises as more employees join: 37\.4% with 30 employees, 77\.8% with 120\.<\/p><\/figure>$/);
+    expect(chartOf(rising, 'match-employees')).toContain('aria-label="Match rate by number of employees: 30 employees 37.4%, 60 employees 59.3%, 120 employees 77.8%"');
+    expect(rising.match(/<p class="note">/g)).toHaveLength(1); // one line of text
+
+    expect(card(withRates([0.5, 0.4, 0.6]))).toContain('<p class="note">The match rate does not rise steadily with the number of employees here: 50.0% with 30 employees, 60.0% with 120.</p>');
+    expect(card(withRates([0.6, 0.6, 0.6]))).not.toContain('rises');
+    // One employee count (the two-run sample) has nothing to compare: no line.
+    expect(card(page)).not.toContain('<p class="note">');
+  });
+
+  it('shows the results by detour limit: one row per limit with its runs, match rate and per-package figures', () => {
+    const table = page.match(/<table class="figures detour">[\s\S]*?<\/table>/)![0];
+    expect([...table.matchAll(/<th scope="col">([^<]*)<\/th>/g)].map(match => match[1]!.replace(/&nbsp;/g, ' '))).toEqual([
+      'Detour limit', 'Match rate', 'Relay added mi / pkg', 'Courier mi / pkg', 'Relay CO₂ / pkg', 'Courier CO₂ / pkg', 'Cost saved / pkg', 'A day early', 'Runs',
+    ]);
+    // The sample has one detour limit, so its row is the whole study.
+    const h = sample.headline;
+    expect(table.match(/<tbody>\s*([\s\S]*?)\s*<\/tbody>/)![1]).toBe(
+      `<tr><th scope="row">12 min</th><td>${(h.matchRate! * 100).toFixed(1)}%</td>`
+      + `<td>${h.relayAddedMilesPerPackage!.toFixed(1)} mi</td><td>${h.courierMilesPerPackage!.toFixed(1)} mi</td>`
+      + `<td>${h.relayCo2KgPerPackage!.toFixed(2)} kg</td><td>${h.courierCo2KgPerPackage!.toFixed(2)} kg</td>`
+      + `<td>$${(h.costSavedPerPackageCents! / 100).toFixed(2)}</td><td>${(h.earlyRate! * 100).toFixed(1)}%</td><td>2</td></tr>`,
+    );
+
+    // Three limits give three rows, each over its own runs.
+    const three = renderStudyPage({
+      ...sample, grid: { ...sample.grid, detourLimitsMin: [8, 12, 16] },
+      runs: [8, 12, 12, 16].map((maxExtraMin, index) => ({ ...sample.runs[index % 2]!, id: `d${index}`, params: { ...sample.runs[index % 2]!.params, maxExtraMin } })),
+    });
+    const rows = [...three.match(/<table class="figures detour">[\s\S]*?<\/table>/)![0].matchAll(/<tr><th scope="row">(\d+) min<\/th>.*<td>(\d+)<\/td><\/tr>/g)].map(match => [match[1], match[2]]);
+    expect(rows).toEqual([['8', '1'], ['12', '2'], ['16', '1']]);
   });
 
   it('makes no network request: no external src or href, no script, no stylesheet, no web font', () => {
     expectSelfContained(page);
-    expect(references(page).sort()).toEqual(['#assumptions', '/', '/', 'data:,']);
+    // The CSV is a link the reader may follow, not something the page loads.
+    expect(references(page).sort()).toEqual(['#assumptions', '/', '/', 'data:,', 'study/runs.csv']);
     // The check itself sees the forms it is meant to catch.
     expect(references('<a href="https://x.test/a"><img src=//cdn.test/b.png><p style="background:url(\'http://y.test\')">').filter(isExternal))
       .toEqual(['https://x.test/a', '//cdn.test/b.png', 'http://y.test']);
@@ -279,7 +373,7 @@ describe('the study page', () => {
   });
 
   it('never prints NaN, undefined, Infinity or null: for the sample, a study with no run and runs with no match', () => {
-    for (const results of [sample, pinned, empty, unmatched]) {
+    for (const results of [sample, pinned, empty, unmatched, manyRuns(3024)]) {
       const html = renderStudyPage(results);
       expect(html).not.toMatch(/NaN|undefined|Infinity|\bnull\b|\[object/);
       expectSelfContained(html);
@@ -338,7 +432,7 @@ describe('the study page on a laptop and on a phone (#808)', () => {
   });
 
   it('keeps every chart text inside the chart box', () => {
-    for (const html of [page, pinnedPage, renderStudyPage(empty), renderStudyPage(unmatched)]) {
+    for (const html of [page, pinnedPage, renderStudyPage(empty), renderStudyPage(unmatched), renderStudyPage(manyRuns(3024))]) {
       for (const svg of html.match(/<svg[\s\S]*?<\/svg>/g) ?? []) {
         const height = Number(/viewBox="0 0 \d+ (\d+)"/.exec(svg)![1]);
         const texts = chartTexts(svg);
@@ -383,6 +477,25 @@ describe('the study page on a laptop and on a phone (#808)', () => {
     }
   });
 
+  it('makes room for a four-digit count left of a run distribution, as a study of thousands of runs has', () => {
+    // Before #841: the plot started 30 units in, so "1500" (28.8 units wide, ending 6 before the plot) began left of the chart box.
+    const large = renderStudyPage(manyRuns(3024));
+    for (const id of ['runs-cost', 'runs-miles', 'runs-co2']) {
+      const texts = chartTexts(chartOf(large, id));
+      const counts = texts.filter(t => t.cls === 'tm num' && t.anchor === 'end');
+      expect(Math.max(...counts.map(t => t.text.length)), id).toBe(4);
+      for (const t of counts) expect(extent(t).left, `${id} ${t.text}`).toBeGreaterThanOrEqual(0);
+      // The count above the tallest column has its thousands separator.
+      const peak = texts.filter(t => t.cls === 't num' && t.anchor === 'middle');
+      expect(peak).toHaveLength(1);
+      expect(peak[0]!.text).toMatch(/^\d,\d{3}$/);
+      // Every run is in exactly one column.
+      const perBar = [...chartOf(large, id).matchAll(/<title>[^<]*: ([\d,]+) runs?<\/title>/g)].map(match => Number(match[1]!.replace(/,/g, '')));
+      expect(perBar.reduce((total, value) => total + value, 0)).toBe(3024);
+    }
+    expect(text(large)).toMatch(/Relay ahead in [\d,]+ of 3,024 runs/);
+  });
+
   it('keeps a row label clear of its bar in the match-rate and per-package charts', () => {
     for (const id of ['match-employees', 'match-packages', 'match-detour', 'cost', 'miles', 'co2']) {
       const svg = chartOf(pinnedPage, id);
@@ -409,19 +522,24 @@ describe('the study page on a laptop and on a phone (#808)', () => {
     expect(page).not.toMatch(/favicon|\.ico\b|\.png\b/);
   });
 
-  it('lets the headers of the run table wrap, so its 14 columns fit a laptop without sideways scroll', () => {
-    // Before: one-line headers made the table 1308 px wide in a 1078 px box at 1440 px; 4 columns were cut off.
-    expect(rule(css, '.runs thead th')).toContain('white-space:normal');
-    expect(rule(css, '.runs th,.runs td')).toContain('white-space:nowrap'); // the numbers stay on one line
-    const header = page.match(/<table class="runs">\s*<thead>([\s\S]*?)<\/thead>/)![1]!;
+  it('lets the headers of the figure tables wrap and keeps each figure on one line; a table scrolls inside its own box', () => {
+    // #808: one-line headers made the old run table wider than the page at 1440 px. The two tables of figures keep that rule.
+    expect(rule(css, '.figures thead th')).toContain('white-space:normal');
+    expect(rule(css, '.figures th,.figures td')).toContain('white-space:nowrap'); // the numbers stay on one line
+    const header = page.match(/<table class="figures detour">\s*<thead>([\s\S]*?)<\/thead>/)![1]!;
     const columns = [...header.matchAll(/<th scope="col">([^<]*)<\/th>/g)].map(match => match[1]!);
-    expect(columns).toHaveLength(14);
+    expect(columns).toHaveLength(9);
     // "/ pkg" stays together, so a header breaks before the slash, not after it.
     expect(columns.filter(column => column.includes('pkg'))).toHaveLength(5);
     for (const column of columns.filter(column => column.includes('pkg'))) expect(column).toMatch(/ \/&nbsp;pkg$/);
-    // On a phone the table still scrolls inside its own box, not the page.
-    expect(page).toMatch(/<div class="scroll">\s*<table class="runs">/);
+    // On a phone the spread table fits (its range may break before "to", never inside a figure) and a wider
+    // table scrolls inside its own box, not the page (headless Chrome at 390 px, #841).
+    expect(rule(css, '.figures td span')).toContain('white-space:nowrap');
+    expect(css.slice(css.indexOf('@media (max-width:640px)'))).toContain('.figures.spread td:last-child{white-space:normal}');
+    expect(page).toMatch(/<div class="scroll">\s*<table class="figures detour">/);
+    expect(page).toMatch(/<div class="scroll">\s*<table class="figures spread">/);
     expect(rule(css, '.scroll')).toContain('overflow-x:auto');
+    expect(css).not.toContain('.runs');
   });
 
   it('lines the headline values up when one label needs two lines: tiles share their rows', () => {
@@ -470,5 +588,11 @@ describe('the committed client/public/study.html', () => {
     expect(charts(committed)).toHaveLength(10);
     expect(text(committed)).toContain('standard next-day B2B courier');
     expect(text(committed)).toMatch(/Runs skipped \d+/);
+  });
+
+  it('stays under 150 KB and has no row per run', () => {
+    expect(Buffer.byteLength(committed)).toBeLessThan(150_000);
+    expect(committed).not.toMatch(/<table class="runs">/);
+    expect(committed.match(/<table /g)).toHaveLength(3);
   });
 });

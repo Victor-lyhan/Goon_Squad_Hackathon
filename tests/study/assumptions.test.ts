@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS } from '../../server/domain/pricing';
 import { ASSUMPTIONS, ASSUMPTION_KEYS, assumptionValues } from '../../scripts/study/assumptions';
 import { DEFAULT_GRID } from '../../scripts/study/grid';
 import { runStudy } from '../../scripts/study/runner';
+import * as summary from '../../scripts/study/summary';
 import * as units from '../../scripts/study/units';
 import { STUDY_TIMEOUT_MS, TWO_RUN_GRID, studyInput } from './study-helper';
 
@@ -24,9 +25,13 @@ const NUMBER_FILES: Record<string, string> = {
   'assumptions.ts': 'the assumption values themselves',
   'grid.ts': 'the grid, repeated in the results under `grid`',
   'units.ts': 'unit definitions and output rounding',
-  'cli.ts': 'exit codes and text formatting',
+  'cli.ts': 'exit codes, text formatting and how often progress is printed',
+  'csv.ts': 'none: the column names of runs.csv; it copies run totals',
   'page.ts': 'chart geometry, CSS sizes and number formatting of the study page; it reads totals, it computes no comparison',
+  'parallel.ts': 'the number of worker threads (CPU cores less one)',
+  'summary.ts': 'which percentiles of the runs are reported (pinned below); it reads run totals and converts them with baseline.ts and units.ts',
   'types.ts': 'documentation only',
+  'worker.ts': 'none: one run per message, simulated by runner.ts',
 };
 
 /** Source without comments, strings and template text, so only code is scanned. */
@@ -72,6 +77,17 @@ describe('no hidden constants in the study math', () => {
     const others = numberLiterals(fs.readFileSync(path.join(studyDir, 'units.ts'), 'utf8'))
       .filter(literal => !Object.values(numbers).includes(Number(literal)) && literal !== '0' && literal !== '1');
     expect([...new Set(others)].sort()).toEqual(['10', '100', '2']);
+  });
+
+  it('summary.ts holds only the percentiles it reports: the 10th, the median and the 90th', () => {
+    expect([summary.LOW_PERCENTILE, summary.HIGH_PERCENTILE]).toEqual([10, 90]);
+    const literals = numberLiterals(fs.readFileSync(path.join(studyDir, 'summary.ts'), 'utf8'));
+    // 100 turns a percentile into a share; 0 and 1 index and count.
+    expect([...new Set(literals)].sort((a, b) => Number(a) - Number(b))).toEqual(['0', '1', '10', '50', '90', '100']);
+    for (const file of ['csv.ts', 'worker.ts']) {
+      expect(numberLiterals(fs.readFileSync(path.join(studyDir, file), 'utf8')), file).toEqual([]);
+    }
+    expect(numberLiterals(fs.readFileSync(path.join(studyDir, 'parallel.ts'), 'utf8')).filter(literal => literal !== '0' && literal !== '1')).toEqual([]);
   });
 
   it('changing any one assumption changes the results', () => {
