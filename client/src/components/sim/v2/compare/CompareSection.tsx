@@ -4,6 +4,7 @@ import { Details } from '../Details';
 import { PanelSection } from '../PanelSection';
 import {
   COMPARE_INTRO, DIRECT_HEADING, PROJECTION_NOTE, RELAY_HEADING, RELAY_POINT_NOTE, compareRows, compareSummary,
+  NO_REQUESTS_LINE, nothingToCompare,
 } from './compareModelV2';
 import './compare.css';
 
@@ -30,6 +31,8 @@ function CompareNotes() {
 function CompareTable({ response }: { response: CompareResponse }) {
   const rows = compareRows(response);
   const summary = compareSummary(response);
+  // #883: with no packages the plain sentence is the whole answer; a table of zeros says nothing more.
+  if (nothingToCompare(response)) return <p className="cmp-text" role="status">{NO_REQUESTS_LINE}</p>;
   return (
     <>
       <p className={`cmp-summary cmp-summary--${summary.tone}`} role="status">{summary.line}</p>
