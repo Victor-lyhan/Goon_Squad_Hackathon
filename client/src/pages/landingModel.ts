@@ -2,13 +2,11 @@
 // Every number comes from an /api/v2 response; nothing is counted from deliveries in the browser.
 import type { BusinessesResponse, EmployeesResponse, SimulatorResponse } from '../../../shared/v2/api';
 import type { DemoIdentity } from '../demoIdentity';
-import { ENV_LABELS, SIMULATOR_PAGE_PATH, pickAccount, workspaceHrefs } from '../ui/shellModel';
+import { SIMULATOR_PAGE_PATH, pickAccount, workspaceHrefs } from '../ui/shellModel';
 import {
   getBusinesses, getEmployees, getSimulator, isTravelUnavailable, type RequestOptions,
 } from '../api/v2';
 
-/** Footer text (the label must describe the data on screen, pass 44); in the page once (#610). */
-export const NYC_ENV_TEXT = ENV_LABELS.nyc;
 /** The one line shown instead of numbers when /api/v2 answers 503 (same copy as the v2 workspaces, pass 46). */
 export const NYC_UNAVAILABLE_TEXT = 'NYC travel data is not loaded on this server yet.';
 

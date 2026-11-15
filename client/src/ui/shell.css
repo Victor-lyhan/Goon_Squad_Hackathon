@@ -6,6 +6,9 @@
   border-radius: var(--radius, 4px); border: 1px solid var(--accent, #1D5075);
 }
 .skip-link:focus { top: var(--space-2, 8px); }
+/* The skip link's target: its ring is drawn inside <main>, where the window edge (390 px) and the end of
+   the page cannot cut it off (#724). */
+.app-main:focus-visible { outline-offset: -2px; }
 
 .shell-header {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-4, 16px);
@@ -68,19 +71,24 @@
   outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; border-radius: var(--radius, 4px);
 }
 
-/* 390 px: the nav wraps onto its own row, the tools go full width, the selector stays reachable. */
+/* 390 px: the nav wraps onto its own row, the tools go full width, the selector stays reachable.
+   The tools come after the nav from 600 px down, so Tab reaches the selector in the order it is drawn (#724). */
 @media (max-width: 600px) {
   .shell-header { padding: var(--space-2, 8px) var(--space-3, 12px); }
   .shell-nav { order: 3; flex: 1 1 100%; flex-wrap: wrap; }
-  .shell-tools { margin-left: auto; }
+  .shell-tools { margin-left: auto; order: 4; }
   .shell-env { white-space: normal; }
 }
 @media (max-width: 480px) {
-  .shell-tools { flex: 1 1 100%; margin-left: 0; order: 4; }
+  .shell-tools { flex: 1 1 100%; margin-left: 0; }
   .shell-header .demo-account-slot, .shell-header .demo-account { width: 100%; }
   .shell-header .demo-account select { flex: 1 1 auto; width: 100%; max-width: 100%; }
   .shell-env { padding-left: 0; border-left: 0; }
 }
+
+/* /business and /employee without an ID, while the account list loads or has failed (#724). */
+.shell-page-state { margin: 0; padding: var(--space-6) 0; font-size: var(--text-md); color: var(--muted); }
+.shell-page-state--error { color: var(--danger); }
 
 .not-found h1 { margin-top: 0; }
 .not-found-links { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px) var(--space-4, 16px); padding: 0; list-style: none; }

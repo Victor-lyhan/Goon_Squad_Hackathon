@@ -1,5 +1,5 @@
 /* Homepage (MVP III, docs/mvp3.md P4): one sentence, one large "Watch a package" button, two smaller
-   entries (Business, Employee), one stats line, footer.
+   entries (Business, Employee), one stats line. The environment line is the header's (#724).
    Tokens are read with fallbacks so the page works before/after the token issue lands. */
 .landing {
   max-width: 100%;
@@ -98,16 +98,6 @@ a.workspace-entry:focus-visible {
 .op-summary-value { font-family: var(--font-mono, ui-monospace, monospace); color: var(--text, #171C24); }
 .op-summary-value.is-placeholder { color: var(--muted, #5B6472); }
 .op-summary-note { margin: 0; }
-
-/* 4. Footer: the environment line, once */
-.landing-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2, 8px) var(--space-4, 16px);
-  padding: var(--space-2, 8px) 0 var(--space-4, 16px);
-  font-size: var(--text-xs, 12px);
-  color: var(--muted, #5B6472);
-}
 
 /* Projector widths: the button is taller, wider and set larger than the two entries under it (#714). */
 @media (min-width: 600px) {
