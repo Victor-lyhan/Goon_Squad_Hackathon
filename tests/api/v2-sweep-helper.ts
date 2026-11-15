@@ -136,6 +136,10 @@ export const validGenerate = (): Record<string, unknown> =>
 /** The run itself: what GET /scenario/export answers. */
 export const validImport = (ctx: SweepContext): Record<string, unknown> => JSON.parse(JSON.stringify(ctx.run));
 
+/** A sentence POST /parse-request accepts. */
+export const validParseRequest = (): Record<string, unknown> =>
+  ({ text: 'Deliver an envelope from Etsy to Brooklyn Roasting by 10 a.m. tomorrow.' });
+
 const none = () => '';
 
 /**
@@ -163,6 +167,9 @@ export const WRITE_SPECS: Record<string, WriteSpec> = {
     { id: none, valid: validImport, withoutBody: 'refused', emptyObject: 'refused', changesRun: true },
   'POST /matches/compare':
     { id: none, valid: () => ({}), withoutBody: 'runs', emptyObject: 'runs', changesRun: false },
+  // Reads the run to draft a delivery request from a sentence; stores nothing (docs/mvp4.md F1).
+  'POST /parse-request':
+    { id: none, valid: validParseRequest, withoutBody: 'refused', emptyObject: 'refused', changesRun: false },
 };
 
 /** The ID a route added after this sweep gets in its URL. */

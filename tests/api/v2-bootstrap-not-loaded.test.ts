@@ -24,7 +24,7 @@ afterEach(async () => {
 
 const NOT_LOADED_BODY = { error: TRAVEL_NOT_LOADED_MESSAGE, code: 'travel_data_missing' };
 
-// Every documented /api/v2 route (shared/v2/api.ts), plus a path that does not exist.
+// Every documented /api/v2 route (shared/v2/api.ts, shared/v2/parseRequest.ts), plus a path that does not exist.
 const V2_PATHS: [method: string, url: string, body?: unknown][] = [
   ['GET', '/businesses'],
   ['GET', '/businesses/biz-etsy/dashboard'],
@@ -46,6 +46,7 @@ const V2_PATHS: [method: string, url: string, body?: unknown][] = [
   ['GET', '/scenario/export'],
   ['POST', '/scenario/import', {}],
   ['GET', '/geocode?q=350%20Fifth%20Avenue'],
+  ['POST', '/parse-request', { text: 'Deliver an envelope from Etsy to Brooklyn Roasting by noon' }],
   ['GET', '/no-such-route'],
   ['DELETE', '/simulator'],
 ];

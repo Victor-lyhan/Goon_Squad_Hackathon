@@ -38,6 +38,8 @@ export function createV2Router(deps: V2Deps): express.Router {
   // ===== v2 route groups: register here =====
   // One line per group, paths relative to /api/v2, handlers built from `store` and `travel`, e.g.
   //   router.get('/businesses', getBusinesses(store));
+  // The groups themselves are passed in as `deps.extraRoutes` by bootstrap.ts: the read, control, commute,
+  // delivery-request and planning routes, GET /geocode and POST /parse-request (parseRequestRoutes.ts).
   // Handlers may throw (or reject with) TravelDataMissingError, GoogleKeyMissingError or GoogleApiError:
   // the error handler below turns them into the 503 TravelUnavailable body.
   deps.extraRoutes?.(router);

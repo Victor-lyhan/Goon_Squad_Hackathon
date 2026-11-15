@@ -3,7 +3,8 @@
 // `createApp`.
 //   travel cache (fixtures/nyc/matrix.json, polylines.json) -> createTravelService
 //   + businesses.json, neighborhoods.json, demoStory.json   -> bootV2Run -> the v2 store (data/state-v2.json)
-//   + the five route groups and GET /geocode                -> `deps.extraRoutes` for createV2Router
+//   + the five route groups, GET /geocode and
+//     POST /parse-request (parseRequestRoutes.ts)           -> `deps.extraRoutes` for createV2Router
 // - Every group gets the same snapshot function and the same travel provider: the service's provider, which
 //   reads the cache object the service writes to. So the pairs of a newly saved home and the route lines of
 //   a new delivery are visible to the next request without a restart.
@@ -24,6 +25,7 @@ import { getGeocode, nycNeighborhoodLookup } from '../geo';
 import { bootV2Run, readNycFixtures, type NycFixtures } from './bootRun';
 import { registerCommuteRoutes } from './commuteRoutes';
 import { registerControlRoutes } from './controlRoutes';
+import { registerParseRequestRoutes } from './parseRequestRoutes';
 import { registerPlanningRoutes } from './planningRoutes';
 import { registerReadRoutes } from './readRoutes';
 import { V2_DEPS_NOT_LOADED, type V2Deps } from './router';
@@ -128,6 +130,8 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       generateInputs: { ...fixtures, places: service.files.matrix.places },
       travelPairs: travel,
     });
+    // Reads the run's businesses and clock; it never changes the run (docs/mvp4.md F1).
+    registerParseRequestRoutes(router, { store });
     router.get('/geocode', getGeocode({
       key: () => (key === '' ? null : key),
       fetchImpl: options.fetch,

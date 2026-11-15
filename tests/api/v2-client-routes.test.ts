@@ -1,5 +1,5 @@
 // client/src/api/v2.ts against a fake fetch: every helper calls the method and path documented in the
-// route list at the top of shared/v2/api.ts, and every documented route has a helper.
+// route lists at the top of shared/v2/api.ts and shared/v2/parseRequest.ts, and every documented route has a helper.
 // (The /api/v2 server routes land later; nothing here needs a server, network or keys.)
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
@@ -21,16 +21,21 @@ const stub = () => { calls = []; vi.stubGlobal('fetch', fakeFetch); };
 afterEach(() => vi.unstubAllGlobals());
 
 // ---------- The documented routes, parsed from the comment block above the imports ----------
-const apiSource = fs.readFileSync(path.resolve(__dirname, '../../shared/v2/api.ts'), 'utf8');
-const header = apiSource.slice(0, apiSource.indexOf('\nimport '));
-const documentedRoutes = header.split('\n')
-  .map((line) => /^\/\/\s+(GET|POST|PUT|PATCH|DELETE)\s+(\/api\/v2\S*)/.exec(line))
-  .filter((m): m is RegExpExecArray => m !== null)
-  .map((m) => `${m[1]} ${m[2]}`);
+// shared/v2/api.ts holds the MVP II list; a contract file added later (parseRequest.ts, MVP IV) documents its own route.
+const CONTRACT_FILES = ['api.ts', 'parseRequest.ts'];
+const documentedRoutes = CONTRACT_FILES.flatMap((file) => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../../shared/v2', file), 'utf8');
+  const header = source.slice(0, source.indexOf('\nimport '));
+  return header.split('\n')
+    .map((line) => /^\/\/\s+(GET|POST|PUT|PATCH|DELETE)\s+(\/api\/v2\S*)/.exec(line))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => `${m[1]} ${m[2]}`);
+});
 
 // ---------- One case per helper ----------
 const ID = 'id 1/é?&';                 // needs encoding in a path segment
 const QUERY = '350 5th Ave & W 34th St, #2';
+const SENTENCE = 'Deliver an envelope from Etsy to Brooklyn Roasting by 10 a.m. tomorrow.';
 const opts = (signal?: AbortSignal): v2.RequestOptions => ({ signal });
 
 const shipmentReq = {
@@ -73,6 +78,7 @@ const cases: Record<string, Case> = {
   exportScenario: { route: 'GET /api/v2/scenario/export', call: (s) => v2.exportScenario(opts(s)) },
   importScenario: { route: 'POST /api/v2/scenario/import', call: (s) => v2.importScenario(run, opts(s)), body: run },
   geocode: { route: 'GET /api/v2/geocode?q=', call: (s) => v2.geocode(QUERY, opts(s)) },
+  parseRequest: { route: 'POST /api/v2/parse-request', call: (s) => v2.parseRequest(SENTENCE, opts(s)), body: { text: SENTENCE } },
 };
 
 /** The concrete URL a case must request: `:id` filled in encoded, and the encoded query after `?q=`. */
@@ -82,8 +88,9 @@ const expectedPath = (route: string) => {
 };
 
 describe('v2 client: route coverage', () => {
-  it('the route list in shared/v2/api.ts is found', () => {
-    expect(documentedRoutes.length).toBeGreaterThanOrEqual(20);
+  it('the route lists in shared/v2/api.ts and shared/v2/parseRequest.ts are found', () => {
+    expect(documentedRoutes.length).toBeGreaterThanOrEqual(21);
+    expect(documentedRoutes).toContain('POST /api/v2/parse-request');
     expect(new Set(documentedRoutes).size).toBe(documentedRoutes.length);
     expect(documentedRoutes).toContain('GET /api/v2/geocode?q=');
   });
