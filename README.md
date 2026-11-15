@@ -5,20 +5,21 @@ Relay turns existing employee commutes into a coordinated B2B delivery network. 
 **Real NYC locations, simulated deliveries.** The businesses are real, well-known NYC businesses. The driving times, distances and route lines between them come from Google; they were fetched once and are committed in `fixtures/nyc/`. The employees, their homes (made-up points, shown by neighborhood only) and the deliveries are simulated by the backend. The default run has 18 businesses, 60 employees and 24 packages.
 
 ## What works with and without a key
-You need no key to run the app or the demo. Two optional Google keys add the map and live Google calls ([Google setup](#google-setup-keys-and-travel-data)).
+You need no key to run the app or the demo. Two optional Google keys add the map and live Google calls ([Google setup](#google-setup-keys-and-travel-data)). A third optional key lets Gemini read a delivery request written as a sentence ([Requests in plain English (Gemini)](#requests-in-plain-english-gemini)).
 
 | You have | What works |
 | --- | --- |
 | **No key** (a fresh clone) | Everything in the 2-minute demo, from the committed cache: the homepage and its **Watch a package** button, the Business, Employee and Simulator workspaces, matching a new delivery, journey playback, earnings, and a commute save that keeps the home. The server calls nothing outside your machine. Where a map would be, the page says "Google Maps key missing." and the rest of the page works. |
 | **Browser key** (`VITE_GOOGLE_MAPS_BROWSER_KEY`) | Adds the Google map: the network on the Simulator with route lines, moving vehicles and packages, the commute on the Employee page and a delivery's route on the Business page. |
 | **Server key** (`GOOGLE_MAPS_SERVER_KEY`) | Adds the live Google calls: the address search and a commute save with a new address (its travel times are fetched and added to the cache), the route lines of a new delivery (without the key its legs have no route line and the vehicle moves straight from stop to stop), and the fetch command `npm run fetch:routes`. |
+| **Gemini key** (`GEMINI_API_KEY`) | Gemini writes the draft of a delivery request from one sentence. Without the key the server's offline parser writes it, and nothing is sent to Gemini. |
 
 ## Requirements
 - Node.js 22.12 or newer to run the app (`npm run dev`, `npm run build`, `npm start`). Node 22.0 to 22.11 is too old for Vite (its `engines` in `package-lock.json`).
 - Node.js 22.22.2 or newer to run the tests (`npm test`, `bash scripts/test.sh`): vitest and jsdom ask for more than Vite (their `engines` in `package-lock.json`). On Node 24 that is 24.15 or newer; vitest does not list Node 23 or 25.
 - npm
 
-No API key or environment variable is needed. `PORT` is optional and applies to `npm start` only (default `3001`); leave it unset for `npm run dev` ([Setup and run](#setup-and-run)). `RELAY_STATE_PATH` is optional too and gives a second server its own state file ([State file and reset](#state-file-and-reset)). The two Google keys are optional and live in `.env` ([Google setup](#google-setup-keys-and-travel-data)).
+No API key or environment variable is needed. `PORT` is optional and applies to `npm start` only (default `3001`); leave it unset for `npm run dev` ([Setup and run](#setup-and-run)). `RELAY_STATE_PATH` is optional too and gives a second server its own state file ([State file and reset](#state-file-and-reset)). The two Google keys are optional and live in `.env` ([Google setup](#google-setup-keys-and-travel-data)), and so does the Gemini key ([Requests in plain English (Gemini)](#requests-in-plain-english-gemini)).
 
 ## Setup and run
 ```bash
@@ -37,6 +38,7 @@ The main paths:
 | `/business/<id>` | Business workspace, for example `/business/biz-brooklyn-roasting`: the **Shipments** table, **New delivery**, delivery details. |
 | `/employee/<id>` | Employee workspace, for example `/employee/emp-7`: the saved commute, assigned deliveries, earnings. |
 | `/simulator` | Simulator: the whole network, the package list, playback, and the journey of one package. |
+| `/study.html` | The numbers: Relay against a standard next-day courier, on one page of its own ([The numbers](#the-numbers-relay-vs-traditional-delivery)). |
 
 You never have to type an ID: the header's **Business** and **Employee** links open the chosen demo account (the first business and the first employee of the run until you choose one), and the **Demo account** selector switches to any other ([Demo accounts](#demo-accounts)). `/business` and `/employee` with no ID go to that same account.
 
@@ -140,8 +142,103 @@ Message: Relay turns existing commutes into a coordinated delivery network. This
 - Pickups, drop-offs and overnight storage happen only at network businesses, never at homes. Every network business can be a relay point.
 - Time is integer minutes since Day 1 00:00, distance in meters, money in integer cents. Matching and simulation are deterministic for the same inputs.
 - The frontend only renders API responses; it never computes matches, statuses, earnings or metrics.
-- External services: the Google Routes API and Geocoding API (server) and the Maps JavaScript API (browser), and no others.
-- Out of scope: cancellations, disruptions, recovery, offers/declines, auth, real payments, GPS, QR scanning, live traffic, emissions, LLM/runtime AI, WebSockets, databases.
+- External services: the Google Routes API and Geocoding API (server), the Maps JavaScript API (browser) and, only when `GEMINI_API_KEY` is set, the Gemini API (server, [Requests in plain English (Gemini)](#requests-in-plain-english-gemini)), and no others.
+- Out of scope: cancellations, disruptions, recovery, offers/declines, auth, real payments, GPS, QR scanning, live traffic, emissions in the app (only the study page estimates CO₂), LLM/runtime AI beyond the draft of a request (an LLM never sends a request and never matches one), WebSockets, databases.
+
+## Requests in plain English (Gemini)
+The server reads a delivery request written as one sentence, for example "Deliver an envelope from Etsy to Brooklyn Roasting by 10 a.m. tomorrow.", and answers with a **draft** of the request: sender, recipient, item, weight and times. The route is `POST /api/v2/parse-request` with the body `{ "text": "<the sentence>" }`. It stores nothing and sends no delivery: a person checks the draft and sends it as a normal request, so the matching is the same as for the form.
+
+**No key is needed.** Without one, an offline parser inside the server writes the draft and nothing leaves your machine. With a Gemini key the server asks Gemini first, and the offline parser stays as the fallback.
+
+### Turn Gemini on
+Add one line to `.env` at the repo root, the file that also holds the Google keys ([Google setup](#google-setup-keys-and-travel-data), step 3):
+
+```
+GEMINI_API_KEY=<your Gemini key>
+```
+
+- **`GEMINI_API_KEY`** is a Gemini API key from Google AI Studio. **A key that starts with `AQ` is fine**: new AI Studio keys do not start with `AIza` like the Maps keys, and the server does not check how a key starts.
+- **`GEMINI_MODEL`** is optional. Leave it out for the default, `gemini-2.5-flash`. For another model add the line `GEMINI_MODEL=<model name>`.
+- **Server only, never a `VITE_` variable.** Vite writes every `VITE_` variable into the page, where anyone can read it. These two names are read by the server alone, from the environment or from `.env` (a variable already set in the environment wins), so the key never reaches the browser. The server sends it to Google in the `x-goog-api-key` header, never in a URL.
+- **Restart the server after editing `.env`** (`npm run dev` or `npm start`): the file is read once, when the server starts. No `npm run build` is needed. The server prints no start line about this key; the next section says how to tell that Gemini answers.
+- The warning box of [Google setup](#google-setup-keys-and-travel-data) holds for this key too: never commit, paste or print it.
+- With the key set, each sentence goes to Google's Gemini API, together with the names of the network businesses and the simulated time. Without the key nothing is sent.
+
+### Who wrote the draft
+The answer says who wrote the draft in its `source` field, and the card of the draft shows it as a label:
+
+| Case | The draft is written by | `source` | Label on the card |
+| --- | --- | --- | --- |
+| No `GEMINI_API_KEY` | The offline parser. Gemini is not called. | `offline` | "Parsed offline" |
+| Key set, and Gemini answers within 6 s | Gemini. The server checks every field and empties what it cannot trust, such as a business that is not in the network. | `gemini` | "Parsed by Gemini" |
+| Key set, but Gemini answers with an error, does not answer within 6 s, or answers with something that is no draft | The offline parser | `offline` | "Parsed offline" |
+
+So Gemini can never make the request fail: the sender always gets a draft, and waits about 6 s for it at the most.
+
+A fallback with a key set prints one line in the server's terminal (with `npm run dev` it has `[api]` in front):
+
+```
+[parse-request] Gemini is unavailable: HTTP 403. Parsed offline.
+```
+
+The words after "Gemini is unavailable:" name the cause:
+
+| The line says | What happened | What to do |
+| --- | --- | --- |
+| `HTTP 400` or `HTTP 403` | Google refused the key or the request. | Check `GEMINI_API_KEY` in `.env`, then restart the server. |
+| `HTTP 404` | Google does not know the model. | Check `GEMINI_MODEL`, or remove the line to use the default. |
+| `HTTP 429` | The key's quota is used up. | Wait, or use another key. The offline parser answers meanwhile. |
+| `no answer within 6000 ms` | Gemini was too slow this time. | Nothing: the offline draft was sent in its place. |
+| `the request failed before an answer arrived` | The server could not reach Google. | Check the network. |
+
+When Gemini did answer but not with a draft, the line reads "[parse-request] Gemini answered, but not with a usable draft. Parsed offline." The line never holds the key, the sentence or Gemini's answer. Without a key no line is printed: the offline parser is then the normal case.
+
+To check from a terminal while the server runs (port 3001):
+
+```bash
+curl -s -X POST http://localhost:3001/api/v2/parse-request \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Deliver an envelope from Etsy to Brooklyn Roasting by 10 a.m. tomorrow."}'
+```
+
+The answer ends with `"source":"gemini"` when Gemini wrote the draft and with `"source":"offline"` when the offline parser did.
+
+## The numbers: Relay vs traditional delivery
+`/study.html` compares Relay with traditional delivery: the same packages sent two ways, on a commute an employee already drives or on a dedicated courier trip. The page is one committed file, `client/public/study.html`, with its charts inside. It needs no key, no network and no study run: open http://localhost:5173/study.html with `npm run dev`, or http://localhost:3001/study.html with `npm start` after `npm run build`.
+
+**The baseline is a standard next-day B2B courier, not a same-hour one**: one dedicated trip from sender to recipient, promised by 10:30 AM on the next business day, and assumed to always keep that promise.
+
+The headline numbers of the committed page, per package that Relay matched:
+
+| Measure | Relay against the courier | In figures |
+| --- | --- | --- |
+| Cost to the sender | 37.4% less | Relay $10.00 vs courier $15.99 per package |
+| Added vehicle miles | 74.8% less | Relay 1.3 mi vs courier 5.2 mi per package |
+| CO₂ | 74.8% less | Relay 0.52 kg vs courier 2.07 kg per package |
+| Delivered by the courier's promised time | 100.0% | 32.2% a day early, 0.0% late |
+| Match rate | 53.4% | 1,211 of 2,268 packages found a commute |
+
+They are averages over 81 simulated runs: every combination of 3 seeds, of 30, 60 and 120 commuting employees, of 12, 24 and 48 packages, and of detour limits of 8, 12 and 16 minutes. Each run is a full two-day simulation on the committed travel cache.
+
+What the numbers mean, and what they do not:
+
+- **"Per package" means per package that Relay matched.** A package with no suitable commute would go by courier at the courier's price, so it is left out of the comparison and counted in the match rate. Read the savings together with the match rate: 53.4% of the requested packages got them.
+- **"100% on time" holds by construction. It is not a measured reliability.** Every simulated deadline is at or before Day 2, 10:00 AM, which is before the courier's promise (Day 2, 10:30 AM), and Relay only accepts a package it can deliver by its deadline. So a matched package cannot be late. The cost of that rule shows in the match rate, not in lateness: a package Relay cannot deliver in time is not matched.
+- **CO₂ follows the miles.** Both sides are counted with the same CO₂ per mile, so the two percentages are equal.
+- **The saving varies from run to run.** Relay is ahead on cost in 81 of 81 runs, and on miles and CO₂ in 78 of 81 runs. In the other three only 1 to 3 packages matched. The page has the distribution and a table of every run.
+- **Every assumption is listed on the page with its value and the reason for it**: the prices of Relay and of the courier, the courier's promise, how the miles of each side are counted and the CO₂ per mile. No other number is typed in; the rest is travel data from the cache and simulation output. The values are in `scripts/study/assumptions.ts`.
+
+### Run the study again
+```bash
+npm run study
+```
+
+It runs the 81 simulations on the committed cache in a few seconds, with no key and no network, prints five summary lines and writes two files:
+
+- `data/study/results.json`: every run and every package (gitignored).
+- `client/public/study.html`: the page, generated again from the results (committed).
+
+The same inputs give the same bytes, so on an unchanged checkout `git status` is clean after it. **After a change to the travel cache or the other files of `fixtures/nyc/`, to the engine (`server/domain/v2/`) or to the study itself (`scripts/study/`), run it again and commit `client/public/study.html`.** If the headline numbers moved, change them in the table above too. A server started with `npm start` shows the new page after the next `npm run build`.
 
 ## Repository layout
 - `client/` React + Vite frontend: `src/pages`, `src/components` (`business/`, `employee/`, `sim/`, `map/` for the Google map and its deck.gl layers), `src/ui`, `src/api`
