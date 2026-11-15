@@ -169,7 +169,13 @@ describe('messages', () => {
   it('words saved, locked and unavailable', () => {
     expect(saveMessage({ status: 'saved', matched: 0 }, 'planning')?.text).toBe('Commute saved.');
     expect(saveMessage({ status: 'saved', matched: 2 }, 'planning')?.text).toBe('Commute saved. 2 waiting packages matched.');
-    expect(saveMessage({ status: 'idle' }, 'locked')?.text).toMatch(/new planning cycle/);
+    // The locked sentence names the simulator's "Back to start" (#734, DECISIONS pass 74), for the phase and for a 409.
+    for (const locked of [saveMessage({ status: 'idle' }, 'locked'), saveMessage({ status: 'locked' }, 'planning')]) {
+      expect(locked).toEqual({
+        role: 'alert', text: 'The run is playing, so the commute is read-only until you press Back to start in the simulator.',
+      });
+      expect(locked?.text).not.toMatch(/planning cycle/i);
+    }
     expect(saveMessage({ status: 'idle' }, 'planning')).toBeNull();
   });
 });

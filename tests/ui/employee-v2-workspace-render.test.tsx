@@ -83,6 +83,11 @@ describe('EmployeeWorkspace states', () => {
       <EmployeeWorkspace dashboard={lockedDashboard} businesses={businesses} onEditCommute={() => {}} />,
     );
     expect(html.split(LOCKED_TEXT)).toHaveLength(2);
+    // #745: the note names the simulator's "Back to start", the control that unlocks (#734, DECISIONS pass 74).
+    expect(LOCKED_TEXT).toBe('The run is playing, so commute edits are closed until you press Back to start in the simulator.');
+    expect(html).toMatch(/<p class="ew-locked" role="status">The run is playing[^<]*Back to start in the simulator\.<\/p>/);
+    expect(html.split('Back to start')).toHaveLength(2);
+    expect(html).not.toMatch(/planning cycle/i);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Edit commute/);
     expectClean(html);
   });

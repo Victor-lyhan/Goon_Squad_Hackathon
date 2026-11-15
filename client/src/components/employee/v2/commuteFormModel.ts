@@ -223,12 +223,12 @@ export function saveReducer(state: SaveState, action: SaveAction): SaveState {
 // ---------- Copy ----------
 
 /**
- * The one locked sentence of the editor (#598); the address search prints none of its own. It names no
- * control (#720): the simulator's "Start new planning cycle" button went with MVP III (#700), so the old
- * sentence sent the presenter to a button that is not there.
+ * The one locked sentence of the editor (#598); the address search prints none of its own. It names the
+ * way out the app has: "Back to start" on the simulator returns a locked run to planning (#734, DECISIONS
+ * pass 74), as the server's 409 texts say. The button the sentence named before #720 went with MVP III (#700).
  */
 export const LOCKED_MESSAGE =
-  'The run is playing, so the commute is read-only until a new planning cycle starts.';
+  'The run is playing, so the commute is read-only until you press Back to start in the simulator.';
 
 export function unavailableMessage(code: UnavailableCode): string {
   return code === 'google_key_missing'
