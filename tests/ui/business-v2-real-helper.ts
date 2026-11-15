@@ -174,8 +174,8 @@ export type RealApi = Awaited<ReturnType<typeof startRealApi>>;
 
 /**
  * createV2Runtime on a copy of fixtures/nyc (all five files) in a temp folder, no key, Google `fetch` that
- * throws. The global `fetch` is stubbed so the client's relative `/api/...` URLs reach this server; every
- * other URL is refused. Call `close` in afterAll.
+ * throws. It listens on 127.0.0.1 only. The global `fetch` is stubbed so the client's relative `/api/...` URLs
+ * reach this server; every other URL is refused. Call `close` in afterAll.
  */
 export async function startRealApi() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'business-v2-real-'));
@@ -198,7 +198,9 @@ export async function startRealApi() {
     throw new Error(`/api/v2 did not load on the copy of fixtures/nyc: ${runtime.reason ?? 'no store'}`);
   }
   const app = createApp({ clientDist: path.join(root, 'no-dist'), v2: runtime.deps });
-  const server: Server = app.listen(0);
+  // 127.0.0.1 only (#821): a server on every address shares its port number with any program that listens
+  // on 127.0.0.1 alone, and that program then answers the requests below instead ("MCP server", PR #818).
+  const server: Server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
@@ -215,6 +217,8 @@ export async function startRealApi() {
     root,
     fixturesDir,
     runtime,
+    /** `http://127.0.0.1:<port>` of this server, the only address it listens on. */
+    origin,
     /** `METHOD /api/...` of every request the client sent. */
     requests,
     googleCalls,
