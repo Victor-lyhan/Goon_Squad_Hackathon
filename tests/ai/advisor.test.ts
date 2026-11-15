@@ -1,435 +1,386 @@
-// The AI advisor core (#862, server/ai/advisor.ts) on a FAKE engine and a FAKE Gemini behind the injected
-// `fetch`: the variant rules (validation and clamping), the offline variants, the Gemini tool loop with its
-// limits, and the rule that every number of an option comes from the engine, never from Gemini.
-// No network, no key, no run.
+// The AI advisor core (#862, reshaped by #959, server/ai/advisor.ts) on a FAKE engine and a FAKE Gemini behind
+// the injected `fetch`: the engine's fastest and cheapest picks, the balanced fallback, Gemini's one structured
+// call and the server's checks of its answer (a candidate id, no invented number), the time limit, and the rule
+// that the options never wait on Gemini to exist. No network, no key, no run.
 import { describe, expect, it } from 'vitest';
 import {
-  ADVISOR_FUNCTIONS, MAX_LABEL_CHARS, MAX_SUMMARY_CHARS, MAX_TOOL_CALLS, PRESENT_OPTIONS, TRY_VARIANT,
-  advise, adviseOffline, buildAdvisorPrompt, cleanText, flexWindowText, offlineVariants, resolveVariant, timeText,
-  type AdvisorEngine,
+  ADVICE_RESPONSE_SCHEMA, ADVISE_TIMEOUT_MS, MAX_GEMINI_CANDIDATES, MAX_LABEL_CHARS, MAX_SENTENCE_CHARS,
+  adviceThinkingConfig, advise, adviseOffline, allowedNumbers, balancedPick, buildAdvicePrompt, candidateSet, cleanText,
+  fastestAndCheapest, kindNote, numbersIn, optionLabel, shortlist, tagWords, timeText,
+  type AdvisorEngine, type CandidateAnswer,
 } from '../../server/ai/advisor';
 import { GEMINI_MODELS_URL } from '../../server/ai/gemini';
 import type { FetchInitLike, FetchLike } from '../../server/geo/googleClient';
-import type { AdviseOption } from '../../shared/v2/api';
 import type { DeliveryPlan } from '../../shared/v2/types';
 
 const KEY = 'AQ.FAKE_advisor-key-41c9';
 const MODEL = 'gemini-2.5-flash';
 
+const leg = (tripId: string, employeeId: string, extraMin: number) =>
+  ({ tripId, employeeId, placeIds: [], stops: [], finishMin: 0, extraMin, extraDistanceM: 1609.344, rewardCents: 300 });
+
+const plan = (kind: 'direct' | 'relay', deliveryMin: number, customerPriceCents: number, legs: ReturnType<typeof leg>[], relayBusinessId?: string) =>
+  ({
+    id: 'pln-x', shipmentId: 'shp-advice', kind, deliveryMin, customerPriceCents, platformContributionCents: 0, legs,
+    ...(relayBusinessId ? { relayBusinessId } : {}),
+  }) as DeliveryPlan;
+
 /**
- * A fake engine. Price: 700, or 600 when the deliver-by is at least `flexWindowMin` (18 h unless `over` says
- * otherwise) after ready: the flexibility discount of #861. Arrival: 2000, 1 minute earlier for each 3 minutes
- * the package is ready earlier. A deliver-by before 1990 finds no carrier.
+ * Four plans, in the engine's order (p1-p4):
+ *   p1 direct, Theo Martin, arrives 1900 (Day 2, 7:40 AM), $7.00
+ *   p2 relay via Etsy, Elena Rossi + Reese Green, arrives 1860 (Day 2, 7:00 AM), $10.50   <- fastest
+ *   p3 relay via Kinship Coffee, Elena Rossi + Sam Lee, arrives 1880 (Day 2, 7:20 AM), $9.50
+ *   p4 direct, Ada Park, arrives 1950 (Day 2, 8:30 AM), $6.50                               <- cheapest
+ * Balanced: p1 (50/400 + 40/90 = 0.57) beats p3 (300/400 + 20/90 = 0.97).
  */
-function fakeEngine(over: Partial<AdvisorEngine> = {}) {
+const FOUR: DeliveryPlan[] = [
+  plan('direct', 1900, 700, [leg('t-1', 'emp-theo', 3)]),
+  plan('relay', 1860, 1050, [leg('t-2', 'emp-elena', 4), leg('t-3', 'emp-reese', 3)], 'biz-etsy'),
+  plan('relay', 1880, 950, [leg('t-2', 'emp-elena', 4), leg('t-4', 'emp-sam', 5)], 'biz-kinship'),
+  plan('direct', 1950, 650, [leg('t-5', 'emp-ada', 5)]),
+];
+
+function fakeEngine(over: { plans?: DeliveryPlan[]; answer?: (r: number, d: number) => CandidateAnswer; text?: string } = {}) {
   const calls: [number, number][] = [];
-  const flexWindowMin = over.flexWindowMin ?? 1080;
+  const log: string[] = [];
   const engine: AdvisorEngine = {
-    draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 960, deadlineMin: 2040 },
-    clockMin: 930,
-    windowStartMin: 930,
-    windowEndMin: 2160,
-    flexWindowMin,
-    match(readyMin, deadlineMin) {
-      calls.push([readyMin, deadlineMin]);
-      if (deadlineMin < 1990) return { reason: 'No commute can arrive before the deadline' };
-      const deliveryMin = 2000 - Math.round((960 - readyMin) / 3);
-      const plan: DeliveryPlan = {
-        id: 'pln-x', shipmentId: 'shp-advice', kind: 'relay', relayBusinessId: 'biz-r', deliveryMin,
-        customerPriceCents: deadlineMin - readyMin >= flexWindowMin ? 600 : 700, platformContributionCents: 0,
-        legs: [
-          { tripId: 't1', employeeId: 'emp-1', placeIds: [], stops: [], finishMin: 0, extraMin: 4, extraDistanceM: 1609.344, rewardCents: 300 },
-          { tripId: 't2', employeeId: 'emp-2', placeIds: [], stops: [], finishMin: 0, extraMin: 3, extraDistanceM: 804.672, rewardCents: 300 },
-        ],
-      };
-      return { plan };
+    draft: {
+      originBusinessId: 'biz-titan', destinationBusinessId: 'biz-blue', readyMin: 960, deadlineMin: 2040,
+      text: over.text ?? 'Fragile glass vase to Blue Bottle Coffee by 9 tomorrow', description: 'glass vase',
     },
-    employeeName: (id) => ({ 'emp-1': 'Elena Rossi', 'emp-2': 'Reese Green' })[id] ?? 'A carrier',
-    businessName: (id) => ({ 'biz-a': 'Etsy', 'biz-b': 'Blue Bottle Coffee', 'biz-r': 'Brooklyn Roasting' })[id] ?? null,
-    ...over,
+    clockMin: 930, windowStartMin: 930, windowEndMin: 2160, flexWindowMin: 1080,
+    candidates(readyMin, deadlineMin) {
+      calls.push([readyMin, deadlineMin]);
+      log.push('engine');
+      return over.answer ? over.answer(readyMin, deadlineMin) : { plans: over.plans ?? FOUR, reasons: {} };
+    },
+    employeeName: (id) => ({ 'emp-theo': 'Theo Martin', 'emp-elena': 'Elena Rossi', 'emp-reese': 'Reese Green', 'emp-sam': 'Sam Lee', 'emp-ada': 'Ada Park' })[id] ?? 'A carrier',
+    businessName: (id) => ({ 'biz-titan': 'Titan Foods', 'biz-blue': 'Blue Bottle Coffee', 'biz-etsy': 'Etsy', 'biz-kinship': 'Kinship Coffee' })[id] ?? null,
   };
-  return { engine, calls };
+  return { engine, calls, log };
 }
 
 // ---------- fake Gemini ----------
-type Part = Record<string, unknown>;
-type Reply = Part[] | { status: number } | 'hang';
-const call = (name: string, args: unknown): Part => ({ functionCall: { name, args } });
+type Reply = unknown | { status: number } | 'hang' | { raw: string };
 
-/** A fake `fetch` that answers each model turn from `turns` in order; it records every request body. */
-function fakeGemini(turns: Reply[]) {
+/** A fake `fetch` answering each call with a structured-output reply; it records every request. */
+function fakeGemini(replies: Reply[], log: string[] = []) {
   const bodies: Record<string, any>[] = [];
   const inits: (FetchInitLike | undefined)[] = [];
   const urls: string[] = [];
   const fetchImpl: FetchLike = (url, init) => {
+    log.push('gemini');
     urls.push(url);
     inits.push(init);
     bodies.push(JSON.parse(String(init?.body)));
     if (!url.startsWith(GEMINI_MODELS_URL)) return Promise.reject(new Error('only the fake Gemini'));
-    const reply = turns[bodies.length - 1] ?? { status: 500 };
+    const reply = replies[bodies.length - 1] ?? { status: 500 };
     if (reply === 'hang') {
       return new Promise((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
       });
     }
-    if (!Array.isArray(reply)) return Promise.resolve({ status: reply.status, text: async () => '{"error":{}}' });
-    const body = { candidates: [{ content: { role: 'model', parts: reply }, finishReason: 'STOP' }] };
+    if (typeof reply === 'object' && reply !== null && 'status' in reply) {
+      return Promise.resolve({ status: (reply as { status: number }).status, text: async () => '{"error":{}}' });
+    }
+    const text = typeof reply === 'object' && reply !== null && 'raw' in reply ? (reply as { raw: string }).raw : JSON.stringify(reply);
+    const body = { candidates: [{ content: { role: 'model', parts: [{ text }] }, finishReason: 'STOP' }] };
     return Promise.resolve({ status: 200, text: async () => JSON.stringify(body) });
   };
   return { fetchImpl, bodies, inits, urls };
 }
 
-const settings = (fetchImpl: FetchLike, timeoutMs?: number) => ({ apiKey: KEY, model: MODEL, fetchImpl, timeoutMs });
+const settings = (fetchImpl: FetchLike, timeoutMs?: number, model = MODEL) => ({ apiKey: KEY, model, fetchImpl, timeoutMs });
 
-/** The function responses the server sent back in a request body's last turn. */
-const responsesIn = (body: Record<string, any>) =>
-  (body.contents.at(-1).parts as { functionResponse: { name: string; response: Record<string, any> } }[])
-    .map((p) => p.functionResponse);
+const GOOD = {
+  recommendedId: 'p3',
+  reason: 'Kinship Coffee is on the way, so it arrives Day 2, 7:20 AM for $9.50.',
+  sentences: [
+    { id: 'p2', text: 'The quickest: there by 7:00 AM.' },
+    { id: 'p4', text: 'The lowest price, $6.50, with Ada.' },
+    { id: 'p3', text: 'A relay through Kinship Coffee, there by 7:20 AM.' },
+  ],
+};
 
-describe('try_variant arguments: validation and clamping', () => {
-  const { engine } = fakeEngine();
+const ids = (options: { id?: string; tags?: string[] }[]) => options.map((o) => [o.id, o.tags]);
 
-  it('no arguments, {} or null is the request as typed', () => {
-    for (const args of [undefined, null, {}]) {
-      expect(resolveVariant(args, engine)).toStrictEqual({ readyMin: 960, deadlineMin: 2040, changes: {}, clamped: false });
-    }
+describe('the engine: fastest, cheapest and balanced', () => {
+  it('fastest = earliest arrival, cheapest = lowest price; each candidate keeps the engine\'s numbers and a stable id', () => {
+    const { engine } = fakeEngine();
+    const set = candidateSet(engine);
+    expect(set.candidates.map((c) => c.id)).toStrictEqual(['p1', 'p2', 'p3', 'p4']);
+    const ends = fastestAndCheapest(set.candidates)!;
+    expect([ends.fastest.id, ends.cheapest.id]).toStrictEqual(['p2', 'p4']);
+    expect(set.candidates[1].option).toStrictEqual({
+      changes: {}, kind: 'relay', relayBusinessId: 'biz-etsy', carrierNames: ['Elena Rossi', 'Reese Green'],
+      deliveryMin: 1860, extraMin: 7, extraMiles: 2, customerPriceCents: 1050,
+    });
+    expect(set.candidates.map((c) => c.handoffs)).toStrictEqual([0, 1, 1, 0]);
+    // The same engine answer gives the same ids.
+    expect(candidateSet(engine).candidates.map((c) => c.id)).toStrictEqual(['p1', 'p2', 'p3', 'p4']);
   });
 
-  it('an earlier ready time and a later deliver-by inside the bounds are taken as they are', () => {
-    expect(resolveVariant({ readyMin: 940, deadlineMin: 2100 }, engine))
-      .toStrictEqual({ readyMin: 940, deadlineMin: 2100, changes: { readyMin: 940, deadlineMin: 2100 }, clamped: false });
+  it('ties: the fastest of two equal arrivals is the cheaper, the cheapest of two equal prices the earlier; then engine order', () => {
+    const tied = [
+      plan('direct', 1900, 800, [leg('a', 'emp-theo', 1)]),
+      plan('direct', 1900, 700, [leg('b', 'emp-ada', 1)]),
+      plan('direct', 1950, 700, [leg('c', 'emp-sam', 1)]),
+      plan('direct', 1900, 700, [leg('d', 'emp-reese', 1)]),
+    ];
+    const ends = fastestAndCheapest(candidateSet(fakeEngine({ plans: tied }).engine).candidates)!;
+    expect([ends.fastest.id, ends.cheapest.id]).toStrictEqual(['p2', 'p2']);
   });
 
-  it('a ready time before the run clock is moved to the clock; a later one back to the draft\'s', () => {
-    expect(resolveVariant({ readyMin: 0 }, engine)).toMatchObject({ readyMin: 930, changes: { readyMin: 930 }, clamped: true });
-    expect(resolveVariant({ readyMin: 1500 }, engine)).toMatchObject({ readyMin: 960, changes: {}, clamped: true });
+  it('one plan that is both fastest and cheapest is one option with both tags', () => {
+    const answer = adviseOffline(fakeEngine({ plans: [FOUR[0], plan('direct', 1990, 900, [leg('x', 'emp-ada', 1)])] }).engine);
+    expect(ids(answer.options)).toStrictEqual([['p1', ['fastest', 'cheapest']], ['p2', ['balanced']]]);
+    expect(answer.options[0].label).toBe('Fastest and cheapest: Direct with Theo Martin, $7.00');
+    expect(adviseOffline(fakeEngine({ plans: [FOUR[0]] }).engine).options).toHaveLength(1);
   });
 
-  it('a deliver-by after the window end is moved to it; an earlier one back to the draft\'s', () => {
-    expect(resolveVariant({ deadlineMin: 99999 }, engine)).toMatchObject({ deadlineMin: 2160, changes: { deadlineMin: 2160 }, clamped: true });
-    expect(resolveVariant({ deadlineMin: 1000 }, engine)).toMatchObject({ deadlineMin: 2040, changes: {}, clamped: true });
+  it('balanced: the remaining plan with the smallest normalised price + arrival', () => {
+    const { engine } = fakeEngine();
+    expect(balancedPick(candidateSet(engine).candidates)?.id).toBe('p1');
+    // p3 at $7.50 arriving 1862: 100/400 + 2/90 = 0.27 now beats p1's 0.57.
+    const cheaperRelay = [...FOUR.slice(0, 2), plan('relay', 1862, 750, FOUR[2].legs, 'biz-kinship'), FOUR[3]];
+    expect(balancedPick(candidateSet(fakeEngine({ plans: cheaperRelay }).engine).candidates)?.id).toBe('p3');
+    // A plan with the same kind, price and arrival as the fastest or the cheapest is no third option.
+    const sameDeal = [FOUR[1], FOUR[3], plan('direct', 1950, 650, [leg('t-9', 'emp-sam', 2)])];
+    expect(balancedPick(candidateSet(fakeEngine({ plans: sameDeal }).engine).candidates)).toBeNull();
   });
 
-  it('the clock floor follows the clock, but never goes past the draft\'s own ready time', () => {
-    const later = fakeEngine({ clockMin: 950 }).engine;
-    expect(resolveVariant({ readyMin: 900 }, later)).toMatchObject({ readyMin: 950 });
-    const pastReady = fakeEngine({ clockMin: 1200 }).engine;
-    expect(resolveVariant({ readyMin: 900 }, pastReady)).toMatchObject({ readyMin: 960, changes: {} });
-    // Before the window start (a clock still at the start of Day 1): the window start is the floor.
-    const early = fakeEngine({ clockMin: 0 }).engine;
-    expect(resolveVariant({ readyMin: 10 }, early)).toMatchObject({ readyMin: 930 });
+  it('offline: fastest, cheapest, balanced in that order, with the server\'s labels and summaries, source offline', () => {
+    const answer = adviseOffline(fakeEngine().engine);
+    expect(answer.source).toBe('offline');
+    expect(answer.note).toBeUndefined();
+    expect(answer.options.map((o) => [o.id, o.tags, o.label, o.summary, o.customerPriceCents, o.deliveryMin])).toStrictEqual([
+      ['p2', ['fastest'], 'Fastest: Relay via Etsy, $10.50', 'Via Etsy with Elena Rossi and Reese Green, arrives Day 2, 7:00 AM, $10.50.', 1050, 1860],
+      ['p4', ['cheapest'], 'Cheapest: Direct with Ada Park, $6.50', 'Direct with Ada Park, arrives Day 2, 8:30 AM, $6.50.', 650, 1950],
+      ['p1', ['balanced'], 'Balanced: Direct with Theo Martin, $7.00', 'Direct with Theo Martin, arrives Day 2, 7:40 AM, $7.00.', 700, 1900],
+    ]);
+    expect(answer.options.every((o) => o.reason === undefined)).toBe(true);
   });
 
-  it('fractions are rounded to whole minutes; a numeric text is read as a number', () => {
-    expect(resolveVariant({ readyMin: 944.6 }, engine)).toMatchObject({ readyMin: 945 });
-    expect(resolveVariant({ deadlineMin: '2100' }, engine)).toMatchObject({ deadlineMin: 2100 });
+  it('labels keep their price within 60 characters', () => {
+    const { engine } = fakeEngine();
+    const long = { ...candidateSet(engine).candidates[1], option: { ...candidateSet(engine).candidates[1].option, relayBusinessId: 'biz-long' } };
+    const named = { ...engine, businessName: () => 'The Extraordinarily Long Name Roasting Company of Brooklyn' };
+    const label = optionLabel(['fastest', 'cheapest', 'recommended'], long, named);
+    expect(label.length).toBeLessThanOrEqual(MAX_LABEL_CHARS);
+    expect(label.endsWith(', $10.50')).toBe(true);
+    expect(tagWords(['fastest', 'cheapest', 'recommended'])).toBe('Fastest, cheapest and recommended');
+  });
+
+  it('a kind with no plan gets its note (#954); no plan as typed tries the what-ifs, with changes and a note', () => {
+    const relayOnly = fakeEngine({ answer: () => ({ plans: FOUR.slice(1, 3), reasons: { direct: 'A direct trip would add more than 12 minutes to a commute' } }) });
+    expect(adviseOffline(relayOnly.engine).note).toBe('No direct: a direct trip would add more than 12 minutes to a commute.');
+    expect(kindNote('relay', 'Every evening commute from Titan Foods is already carrying a package.'))
+      .toBe('No relay: every evening commute from Titan Foods is already carrying a package.');
+
+    const late = fakeEngine({
+      answer: (_r, d) => (d >= 2040 + 1 ? { plans: [FOUR[0]], reasons: {} } : { plans: [], reasons: {}, reason: 'No commute can arrive before the deadline' }),
+    });
+    const answer = adviseOffline(late.engine);
+    // Ready 2 h earlier (clamped to the clock, 930) finds nothing; ready + 18 h (2040) is the draft's own deliver-by,
+    // so that what-if changes nothing and is not tried.
+    expect(late.calls).toStrictEqual([[960, 2040], [930, 2040]]);
+    expect(answer.options).toStrictEqual([]);
+    expect(answer.note).toBe('Even with more time, no commute can arrive before the deadline.');
+  });
+
+  it('the first what-if with plans gives the options, each with its changes', () => {
+    const { engine, calls } = fakeEngine({
+      answer: (r) => (r < 960 ? { plans: FOUR.slice(0, 2), reasons: {} } : { plans: [], reasons: {}, reason: 'No commute leaves after the package is ready' }),
+    });
+    const answer = adviseOffline({ ...engine, draft: { ...engine.draft, deadlineMin: 2000 } });
+    expect(calls).toStrictEqual([[960, 2000], [930, 2000]]);
+    expect(answer.options.map((o) => [o.id, o.tags, o.changes])).toStrictEqual([
+      ['p2', ['fastest'], { readyMin: 930 }], ['p1', ['cheapest'], { readyMin: 930 }],
+    ]);
+    expect(answer.note).toBe('As typed, no commute leaves after the package is ready.');
+  });
+});
+
+describe('Gemini picks the recommended option', () => {
+  it('one structured call: the key only in the header, no tools, the schema, thinking off; the sentence, draft and candidates as facts', async () => {
+    const { engine } = fakeEngine();
+    const gemini = fakeGemini([GOOD]);
+    await advise(engine, settings(gemini.fetchImpl));
+    expect(gemini.bodies).toHaveLength(1);
+    expect(gemini.urls[0]).toBe(`${GEMINI_MODELS_URL}/${MODEL}:generateContent`);
+    expect(gemini.urls[0]).not.toContain(KEY);
+    expect((gemini.inits[0]?.headers as Record<string, string>)['x-goog-api-key']).toBe(KEY);
+    const body = gemini.bodies[0];
+    expect(String(gemini.inits[0]?.body)).not.toContain(KEY);
+    expect(body.tools).toBeUndefined();
+    expect(body.toolConfig).toBeUndefined();
+    expect(body.generationConfig).toStrictEqual({
+      responseMimeType: 'application/json', responseSchema: ADVICE_RESPONSE_SCHEMA, thinkingConfig: { thinkingBudget: 0 },
+    });
+    expect(body.systemInstruction.parts[0].text).toBe(buildAdvicePrompt());
+    const user: string = body.contents[0].parts[0].text;
+    expect(user).toContain('"Fragile glass vase to Blue Bottle Coffee by 9 tomorrow"');
+    expect(user).toContain('"contents":"glass vase"');
+    expect(user).toContain('Fastest plan: p2. Cheapest plan: p4.');
+    expect(user).toContain(JSON.stringify({
+      id: 'p3', kind: 'relay', relayPoint: 'Kinship Coffee', carriers: ['Elena', 'Sam'], arrives: 'Day 2, 7:20 AM',
+      price: '$9.50', extraMinutes: 9, handoffs: 1,
+    }));
+    expect(user).not.toContain('emp-');
+  });
+
+  it('a valid pick is the third option, tagged recommended with its reason; Gemini\'s sentences are the summaries', async () => {
+    const { engine } = fakeEngine();
+    const outcome = await advise(engine, settings(fakeGemini([GOOD]).fetchImpl));
+    expect(outcome.by).toBe('gemini');
+    expect(outcome.response.source).toBe('gemini');
+    expect(outcome.response.options.map((o) => [o.id, o.tags, o.label, o.summary, o.reason])).toStrictEqual([
+      ['p2', ['fastest'], 'Fastest: Relay via Etsy, $10.50', 'The quickest: there by 7:00 AM.', undefined],
+      ['p4', ['cheapest'], 'Cheapest: Direct with Ada Park, $6.50', 'The lowest price, $6.50, with Ada.', undefined],
+      ['p3', ['recommended'], 'Recommended: Relay via Kinship Coffee, $9.50', 'A relay through Kinship Coffee, there by 7:20 AM.', GOOD.reason],
+    ]);
+    // The numbers are the engine's.
+    expect(outcome.response.options[2]).toMatchObject({ customerPriceCents: 950, deliveryMin: 1880, carrierNames: ['Elena Rossi', 'Sam Lee'] });
   });
 
   it.each([
-    ['a text that is no number', { readyMin: 'noon' }],
-    ['NaN', { readyMin: Number.NaN }],
-    ['Infinity', { deadlineMin: Number.POSITIVE_INFINITY }],
-    ['a list', { deadlineMin: [2100] }],
-    ['an object', { readyMin: { min: 900 } }],
-    ['a boolean', { deadlineMin: true }],
-    ['an unknown argument (a price)', { customerPriceCents: 1 }],
-    ['an unknown argument next to a good one', { readyMin: 940, originBusinessId: 'biz-x' }],
-  ])('%s is an error', (_name, args) => {
-    expect(resolveVariant(args, engine)).toHaveProperty('error');
+    ['an id that is no candidate', { ...GOOD, recommendedId: 'p9' }, 'invalid answer: unknown id'],
+    ['the fastest, while other plans exist', { ...GOOD, recommendedId: 'p2' }, 'invalid answer: same as fastest or cheapest'],
+    ['the cheapest, while other plans exist', { ...GOOD, recommendedId: 'p4' }, 'invalid answer: same as fastest or cheapest'],
+    ['a reason with an invented price', { ...GOOD, reason: 'It saves you $1.75 over the fastest.' }, 'invalid answer: invented number in reason'],
+    ['a reason with an invented time', { ...GOOD, reason: 'It arrives by 6:15 AM.' }, 'invalid answer: invented number in reason'],
+    ['an empty reason', { ...GOOD, reason: '  ' }, 'invalid answer: no reason'],
+    ['no recommendedId', { reason: GOOD.reason, sentences: [] }, 'invalid answer: invalid shape'],
+    ['not an object', ['p3'], 'invalid answer: invalid shape'],
+  ])('%s: the balanced plan with the server\'s words', async (_name, reply, by) => {
+    const { engine } = fakeEngine();
+    const outcome = await advise(engine, settings(fakeGemini([reply]).fetchImpl));
+    expect(outcome.by).toBe(by);
+    expect(outcome.response).toStrictEqual(adviseOffline(engine));
+    expect(ids(outcome.response.options)).toStrictEqual([['p2', ['fastest']], ['p4', ['cheapest']], ['p1', ['balanced']]]);
   });
 
-  it.each([['a list', [940]], ['a number', 940], ['a text', 'earlier']])('arguments that are %s are an error', (_name, args) => {
-    expect(resolveVariant(args, engine)).toHaveProperty('error');
+  it('a sentence with an invented number, or for a plan not shown, is dropped alone: the server\'s summary takes its place', async () => {
+    const { engine } = fakeEngine();
+    const reply = {
+      ...GOOD,
+      sentences: [
+        { id: 'p2', text: 'There 20 minutes before the others.' },    // 20 is in no fact
+        { id: 'p4', text: 'x'.repeat(200) },                            // cut to 120 characters
+        { id: 'p1', text: 'Not shown, so not used.' },
+        { id: 'p3', text: 'Arrives Day 2 at 7:20 AM with 1 handoff.' },
+      ],
+    };
+    const outcome = await advise(engine, settings(fakeGemini([reply]).fetchImpl));
+    expect(outcome.by).toBe('gemini');
+    const [fastest, cheapest, recommended] = outcome.response.options;
+    expect(fastest.summary).toBe('Via Etsy with Elena Rossi and Reese Green, arrives Day 2, 7:00 AM, $10.50.');
+    expect(cheapest.summary).toHaveLength(MAX_SENTENCE_CHARS);
+    expect(recommended.summary).toBe('Arrives Day 2 at 7:20 AM with 1 handoff.');
+    expect(outcome.response.options).toHaveLength(3);
+  });
+
+  it('with only two plans, Gemini may recommend one of them: it gains the tag and the reason', async () => {
+    const { engine } = fakeEngine({ plans: [FOUR[1], FOUR[3]] });
+    const reply = { recommendedId: 'p1', reason: 'Fragile, but the quickest at Day 2, 7:00 AM.', sentences: [] };
+    const outcome = await advise(engine, settings(fakeGemini([reply]).fetchImpl));
+    expect(outcome.by).toBe('gemini');
+    expect(outcome.response.options.map((o) => [o.id, o.tags, o.reason])).toStrictEqual([
+      ['p1', ['fastest', 'recommended'], reply.reason], ['p2', ['cheapest'], undefined],
+    ]);
+    expect(outcome.response.options[0].label).toBe('Fastest and recommended: Relay via Etsy, $10.50');
+  });
+
+  it('numbers: times on the hour may be written without minutes, prices with or without cents; nothing else', () => {
+    expect(numbersIn('$9.50 at 7:05 AM on Day 2, 1,200 m')).toStrictEqual(['9.5', '7:5', '2', '1200']);
+    const allowed = allowedNumbers([{ price: '$10.00', arrives: 'Day 2, 9:00 AM' }]);
+    for (const ok of ['10', '10.00', '9', '9:00', '2']) expect(numbersIn(ok).every((n) => allowed.has(n)), ok).toBe(true);
+    for (const bad of ['11', '9:30', '3']) expect(numbersIn(bad).every((n) => allowed.has(n)), bad).toBe(false);
+  });
+
+  it('a long candidate list is cut for the prompt, keeping the fastest, the cheapest and the balanced plan', () => {
+    const many = Array.from({ length: 30 }, (_, i) => plan('relay', 1800 + i, 2000 - i * 10, [leg(`e${i}`, 'emp-elena', 3), leg(`m${i}`, 'emp-sam', i)], 'biz-etsy'));
+    const set = candidateSet(fakeEngine({ plans: many }).engine);
+    const listed = shortlist(set.candidates);
+    expect(listed).toHaveLength(MAX_GEMINI_CANDIDATES);
+    const ends = fastestAndCheapest(set.candidates)!;
+    expect(listed.slice(0, 3).map((c) => c.id)).toStrictEqual([ends.fastest.id, ends.cheapest.id, balancedPick(set.candidates)!.id]);
+  });
+
+  it('thinking: minimal for gemini-3.x Flash, off for 2.5 Flash, the model\'s default otherwise', async () => {
+    expect(adviceThinkingConfig('gemini-3-flash-preview')).toStrictEqual({ thinkingLevel: 'minimal' });
+    expect(adviceThinkingConfig('models/gemini-3.1-flash')).toStrictEqual({ thinkingLevel: 'minimal' });
+    expect(adviceThinkingConfig('gemini-2.5-flash-lite')).toStrictEqual({ thinkingBudget: 0 });
+    expect(adviceThinkingConfig('gemini-2.5-pro')).toBeNull();
+    expect(adviceThinkingConfig('gemini-3-pro-preview')).toBeNull();
+    const gemini = fakeGemini([GOOD, GOOD]);
+    await advise(fakeEngine().engine, settings(gemini.fetchImpl, undefined, 'gemini-3-flash-preview'));
+    await advise(fakeEngine().engine, settings(gemini.fetchImpl, undefined, 'gemini-2.5-pro'));
+    expect(gemini.bodies[0].generationConfig.thinkingConfig).toStrictEqual({ thinkingLevel: 'minimal' });
+    expect(gemini.bodies[1].generationConfig.thinkingConfig).toBeUndefined();
   });
 });
 
-describe('offline options', () => {
-  it('the three fixed variants: as typed, ready 2 h earlier (clamped to the clock), deliver-by for the discount', () => {
-    const { engine } = fakeEngine({ draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 1000, deadlineMin: 2040 } });
-    expect(offlineVariants(engine).map((v) => v.changes)).toStrictEqual([
-      {}, { readyMin: 930 }, { deadlineMin: 2080 },   // 1000 - 120 = 880 is before the clock; 1000 + 1080 = 2080
-    ]);
+describe('fallbacks: the options never wait on Gemini', () => {
+  it('the limit is 6 s', () => {
+    expect(ADVISE_TIMEOUT_MS).toBe(6000);
   });
 
-  it('the discount deliver-by is clamped to the window end, and a variant equal to another is tried once', () => {
-    const { engine } = fakeEngine({
-      clockMin: 960, draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 1200, deadlineMin: 2100 },
-    });
-    // ready 1200 - 120 = 1080; 1200 + 1080 = 2280, past the end -> 2160
-    expect(offlineVariants(engine).map((v) => [v.readyMin, v.deadlineMin])).toStrictEqual([[1200, 2100], [1080, 2100], [1200, 2160]]);
-    // Ready 960 is the clock, so "earlier" is the same variant; 960 + 1080 = 2040 is the draft's deliver-by: the same too.
-    const atClock = fakeEngine({ clockMin: 960 }).engine;
-    expect(offlineVariants(atClock).map((v) => v.changes)).toStrictEqual([{}]);
-  });
-
-  it('answers with engine numbers only, drops options with the same price and arrival, source offline', async () => {
-    const { engine } = fakeEngine();
-    const answer = adviseOffline(engine);
-    expect(answer.source).toBe('offline');
-    expect(answer.note).toBeUndefined();
-    // As typed: 960 -> 2040 is exactly 18 h, so it already has the discount; the "discount" variant is the same
-    // variant and is not tried. Ready 2 h earlier is clamped to the clock (930): arrives 10 min earlier.
-    expect(answer.options).toStrictEqual<AdviseOption[]>([
-      {
-        label: 'As requested', summary: 'Via Brooklyn Roasting with Elena Rossi and Reese Green, arrives Day 2, 9:20 AM, $6.00.',
-        changes: {}, kind: 'relay', relayBusinessId: 'biz-r', carrierNames: ['Elena Rossi', 'Reese Green'],
-        deliveryMin: 2000, extraMin: 7, extraMiles: 1.5, customerPriceCents: 600,
-      },
-      {
-        label: 'Ready 30 min earlier', summary: 'Via Brooklyn Roasting with Elena Rossi and Reese Green, arrives Day 2, 9:10 AM, $6.00.',
-        changes: { readyMin: 930 }, kind: 'relay', relayBusinessId: 'biz-r', carrierNames: ['Elena Rossi', 'Reese Green'],
-        deliveryMin: 1990, extraMin: 7, extraMiles: 1.5, customerPriceCents: 600,
-      },
-    ]);
-  });
-
-  it('a later deliver-by that earns the discount is its own option', () => {
-    const { engine } = fakeEngine({ draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 960, deadlineMin: 2000 } });
-    const answer = adviseOffline(engine);
-    expect(answer.options.map((o) => [o.label, o.customerPriceCents, o.changes])).toStrictEqual([
-      ['As requested', 700, {}],
-      ['Ready 30 min earlier', 700, { readyMin: 930 }],
-      ['Deliver by Day 2, 10:00 AM', 600, { deadlineMin: 2040 }],
-    ]);
-  });
-
-  // #867: the window is the run's `settings.flexWindowMin`, not a number of the advisor's own.
-  it('the discount variant follows the engine\'s flexWindowMin: ready + 10 h for 600, ready + 19 h for 1140', () => {
-    const draft = { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 1000, deadlineMin: 1400 };
-    const deadlines = (flexWindowMin: number) =>
-      offlineVariants(fakeEngine({ draft, flexWindowMin }).engine).map((v) => v.changes.deadlineMin);
-    expect(deadlines(600)).toStrictEqual([undefined, undefined, 1600]);
-    expect(deadlines(1080)).toStrictEqual([undefined, undefined, 2080]);
-    expect(deadlines(1140)).toStrictEqual([undefined, undefined, 2140]);
-    // A window the draft already leaves: no "later deliver-by" variant at all.
-    expect(deadlines(400)).toStrictEqual([undefined, undefined]);
-  });
-
-  it('under a 19 h window the request that was flexible at 18 h is not, and the later deliver-by is the cheaper option', () => {
-    // 960 -> 2040 is 18 h. At the default it has the discount as typed (the test above); at 19 h it has not.
-    const answer = adviseOffline(fakeEngine({ flexWindowMin: 1140 }).engine);
-    expect(answer.options.map((o) => [o.label, o.customerPriceCents, o.changes])).toStrictEqual([
-      ['As requested', 700, {}],
-      ['Ready 30 min earlier', 700, { readyMin: 930 }],             // 930 -> 2040 is 18.5 h: still no discount
-      ['Deliver by Day 2, 11:00 AM', 600, { deadlineMin: 2100 }],   // 960 + 1140
-    ]);
-  });
-
-  it('a variant that is no cheaper and arrives no earlier than one already kept is dropped', () => {
-    const base = fakeEngine().engine.match(960, 2000);
-    if (!('plan' in base)) throw new Error('the fake engine should match');
-    const { engine } = fakeEngine({
-      draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 1000, deadlineMin: 2000 },
-      // $7.00 everywhere. As typed and ready earlier: arrives 2000. A later deliver-by: a later carrier, 2030.
-      match: (_readyMin, deadlineMin) => ({ plan: { ...base.plan, deliveryMin: deadlineMin > 2000 ? 2030 : 2000 } }),
-    });
-    const answer = adviseOffline(engine);
-    // Ready earlier: the same deal (dropped). Deliver-by 2080: the same price, later (dropped).
-    expect(answer.options.map((o) => [o.changes, o.customerPriceCents, o.deliveryMin])).toStrictEqual([[{}, 700, 2000]]);
-  });
-
-  it('with no carrier for any variant: no options and a note with the matcher\'s reason', () => {
-    const { engine } = fakeEngine({ match: () => ({ reason: 'Every matching commute is already carrying a package' }) });
-    const answer = adviseOffline(engine);
-    expect(answer.options).toStrictEqual([]);
-    expect(answer.note).toBe('Even with more time, every matching commute is already carrying a package.');
-  });
-
-  it('when only a variant matches, the note says the request as typed cannot be', () => {
-    const { engine } = fakeEngine({ draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 960, deadlineMin: 1980 } });
-    const answer = adviseOffline(engine);
-    expect(answer.options.map((o) => o.changes)).toStrictEqual([{ deadlineMin: 2040 }]);
-    expect(answer.note).toBe('As typed, no commute can arrive before the deadline.');
-  });
-});
-
-describe('the Gemini agent loop', () => {
-  it('runs try_variant on the engine, then builds the options from the tool results: Gemini\'s numbers are ignored', async () => {
-    const { engine, calls } = fakeEngine({ draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 960, deadlineMin: 2000 } });
-    const gemini = fakeGemini([
-      [call(TRY_VARIANT, {}), call(TRY_VARIANT, { deadlineMin: 2040 })],
-      [call(PRESENT_OPTIONS, {
-        options: [
-          // Invented numbers everywhere: a price, an arrival, carriers and a relay point.
-          { resultId: 'r2', label: 'Flexible and cheaper', summary: 'Only $1.00, arrives at 6 AM!', customerPriceCents: 100, deliveryMin: 1800, carrierNames: ['Nobody'], kind: 'direct' },
-          { resultId: 'r1', label: 'As you asked', summary: 'Arrives by your deadline.', changes: { readyMin: 0 } },
-          { resultId: 'r9', label: 'Invented result', summary: 'Free delivery' },   // no such tool result
-          { resultId: 'r1', label: 'Again', summary: 'The same result twice' },     // shown once
-        ],
-      })],
-    ]);
-
-    const answer = await advise(engine, settings(gemini.fetchImpl));
-
-    expect(answer.source).toBe('gemini');
-    expect(calls).toStrictEqual([[960, 2000], [960, 2040]]);
-    const common = { kind: 'relay', relayBusinessId: 'biz-r', carrierNames: ['Elena Rossi', 'Reese Green'], extraMin: 7, extraMiles: 1.5 };
-    expect(answer.options).toStrictEqual([
-      { label: 'Flexible and cheaper', summary: 'Only $1.00, arrives at 6 AM!', changes: { deadlineMin: 2040 }, ...common, deliveryMin: 2000, customerPriceCents: 600 },
-      { label: 'As you asked', summary: 'Arrives by your deadline.', changes: {}, ...common, deliveryMin: 2000, customerPriceCents: 700 },
-    ]);
-
-    // The second turn answered both calls with the engine's facts, by resultId.
-    const sent = responsesIn(gemini.bodies[1]);
-    expect(sent.map((r) => [r.name, r.response.resultId, r.response.matched, r.response.price]))
-      .toStrictEqual([[TRY_VARIANT, 'r1', true, '$7.00'], [TRY_VARIANT, 'r2', true, '$6.00']]);
-    // The model's turn is sent back as it came, before the answers.
-    expect(gemini.bodies[1].contents[1]).toStrictEqual({ role: 'model', parts: [call(TRY_VARIANT, {}), call(TRY_VARIANT, { deadlineMin: 2040 })] });
-  });
-
-  it('sends the key only in the x-goog-api-key header, the two functions, mode ANY and thinking off', async () => {
-    const { engine } = fakeEngine();
-    const gemini = fakeGemini([[call(TRY_VARIANT, {})], [call(PRESENT_OPTIONS, { options: [{ resultId: 'r1', label: 'A', summary: 'B' }] })]]);
-    await advise(engine, settings(gemini.fetchImpl));
-    expect(gemini.urls[0]).toBe(`${GEMINI_MODELS_URL}/${MODEL}:generateContent`);
-    for (const [i, init] of gemini.inits.entries()) {
-      expect(gemini.urls[i]).not.toContain(KEY);
-      expect((init?.headers as Record<string, string>)['x-goog-api-key']).toBe(KEY);
-      expect(String(init?.body)).not.toContain(KEY);
-    }
-    const body = gemini.bodies[0];
-    expect(body.tools).toStrictEqual([{ functionDeclarations: ADVISOR_FUNCTIONS }]);
-    expect(body.toolConfig).toStrictEqual({ functionCallingConfig: { mode: 'ANY' } });
-    expect(body.generationConfig).toStrictEqual({ thinkingConfig: { thinkingBudget: 0 } });
-    expect(body.systemInstruction.parts[0].text).toBe(buildAdvisorPrompt(engine));
-    expect(body.systemInstruction.parts[0].text).toContain('readyMin from 930');
-    expect(body.systemInstruction.parts[0].text).toContain('up to 2160');
-  });
-
-  it('the prompt names the engine\'s flexibility window, and Gemini is sent that prompt (#867)', async () => {
-    const line = (flexWindowMin: number) =>
-      buildAdvisorPrompt(fakeEngine({ flexWindowMin }).engine).split('\n').find((l) => l.includes('flexibility discount'));
-    expect(line(1080)).toBe('A deliver-by at least 18 hours after the ready time gets a flexibility discount.');
-    expect(line(600)).toBe('A deliver-by at least 10 hours after the ready time gets a flexibility discount.');
-    expect(line(60)).toBe('A deliver-by at least 1 hour after the ready time gets a flexibility discount.');
-    // No whole number of hours: minutes, never a rounded "11 hours" (10 h 30 min would then be promised a discount
-    // from 11 h on, or, rounded down, from a window the engine does not discount).
-    expect(line(630)).toBe('A deliver-by at least 630 minutes after the ready time gets a flexibility discount.');
-    expect(flexWindowText(1080)).toBe('18 hours');
-    expect(flexWindowText(1081)).toBe('1081 minutes');
-
-    const { engine } = fakeEngine({ flexWindowMin: 600 });
-    const gemini = fakeGemini([[call(TRY_VARIANT, {})], [call(PRESENT_OPTIONS, { options: [{ resultId: 'r1', label: 'A', summary: 'B' }] })]]);
-    await advise(engine, settings(gemini.fetchImpl));
-    for (const body of gemini.bodies) {
-      expect(body.systemInstruction.parts[0].text).toContain('at least 10 hours after the ready time gets a flexibility discount');
-      expect(body.systemInstruction.parts[0].text).not.toContain('18 hours');
-    }
-  });
-
-  it(`runs at most ${MAX_TOOL_CALLS} try_variant calls; later ones get an error answer and never reach the engine`, async () => {
-    const { engine, calls } = fakeEngine();
-    const six = [0, 1, 2, 3, 4, 5].map((i) => call(TRY_VARIANT, { deadlineMin: 2040 + i * 10 }));
-    const gemini = fakeGemini([six, [call(TRY_VARIANT, {})], [call(PRESENT_OPTIONS, { options: [{ resultId: 'r4', label: 'L', summary: 'S' }] })]]);
-    const answer = await advise(engine, settings(gemini.fetchImpl));
-    expect(calls).toHaveLength(MAX_TOOL_CALLS);
-    const first = responsesIn(gemini.bodies[1]);
-    expect(first.slice(0, 4).every((r) => r.response.matched === true)).toBe(true);
-    expect(first.slice(4).map((r) => r.response.error)).toStrictEqual([
-      expect.stringContaining('limit'), expect.stringContaining('limit'),
-    ]);
-    expect(responsesIn(gemini.bodies[2])[0].response.error).toContain('limit');
-    expect(answer.source).toBe('gemini');
-    expect(answer.options[0].changes).toStrictEqual({ deadlineMin: 2070 });
-  });
-
-  it('a bad argument is answered with an error and the engine is not asked; an out-of-range one is clamped', async () => {
-    const { engine, calls } = fakeEngine();
-    const gemini = fakeGemini([
-      [call(TRY_VARIANT, { readyMin: 'soon' }), call(TRY_VARIANT, { price: 1 }), call(TRY_VARIANT, { deadlineMin: 5000 }), call('reserve', {})],
-      [call(PRESENT_OPTIONS, { options: [{ resultId: 'r1', label: 'Latest', summary: 'S' }] })],
-    ]);
-    const answer = await advise(engine, settings(gemini.fetchImpl));
-    expect(calls).toStrictEqual([[960, 2160]]);
-    const sent = responsesIn(gemini.bodies[1]);
-    expect(sent[0].response).toHaveProperty('error');
-    expect(sent[1].response).toHaveProperty('error');
-    expect(sent[2].response).toMatchObject({ resultId: 'r1', deadlineMin: 2160, note: expect.stringContaining('nearest allowed') });
-    expect(sent[3]).toMatchObject({ name: 'reserve', response: { error: expect.stringContaining('Unknown function') } });
-    expect(answer.options[0].changes).toStrictEqual({ deadlineMin: 2160 });
-  });
-
-  it('labels and summaries are cut to 60 and 140 characters on one line; empty ones get the server\'s text', async () => {
-    const { engine } = fakeEngine();
-    const gemini = fakeGemini([
-      [call(TRY_VARIANT, {}), call(TRY_VARIANT, { readyMin: 930 })],
-      [call(PRESENT_OPTIONS, { options: [
-        { resultId: 'r1', label: `Long\nlabel ${'x'.repeat(100)}`, summary: 's'.repeat(400) },
-        { resultId: 'r2', label: '   ', summary: 42 },
-      ] })],
-    ]);
-    const answer = await advise(engine, settings(gemini.fetchImpl));
-    const [a, b] = answer.options;
-    expect(a.label.length).toBeLessThanOrEqual(MAX_LABEL_CHARS);
-    expect(a.label.startsWith('Long label x')).toBe(true);
-    expect(a.summary.length).toBeLessThanOrEqual(MAX_SUMMARY_CHARS);
-    expect(b.label).toBe('Ready 30 min earlier');
-    expect(b.summary).toBe('Via Brooklyn Roasting with Elena Rossi and Reese Green, arrives Day 2, 9:10 AM, $6.00.');
-  });
-
-  it('one pick is topped up with another tried result that differs in price or arrival', async () => {
-    const { engine } = fakeEngine();
-    const gemini = fakeGemini([
-      [call(TRY_VARIANT, {}), call(TRY_VARIANT, { deadlineMin: 2100 }), call(TRY_VARIANT, { readyMin: 930 })],
-      [call(PRESENT_OPTIONS, { options: [{ resultId: 'r1', label: 'As typed', summary: 'S' }] })],
-    ]);
-    const answer = await advise(engine, settings(gemini.fetchImpl));
-    // r2 (later deliver-by) is the same price and arrival as r1: skipped. r3 arrives 10 minutes earlier.
-    expect(answer.options.map((o) => [o.label, o.changes])).toStrictEqual([['As typed', {}], ['Ready 30 min earlier', { readyMin: 930 }]]);
-  });
-
-  it.each<[string, Reply[]]>([
-    ['an HTTP error', [{ status: 500 }]],
-    ['a 403 after a tool turn', [[call(TRY_VARIANT, {})], { status: 403 }]],
-    ['text instead of a function call', [[{ text: 'Here are your options: $1.00' }]]],
-    ['present_options with only invented results', [[call(PRESENT_OPTIONS, { options: [{ resultId: 'r1', label: 'X', summary: 'Y' }] })]]],
-    ['present_options with a broken shape', [[call(TRY_VARIANT, {})], [call(PRESENT_OPTIONS, { options: 'all of them' })]]],
-    ['a model that never presents', Array.from({ length: 10 }, () => [call(TRY_VARIANT, {})])],
-  ])('%s falls back to the offline options', async (_name, turns) => {
-    const { engine } = fakeEngine();
-    const gemini = fakeGemini(turns);
-    expect(await advise(engine, settings(gemini.fetchImpl))).toStrictEqual(adviseOffline(engine));
-  });
-
-  it('a Gemini that does not answer within the budget: offline options, the request is aborted', async () => {
+  it('a Gemini that does not answer in time: the balanced plan, the request aborted, by "timeout"', async () => {
     const { engine } = fakeEngine();
     const gemini = fakeGemini(['hang']);
     const started = Date.now();
-    const answer = await advise(engine, settings(gemini.fetchImpl, 80));
-    expect(Date.now() - started).toBeLessThan(5000);
-    expect(answer).toStrictEqual(adviseOffline(engine));
+    const outcome = await advise(engine, settings(gemini.fetchImpl, 80));
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(outcome.by).toBe('timeout');
+    expect(outcome.response).toStrictEqual(adviseOffline(engine));
+    expect(outcome.response.options.at(-1)?.tags).toStrictEqual(['balanced']);
     expect(gemini.inits[0]?.signal?.aborted).toBe(true);
   });
 
-  it('the budget covers every turn together: no new turn starts once it is used up', async () => {
-    const { engine } = fakeEngine();
-    let clock = 0;
-    const turns: Reply[] = [[call(TRY_VARIANT, {})], [call(TRY_VARIANT, { readyMin: 930 })], [call(PRESENT_OPTIONS, { options: [{ resultId: 'r1', label: 'A', summary: 'B' }] })]];
-    const gemini = fakeGemini(turns);
-    const slow: FetchLike = (url, init) => {
-      clock += 6000;   // every turn "takes" 6 s of the 10 s budget
-      return gemini.fetchImpl(url, init);
-    };
-    const answer = await advise(engine, settings(slow), () => clock);
-    expect(answer).toStrictEqual(adviseOffline(engine));   // the third turn would start after 12 s
-    expect(gemini.bodies).toHaveLength(2);
+  it('the engine builds every candidate before Gemini is asked, and asks it nothing more after', async () => {
+    const { engine, log } = fakeEngine();
+    const gemini = fakeGemini([GOOD], log);
+    await advise(engine, settings(gemini.fetchImpl));
+    expect(log).toStrictEqual(['engine', 'gemini']);
   });
 
-  it('no key: nothing is sent, offline options', async () => {
+  it('a fetch that throws at once, an HTTP error or text that is no JSON: the balanced plan, by the reason', async () => {
     const { engine } = fakeEngine();
-    const gemini = fakeGemini([]);
-    for (const apiKey of [null, undefined, '', '   ']) {
-      expect(await advise(engine, { apiKey, model: MODEL, fetchImpl: gemini.fetchImpl })).toStrictEqual(adviseOffline(engine));
+    const throwing: FetchLike = () => { throw new Error(`boom ${KEY}`); };
+    const cases: [FetchLike, string][] = [
+      [throwing, 'network error'],
+      [fakeGemini([{ status: 429 }]).fetchImpl, 'HTTP 429'],
+      [fakeGemini([{ raw: 'not json' }]).fetchImpl, 'bad JSON'],
+    ];
+    for (const [fetchImpl, by] of cases) {
+      const outcome = await advise(engine, settings(fetchImpl));
+      expect(outcome.by).toBe(by);
+      expect(outcome.response).toStrictEqual(adviseOffline(engine));
+      expect(JSON.stringify(outcome)).not.toContain(KEY);
     }
-    expect(await advise(engine)).toStrictEqual(adviseOffline(engine));
+  });
+
+  it('no key: nothing is sent, by "no key"; no plan: Gemini is not asked, by "no plan"', async () => {
+    const { engine } = fakeEngine();
+    const gemini = fakeGemini([GOOD]);
+    for (const apiKey of [null, undefined, '', '   ']) {
+      expect(await advise(engine, { apiKey, model: MODEL, fetchImpl: gemini.fetchImpl }))
+        .toStrictEqual({ response: adviseOffline(engine), by: 'no key' });
+    }
+    expect(await advise(engine)).toStrictEqual({ response: adviseOffline(engine), by: 'no key' });
+    const none = fakeEngine({ answer: () => ({ plans: [], reasons: {}, reason: 'Every matching commute is already carrying a package' }) });
+    const outcome = await advise(none.engine, settings(gemini.fetchImpl));
+    expect(outcome.by).toBe('no plan');
+    expect(outcome.response.options).toStrictEqual([]);
+    expect(outcome.response.note).toBe('Even with more time, every matching commute is already carrying a package.');
     expect(gemini.bodies).toHaveLength(0);
   });
 
   it('an engine error is not swallowed (the route turns a travel error into its 503)', async () => {
     const boom = new Error('travel data missing');
-    const { engine } = fakeEngine({ match: () => { throw boom; } });
-    const gemini = fakeGemini([[call(TRY_VARIANT, {})]]);
-    await expect(advise(engine, settings(gemini.fetchImpl))).rejects.toBe(boom);
+    const { engine } = fakeEngine({ answer: () => { throw boom; } });
+    await expect(advise(engine, settings(fakeGemini([GOOD]).fetchImpl))).rejects.toBe(boom);
   });
 });
 

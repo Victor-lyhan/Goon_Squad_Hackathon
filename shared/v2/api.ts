@@ -133,16 +133,31 @@ export type TravelUnavailable = {
   code: 'google_key_missing' | 'travel_data_missing' | 'google_unavailable';
 };
 
-// POST /api/v2/advise (#862, the AI what-if advisor). Read-only: nothing is reserved or saved.
-// The body is the parsed draft; `originBusinessId`, `destinationBusinessId`, `readyMin` and `deadlineMin`
-// must be filled (else 400 with the ApiError body). Every number of an option is copied from the engine's
-// plan for that variant, never from Gemini; Gemini (when there is a key) only picks variants and writes
-// `label` and `summary`.
-export type AdviseRequest = { draft: ParseDraft };
+// POST /api/v2/advise (#862, the AI advisor; reshaped by #959). Read-only: nothing is reserved or saved.
+// The body is the parsed draft; a missing sender, recipient or ready time is a 200 with no options and a `note`.
+// The engine builds every candidate plan for the draft and tags the fastest and the cheapest; Gemini (when there is
+// a key) picks a third, 'recommended', from the intent of the business's sentence (`text`) and writes one sentence
+// per shown option. Without Gemini, or when its answer fails the server's checks, the third is 'balanced'.
+// Every number of an option is copied from the engine's plan, never from Gemini.
+export type AdviseRequest = {
+  draft: ParseDraft;
+  /** The business's own sentence (POST /parse-request's `text`), for Gemini to read its intent. Optional. */
+  text?: string | null;
+};
+
+/** Why an option is shown. One plan can carry several tags ("fastest" and "cheapest"). */
+export type AdviseTag = 'fastest' | 'cheapest' | 'recommended' | 'balanced';
 
 export type AdviseOption = {
+  // `id` and `tags`: the server always sends them (#959); optional in the type only for samples written before.
+  /** The candidate's id in this answer (p1, p2, ... in the engine's order). */
+  id?: string;
+  /** At least one; 'recommended' and 'balanced' never together. */
+  tags?: AdviseTag[];
   label: string;                                   // <= 60 characters
   summary: string;                                 // <= 140 characters
+  /** With the 'recommended' tag: why it fits the request, one sentence <= 120 characters. */
+  reason?: string;
   /** What to change in the form to get this option. Empty for the request as typed. */
   changes: { readyMin?: number; deadlineMin?: number };
   kind: 'direct' | 'relay';
@@ -155,9 +170,13 @@ export type AdviseOption = {
 };
 
 export type AdviseResponse = {
-  /** 0 to 3 options, all matchable now. 0 when no allowed variant finds a carrier (`note` says why). */
+  /**
+   * 0 to 3 options, all matchable now, in this order: the fastest, the cheapest (when it is another plan), then
+   * the recommended or balanced plan (when there is another one). 0 when no plan is found (`note` says why).
+   */
   options: AdviseOption[];
+  /** 'gemini' when the third option is Gemini's recommendation, else 'offline'. */
   source: 'gemini' | 'offline';
-  /** A plain sentence when there is something to add, e.g. why no option could be matched. */
+  /** A plain sentence when there is something to add, e.g. why there is no relay, or why no option matched. */
   note?: string;
 };

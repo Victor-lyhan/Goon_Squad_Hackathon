@@ -56,15 +56,15 @@ export type V2RuntimeOptions = {
     apiKey: string | null | undefined;
     model?: string;
     timeoutMs?: number;
-    /** The whole Gemini budget of one POST /advise (#862). Defaults to 10 s; tests make it short. */
+    /** The time limit of the one Gemini call of POST /advise (#959). Defaults to 6 s; tests make it short. */
     adviseTimeoutMs?: number;
     fetch?: FetchLike;
     log?: (line: string) => void;
     info?: (line: string) => void;
     /**
-     * The one pause both POST /parse-request and POST /advise share (#884, server/ai/geminiPause.ts): after one
-     * failed Gemini call neither asks Gemini for 2 minutes, and `log` gets a line saying so. The app gives one
-     * (server/index.ts). Left out: no pause, every request with a key asks Gemini.
+     * The pause of POST /parse-request (#884, server/ai/geminiPause.ts): after one failed Gemini call it does not
+     * ask Gemini for 2 minutes, and `log` gets a line saying so. POST /advise has no pause (#959): each request
+     * makes one call with its own 6 s limit. The app gives one (server/index.ts). Left out: no pause.
      */
     pause?: GeminiPause;
   };
@@ -173,12 +173,12 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       log: geminiLog,
       info: gemini?.info,
     });
-    // The AI advisor (#862): reads the run and asks the engine about what-if variants; never changes the run.
-    // Same key and model as parse-request; its own 10 s budget for the whole Gemini conversation. It shares the
-    // pause with parse-request (#884) and logs one line only when its options are offline because of that pause.
+    // The AI advisor (#862, #959): reads the run, lists the engine's candidates and asks Gemini once for a
+    // recommendation; never changes the run. Same key and model as parse-request, its own 6 s limit, no pause.
+    // One line per request to `log`: "[advise] gemini" or "[advise] fallback: <reason>".
     registerAdviseRoutes(router, {
-      pause: gemini?.pause,
       log: geminiLog,
+      info: gemini?.info,
       store,
       travel,
       gemini: gemini && {
