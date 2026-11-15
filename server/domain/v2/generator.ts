@@ -189,6 +189,14 @@ function storyEmployees(story: NycDemoStoryFile): { employees: Employee[]; homes
   return { employees, homes: story.featuredEmployees.map(employee => employee.home) };
 }
 
+/**
+ * The `clientRequestId` of the package the generator makes at position `sequence` (1-based) of a scenario with
+ * this seed. A request a business sends brings its own ID, so this stamp tells the generated packages apart.
+ */
+export function generatedRequestId(seed: number, sequence: number): string {
+  return `seed-${seed}-${sequence}`;
+}
+
 function randomShipments(
   rng: ReturnType<typeof createRng>,
   businesses: NetworkBusiness[],
@@ -206,7 +214,7 @@ function randomShipments(
     return {
       ...idea,
       id: `shp-${sequence}`,
-      clientRequestId: `seed-${seed}-${sequence}`,
+      clientRequestId: generatedRequestId(seed, sequence),
       originBusinessId: origin.id,
       destinationBusinessId: destination.id,
       readyMin: 960,
@@ -225,7 +233,7 @@ function storyShipments(story: NycDemoStoryFile, seed: number): Shipment[] {
     return {
       ...shipment,
       id: `shp-${sequence}`,
-      clientRequestId: `seed-${seed}-${sequence}`,
+      clientRequestId: generatedRequestId(seed, sequence),
       createdSeq: sequence,
     };
   });

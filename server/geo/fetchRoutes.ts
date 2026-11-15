@@ -38,7 +38,11 @@ export interface FetchRoutesInput {
   storyFile: NycDemoStoryFile;
 }
 
-/** The scenario the demo starts with: preset `demo` with the schema's defaults (60 employees, 24 packages). */
+/**
+ * The story's scenario: preset `demo` with the schema's defaults (60 employees, 24 packages). The server's
+ * default run adds 60 employees to it and keeps exactly these plans (#966, server/api/v2/storyFirst.ts), so the
+ * route lines fetched for this scenario are the ones the default run draws.
+ */
 export const DEFAULT_SCENARIO_REQUEST: GenerateScenarioRequest = GenerateScenarioRequest.parse({ preset: 'demo' });
 
 /** Every skip reason ends with this, because every skip is cured by running the script again. */

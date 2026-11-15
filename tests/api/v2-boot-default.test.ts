@@ -3,9 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { TravelDataMissingError, pairKey } from '../../shared/v2/types';
+import { GenerateScenarioRequest } from '../../shared/v2/schemas';
 import {
-  buildDefaultRun, DEFAULT_RUN_REQUEST, DEFAULT_V2_STATE_PATH, NYC_FIXTURES_DIR, NycFixtureError, readNycFixtures,
+  buildDefaultRun, DEFAULT_RUN_EMPLOYEES, DEFAULT_RUN_REQUEST, DEFAULT_V2_STATE_PATH, NYC_FIXTURES_DIR, NycFixtureError,
+  readNycFixtures,
 } from '../../server/api/v2/bootRun';
+import { STORY_EMPLOYEES } from '../../server/api/v2/storyFirst';
 import { checkPlans } from '../../server/domain/v2/planCheck';
 import { deepFreeze, undefinedPaths } from './v2-sample';
 import { bootSample, FIXTURES_DIR, runJson } from './v2-boot-sample';
@@ -18,8 +21,13 @@ describe('v2 boot constants', () => {
     expect(path.relative(repoRoot, NYC_FIXTURES_DIR)).toBe(path.join('fixtures', 'nyc'));
   });
 
-  it('the default run is the demo preset with the contract defaults', () => {
-    expect(DEFAULT_RUN_REQUEST).toEqual({ preset: 'demo', seed: 42, employees: 60, packages: 24, maxExtraMin: 12 });
+  it('the default run is the demo preset with the contract defaults and 120 employees: the story\'s 60 and 60 more (#966)', () => {
+    expect(DEFAULT_RUN_EMPLOYEES).toBe(120);
+    expect(DEFAULT_RUN_REQUEST).toEqual({ preset: 'demo', seed: 42, employees: 120, packages: 24, maxExtraMin: 12 });
+    // Every value but the employee count is the contract's default, and the count is within the contract.
+    expect(GenerateScenarioRequest.parse(DEFAULT_RUN_REQUEST)).toEqual(DEFAULT_RUN_REQUEST);
+    expect({ ...DEFAULT_RUN_REQUEST, employees: STORY_EMPLOYEES }).toEqual(GenerateScenarioRequest.parse({ preset: 'demo' }));
+    expect(STORY_EMPLOYEES).toBe(60);
   });
 });
 
@@ -93,12 +101,13 @@ describe('buildDefaultRun on the complete test cache', () => {
   const sample = bootSample();
   const run = buildDefaultRun(sample);
 
-  it('is the NYC demo: 18 businesses, 60 employees, 24 packages, every employee with a home', () => {
+  it('is the NYC demo: 18 businesses, 120 employees, 24 packages, every employee with a home', () => {
     expect(run.scenario.schemaVersion).toBe(2);
     expect(run.scenario.preset).toBe('demo');
     expect(run.scenario.seed).toBe(42);
     expect(run.scenario.businesses).toHaveLength(18);
-    expect(run.scenario.employees).toHaveLength(60);
+    expect(run.scenario.employees).toHaveLength(120);
+    expect(run.scenario.homes).toHaveLength(120);
     expect(run.scenario.shipments).toHaveLength(24);
     const homeIds = new Set(run.scenario.homes.map((home) => home.id));
     expect(run.scenario.employees.every((employee) => homeIds.has(employee.homeId))).toBe(true);
@@ -111,7 +120,7 @@ describe('buildDefaultRun on the complete test cache', () => {
     expect(run.runId).toBe('run-1');
     expect(run.version).toBe(0);
     expect(run.clock).toEqual({ phase: 'planning', playing: false, timeMin: run.scenario.settings.simStartMin, speed: 120 });
-    expect(run.trips).toHaveLength(120);
+    expect(run.trips).toHaveLength(240);
 
     const { plans, unmatched } = run.assignments;
     expect(plans.length + unmatched.length).toBe(24);

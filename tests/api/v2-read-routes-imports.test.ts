@@ -73,8 +73,12 @@ describe('imports of the v2 read routes', () => {
     expect(runtime('server/api/v2/readRoutes.ts')).toEqual(['./compareOps', './mapLines', './views']);
     // The map's route-line step (issue #536) gets the travel service's function as an argument; it imports no server/geo.
     expect(runtime('server/api/v2/mapLines.ts')).toEqual(['../../../shared/v2/types']);
+    // The compare step matches through the story-first step (#966), which is the matcher called in order.
     expect(runtime('server/api/v2/compareOps.ts')).toEqual([
-      '../../../shared/v2/schemas', '../../domain/v2/matching', '../../domain/v2/metrics',
+      '../../../shared/v2/schemas', '../../domain/v2/metrics', './storyFirst',
+    ]);
+    expect(runtime('server/api/v2/storyFirst.ts')).toEqual([
+      '../../../shared/v2/schemas', '../../domain/v2/generator', '../../domain/v2/matching',
     ]);
   });
 });

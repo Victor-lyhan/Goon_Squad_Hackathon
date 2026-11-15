@@ -63,7 +63,7 @@ describe('bootV2Run on the complete test cache', () => {
     expect(result.travel).toBe(sample.travel);
     const run = result.store.get();
     expect(run.scenario.businesses).toHaveLength(18);
-    expect(run.scenario.employees).toHaveLength(60);
+    expect(run.scenario.employees).toHaveLength(120);
     expect(run.scenario.shipments).toHaveLength(24);
     expect(run.assignments.plans.some((plan) => plan.kind === 'direct')).toBe(true);
     expect(run.assignments.plans.some((plan) => plan.kind === 'relay')).toBe(true);
@@ -97,7 +97,7 @@ describe('bootV2Run on the complete test cache', () => {
     expect(deps.travel).toBe(ready(result).travel);
     expect(await request(probe(deps), '/probe')).toEqual({
       status: 200,
-      body: { runId: 'run-1', employees: 60, plans: ready(result).store.get().assignments.plans.length },
+      body: { runId: 'run-1', employees: 120, plans: ready(result).store.get().assignments.plans.length },
     });
   });
 });

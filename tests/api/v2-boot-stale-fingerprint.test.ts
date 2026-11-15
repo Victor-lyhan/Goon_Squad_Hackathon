@@ -102,13 +102,15 @@ describe('defaultRunFingerprint', () => {
     expect(defaultRunFingerprint(fixtures, { ...DEFAULT_RUN_REQUEST, maxExtraMin: current === 12 ? 8 : 12 })).not.toBe(base);
   }, T);
 
-  it('differs for any other change that defines the run: a package, a neighborhood box, the order of a list, the seed', () => {
+  it('differs for any other change that defines the run: a package, a neighborhood box, the order of a list, the seed, the employee count', () => {
     const others = [
       changed((copy) => { copy.storyFile.shipments[0].deadlineMin -= 10; }),
       changed((copy) => { copy.neighborhoodsFile.neighborhoods[0].bbox.north += 0.001; }),
       changed((copy) => { copy.businessesFile.businesses.reverse(); }),
       changed((copy) => { copy.storyFile.featuredEmployees.pop(); }),
       defaultRunFingerprint(fixtures, { ...DEFAULT_RUN_REQUEST, seed: DEFAULT_RUN_REQUEST.seed + 1 }),
+      // #966: a run saved when the default run had the story's 60 employees only is set aside, not restored.
+      defaultRunFingerprint(fixtures, { ...DEFAULT_RUN_REQUEST, employees: 60 }),
     ];
     expect(new Set([base, ...others]).size).toBe(others.length + 1);
   }, T);
@@ -260,7 +262,7 @@ describe('bootV2Run: the sidecar and the stale rule', () => {
     expect(sidecar().fingerprint).not.toBe(oldFingerprint);
 
     expect(result.notice).toBe(
-      `The NYC story files, the default detour limit or the default prices changed since ${statePath} was saved. `
+      `The NYC story files, the default employee count, the default detour limit or the default prices changed since ${statePath} was saved. `
       + `Started from the new default run; the old run is kept as ${statePath}.stale-1.`,
     );
     expect(result.notice).not.toMatch(/\n/);

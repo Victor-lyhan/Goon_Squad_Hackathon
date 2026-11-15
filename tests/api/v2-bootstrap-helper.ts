@@ -176,3 +176,15 @@ export async function startBootstrapApi(opts: BootstrapApiOptions) {
     },
   };
 }
+
+/**
+ * Replaces the run by the demo with only the story's 60 employees (`POST /scenario/generate` with the
+ * contract's default count), which is the run the server started with before #966, and returns it. For tests
+ * of what a business sees when it has no free commute left: the default run's 60 added employees are there
+ * to prevent exactly that.
+ */
+export async function useStoryOnlyRun(api: BootstrapApi): Promise<RunV2> {
+  const answer = await api.v2.post('/scenario/generate', { preset: 'demo' });
+  if (answer.status !== 200 || !api.store) throw new Error(`The story-only run was not built (HTTP ${answer.status})`);
+  return api.store.get();
+}
