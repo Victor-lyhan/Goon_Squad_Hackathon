@@ -23,8 +23,8 @@ describe('legendRows: network mode', () => {
     expect(rows.map((r) => r.label)).toEqual([
       'Network business · every one is a relay point',
       'Home neighborhood',
-      'Commuter vehicle',
-      'Package',
+      'Carrier · letter = first name',
+      'Package · rides on its carrier, or waits at a business',
       'Normal commute',
       'Delivery route',
     ]);
@@ -84,7 +84,7 @@ describe('journeySymbolRows: the key of the journey map\'s marks (#699)', () => 
   it('relay: package, then sender, overnight, handoff and delivered with the map\'s glyphs', () => {
     const rows = journeySymbolRows(true);
     expect(rows.map((r) => r.key)).toEqual(['package', 'sender', 'relay', 'swap', 'recipient']);
-    expect(rows.map((r) => r.label)).toEqual(['Package', 'Sender', 'Overnight at the relay point', 'Handoff', 'Delivered']);
+    expect(rows.map((r) => r.label)).toEqual(['Package waiting at a business', 'Sender', 'Overnight at the relay point', 'Handoff', 'Delivered']);
     for (const r of rows) if (r.key !== 'package') expect(r.glyph).toBe(SYMBOL_GLYPH[r.key]);
     expect(rows.slice(1).map((r) => ('glyph' in r ? r.glyph : ''))).toEqual(['\u25A0', '\u25C6', '\u21C4', '\u2691']);
   });

@@ -7,6 +7,7 @@ import {
 import { INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, type SimDataState } from '../../client/src/components/sim/v2/live/simDataModel';
 import { dayNightAt, dayNightClockText } from '../../client/src/components/map/dayNight';
 import { buildNetworkView } from '../../client/src/components/sim/v2/network/networkModel';
+import { withCarriers } from '../../client/src/components/sim/v2/compose/simPageView';
 import { businessInspector, employeeInspector } from '../../client/src/components/sim/v2/inspector/inspectorModel';
 import { relayGainCompare } from './sim-v2-compare-fixture';
 import type { Selection } from '../../client/src/components/sim/v2/network/selectionModel';
@@ -72,7 +73,8 @@ describe('simPageView: network mode', () => {
     expect(v.mode).toBe('network');
     expect(v.journeyTitle).toBeNull();
     expect(v.map).toEqual({
-      ...nv, visible: DEFAULT_LAYERS, stops: [], fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [],
+      // F2: each carrier gets its first-name letter, each carried package its carrier.
+      ...nv, movers: withCarriers(nv.movers, data.sim!, data.map!, true), visible: DEFAULT_LAYERS, stops: [], fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [],
       // #649: day or night and the badge's time, from the polled clock.
       dayNight: dayNightAt(data.sim!.clock.timeMin), clockText: dayNightClockText(data.sim!.clock.timeMin),
     });
@@ -177,7 +179,9 @@ describe('simPageView: network → business → package journey → back', () =>
     expect(v2.map.stops.map((s) => s.n)).toEqual([1, 2, 3, 4]);
     expect(new Set(v2.map.routes.filter((r) => r.kind === 'leg').map((r) => r.tone))).toEqual(new Set(['leg1', 'leg2']));
     expect(v2.map.places).toBe(j.places);
-    expect(v2.map.movers).toBe(j.movers);
+    // F2: the journey's movers, with the carried package riding on its carrier (from the snapshot marker).
+    expect(v2.map.movers).toEqual(withCarriers(j.movers, data.sim!, data.map!, false));
+    expect(v2.map.movers.map((m) => m.id)).toEqual(j.movers.map((m) => m.id));
     expect(v2.map.fitTo).toEqual(j.bounds);
     expect(typeof v2.map.fitTo).toBe('object');
     expect(v2.map.places.map((p) => p.id)).not.toContain('biz-other'); // everything else is hidden

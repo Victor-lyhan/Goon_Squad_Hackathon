@@ -65,8 +65,8 @@ function networkRows({ hasSelection, focus }: LegendInput): LegendRow[] {
   const rows: LegendRow[] = [
     dot('business', 'Network business · every one is a relay point', BUSINESS_FILL),
     dot('home', 'Home neighborhood', HOME_FILL),
-    dot('vehicle', 'Commuter vehicle', VEHICLE_FILL),
-    dot('package', 'Package', PACKAGE_FILL),
+    dot('vehicle', 'Carrier · letter = first name', VEHICLE_FILL),
+    dot('package', 'Package · rides on its carrier, or waits at a business', PACKAGE_FILL),
     line('baseline', 'Normal commute', BASELINE, BASELINE_WIDTH),
     line('route', 'Delivery route', LEG1, LEG_WIDTH),
   ];
@@ -101,15 +101,15 @@ const SYMBOL_LABEL: Record<StopSymbol, string> = {
 };
 
 /**
- * The key of the journey map's own marks, in journey order: the package (an orange ring with a white
- * halo), then the symbols the map draws (`SYMBOL_GLYPH`, in RELAY_INK). A direct journey (one carrier)
+ * The key of the journey map's own marks, in journey order: the package waiting at a business (an
+ * orange ring with a white halo; on the way it rides on its carrier, as the carrier rows show), then the symbols the map draws (`SYMBOL_GLYPH`, in RELAY_INK). A direct journey (one carrier)
  * has no overnight stop and no handoff, so it lists neither.
  */
 export function journeySymbolRows(relay: boolean): JourneySymbolRow[] {
   const ink = cssColor(RELAY_INK);
   const symbols: StopSymbol[] = relay ? ['sender', 'relay', 'swap', 'recipient'] : ['sender', 'recipient'];
   return [
-    { key: 'package', label: 'Package', color: cssColor(PACKAGE_FILL), halo: cssColor(PACKAGE_HALO) },
+    { key: 'package', label: 'Package waiting at a business', color: cssColor(PACKAGE_FILL), halo: cssColor(PACKAGE_HALO) },
     ...symbols.map((s) => ({ key: s, label: SYMBOL_LABEL[s], glyph: SYMBOL_GLYPH[s], color: ink })),
   ];
 }

@@ -31,6 +31,12 @@ export type MapRoute = {
    * the thick part, same colour). None = an ordinary delivery route (LEG_WIDTH), as the previews draw it.
    */
   carried?: boolean;
+  /**
+   * A place pair with no cached route line (`MapResponse.polylines` entry missing or `encoded: null`):
+   * `path` is the straight line between the two places, drawn dashed so it never reads as a real street
+   * route (docs/mvp4.md F2). None = a decoded route line, drawn solid.
+   */
+  dashed?: boolean;
 };
 
 export type RouteTone = 'leg1' | 'leg2';
@@ -68,8 +74,18 @@ export type MapMover = {
   label: string;
   /** Journey mode: the leg a carrier's vehicle drives. `leg1` / `leg2` get that leg's colour; none = VEHICLE_FILL. */
   tone?: RouteTone;
-  /** Journey mode: a letter drawn on the vehicle ("A", "B"), so a carrier is never told apart by colour alone. */
+  /**
+   * The letter drawn on the vehicle, so a carrier is never told apart by colour alone: "A" / "B" in a
+   * journey, the first letter of the carrier's first name in the network view.
+   */
   badge?: string;
+  /**
+   * A package only: the vehicle mover (employee ID) carrying it now, from the snapshot marker's
+   * `carryingShipmentId`. The package is then drawn as a small badge riding on that vehicle's marker
+   * (wherever the vehicle is drawn this frame), not as a marker of its own. None = the package waits
+   * at a business (sender, relay point overnight, recipient).
+   */
+  carrierId?: string;
 };
 
 export type LayerVisibility = {

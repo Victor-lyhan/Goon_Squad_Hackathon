@@ -87,7 +87,7 @@ export const SYMBOL_GLYPH: Record<StopSymbol, string> = { sender: '\u25A0', rela
 const SYMBOL_ROLE: Record<StopSymbol, string> = { sender: 'Sender', relay: 'Relay point', swap: 'Handoff', recipient: 'Recipient' };
 /** The journey package: a thick ring with a white halo, about twice the size of the old ring. */
 export const PACKAGE_RING_WIDTH = 6;
-/** Ring radius of a journey package that is not at a stop (it surrounds its carrier's badge). */
+/** Ring radius of a journey package that is not at a stop and has no carrier on the map. */
 export const PACKAGE_RING_ALONE = 18;
 /** The ring this far outside a numbered stop circle it surrounds. */
 export const PACKAGE_RING_GAP = 8;
@@ -105,10 +105,33 @@ export const BUSINESS_FILL: RGBA = [23, 28, 36, 235]; // #171C24
 export const HOME_FILL: RGBA = [FADED[0], FADED[1], FADED[2], 230];
 /** Network vehicles: the MVP III primary (#1D5075). */
 export const VEHICLE_FILL: RGBA = [29, 80, 117, 255]; // #1D5075
-/** A vehicle with a letter badge is drawn larger, so the letter fits. */
-export const BADGED_VEHICLE_RADIUS = 10;
+/**
+ * Every vehicle (the employee, the main moving object, docs/mvp4.md F2): the largest marker on the map,
+ * in its carrier colour with a white outline and a white letter.
+ */
+export const VEHICLE_RADIUS = 15;
+/** The vehicle's white outline, in pixels. */
+export const VEHICLE_OUTLINE_WIDTH = 2.5;
+/** Kept for older callers: every vehicle now has its letter, so all are this size. */
+export const BADGED_VEHICLE_RADIUS = VEHICLE_RADIUS;
+/** Font size in pixels of the letter on a vehicle. */
+export const VEHICLE_LETTER_SIZE = 15;
 export const BADGE_TEXT: RGBA = [255, 255, 255, 255];
 export const PACKAGE_FILL: RGBA = [232, 89, 12, 255]; // #E8590C
+/** A carried package: a small orange dot with a white outline riding on its carrier's marker. */
+export const PACKAGE_BADGE_RADIUS = 6;
+export const PACKAGE_BADGE_OUTLINE_WIDTH = 2;
+/**
+ * Where the carried package sits on its carrier, in pixels from the carrier's centre (x right, y up the
+ * screen is negative): on the marker's upper-right rim, so the carrier's letter stays readable.
+ */
+export const PACKAGE_BADGE_OFFSET: [number, number] = [11, -11];
+/** A straight line for an uncached place pair: dashes this long (metres) ... */
+export const DASH_M = 120;
+/** ... with gaps this long between them. */
+export const DASH_GAP_M = 90;
+/** At most this many dashes per line (a very long line gets longer dashes instead). */
+export const MAX_DASHES = 300;
 export const OUTLINE: RGBA = [255, 255, 255, 255];
 /** Names on the map: ink (#171C24). */
 export const LABEL: RGBA = [23, 28, 36, 255]; // #171C24
@@ -123,12 +146,21 @@ export const NAME_BOX_HEIGHT = 16;
 /** Pixels between a network marker's centre and the near edge of its name's box. */
 export const NAME_GAP = 14;
 
+/**
+ * The face of every text layer: Inter, the UI font the page loads (fonts.css: 400, 500, 600). deck.gl
+ * draws its glyph atlas from this family, so a family or weight the page does not load would be faked by
+ * the browser. Bold text uses 600, the heaviest loaded face (DECISIONS pass 77: no 700 face).
+ */
+export const MAP_FONT_FAMILY = 'Inter, system-ui, sans-serif';
+/** The weight of every bold map text (stop numbers, carrier letters, symbol labels). */
+export const MAP_BOLD_WEIGHT = 600;
+
 /** One text style for every name, so business names read like the selected labels. */
 const NAME_TEXT_PROPS = {
   sizeUnits: 'pixels',
   getSize: NAME_SIZE,
   getTextAnchor: 'middle',
-  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+  fontFamily: MAP_FONT_FAMILY,
   outlineWidth: 4,
   outlineColor: [255, 255, 255, 230],
   fontSettings: { sdf: true },
@@ -139,7 +171,7 @@ const NARROW = new Set([...'iljtfrI.,:;\'!|() -']);
 const WIDE = new Set([...'mwMW@&']);
 
 /**
- * Estimated width in pixels of a name drawn at NAME_SIZE in IBM Plex Sans, plus its outline. It errs on
+ * Estimated width in pixels of a name drawn at NAME_SIZE in Inter, plus its outline. It errs on
  * the wide side, so names that fit by this estimate do not touch on screen.
  */
 export function nameWidthPx(text: string): number {
@@ -235,6 +267,71 @@ export function roleOf(kind: MapItem['kind']): string {
   return ROLE[kind];
 }
 
+/** The inverse of `projectPx`: the [lng, lat] of a world pixel at a zoom. */
+export function unprojectPx(x: number, y: number, zoom: number): [number, number] {
+  const world = 256 * 2 ** zoom;
+  const lng = (x / world) * 360 - 180;
+  const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / world))) * 180) / Math.PI;
+  return [lng, lat];
+}
+
+/** The point `dx`, `dy` screen pixels away from [lng, lat] at a zoom (x right, y down). */
+export function offsetByPx(position: [number, number], dx: number, dy: number, zoom: number): [number, number] {
+  const [x, y] = projectPx(position[0], position[1], zoom);
+  return unprojectPx(x + dx, y + dy, zoom);
+}
+
+const M_PER_DEG_LAT = 110_540;
+const M_PER_DEG_LNG_EQ = 111_320;
+
+/**
+ * A line cut into dashes (pieces of DASH_M metres with DASH_GAP_M gaps), so a plain path layer draws it
+ * dashed. Never more than MAX_DASHES pieces: a longer line gets longer dashes. A line too short for one
+ * gap stays one piece. Points that are not finite are dropped; fewer than two points give no dash.
+ */
+export function dashPieces(path: [number, number][]): [number, number][][] {
+  const pts = path.filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat));
+  if (pts.length < 2) return [];
+  const kx = M_PER_DEG_LNG_EQ * Math.cos((pts[0][1] * Math.PI) / 180);
+  const seg = pts.slice(1).map((p, i) => Math.hypot((p[0] - pts[i][0]) * kx, (p[1] - pts[i][1]) * M_PER_DEG_LAT));
+  const total = seg.reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return [];
+  const scale = Math.max(1, total / ((DASH_M + DASH_GAP_M) * MAX_DASHES));
+  const dash = DASH_M * scale;
+  const period = (DASH_M + DASH_GAP_M) * scale;
+  if (total <= period) return [pts];
+  // The point at distance `d` along the line.
+  const at = (d: number): [number, number] => {
+    let left = d;
+    for (let i = 0; i < seg.length; i += 1) {
+      if (left <= seg[i] || i === seg.length - 1) {
+        const t = seg[i] > 0 ? Math.min(1, left / seg[i]) : 0;
+        return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t];
+      }
+      left -= seg[i];
+    }
+    return pts[pts.length - 1];
+  };
+  // The inner points of the line between distances `from` and `to`, so a dash follows a bend.
+  const between = (from: number, to: number): [number, number][] => {
+    const out: [number, number][] = [];
+    let d = 0;
+    for (let i = 0; i < seg.length - 1; i += 1) {
+      d += seg[i];
+      if (d > from && d < to) out.push(pts[i + 1]);
+    }
+    return out;
+  };
+  const count = Math.min(MAX_DASHES, Math.ceil(total / period - 1e-9));
+  const pieces: [number, number][][] = [];
+  for (let k = 0; k < count; k += 1) {
+    const start = k * period;
+    const end = Math.min(total, start + dash);
+    pieces.push([at(start), ...between(start, end), at(end)]);
+  }
+  return pieces;
+}
+
 /** Decode a Google encoded polyline into deck.gl order ([lng, lat]). */
 export function decodePath(encoded: string): [number, number][] {
   return polyline.decode(encoded).map(([lat, lng]) => [lng, lat] as [number, number]);
@@ -286,13 +383,16 @@ type Group = {
  * homes, vehicles, packages. With a non-empty selection, items that are not selected (and, for routes,
  * not owned by a selected ID) are dimmed, and the selected items are drawn again as `<id>-selected`
  * layers on top, followed by a text layer labelling the selected places and movers. Hidden layers and
- * empty layers are omitted. Then `movers-vehicle-badge`: the letter on each badged vehicle.
+ * empty layers are omitted. Then `movers-vehicle-badge`: the letter on each badged vehicle, and (network
+ * view) `movers-package-badge`: each carried package as a small orange badge on its carrier's marker.
+ * A `dashed` route (an uncached place pair) is drawn as dash pieces in its usual layer.
  * Then `labels-places`: the `alwaysLabelIds` places, and with `labelBusinesses` the businesses that are
  * not dimmed, as many as `placeNames` fits at `zoom` (homes, vehicles and packages get no name).
  * Journey stops come next, are never dimmed and ignore `visible`: numbered stops (`stops`,
  * `stops-number`), then symbols (`stops-symbol`) and their short labels (`stops-label`). With stops,
- * the package (`movers-package-halo`, `movers-package`) is drawn last, as a ring around the stop or the
- * carrier it is with, so it is on top of everything.
+ * a package waiting at a business (`movers-package-halo`, `movers-package`) is drawn as a ring around its
+ * stop or symbol, and a carried package (`carrierId`) as `movers-package-badge` on its carrier's marker,
+ * last, so it is on top of everything.
  */
 export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const { places, routes, movers, visible } = input;
@@ -316,11 +416,10 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
     if (!visible.routes) return null;
     const data: PathDatum[] = routes
       .filter((r) => which(r) && r.path.length >= 2 && inPass(sel, r.id, r.ownerIds))
-      .map((r) => {
+      .flatMap((r) => {
         const width = widthOf(r);
-        return {
+        const datum = {
           id: r.id,
-          path: r.path,
           color: hasSelection && !sel ? dim(colorOf(r)) : colorOf(r),
           width: r.id === hoveredId ? width + 2 : width,
           // Tooltip: the route's own label (package and carrier names) when its builder knows them.
@@ -328,9 +427,11 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
             id: r.id,
             kind: r.kind,
             label: r.label?.trim() || (r.kind === 'leg' && r.carried !== false ? 'Delivery route' : 'Commute'),
-            role: roleOfRoute(r),
+            role: r.dashed ? `${roleOfRoute(r)} · no street route cached` : roleOfRoute(r),
           },
         };
+        // An uncached pair: the straight line as dashes, each piece reporting the same route.
+        return r.dashed ? dashPieces(r.path).map((path) => ({ ...datum, path })) : [{ ...datum, path: r.path }];
       });
     return {
       type: 'path',
@@ -346,6 +447,7 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
     shown: boolean,
     fillOf: RGBA | ((item: T) => RGBA),
     radiusOf: number | ((item: T) => number),
+    lineWidth = 1.5,
   ) => (sel: boolean): LayerSpec | null => {
     if (!shown) return null;
     const data: ScatterDatum[] = items
@@ -362,7 +464,7 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
           fillColor: dimmed ? dim(fill) : fill,
           lineColor: dimmed ? dim(OUTLINE) : OUTLINE,
           radius: hovered || (hasSelection && sel) ? radius + 2 : radius,
-          lineWidth: 1.5,
+          lineWidth,
           item: {
             id: p.id,
             kind: p.kind,
@@ -405,10 +507,15 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
     },
     {
       key: 'vehicles',
-      build: scatterSpec('movers-vehicle', vehicles, true, (m: MapMover) => vehicleColor(m.tone), (m: MapMover) => (m.badge ? BADGED_VEHICLE_RADIUS : 6)),
+      build: scatterSpec('movers-vehicle', vehicles, true, (m: MapMover) => vehicleColor(m.tone), VEHICLE_RADIUS, VEHICLE_OUTLINE_WIDTH),
     },
   ];
-  const packages = movers.filter((m) => m.kind === 'package');
+  // A carried package rides on its carrier's marker as a badge (when that vehicle is on the map);
+  // every other package is drawn at its own position, as before.
+  const vehicleById = new Map(vehicles.filter((v) => Number.isFinite(v.lat) && Number.isFinite(v.lng)).map((v) => [v.id, v]));
+  const allPackages = movers.filter((m) => m.kind === 'package');
+  const riding = allPackages.filter((m) => m.carrierId && vehicleById.has(m.carrierId));
+  const packages = allPackages.filter((m) => !riding.includes(m));
   const allStops = (input.stops ?? []).filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
   const groupsOfStops = stopGroups(allStops.filter((s) => !s.symbol));
   const symbols = allStops.filter((s) => s.symbol).sort((a, b) => a.n - b.n);
@@ -423,11 +530,17 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
   const badges = badgeSpecs(vehicles, (id) => hasSelection && !selected.has(id));
   const stops = [...stopSpecs(groupsOfStops, hoveredId), ...symbolSpecs(symbols)];
   const ring = journey && visible.packages ? packageRingSpecs(packages, groupsOfStops, symbols, hoveredId) : [];
+  const riders = visible.packages
+    ? packageBadgeSpecs(riding, vehicleById, input.zoom ?? NYC_ZOOM, hoveredId, (m) =>
+        !journey && hasSelection && !selected.has(m.id) && !selected.has(m.carrierId!))
+    : [];
   const names = (alreadyNamed: ReadonlySet<string>) =>
     nameSpecs(input, groupsOfStops, symbols, alreadyNamed, (id) => !hasSelection || selected.has(id));
   if (!hasSelection) {
     const n = names(new Set());
-    return [...base, ...badges, ...n.places, ...stops, ...n.symbols, ...ring];
+    return journey
+      ? [...base, ...badges, ...n.places, ...stops, ...n.symbols, ...ring, ...riders]
+      : [...base, ...badges, ...riders, ...n.places, ...stops, ...n.symbols, ...ring];
   }
 
   const top = groups
@@ -450,12 +563,14 @@ export function buildLayerSpecs(input: BuildLayerInput): LayerSpec[] {
     : [];
 
   const n = names(new Set(labels.map((l) => l.id)));
-  return [...base, ...top, ...badges, ...labelSpec, ...n.places, ...stops, ...n.symbols, ...ring];
+  return journey
+    ? [...base, ...top, ...badges, ...labelSpec, ...n.places, ...stops, ...n.symbols, ...ring, ...riders]
+    : [...base, ...top, ...badges, ...riders, ...labelSpec, ...n.places, ...stops, ...n.symbols, ...ring];
 }
 
 /**
- * The letter on each vehicle that has a `badge` (journey carriers: A, B), white and centred on the dot.
- * Dimmed with its vehicle. Empty without badges, so the network view is unchanged.
+ * The letter on each vehicle that has a `badge` (journey carriers: A, B; network carriers: the first
+ * letter of the first name), white and centred on the marker. Dimmed with its vehicle. Empty without badges.
  */
 function badgeSpecs(vehicles: MapMover[], dimmed: (id: string) => boolean): TextSpec[] {
   const data: TextDatum[] = vehicles
@@ -469,11 +584,11 @@ function badgeSpecs(vehicles: MapMover[], dimmed: (id: string) => boolean): Text
       data,
       props: {
         sizeUnits: 'pixels',
-        getSize: 12,
+        getSize: VEHICLE_LETTER_SIZE,
         getTextAnchor: 'middle',
         getAlignmentBaseline: 'center',
-        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
-        fontWeight: 700,
+        fontFamily: MAP_FONT_FAMILY,
+        fontWeight: MAP_BOLD_WEIGHT,
         // The vehicle underneath is pickable; the letter must not steal its hover/click.
         pickable: false,
       },
@@ -536,7 +651,7 @@ function nameSpecs(
             id: 'stops-label',
             data: symbolData,
             // `auto`: the labels carry "·" and names with accents, outside deck.gl's default ASCII set.
-            props: { ...NAME_TEXT_PROPS, getAlignmentBaseline: 'center', fontWeight: 600, characterSet: 'auto' },
+            props: { ...NAME_TEXT_PROPS, getAlignmentBaseline: 'center', fontWeight: MAP_BOLD_WEIGHT, characterSet: 'auto' },
           },
         ]
       : [],
@@ -625,8 +740,8 @@ function stopSpecs(groups: StopGroup[], hoveredId: string | null): LayerSpec[] {
         getSize: 12,
         getTextAnchor: 'middle',
         getAlignmentBaseline: 'center',
-        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
-        fontWeight: 600,
+        fontFamily: MAP_FONT_FAMILY,
+        fontWeight: MAP_BOLD_WEIGHT,
         // The circle underneath is pickable; the number must not steal its hover/click.
         pickable: false,
       },
@@ -664,8 +779,8 @@ function symbolSpecs(symbols: MapStop[]): TextSpec[] {
         getSize: SYMBOL_SIZE,
         getTextAnchor: 'middle',
         getAlignmentBaseline: 'center',
-        // The glyphs are not in IBM Plex Sans; the browser falls back to a system symbol font.
-        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        // The glyphs are not in Inter; the browser falls back to a system symbol font.
+        fontFamily: MAP_FONT_FAMILY,
         characterSet: Object.values(SYMBOL_GLYPH),
         outlineWidth: 3,
         outlineColor: [255, 255, 255, 255],
@@ -677,10 +792,11 @@ function symbolSpecs(symbols: MapStop[]): TextSpec[] {
 }
 
 /**
- * The journey package, drawn after everything else and never dimmed: a soft white halo ring
- * (`movers-package-halo`), then a thick orange ring (`movers-package`) around the symbol or numbered stop
- * it waits at (outside the glyph or circle, so it stays readable), or around its carrier's badge on the
- * way. Hollow, so what is under it stays visible and pickable.
+ * The journey package while it waits (not carried), drawn after everything else and never dimmed: a soft
+ * white halo ring (`movers-package-halo`), then a thick orange ring (`movers-package`) around the symbol
+ * or numbered stop it waits at (outside the glyph or circle, so it stays readable): the sender square,
+ * the Overnight diamond, the delivered flag. A package away from any stop whose carrier is not on the map
+ * gets a ring of its own. Hollow, so what is under it stays visible and pickable.
  */
 function packageRingSpecs(packages: MapMover[], groups: StopGroup[], symbols: MapStop[], hoveredId: string | null): LayerSpec[] {
   const rings = packages
@@ -716,5 +832,42 @@ function packageRingSpecs(packages: MapMover[], groups: StopGroup[], symbols: Ma
   return [
     { type: 'scatter', id: 'movers-package-halo', data: halo, props: { ...props, pickable: false } },
     { type: 'scatter', id: 'movers-package', data: ring, props: { ...props, pickable: true } },
+  ];
+}
+
+/**
+ * Each carried package as a small orange badge (`movers-package-badge`) on its carrier's marker: at the
+ * vehicle's position as drawn this frame (tweened or polled), PACKAGE_BADGE_OFFSET pixels up and right
+ * at `zoom`, so the package visibly rides with its carrier and never hides the carrier's letter.
+ * Pickable: the tooltip is the package. `dimmed`: outside the network selection.
+ */
+function packageBadgeSpecs(
+  riding: MapMover[],
+  vehicleById: ReadonlyMap<string, MapMover>,
+  zoom: number,
+  hoveredId: string | null,
+  dimmed: (m: MapMover) => boolean,
+): ScatterSpec[] {
+  const data: ScatterDatum[] = riding.map((m) => {
+    const v = vehicleById.get(m.carrierId!)!;
+    const off = dimmed(m);
+    return {
+      id: m.id,
+      position: offsetByPx([v.lng, v.lat], PACKAGE_BADGE_OFFSET[0], PACKAGE_BADGE_OFFSET[1], zoom),
+      fillColor: off ? dim(PACKAGE_FILL) : PACKAGE_FILL,
+      lineColor: off ? dim(OUTLINE) : OUTLINE,
+      radius: m.id === hoveredId ? PACKAGE_BADGE_RADIUS + 2 : PACKAGE_BADGE_RADIUS,
+      lineWidth: PACKAGE_BADGE_OUTLINE_WIDTH,
+      item: { id: m.id, kind: m.kind, label: m.label, role: `${roleOf(m.kind)} · with ${v.label}` },
+    };
+  });
+  if (data.length === 0) return [];
+  return [
+    {
+      type: 'scatter',
+      id: 'movers-package-badge',
+      data,
+      props: { radiusUnits: 'pixels', lineWidthUnits: 'pixels', stroked: true, filled: true, pickable: true },
+    },
   ];
 }

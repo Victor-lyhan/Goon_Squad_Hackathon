@@ -15,6 +15,8 @@ import type { FocusOption } from '../FocusSelector';
 import { NO_FOCUS, type Focus, type LayerVisibility } from '../workspaceModel';
 import { CONNECTION_LOST_MESSAGE, type SimDataState } from '../live/simDataModel';
 import { buildNetworkView } from '../network/networkModel';
+import { commuteLabel, journeyLegLabel } from '../network/networkIndex';
+import { decodePath } from '../../../map/layers';
 import { selectionFromMapId, type Selection } from '../network/selectionModel';
 import {
   UNKNOWN_PLACE, boundsOf, buildJourney, statusLabelOf, type Journey, type UnmatchedJourney,
@@ -172,6 +174,98 @@ function legendView(mode: 'network' | 'journey', selection: Selection, focus: Fo
   return { label: focused ? 'focus' : 'network', mode: 'network', hasSelection: selection !== null, focus };
 }
 
+// ---------- Movers and lines for the map (docs/mvp4.md F2) ----------
+
+/** The letter on a network carrier: the first letter of the first name ("Maya Ortiz" → "M"); none without a name. */
+export function firstNameInitial(name: string | null | undefined): string | undefined {
+  const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
+  const ch = [...first][0];
+  return ch ? ch.toLocaleUpperCase('en-US') : undefined;
+}
+
+/**
+ * The movers as the map draws them in F2: each carried package gets `carrierId`, the employee whose
+ * snapshot marker says `carryingShipmentId` is that package (the map then draws it as a badge on that
+ * carrier's marker; read from the snapshot, never computed). With `letters`, each vehicle without a
+ * letter gets its first-name initial from `MapResponse.employees` (network Play; a journey keeps A/B).
+ */
+export function withCarriers(
+  movers: MapMover[], sim: SimulatorResponse, map: MapResponse, letters: boolean,
+): MapMover[] {
+  const carrierOf = new Map<string, string>();
+  for (const m of sim.snapshot?.markers ?? []) {
+    if (m.carryingShipmentId && !carrierOf.has(m.carryingShipmentId)) carrierOf.set(m.carryingShipmentId, m.employeeId);
+  }
+  const names = letters ? new Map(map.employees.map((e) => [e.id, e.name])) : null;
+  return movers.map((m) => {
+    if (m.kind === 'package') {
+      const carrierId = carrierOf.get(m.id);
+      return carrierId ? { ...m, carrierId } : m;
+    }
+    if (names && !m.badge) {
+      const badge = firstNameInitial(names.get(m.id));
+      return badge ? { ...m, badge } : m;
+    }
+    return m;
+  });
+}
+
+/** True when the pair has a usable cached route line (an entry with a decodable `encoded` of 2+ points). */
+function hasRouteLine(map: MapResponse, from: string, to: string): boolean {
+  const hit = map.polylines.find((p) => p.from === from && p.to === to);
+  if (!hit?.encoded) return false;
+  try {
+    return decodePath(hit.encoded).filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)).length >= 2;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The journey's place pairs that have no cached route line (a commute's home pair not fetched yet), as
+ * straight `dashed` routes between the two places, so the carrier's whole commute still shows and
+ * nothing crashes (docs/mvp4.md F2). A pair inside the carried part (first stop to last stop) is
+ * `carried: true` (thick), the rest `carried: false` (thin), in the leg's tone. A place without
+ * coordinates gives no line. Only straight lines are drawn: no street route is invented.
+ */
+export function uncachedJourneyRoutes(sim: SimulatorResponse, map: MapResponse, shipmentId: string): MapRoute[] {
+  const plan = sim.plans.find((p) => p.shipmentId === shipmentId);
+  if (!plan) return [];
+  const coords = new Map<string, [number, number]>();
+  for (const b of map.businesses) coords.set(b.id, [b.lng, b.lat]);
+  for (const h of map.homes) coords.set(h.id, [h.lng, h.lat]);
+  const ok = (p: [number, number] | undefined): p is [number, number] => !!p && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+  const names = new Map(map.employees.map((e) => [e.id, e.name]));
+  const routes: MapRoute[] = [];
+  plan.legs.forEach((leg, legIndex) => {
+    const ids = leg.placeIds;
+    const first = leg.stops[0]?.placeId;
+    const last = leg.stops[leg.stops.length - 1]?.placeId;
+    const from = first ? ids.indexOf(first) : -1;
+    const to = last && from >= 0 ? ids.indexOf(last, from + 1) : -1;
+    const name = names.get(leg.employeeId);
+    for (let i = 0; i + 1 < ids.length; i += 1) {
+      if (hasRouteLine(map, ids[i], ids[i + 1])) continue;
+      const a = coords.get(ids[i]);
+      const b = coords.get(ids[i + 1]);
+      if (!ok(a) || !ok(b)) continue;
+      const carried = from >= 0 && to >= 0 && i >= from && i < to;
+      const label = carried ? journeyLegLabel(name, legIndex) : commuteLabel(name, leg.tripId);
+      routes.push({
+        id: `journey-${shipmentId}-L${legIndex}-straight-${i}`,
+        kind: 'leg',
+        tone: legIndex === 0 ? 'leg1' : 'leg2',
+        carried,
+        dashed: true,
+        path: [a, b],
+        ownerIds: [shipmentId, plan.id, leg.employeeId],
+        ...(label ? { label } : {}),
+      });
+    }
+  });
+  return routes;
+}
+
 // ---------- The view ----------
 export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPageInput): SimPageView {
   const { reconnecting } = data;
@@ -203,7 +297,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
   const network = (sel: Selection): SimMapProps => {
     const v = buildNetworkView({ map, sim, selection: sel, focus });
     return {
-      places: v.places, routes: v.routes, movers: v.movers, selectedIds: v.selectedIds, visible: layers, stops: [],
+      places: v.places, routes: v.routes, movers: withCarriers(v.movers, sim, map, true), selectedIds: v.selectedIds, visible: layers, stops: [],
       fitTo: 'places', labelBusinesses: true, alwaysLabelIds: [], ...sky,
     };
   };
@@ -249,8 +343,10 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
       journeyTitle: journey.title,
       map: {
         places: journey.places,
-        routes: journey.routes,
-        movers: journey.movers,
+        // Uncached pairs are drawn straight and dashed, under nothing else (docs/mvp4.md F2).
+        routes: [...journey.routes, ...uncachedJourneyRoutes(sim, map, shipmentId)],
+        // The carrier is the big marker with its A/B letter; the package rides on it while carried.
+        movers: withCarriers(journey.movers, sim, map, false),
         selectedIds: [],
         // The journey always shows its package, whatever the network's Packages toggle says.
         visible: { ...layers, packages: true },

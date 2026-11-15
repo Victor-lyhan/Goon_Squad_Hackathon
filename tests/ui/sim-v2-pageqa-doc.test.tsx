@@ -234,8 +234,8 @@ describe('doc §1: package journey mode', () => {
     expect(all(s.mapRegion, (n) => n.attrs['aria-label'] === 'Map legend')).toEqual([]);
     const symbols = byClass(legend, 'jl__item--symbol').map((li) => readText(byClass(li, 'jl__label')[0]));
     expect(symbols).toEqual(plan.kind === 'relay'
-      ? ['Package', 'Sender', 'Overnight at the relay point', 'Handoff', 'Delivered']
-      : ['Package', 'Sender', 'Delivered']);
+      ? ['Package waiting at a business', 'Sender', 'Overnight at the relay point', 'Handoff', 'Delivered']
+      : ['Package waiting at a business', 'Sender', 'Delivered']);
   });
 
   it.each(JOURNEYS)('$name: the right panel shows the reward and the delivery time, equal to the formatted plan values (#552)', (s) => {
