@@ -15,7 +15,7 @@ import {
   deliveryRequest, findMatchingDelivery, readCity, recordFetch, startNycApi, type City, type NycApi,
 } from './v2-e2e-nyc-helper';
 import {
-  byId, expectBusinessTotalsAddUp, expectDashboardsOfOneRun, expectDeliveriesAgree, expectDeliveriesFollowPlans,
+  expectBusinessTotalsAddUp, expectDashboardsOfOneRun, expectDeliveriesAgree, expectDeliveriesFollowPlans,
   expectEarningsAddUp, expectJobsAgree, expectMapFollowsStatus, expectNotificationsNameDeliveries,
   expectRelayRoleVisible, jobRows, moveClock, openReader, readWorkspaces, simulatorDelivery, sorted, sum, T, versionsOf, viewOf,
   type Poll, type Reader,
@@ -233,23 +233,21 @@ describe('two readers and one live delivery request, on the default NYC run', ()
     }
   }, T);
 
-  // BUG, left as `it.fails` (this issue changes no server code, DECISIONS pass 54).
-  // Request: POST /api/v2/shipments with a request that matches (the one above), on the default run.
-  // Answer:  201 `matched: true`, and from then on GET /api/v2/simulator lists `plans` (and `jobs`, plan by
-  //          plan) as  shp-25, shp-1, shp-10, shp-11, ... shp-19, shp-2, shp-20, ... shp-24, shp-3, ... shp-9:
-  //          the new plan first, then every older plan in the text order of its ID. Before the request the
-  //          list is shp-1, shp-2, ... shp-24. One more request, even one with no match, moves it again:
-  //          shp-1, shp-10, ... shp-24, shp-25, shp-3, ... shp-9. GET /api/v2/scenario/export has the same order.
-  // Wanted:  DECISIONS pass 4, "Result plans are ordered by shipment `createdSeq`": shp-1, shp-2, ... shp-25.
-  // Cause:   `matchPending` in server/api/v2/pipeline.ts passes only the pending requests to
-  //          `assignShipments`, which sorts the result by the `createdSeq` of the shipments it was given
-  //          (server/domain/v2/matching.ts). Every plan that existed before has none there, so it falls
-  //          back to the text order of its shipment ID.
-  // No workspace shows a wrong value: the pages look plans up by ID. Only the order of the two lists moves.
-  it.fails('BUG: after a live request the simulator still lists plans and jobs in the order their deliveries were created', async () => {
-    const order = creationOrder(await api.simulator());
+  // DECISIONS pass 4, "Result plans are ordered by shipment `createdSeq`": the new plan goes last and every
+  // older plan stays where it was. Jobs are made plan by plan, and the export is the same run.
+  it('after a live request the simulator still lists plans and jobs in the order their deliveries were created', async () => {
+    const sim = await api.simulator();
+    const order = creationOrder(sim);
     expect(order.plans).toStrictEqual(ascending(order.plans));
     expect(order.jobs).toStrictEqual(ascending(order.jobs));
+    // The new delivery is in the lists that were just checked.
+    expect(sim.plans.map((plan) => plan.shipmentId)).toContain(created.shipment.id);
+    expect(sim.jobs.map((job) => job.id)).toStrictEqual(expect.arrayContaining(created.jobIds));
+
+    // GET /scenario/export: the same plans and jobs, in the same order.
+    const exported = await api.exportRun();
+    expect(exported.assignments.plans.map((plan) => plan.id)).toStrictEqual(sim.plans.map((plan) => plan.id));
+    expect(exported.jobs.map((job) => job.id)).toStrictEqual(sim.jobs.map((job) => job.id));
   }, T);
 
   it('after the live request the three workspaces agree on every delivery, job, total and notification', async () => {
@@ -292,9 +290,15 @@ describe('two readers and one live delivery request, on the default NYC run', ()
     // Sent, not matched, nothing to pay; no job and no notification for anyone.
     const totalsBefore = before.business[origin].totals;
     expect(a.business[origin].totals).toStrictEqual({ ...totalsBefore, sent: totalsBefore.sent + 1 });
-    // Compared as sets: the order of the two lists is the bug of the `it.fails` test above.
-    expect(byId(a.sim.jobs)).toStrictEqual(byId(before.sim.jobs));
-    expect(byId(a.sim.plans)).toStrictEqual(byId(before.sim.plans));
+    // The same plans and jobs in the same order: a request with no match moves nothing.
+    expect(a.sim.jobs).toStrictEqual(before.sim.jobs);
+    expect(a.sim.plans).toStrictEqual(before.sim.plans);
+    const order = creationOrder(a.sim);
+    expect(order.plans).toStrictEqual(ascending(order.plans));
+    expect(order.jobs).toStrictEqual(ascending(order.jobs));
+    const exported = await api.exportRun();
+    expect(exported.assignments.plans).toStrictEqual(a.sim.plans);
+    expect(exported.jobs).toStrictEqual(a.sim.jobs);
     for (const businessId of Object.keys(a.business)) expect(a.business[businessId].notifications).toStrictEqual(before.business[businessId].notifications);
     for (const employeeId of Object.keys(a.employee)) {
       expect({ ...a.employee[employeeId], version: 0 }).toStrictEqual({ ...before.employee[employeeId], version: 0 });

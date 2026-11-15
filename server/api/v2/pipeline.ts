@@ -129,6 +129,13 @@ export function matchPending(run: Run, shipmentIds: string[], deps: PipelineDeps
   const t0 = performance.now();
   const result = assignShipments(pending, matchContext(run, deps.travel), { existing: run.assignments.plans });
   result.computeMs = performance.now() - t0;
+  // The matcher orders plans by the `createdSeq` of the shipments it was given, which here is
+  // only the pending ones. Order by the whole scenario instead, so the kept plans stay where they
+  // were (DECISIONS pass 4). Jobs and events follow, because they are built plan by plan.
+  // A plan whose shipment is gone has no `createdSeq` and goes last; the sort is stable.
+  const seq = new Map(run.scenario.shipments.map((s) => [s.id, s.createdSeq]));
+  const seqOf = (plan: DeliveryPlan) => seq.get(plan.shipmentId) ?? Number.MAX_SAFE_INTEGER;
+  result.plans.sort((a, b) => seqOf(a) - seqOf(b));
   result.unmatched = [
     ...run.assignments.unmatched.filter((u) => !ids.has(u.shipmentId)),
     ...result.unmatched,
