@@ -129,12 +129,16 @@ function toDeckLayer(spec: LayerSpec, mod: DeckLayersModule) {
   }
 }
 
-/** The no-key message. An alert, so it is announced without looking at the map area. */
+/**
+ * The no-key message. An alert, so it is announced without looking at the map area. Vite reads the key
+ * when `npm run dev` starts and when `npm run build` runs, so the advice names both (#737).
+ */
 export function MapKeyMissing() {
   return (
     <div className="map-v2__panel" role="alert">
-      <strong>{KEY_MISSING_TEXT}</strong> Add <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code> to <code>.env</code> and
-      restart <code>npm run dev</code>.
+      <strong>{KEY_MISSING_TEXT}</strong> Add <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code> to <code>.env</code>, then
+      restart <code>npm run dev</code>, or run <code>npm run build</code> again before <code>npm start</code> (the
+      key is read at build time).
     </div>
   );
 }
@@ -169,8 +173,9 @@ export function MapAuthError({ origin }: { origin: string }) {
         <li>Billing is active on the project.</li>
       </ul>
       <p>
-        The key is read from <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code>. Reload the page after the fix (restart{' '}
-        <code>npm run dev</code> first if you changed <code>.env</code>).
+        The key is read from <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code>. Reload the page after the fix. If you
+        changed <code>.env</code>, first restart <code>npm run dev</code>, or run <code>npm run build</code> again
+        before <code>npm start</code> (the key is read at build time).
       </p>
     </div>
   );

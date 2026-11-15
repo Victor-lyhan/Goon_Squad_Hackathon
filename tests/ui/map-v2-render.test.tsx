@@ -19,7 +19,7 @@ describe('GoogleBaseMap static render', () => {
       <GoogleBaseMap places={places} routes={[]} movers={[]} visible={visible} />,
     );
     expect(text(html)).toContain(
-      'Google Maps key missing. Add VITE_GOOGLE_MAPS_BROWSER_KEY to .env and restart npm run dev.',
+      'Google Maps key missing. Add VITE_GOOGLE_MAPS_BROWSER_KEY to .env, then restart npm run dev, or run npm run build again before npm start (the key is read at build time).',
     );
     expect(html).toContain('role="alert"');
     expect(html).not.toContain('map-v2__canvas');

@@ -50,6 +50,12 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
+/* A <strong> is 700 unless told otherwise, and no 700 face is loaded: 600 is the heaviest Inter (the
+   status) and IBM Plex Mono (the time) in styles/fonts.css, so neither is a faked bold (#737). */
+.jt__status strong,
+.jt__time strong {
+  font-weight: 600;
+}
 
 /* One line per carrier: "A · <name>" with its letter badge, home neighbourhood, extra minutes, reward.
    The left border and the badge take the carrier's map colour inline (map/layers.ts toneLabelColor). */
@@ -82,7 +88,7 @@
   color: var(--panel);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 600;
 }
 .jt-leg__home,
 .jt-leg__extra {
@@ -291,7 +297,7 @@
   color: var(--panel);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 600;
 }
 /* A map symbol (SYMBOL_GLYPH, colour set inline from RELAY_INK) or the package ring, in a 20px box so
    the labels line up with the carrier rows. */
