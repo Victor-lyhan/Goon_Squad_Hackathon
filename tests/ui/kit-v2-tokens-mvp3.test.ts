@@ -157,6 +157,12 @@ function blurs(value: string, tokens: Map<string, string> = RAW): number[] {
 
 const shadowValues = (css: string) => [...css.matchAll(/box-shadow\s*:\s*([^;}]+)/g)].map((m) => m[1].trim());
 const GRADIENT = /\b(repeating-)?(linear|radial|conic)-gradient\s*\(/i;
+/**
+ * A mask is not a painted gradient: it only fades what is already drawn, and the flat ground behind shows
+ * through. The homepage's map fades into the hero that way (#869, asked for in the issue), so the value of
+ * a `mask-image` is left out of the check. A gradient in any other property still fails.
+ */
+const withoutMasks = (css: string) => css.replace(/(?:-webkit-)?mask-image\s*:[^;}]*/g, '');
 const MAX_BLUR_PX = 8;
 
 describe('no gradients and no heavy shadows in client/src/styles/ and client/src/ui/ (#651)', () => {
@@ -176,12 +182,16 @@ describe('no gradients and no heavy shadows in client/src/styles/ and client/src
     expect(GRADIENT.test('linear-gradient(#fff, #000)')).toBe(true);
     expect(GRADIENT.test('repeating-radial-gradient(circle, #fff, #000 10px)')).toBe(true);
     expect(GRADIENT.test('var(--panel)')).toBe(false);
+    const masked = '.a { -webkit-mask-image: linear-gradient(to right, transparent, #000 22%); mask-image: linear-gradient(to right, transparent, #000 22%); }';
+    expect(GRADIENT.test(withoutMasks(masked))).toBe(false);
+    expect(GRADIENT.test(withoutMasks('.a { mask-image: none; background: linear-gradient(#fff, #000); }'))).toBe(true);
+    expect(GRADIENT.test(withoutMasks('.a { background-image: linear-gradient(#fff, #000) }'))).toBe(true);
   });
 
   for (const file of STYLESHEETS) {
     it(`${file}: no gradient, and no box-shadow blur over ${MAX_BLUR_PX}px`, () => {
       const css = read(file);
-      expect(css).not.toMatch(GRADIENT);
+      expect(withoutMasks(css)).not.toMatch(GRADIENT);
       for (const value of shadowValues(css)) {
         for (const blur of blurs(value)) expect(blur, `box-shadow: ${value}`).toBeLessThanOrEqual(MAX_BLUR_PX);
       }

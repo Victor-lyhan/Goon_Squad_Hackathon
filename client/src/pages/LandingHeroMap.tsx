@@ -9,7 +9,7 @@ import {
 export const HERO_MAP_LABEL =
   'Illustration: on a map of New York City, a package rides one commuter’s route, changes hands at a relay point, and rides a second commuter’s route to its recipient.';
 
-/** The key under the map. Shapes and letters, so no item is told apart by color alone (docs/mvp3.md P4). */
+/** The key at the bottom of the map. Shapes and letters, so no item is told apart by color alone (docs/mvp3.md P4). */
 export const HERO_LEGEND: { key: 'a' | 'b' | 'relay' | 'package'; text: string }[] = [
   { key: 'a', text: 'Commuter A' },
   { key: 'b', text: 'Commuter B' },
@@ -58,7 +58,8 @@ function LegendKey({ item }: { item: 'a' | 'b' | 'relay' | 'package' }) {
  * The hero's map (#833): a stylized dark NYC drawn here in SVG, with no map service, no tiles and no request.
  * Two commute lines in the carrier colors, the orange package riding the first, changing hands at the relay
  * point's diamond and riding the second, in a loop. The motion is CSS (landing.css): without it, and under
- * prefers-reduced-motion, the package rests at the recipient, which is the last frame.
+ * prefers-reduced-motion, the package rests at the recipient, which is the last frame. The box has no frame:
+ * it is the hero's whole right half, or the band under the text on a phone, and the drawing fills it (#869).
  */
 export default function LandingHeroMap() {
   // The route and the handoff's place on it go to the CSS animation from the same points the lines are drawn from.

@@ -42,13 +42,18 @@ describe('homepage content (#833)', () => {
     expect(text(copy)).toBe(`${LANDING_TITLE}Watch a package${WORKSPACES.map((w) => `${w.title}${w.text}→`).join('')}`);
   });
 
-  it('the hero is one centered column that holds the text and the map, and nothing else (#853)', () => {
+  it('the hero holds the centered column with the text, then the map outside it, and nothing else (#853, #869)', () => {
     const hero = /<section class="landing-hero"[^>]*>([\s\S]*?)<\/section>/.exec(html)![1];
     expect(hero.startsWith('<div class="landing-hero-inner"><div class="landing-hero-copy">')).toBe(true);
-    expect(hero.endsWith('</ul></div></div>')).toBe(true); // the map's key, the map, the column
     expect(hero.match(/class="landing-hero-(inner|copy|map)"/g)).toEqual([
       'class="landing-hero-inner"', 'class="landing-hero-copy"', 'class="landing-hero-map"',
     ]);
+    // The column holds the text only. The map is the hero's own second child, so it is not held in by the
+    // column's width or padding and can run to the hero's edges.
+    expect(hero).toContain('</ul></div></div><div class="landing-hero-map">'); // the entries, the text, the column
+    expect(hero.endsWith('</ul></div>')).toBe(true); // the map's key, the map
+    const column = hero.slice(0, hero.indexOf('<div class="landing-hero-map">'));
+    expect(column).not.toMatch(/<svg class="hero-map"|hero-legend/);
   });
 
   it('has the parts in order: the title, the button, Business and Employee, the map, How it works, See the numbers', () => {
@@ -197,8 +202,14 @@ describe('landing.css rules', () => {
     .filter((x) => Number(x[1]) >= 390)
     .map((x) => x[2]).join('\n');
 
-  it('stacks the two entries in one column and gives both buttons the full width at 390 px', () => {
-    expect(narrow).toMatch(/\.workspaces \{ grid-template-columns: 1fr; \}/);
+  it('stacks the two entries in one column, as wide as the button, and gives all three the full width at 390 px', () => {
+    // One under the other at every width: side by side they do not fit the hero's left half (#869).
+    const entries = /\.workspaces \{([^}]*)\}/.exec(css)![1];
+    expect(entries).toMatch(/grid-template-columns: minmax\(0, 1fr\);/);
+    expect(entries).toMatch(/max-width: 320px;/);
+    expect(css).toMatch(/\.watch-button \{ min-width: 320px;/); // the button's width from 600 px up
+    expect(css.match(/\.workspaces \{[^}]*grid-template-columns/g)).toHaveLength(1);
+    expect(narrow).toMatch(/\.workspaces \{ max-width: none; \}/);
     expect(narrow).toMatch(/\.watch-button \{ display: flex; \}/);
     expect(narrow).toMatch(/\.numbers-button \{ display: flex; \}/);
   });
@@ -221,14 +232,17 @@ describe('landing.css rules', () => {
     expect(css).toMatch(/\.numbers-button \{[^}]*background: var\(--accent, #1D5075\)/);
     expect(css).toMatch(/\.numbers-button:focus-visible \{[^}]*outline: 3px solid var\(--text, #171C24\)/);
   });
-  it('no radius over 6px (docs/mvp3.md P4), no shadows, no gradients', () => {
+  it('no radius over 6px (docs/mvp3.md P4), no shadows, and no gradient but the mask of the map (#869)', () => {
     for (const [, v] of css.matchAll(/border-radius:\s*([^;]+);/g)) {
       const px = [...v.matchAll(/(\d+(?:\.\d+)?)px/g)].map((x) => Number(x[1]));
       expect(px.every((n) => n <= 6)).toBe(true);
       expect(v).not.toMatch(/%|rem|em\b/);
     }
     expect(css).not.toContain('box-shadow');
-    expect(css).not.toContain('gradient');
+    // A mask paints nothing: it only fades the drawing into the hero's flat ground.
+    const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(rules.replace(/(-webkit-)?mask-image: linear-gradient\([^;]*;/g, '')).not.toContain('gradient');
+    expect(rules).not.toMatch(/background[a-z-]*:[^;]*gradient/);
     expect(css).toContain(':focus-visible');
   });
 });
