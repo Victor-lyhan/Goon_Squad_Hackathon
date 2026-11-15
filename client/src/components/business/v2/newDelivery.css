@@ -216,8 +216,84 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
 }
 .nd-parsed__note--warn { border-left-color: var(--warn, #8A5A00); }
 
+/* The Options card (#863): the server's priced variants of the read request, above the confirmation card.
+   A panel of its own, as wide as the form; one hairline row per option, the price the largest thing in it. */
+.nd-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+  max-width: 640px;
+  box-sizing: border-box;
+  margin: 0 0 var(--space-3, 12px);
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #171C24);
+  font-size: var(--text-sm, 13px);
+}
+.nd-options__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1, 4px) var(--space-3, 12px); }
+.nd-options__title { margin: 0; font-size: var(--text-lg, 18px); font-weight: 600; }
+/* "Planned by Gemini, checked by the engine" / "Options computed offline": a small label, not a pill. */
+.nd-options__source {
+  margin: 0;
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  color: var(--muted, #5B6472);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.nd-options__list { display: flex; flex-direction: column; gap: var(--space-2, 8px); margin: 0; padding: 0; list-style: none; }
+.nd-options__hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.nd-options__applied { margin: 0; font-weight: 600; }
+.nd-options__applied:empty { display: none; }
+
+.nd-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  min-width: 0;
+  padding: var(--space-3, 12px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-left: 3px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+}
+/* The option the form holds: the accent stripe and tint add to the words "In the form". */
+.nd-option--chosen { border-color: var(--accent, #1D5075); background: var(--accent-soft, #E8EEF1); }
+.nd-option__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3, 12px); }
+.nd-option__label { margin: 0; min-width: 0; font-size: var(--text-md, 14px); font-weight: 600; overflow-wrap: anywhere; }
+.nd-option__price { display: flex; flex: none; align-items: baseline; gap: var(--space-2, 8px); margin: 0; }
+.nd-option__cents { font-size: var(--text-lg, 18px); font-weight: 600; white-space: nowrap; }
+/* "Cheapest" and "In the form": small words in a token colour, no box around them. */
+.nd-option__tag {
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  color: var(--accent, #1D5075);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.nd-option__tag--ok { color: var(--ok, #2F6B4F); }
+.nd-option__summary { margin: 0; overflow-wrap: anywhere; }
+/* Each fact as wide as its value, so a time or "+7 min · +0.4 mi" stays on one line; a narrow card wraps whole facts. */
+.nd-option__facts { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px) var(--space-6, 24px); margin: 0; }
+.nd-option__fact { min-width: 0; }
+.nd-option__fact dt { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+.nd-option__fact dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.nd-option__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-3, 12px); }
+.nd-option__choose[aria-pressed='true'] { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
+
+/* While the options are on their way: three still rows of bars, no motion. */
+.nd-skeleton { display: block; height: 12px; border-radius: var(--radius, 4px); background: var(--border, #E3E3DE); }
+.nd-skeleton--label { width: 45%; height: 16px; }
+.nd-skeleton--line { width: 80%; }
+.nd-skeleton--short { width: 30%; }
+
 /* 390 px: one column, controls at least 40 px high, full-width actions. */
 @media (max-width: 480px) {
+  .nd-options { padding: var(--space-3, 12px); max-width: none; }
+  .nd-option__top { flex-wrap: wrap; }
+  .nd-option__choose { width: 100%; }
   /* The form sits inside the page's padding, so it keeps all four borders (#714). */
   .nd { padding: var(--space-3, 12px); max-width: none; }
   .nd-row { grid-template-columns: 1fr; }

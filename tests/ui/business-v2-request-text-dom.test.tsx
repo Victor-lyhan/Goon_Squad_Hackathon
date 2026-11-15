@@ -571,7 +571,11 @@ describe('without a stub the page asks the server', () => {
     typeInto(byLabel(m.container, REQUEST_COPY.label), SENTENCE);
     click(button(m.container, 'Read my request'));
     for (let i = 0; i < 20 && !m.container.querySelector('form.nd'); i++) await flush();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await flush();
+    // One read. The call after it asks for the Options card (#863, business-v2-dom-advice.test.tsx); this
+    // fake answers it with the draft again, which holds no option, so no card is drawn.
+    expect(fetchMock.mock.calls.map(([called]) => called)).toEqual(['/api/v2/parse-request', '/api/v2/advise']);
+    expect(m.container.querySelector('.nd-options')).toBeNull();
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('/api/v2/parse-request');
     expect(init!.method).toBe('POST');
