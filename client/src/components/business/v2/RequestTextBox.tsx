@@ -141,8 +141,15 @@ export type ParsedRequestNoteProps = {
  * read it ("Parsed by Gemini" / "Parsed offline"), the sender note and a rejected stop, each as plain text.
  */
 export function ParsedRequestNote({ parsed, onEdit }: ParsedRequestNoteProps) {
+  const note = useRef<HTMLElement>(null);
+  // The card is read from its top: who read the sentence, the sentence, a refused stop, the sender. It takes
+  // the place of the text box, so it is on screen already unless the page was scrolled past the top of the
+  // box; `nearest` moves nothing then (#807). Once, when the card opens. Not in every DOM (jsdom has none).
+  useEffect(() => {
+    if (typeof note.current?.scrollIntoView === 'function') note.current.scrollIntoView({ block: 'nearest' });
+  }, []);
   return (
-    <section className="nd-parsed" aria-label="Your request">
+    <section className="nd-parsed" aria-label="Your request" ref={note}>
       <div className="nd-parsed__head">
         <p className="nd-parsed__source">{parsed.sourceLabel}</p>
         <button type="button" className="nd-btn nd-btn--link" onClick={onEdit}>{REQUEST_COPY.edit}</button>

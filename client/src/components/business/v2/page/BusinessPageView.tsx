@@ -5,7 +5,7 @@
 // New delivery (MVP IV F1, docs/mvp4.md): it opens on one text box; the server reads the sentence and the
 // existing form opens prefilled as the confirmation card (DECISIONS pass 81). Only the form's button sends.
 // The shell has the only <main> (#581, DECISIONS pass 60), so the page's root is a <div>.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import type { ShipmentResponse } from '../../../../../../shared/v2/api';
 import type { ParseRequestResponse } from '../../../../../../shared/v2/parseRequest';
 import type { CreateShipmentRequest } from '../../../../../../shared/v2/schemas';
@@ -14,7 +14,7 @@ import { BusinessHeader } from '../activity/BusinessHeader';
 import { NotificationsPanel } from '../activity/NotificationsPanel';
 import { DeliveryDetails } from '../DeliveryDetails';
 import { RECONNECTING_TEXT, RUN_CHANGED_NOTE, type BusinessWorkspaceState } from '../live/businessWorkspaceState';
-import { NewDeliveryForm } from '../NewDeliveryForm';
+import { NewDeliveryForm, isEchoPress, pressOf, type Press } from '../NewDeliveryForm';
 import { ParsedRequestNote, RequestTextBox, type ParseRequestCall } from '../RequestTextBox';
 import { parsedRequest, type ParsedRequest } from '../requestTextModel';
 import { ShipmentsTable } from '../ShipmentsTable';
@@ -75,6 +75,15 @@ export function BusinessPageView({
   const formKey = useRef(0);
   /** The New delivery area; set when the text box has just turned into the form, which then gets focus. */
   const newArea = useRef<HTMLDivElement>(null);
+  /**
+   * The last pointer press on a button of the text box. "Read my request" and "Fill in the form instead"
+   * replace the box with the form, so the second press of a double press would land on the form (#807):
+   * `dropEcho` on the form's area drops it, before the browser opens a list or moves the focus.
+   */
+  const boxPress = useRef<Press | null>(null);
+  const dropEcho = (e: ReactMouseEvent) => {
+    if (isEchoPress(e, boxPress.current)) { e.preventDefault(); e.stopPropagation(); }
+  };
   const focusForm = useRef(false);
   const [table, setTable] = useState<TableState>(initialTable);
   /** Bumped by "Clear filters" so the toolbar drops its typed search text. */
@@ -270,7 +279,8 @@ export function BusinessPageView({
           {/* The open form says the same itself, so the line shows only while the form is closed. */}
           {closedText && !newOpen && <p className="bp-notice bp-closed">{closedText}</p>}
           {newView.kind === 'text' && (
-            <div className="bp-new" ref={newArea}>
+            <div className="bp-new" ref={newArea}
+              onClickCapture={(e) => { boxPress.current = pressOf(e, 'button') ?? boxPress.current; }}>
               <RequestTextBox
                 origin={d.business}
                 businesses={businesses}
@@ -284,7 +294,7 @@ export function BusinessPageView({
             </div>
           )}
           {newView.kind === 'form' && (
-            <div className="bp-new" ref={newArea}>
+            <div className="bp-new" ref={newArea} onMouseDownCapture={dropEcho} onClickCapture={dropEcho}>
               {newView.parsed && (
                 <ParsedRequestNote
                   parsed={newView.parsed}
