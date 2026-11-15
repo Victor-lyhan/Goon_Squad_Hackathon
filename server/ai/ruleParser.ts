@@ -9,11 +9,12 @@
 // - Stops: only the run's network businesses, by full name or a distinctive short form (the leading words
 //   of the name, when no other business starts with them and they are more than a place or a generic word:
 //   "Brooklyn Roasting" yes, "Brooklyn" no). "from X" is the sender and "to Y" the recipient, in either
-//   order; a business named without from/to takes the role that is still open.
+//   order; a business named without from/to takes the role that is still open ("for Y": the recipient first).
 // - A stop after from/to that is not a network business (a home, a street address, an unknown name) is never
 //   guessed: the field stays null and `rejected` says so in one plain sentence.
 // - Times: minutes since Day 1 00:00; "today" is Day 1 and "tomorrow" is Day 2 (DECISIONS pass 80).
 //   A time without a day is its next occurrence after the run clock. "tomorrow morning" = by Day 2 10:00.
+//   The ready time is "ready at 4 pm"; without the "at" it must be an exact time ("ready 4pm", "pickup 16:00").
 // - Category, a package name, a description ("a box of coffee samples") and a weight ("1.5 kg") from words.
 // Whatever the sentence does not say stays null and is listed in `missing`; `readyMin` defaults to the clock.
 import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequest';
@@ -117,7 +118,7 @@ function buildAliases(businesses: ParseContext['businesses']): Alias[] {
 }
 
 /** A business named in the sentence, at word `at`. */
-type Hit = { at: number; length: number; businessId: string; role: Role | null };
+type Hit = { at: number; length: number; businessId: string; role: Role | null; forIt: boolean };
 type Role = 'origin' | 'destination';
 
 function aliasAt(tokens: Token[], at: number, aliases: Alias[]): Alias | null {
@@ -136,10 +137,15 @@ function aliasAt(tokens: Token[], at: number, aliases: Alias[]): Alias | null {
 
 /** "from [the] X" names the sender, "to [the] X" the recipient. */
 function roleBefore(tokens: Token[], at: number): Role | null {
+  const word = wordBefore(tokens, at);
+  return word === 'from' ? 'origin' : word === 'to' ? 'destination' : null;
+}
+
+/** The word before the name at `at`, not counting "the". */
+function wordBefore(tokens: Token[], at: number): string | undefined {
   let before = at - 1;
   while (before >= 0 && tokens[before].norm === 'the') before -= 1;
-  const word = tokens[before]?.norm;
-  return word === 'from' ? 'origin' : word === 'to' ? 'destination' : null;
+  return tokens[before]?.norm;
 }
 
 function findBusinesses(text: string, tokens: Token[], aliases: Alias[]): Hit[] {
@@ -148,10 +154,12 @@ function findBusinesses(text: string, tokens: Token[], aliases: Alias[]): Hit[] 
     const alias = aliasAt(tokens, at, aliases);
     if (!alias) continue;
     const role = roleBefore(tokens, at);
+    // "an envelope for X": a hint, weaker than from/to ("a box for Etsy to JetBlue" goes to JetBlue).
+    const forIt = role === null && wordBefore(tokens, at) === 'for';
     // One common word ("blue", "print") names a business only after from/to or written as a name.
     const clear = alias.full || alias.words.length > 1 || /\p{Lu}/u.test(text.charAt(tokens[at].start));
     if (role === null && !clear) continue;
-    hits.push({ at, length: alias.words.length, businessId: alias.businessId, role });
+    hits.push({ at, length: alias.words.length, businessId: alias.businessId, role, forIt });
     at += alias.words.length - 1;
   }
   return hits;
@@ -242,11 +250,14 @@ function resolveStops(text: string, tokens: Token[], hits: Hit[]): Stops {
     if (stop[role] !== null) outside[role] = null;
   }
 
-  // A business named without from/to takes the role that is still open: the sender first.
+  // A business named without from/to takes the role that is still open: the sender first, but after
+  // "for" the recipient first ("an envelope for Blue Bottle").
+  const open = (role: Role) => stop[role] === null && outside[role] === null;
   for (const hit of hits) {
     if (hit.role || hit.businessId === stop.origin || hit.businessId === stop.destination) continue;
-    if (stop.origin === null && outside.origin === null) stop.origin = hit.businessId;
-    else if (stop.destination === null && outside.destination === null) stop.destination = hit.businessId;
+    const order: Role[] = hit.forIt ? ['destination', 'origin'] : ['origin', 'destination'];
+    const role = order.find(open);
+    if (role) stop[role] = hit.businessId;
   }
 
   const refused = [outside.origin, outside.destination].filter((typed): typed is string => typed !== null);
@@ -276,15 +287,18 @@ const DEADLINE_KEYED = new RegExp(
 const DEADLINE_DAY_AT = new RegExp(String.raw`\b(?<d1>${DAY})\s+${DAY_PART}at\s+${CLOCK}`, 'g');
 /** "at 10 am tomorrow". Without the day, "at 5" could be anything. */
 const DEADLINE_AT_DAY = new RegExp(String.raw`\bat\s+${CLOCK}\s+(?:on\s+)?(?<d3>${DAY})\b`, 'g');
-/** "ready at 4 pm", "available from 4:30 today", "pick up after 9 tomorrow". */
+/**
+ * "ready at 4 pm", "available from 4:30 today", "pick up after 9 tomorrow". Without the small word the time
+ * must be exact, with am/pm or a colon ("ready 4pm", "pickup 16:00", "ready noon"): "pick up 2 boxes" is no time.
+ */
 const READY = new RegExp(
-  String.raw`\b(?:ready|available|pick(?:ed)?[\s-]?up|collect(?:ion)?)\s+(?:is\s+)?(?:(?<d1>${DAY})\s+)?(?:at|by|from|after|around)\s+`
+  String.raw`\b(?:ready|available|pick(?:ed)?[\s-]?up|collect(?:ion)?)\s+(?:is\s+)?(?:(?<d1>${DAY})\s+)?(?:(?<prep>at|by|from|after|around)\s+)?`
   + String.raw`(?:(?<d2>${DAY})\s+)?${CLOCK}${DAY_AFTER}`, 'g');
 
 /** After a bare number ("by 10"), what may follow for it to be a time: the end, punctuation or a small word. */
 const AFTER_BARE_HOUR = /^\s*(?:$|[,;!?)]|\.(?:\s|$)|(?:on|at|from|to|for|and|please|sharp)\b)/;
 
-type TimeGroups = Partial<Record<'h' | 'mm' | 'mer' | 'word' | 'd1' | 'd2' | 'd3', string>>;
+type TimeGroups = Partial<Record<'h' | 'mm' | 'mer' | 'word' | 'd1' | 'd2' | 'd3' | 'prep', string>>;
 
 /** Minutes after midnight, or null for "25:00" and "10:75". Without am/pm, 1 to 7 is the afternoon. */
 function clockMinutes(g: TimeGroups, tonight: boolean): number | null {
@@ -337,6 +351,8 @@ function findDeadline(lower: string, nowMin: number): number | null {
 /** The ready time the sentence states and the sentence without that phrase, so it is not read as the deadline. */
 function findReady(lower: string, nowMin: number): { readyMin: number | null; rest: string } {
   for (const match of lower.matchAll(READY)) {
+    const g: TimeGroups = match.groups ?? {};
+    if (!g.prep && !g.mer && !g.word && !(g.mm && match[0].includes(':'))) continue;
     const value = minuteOf(match, lower, nowMin, true);
     const start = match.index ?? 0;
     if (value !== null) return { readyMin: value, rest: blank(lower, start, start + match[0].length) };
@@ -347,8 +363,10 @@ function findReady(lower: string, nowMin: number): { readyMin: number | null; re
 // ---------- the package ----------
 
 const ITEM = /\b(?:(?<envelope>envelopes?|letters?|documents?|docs|paperwork|papers|contracts?|folders?)|(?<box>box(?:es)?|packages?|parcels?|cartons?))\b/;
-const CONTENTS_START = /^\s+(?:full\s+of|of|with|containing|holding)\s+(?:(?:a|an|the|some)\s+)?/;
-const CONTENTS_END = /\s+(?:from|to|by|before|until|till|for|at|on|ready|due|today|tomorrow|tonight|weighing|asap|please)\b|[,;!?]|\.(?:\s|$)|$/;
+// A note in brackets may stand between the item and its contents: "an envelope (0.5 kg) of samples".
+const CONTENTS_START = /^(?:\s*\([^()]*\))?\s+(?:full\s+of|of|with|containing|holding)\s+(?:(?:a|an|the|some)\s+)?/;
+// Where the contents end: the next part of the sentence, a bracket ("samples (0.5 kg)") or a full stop.
+const CONTENTS_END = /\s+(?:from|to|by|before|until|till|for|at|on|ready|due|today|tomorrow|tonight|weighing|asap|please|delivered|sent|shipped)\b|\s*[,;!?()]|\.(?:\s|$)|$/;
 const MAX_DESCRIPTION_CHARS = 120;
 const WEIGHT = /(?<![\d.])(?<amount>\d+(?:\.\d+)?)\s*(?<unit>kg|kgs|kilos?|kilograms?|g|grams?|lbs?|pounds?|oz|ounces?)\b/;
 

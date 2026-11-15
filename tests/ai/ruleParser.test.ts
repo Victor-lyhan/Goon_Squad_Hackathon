@@ -141,6 +141,25 @@ describe('business names', () => {
     });
   });
 
+  // #798: on the Business page the sender is the signed-in business, so the sentence often names one business.
+  it('"for X" names the recipient when no "to" does, and never wins over from/to', () => {
+    expect(draftOf('An envelope for Blue Bottle Coffee, due tomorrow 10 am')).toMatchObject({
+      originBusinessId: null, destinationBusinessId: 'biz-blue-bottle-wall', deadlineMin: DAY2 + 600,
+    });
+    expect(draftOf('an envelope for the Levain bakery')).toMatchObject({ originBusinessId: null, destinationBusinessId: 'biz-levain-uws' });
+    // One common word is still a business only as a name: "for blue pens" is not Blue Bottle Coffee.
+    expect(draftOf('a box for blue pens to Etsy')).toMatchObject({ originBusinessId: null, destinationBusinessId: ETSY });
+    expect(draftOf('Etsy has a box for JetBlue')).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: 'biz-jetblue' });
+    // "to" is the recipient; the business after "for" takes what is left, as before.
+    expect(draftOf('Send a box for Etsy to JetBlue')).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: 'biz-jetblue' });
+    expect(draftOf('A box from Etsy for JetBlue')).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: 'biz-jetblue' });
+    // A stop Relay does not serve stays refused: the business after "for" does not fill its place.
+    const home = parse('Send a box for Etsy to my home');
+    expect(home.draft).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: null });
+    expect(home.rejected).toBe(refusal('my home'));
+    expectWellFormed(home);
+  });
+
   it('a common word is a business only as a name: "a blue envelope" is not Blue Bottle Coffee', () => {
     expect(draftOf('Bring a blue envelope to Century 21')).toMatchObject({
       originBusinessId: null, destinationBusinessId: 'biz-century-21',
@@ -280,6 +299,27 @@ describe('time phrases, in minutes since Day 1 00:00 (today = Day 1, tomorrow = 
       .toMatchObject({ readyMin: DAY2 + 540, deadlineMin: DAY2 + 720 });
   });
 
+  // #798: "ready 4pm" was skipped, so the ready time stayed at the clock's minute.
+  it.each<[string, number]>([
+    ['ready 4pm', 960],
+    ['ready 4 p.m.', 960],
+    ['pickup 16:00', 960],
+    ['ready today 4:30 pm', 990],
+    ['ready noon tomorrow', DAY2 + 720],
+    ['available 9 am tomorrow', DAY2 + 540],
+  ])('an exact ready time needs no "at": "%s" -> %s', (phrase, readyMin) => {
+    expect(draftOf(`${base}, ${phrase}, by tomorrow at 11`)).toMatchObject({ readyMin, deadlineMin: DAY2 + 660 });
+  });
+
+  it.each([
+    'pick up 2 boxes',          // an amount
+    'ready 4',                  // a bare number
+    'collect 12.50 dollars',    // a price
+    'ready 25:00',              // no time
+  ])('without "at", "%s" is no ready time', (phrase) => {
+    expect(draftOf(`${base}, ${phrase}, by tomorrow at 11`)).toMatchObject({ readyMin: NOW, deadlineMin: DAY2 + 660 });
+  });
+
   it('a number in a business name is not a time', () => {
     expect(draftOf('A box from Etsy by Century 21')).toMatchObject({ deadlineMin: null });
   });
@@ -319,6 +359,26 @@ describe('the package', () => {
     });
     expect(parse('A parcel of coffee samples, 1.5 kg, from Blue Bottle to Zabar\'s tomorrow morning').missing).toEqual([]);
     expect(draftOf('A box with the signed lease from Etsy to JetBlue').description).toBe('Signed lease');
+  });
+
+  // #798: wordings of the README demo package that put the weight in brackets or end on "delivered".
+  it.each([
+    'An envelope of espresso blend samples (0.5 kg) from Etsy to JetBlue',
+    'An envelope (0.5 kg) of espresso blend samples from Etsy to JetBlue',
+    'An envelope(0.5 kg) with espresso blend samples, from Etsy to JetBlue',
+    'We need a 0.5 kg envelope of espresso blend samples delivered from Etsy to JetBlue',
+    'A 0.5 kg envelope of espresso blend samples sent from Etsy to JetBlue',
+    'From Etsy to JetBlue: a 0.5 kg envelope of espresso blend samples.',
+  ])('the description is the contents only: "%s"', (text) => {
+    expect(draftOf(text)).toMatchObject({
+      originBusinessId: ETSY, destinationBusinessId: 'biz-jetblue', label: 'Envelope', category: 'envelope',
+      description: 'Espresso blend samples', weightKg: 0.5,
+    });
+  });
+
+  it('a bracket that is not followed by the contents is no description', () => {
+    expect(draftOf('An envelope (signed) from Etsy to JetBlue').description).toBeNull();
+    expect(draftOf('An envelope of (see note) from Etsy to JetBlue').description).toBeNull();
   });
 
   it.each<[string, number | null]>([
