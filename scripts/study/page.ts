@@ -297,6 +297,19 @@ function tile(label: string, value: string, detail: string): string {
   return `<div class="tile"><p class="tile-label">${label}</p><p class="tile-value">${value}</p><p class="tile-detail">${detail}</p></div>`;
 }
 
+export type HeadlineTile = { label: string; value: string; detail: string };
+
+const TILE = /<div class="tile"><p class="tile-label">([^<]*)<\/p><p class="tile-value">([^<]*)<\/p><p class="tile-detail">([^<]*)<\/p><\/div>/g;
+
+/**
+ * The headline tiles of a rendered page, in page order: the reverse of `tile`. This is how
+ * `npm run study -- --check` and tests/study/committed-page.test.ts read the numbers back out of the
+ * committed client/public/study.html, which carries no other copy of the results.
+ */
+export function headlineTiles(html: string): HeadlineTile[] {
+  return [...html.matchAll(TILE)].map(match => ({ label: match[1]!, value: match[2]!, detail: match[3]! }));
+}
+
 function figure(title: string, chart: string, note = ''): string {
   return `<figure class="card"><figcaption>${title}</figcaption>${chart}${note}</figure>`;
 }
