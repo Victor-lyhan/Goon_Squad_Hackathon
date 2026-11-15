@@ -32,8 +32,9 @@
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.ctl-btn:hover:not(:disabled) { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
-.ctl-btn:disabled { color: var(--muted, #5B6472); background: var(--bg, #F7F7F4); cursor: not-allowed; }
+.ctl-btn:hover:not([aria-disabled="true"]) { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
+/* #725: the buttons are aria-disabled (never disabled, which drops keyboard focus), so they are styled by it. */
+.ctl-btn[aria-disabled="true"] { color: var(--muted, #5B6472); background: var(--bg, #F7F7F4); cursor: not-allowed; }
 /* The one Play/Pause button: the largest control of the panel. Primary: white on the accent (about
    8.6:1), a darker fill on hover like the UI kit's primary button, never a white one. */
 .ctl-primary {
@@ -45,12 +46,12 @@
   color: var(--panel, #FFFFFF);
   font-weight: 600;
 }
-.ctl-primary:hover:not(:disabled) {
+.ctl-primary:hover:not([aria-disabled="true"]) {
   background: var(--accent-dark, #173E5B);
   border-color: var(--accent-dark, #173E5B);
   color: var(--panel, #FFFFFF);
 }
-.ctl-primary:disabled { border-color: var(--border, #E3E3DE); }
+.ctl-primary[aria-disabled="true"] { border-color: var(--border, #E3E3DE); }
 
 /* ---------- Notes, the step line, a refused step ---------- */
 .ctl-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }

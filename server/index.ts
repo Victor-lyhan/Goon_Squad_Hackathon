@@ -1,5 +1,5 @@
 import express from 'express';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
@@ -27,6 +27,33 @@ export function hasBuiltClient(dist: string): boolean {
 /** The one start line about the built client. It names `client/dist`, never the full path. */
 export function clientStartLine(dist: string): string {
   return hasBuiltClient(dist) ? CLIENT_SERVED_LINE : CLIENT_MISSING_LINE;
+}
+
+/** The variable that gives a server its own MVP II state file, e.g. a QA server next to the demo one (#727). */
+export const STATE_PATH_NAME = 'RELAY_STATE_PATH';
+
+/**
+ * The MVP II state file of this start: `RELAY_STATE_PATH` when it is set and not blank, else `fallback`
+ * (`data/state-v2.json` in the app). A relative path counts from the working directory. A value that ends
+ * in a slash or names an existing folder means `state-v2.json` in that folder: a folder is never taken for
+ * the state file itself, because an unreadable state file is renamed at boot (DECISIONS pass 49).
+ */
+export function statePathFrom(env: Record<string, string | undefined>, fallback: string): string {
+  const given = env[STATE_PATH_NAME]?.trim();
+  if (!given) return fallback;
+  const file = path.resolve(given);
+  let folder = /[\\/]$/.test(given);
+  try {
+    folder ||= statSync(file).isDirectory();
+  } catch {
+    // nothing there yet: the first save creates the file and its folder
+  }
+  return folder ? path.join(file, path.basename(fallback)) : file;
+}
+
+/** The start line that names the state file, or null when it is the default one. A path, never a key. */
+export function stateStartLine(statePath: string, defaultPath: string): string | null {
+  return path.resolve(statePath) === path.resolve(defaultPath) ? null : `State file: ${statePath} (${STATE_PATH_NAME})`;
 }
 
 /** The one start line about the Google server key: set or not set, never the value or its length. */
@@ -112,16 +139,23 @@ export function createApp(opts: { clientDist?: string; v2?: V2Deps } = {}) {
   });
 
   // `npm start`: serve the built client from the same origin (run `npm run build` first).
+  // A page request is a GET or a HEAD; HEAD gets the same status and headers and no body.
+  const isPageRequest = (req: express.Request) => req.method === 'GET' || req.method === 'HEAD';
   if (hasBuiltClient(dist)) {
     app.use(express.static(dist));
+    // A built file that is not there (a stale tab after a rebuild asks for the old hashed name) is a 404,
+    // never the app shell: index.html served as a script or a style sheet fails without a word.
+    app.use('/assets', (_req, res) => {
+      res.status(404).type('text/plain').send('Not found');
+    });
     app.use((req, res, next) => {
-      if (req.method !== 'GET') return next();
+      if (!isPageRequest(req)) return next();
       res.sendFile(path.join(dist, 'index.html'));
     });
   } else {
     // No build: a page request still answers 404, with what to do instead of Express's "Cannot GET /".
     app.use((req, res, next) => {
-      if (req.method !== 'GET') return next();
+      if (!isPageRequest(req)) return next();
       res.status(404).type('text/plain').send(CLIENT_MISSING_LINE);
     });
   }
@@ -170,7 +204,7 @@ export function v2StartLines(v2: { status: 'ready' | 'not_loaded'; reason?: stri
 }
 
 export type StartServerOptions = {
-  /** Read for `PORT` and the Google server key, after `.env` was loaded into it (`process.env` in the app). */
+  /** Read for `PORT`, `RELAY_STATE_PATH` and the Google server key, after `.env` was loaded into it (`process.env` in the app). */
   env: Record<string, string | undefined>;
   /** The `.env` file (`DEFAULT_ENV_PATH` in the app). A variable already in `env` wins over the file. */
   envPath: string;
@@ -180,7 +214,7 @@ export type StartServerOptions = {
   clientDist: string;
   /** Folder with the travel cache and the three NYC fixture files (`NYC_FIXTURES_DIR` in the app). */
   fixturesDir: string;
-  /** The MVP II state file (`DEFAULT_V2_STATE_PATH` in the app). */
+  /** The default MVP II state file (`DEFAULT_V2_STATE_PATH` in the app), used unless `RELAY_STATE_PATH` names another. */
   statePath: string;
   /** Passed to the Google clients instead of the global `fetch`. Tests give a fake, so nothing touches the network. */
   fetch?: FetchLike;
@@ -192,21 +226,25 @@ export type StartServerOptions = {
 export type RelayServer = Server & { stop(): Promise<void> };
 
 /**
- * Starts the whole server, as `npm start` and `npm run dev` do. In this order: `.env` is loaded, then `PORT`
- * and the key are read; the v2 run is loaded; the start lines go to `log`: MVP II (`v2StartLines`), the built
- * client, the Google server key (set or not set, never the value), and, once the port is bound, the address
- * with the port the server really listens on.
+ * Starts the whole server, as `npm start` and `npm run dev` do. In this order: `.env` is loaded, then `PORT`,
+ * `RELAY_STATE_PATH` and the key are read; the v2 run is loaded; the start lines go to `log`: the state file
+ * (only when it is not the default), MVP II (`v2StartLines`), the built client, the Google server key (set or
+ * not set, never the value), and, once the port is bound, the address with the port the server really listens on.
  */
 export function startServer(opts: StartServerOptions): RelayServer {
   const { env, log } = opts;
-  // First of all: a PORT or a key in .env counts. A variable that is already in the environment wins.
+  // First of all: a PORT, a RELAY_STATE_PATH or a key in .env counts. A variable that is already in the environment wins.
   loadDotEnv(opts.envPath, env);
   const port = Number(env.PORT ?? 3001);
+  // A QA or second server keeps its run in its own file and leaves data/state-v2.json alone (#727).
+  const statePath = statePathFrom(env, opts.statePath);
+  const stateLine = stateStartLine(statePath, opts.statePath);
+  if (stateLine) log(stateLine);
 
-  // MVP II: fixtures/nyc/ (travel cache + NYC files) -> the v2 run in data/state-v2.json -> /api/v2.
+  // MVP II: fixtures/nyc/ (travel cache + NYC files) -> the v2 run in the state file -> /api/v2.
   // The key is read from the environment (.env at the repo root) and is never logged.
   const key = serverKey(env);
-  const v2 = createV2Runtime({ fixturesDir: opts.fixturesDir, statePath: opts.statePath, key, fetch: opts.fetch });
+  const v2 = createV2Runtime({ fixturesDir: opts.fixturesDir, statePath, key, fetch: opts.fetch });
   if (v2.status === 'ready') v2.startTicker();
   for (const line of v2StartLines(v2)) log(line);
   log(clientStartLine(opts.clientDist));

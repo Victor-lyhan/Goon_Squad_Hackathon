@@ -21,6 +21,11 @@ describe('advanceClock', () => {
     expect(c.timeMin).toBe(2160);
     expect(c.playing).toBe(false);
   });
+  it('never changes the phase: a locked run that reaches simEnd stays locked (#734)', () => {
+    const locked: Clock = { phase: 'locked', playing: true, speed: 600, timeMin: 2100 };
+    expect(advanceClock(locked, 250, settings)).toEqual({ ...locked, timeMin: 2160, playing: false });
+    expect(advanceClock({ ...locked, timeMin: 930 }, 250, settings).phase).toBe('locked');
+  });
 });
 
 describe('applyControl', () => {
@@ -63,8 +68,30 @@ describe('applyControl', () => {
     const c = applyControl({ ...base, playing: true }, { action: 'finish' }, [], settings);
     expect(c).toMatchObject({ timeMin: 2160, playing: false });
   });
-  it('reset_playback returns to start, paused, phase unchanged', () => {
+  it('reset_playback returns to start, paused, and unlocks: the phase is planning again (#734)', () => {
     const c = applyControl({ phase: 'locked', playing: true, timeMin: 1500, speed: 120 }, { action: 'reset_playback' }, [], settings);
-    expect(c).toEqual({ phase: 'locked', playing: false, timeMin: 930, speed: 120 });
+    expect(c).toEqual({ phase: 'planning', playing: false, timeMin: 930, speed: 120 });
+    // In planning it only rewinds.
+    const seeked = applyControl({ ...base, timeMin: 1500 }, { action: 'reset_playback' }, [], settings);
+    expect(seeked).toEqual(base);
+  });
+  it('only reset_playback unlocks: every other control keeps a locked run locked', () => {
+    const locked: Clock = { phase: 'locked', playing: false, timeMin: 1500, speed: 120 };
+    const others = [
+      { action: 'play' }, { action: 'pause' }, { action: 'speed', speed: 600 }, { action: 'seek', timeMin: 930 },
+      { action: 'next_event' }, { action: 'jump_to_morning' }, { action: 'finish' },
+    ] as const;
+    for (const req of others) {
+      expect(applyControl(locked, req, [ev(1600), ev(1950)], settings).phase, req.action).toBe('locked');
+    }
+  });
+  it('only play locks: every other control keeps a run in planning in planning', () => {
+    const others = [
+      { action: 'pause' }, { action: 'speed', speed: 600 }, { action: 'seek', timeMin: 1500 },
+      { action: 'next_event' }, { action: 'jump_to_morning' }, { action: 'finish' }, { action: 'reset_playback' },
+    ] as const;
+    for (const req of others) {
+      expect(applyControl(base, req, [ev(1600), ev(1950)], settings).phase, req.action).toBe('planning');
+    }
   });
 });

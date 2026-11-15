@@ -10,9 +10,10 @@ function MoonIcon() {
   );
 }
 
+/** Not a live region itself: the page body puts it into its always-mounted `role="status"` (#725). */
 export function OvernightCard({ text }: { text: string }) {
   return (
-    <p className="spc-overnight" role="status">
+    <p className="spc-overnight">
       <MoonIcon />
       <span>{text}</span>
     </p>

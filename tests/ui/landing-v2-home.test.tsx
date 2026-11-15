@@ -31,16 +31,17 @@ describe('homepage content (docs/mvp3.md P4)', () => {
     expect(text(intro)).toBe(`${LANDING_SENTENCE}Watch a package`);
   });
 
-  it('has the parts in order: the sentence, the button, Business and Employee, the stats line, the footer', () => {
-    const at = ['<h1>', 'class="watch-button"', 'class="workspaces"', 'class="op-summary"', '<footer class="landing-footer"']
+  it('has the parts in order: the sentence, the button, Business and Employee, the stats line', () => {
+    const at = ['<h1>', 'class="watch-button"', 'class="workspaces"', 'class="op-summary"']
       .map((part) => html.indexOf(part));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
   });
 
-  it('says the environment once, in the footer (#610)', () => {
-    expect(html.match(/Real NYC locations · simulated deliveries/g)).toHaveLength(1);
-    expect(/<footer class="landing-footer">[\s\S]*<\/footer>/.exec(html)![0]).toContain('Real NYC locations · simulated deliveries');
+  it('ends with the stats line: the environment line is the header\'s, the page has no footer (#724)', () => {
+    expect(html).not.toContain('Real NYC locations · simulated deliveries');
+    expect(html).not.toContain('<footer');
+    expect(html.endsWith('</section></div>')).toBe(true);
   });
 
   it('has exactly two smaller entries, Business then Employee, each one link with a short line', () => {

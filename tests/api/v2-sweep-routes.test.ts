@@ -234,7 +234,9 @@ describe('what is not a refusal', () => {
     ];
     for (const [method, url, sent] of locked) {
       const error = await sweep.refused(method, url, sent, [409], 'a valid request while locked');
-      expect(error.error).toMatch(/planning cycle/i);
+      // The sentence names the simulator's control that unlocks (#734), not one the app no longer has.
+      expect(error.error).toMatch(/Press Back to start in the simulator/);
+      expect(error.error).not.toMatch(/planning cycle/i);
     }
     // A broken request stays refused: 400 as before, or 409 where the route looks at the lock first.
     for (const route of sweep.writeRoutes) {

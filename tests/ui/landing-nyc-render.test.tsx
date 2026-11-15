@@ -2,9 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import Landing from '../../client/src/pages/Landing';
-import {
-  NYC_ENV_TEXT, nycSummaryFrom, nycSummaryFromError, type NycSummary,
-} from '../../client/src/pages/landingModel';
+import { nycSummaryFrom, nycSummaryFromError, type NycSummary } from '../../client/src/pages/landingModel';
+import { ENV_LABELS } from '../../client/src/ui/shellModel';
 import { ApiRequestError } from '../../client/src/api/v2';
 import { businesses, employees, simulator } from './landing-nyc-sample';
 
@@ -39,23 +38,22 @@ describe('the homepage with sample /api/v2 responses', () => {
     expect(h).not.toContain('Open workspace');
   });
 
-  it('never says hub, labels the data as real NYC locations, and has no Guided demo link (#652)', () => {
+  it('never says hub or a synthetic city, and has no Guided demo link (#652)', () => {
     expect(h).not.toMatch(/hub/i);
-    expect(h).toMatch(/<footer class="landing-footer"><span>Real NYC locations · simulated deliveries<\/span><\/footer>/);
     expect(h).not.toContain('Synthetic city');
     expect(h).not.toContain('Guided demo');
     expect(h).not.toContain('/help');
   });
 
-  it('has the environment line once in the page body: the footer, not under the sentence (#610)', () => {
-    expect(h.split(NYC_ENV_TEXT)).toHaveLength(2);
+  it('does not repeat the environment line: the header says it, the page has no footer (#724, was #610)', () => {
+    expect(h).not.toContain(ENV_LABELS.nyc);
+    expect(h).not.toContain('<footer');
     const intro = /<section class="landing-intro">([\s\S]*?)<\/section>/.exec(h)![1];
-    expect(intro).not.toContain(NYC_ENV_TEXT);
     expect(intro.match(/<h1>/g)).toHaveLength(1);
     expect(intro).not.toMatch(/<p[ >]/);
-    // every state has it once, also while the numbers are missing
+    // in every state, also while the numbers are missing
     for (const s of [{ status: 'loading' }, { status: 'error' }, unavailable] as NycSummary[]) {
-      expect(page({ initialSummary: s }).split(NYC_ENV_TEXT), s.status).toHaveLength(2);
+      expect(page({ initialSummary: s }), s.status).not.toContain(ENV_LABELS.nyc);
     }
   });
 

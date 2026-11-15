@@ -402,17 +402,19 @@ describe('Simulator CSS, MVP III look (#701)', () => {
     });
 
     it('it stays white on a dark fill on hover, and reads as disabled when it is', () => {
-      const hover = '.ctl-primary:hover:not(:disabled)';
+      // #725: the buttons are aria-disabled, so the states are keyed on that attribute, not on :disabled.
+      const hover = '.ctl-primary:hover:not([aria-disabled="true"])';
+      const off = '[aria-disabled="true"]';
       expect(colourOf(CTL, hover, 'color')).toBe('#FFFFFF');
       expect(contrast(colourOf(CTL, hover, 'color'), colourOf(CTL, hover, 'background'))).toBeGreaterThanOrEqual(7);
       expect(colourOf(CTL, hover, 'border-color')).toBe(colourOf(CTL, hover, 'background'));
       // The primary rules come after the plain button's, so they win at equal specificity.
       const order = parsed.get(CTL)!.flatMap(selectorsOf);
-      expect(order.indexOf(hover)).toBeGreaterThan(order.indexOf('.ctl-btn:hover:not(:disabled)'));
-      expect(order.indexOf('.ctl-primary:disabled')).toBeGreaterThan(order.indexOf('.ctl-primary'));
+      expect(order.indexOf(hover)).toBeGreaterThan(order.indexOf('.ctl-btn:hover:not([aria-disabled="true"])'));
+      expect(order.indexOf(`.ctl-primary${off}`)).toBeGreaterThan(order.indexOf('.ctl-primary'));
       // Disabled: muted text on the page background, at least 4.5:1, and no accent border left.
-      expect(contrast(colourOf(CTL, '.ctl-btn:disabled', 'color'), colourOf(CTL, '.ctl-btn:disabled', 'background'))).toBeGreaterThanOrEqual(4.5);
-      expect(tokenOf(valueOf(CTL, '.ctl-primary:disabled', 'border-color'))).toBe('--border');
+      expect(contrast(colourOf(CTL, `.ctl-btn${off}`, 'color'), colourOf(CTL, `.ctl-btn${off}`, 'background'))).toBeGreaterThanOrEqual(4.5);
+      expect(tokenOf(valueOf(CTL, `.ctl-primary${off}`, 'border-color'))).toBe('--border');
     });
 
     it('its focus ring is visible: a 2 px accent outline kept off the accent fill by a 1 px white ring', () => {

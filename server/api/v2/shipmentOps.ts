@@ -10,7 +10,10 @@ import type { Run, Shipment } from '../../../shared/v2/types';
 
 export const INVALID_SHIPMENT = 'Invalid shipment';
 export const SHIPMENT_NOT_FOUND = 'Shipment not found';
-export const SHIPMENTS_LOCKED = 'Start a new planning cycle to change deliveries';
+// The three locked texts (this one, COMMUTE_LOCKED, RECOMPUTE_LOCKED) name the simulator's "Back to start",
+// the one control in the app that unlocks a run (#734).
+export const SHIPMENTS_LOCKED =
+  'The simulation is playing. Press Back to start in the simulator to change deliveries.';
 export const SHIPMENT_MATCHED = 'This delivery is already matched and can no longer be edited';
 export const UNKNOWN_BUSINESS = 'Unknown business';
 export const SAME_BUSINESS = 'Choose a different business';

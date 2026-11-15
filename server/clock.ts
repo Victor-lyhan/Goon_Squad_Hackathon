@@ -26,6 +26,7 @@ export function applyControl(
 ): Clock {
   switch (req.action) {
     case 'play':
+      // The only control that locks the run.
       return { ...clock, phase: 'locked', playing: true };
     case 'pause':
       return { ...clock, playing: false };
@@ -55,6 +56,8 @@ export function applyControl(
     case 'finish':
       return { ...clock, timeMin: settings.simEndMin, playing: false };
     case 'reset_playback':
-      return { ...clock, timeMin: settings.simStartMin, playing: false };
+      // "Back to start" is the way out of `locked` (#734): the app has no other control that unlocks.
+      // Only the clock changes; the caller keeps plans, jobs and the runId as they are.
+      return { ...clock, phase: 'planning', timeMin: settings.simStartMin, playing: false };
   }
 }
