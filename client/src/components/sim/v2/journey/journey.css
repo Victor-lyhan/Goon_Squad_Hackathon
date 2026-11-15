@@ -23,10 +23,12 @@
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
 }
+/* The panels' one heading look (#883, .sw-section-title in SimWorkspace.css). */
 .jt__title {
   margin: 0;
   font-size: var(--text-md);
   font-weight: 600;
+  line-height: 1.3;
 }
 .jt__kind {
   margin: var(--space-1) 0 0;
@@ -36,11 +38,10 @@
 .jt__status {
   margin: var(--space-2) 0 0;
 }
+/* "Status", "Planned delivery": sentence case like every panel label (#883; capitals were read out as such). */
 .jt__status-label {
   color: var(--muted);
   font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .jt__time {
   margin: var(--space-1) 0 0;
@@ -186,7 +187,7 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
 }
 /* One line per step (#832): what happens, "Next" on the step ahead, and the time at the right. */
@@ -214,7 +215,7 @@
 .jt-step__more {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
   font-size: var(--text-xs);
 }
@@ -228,8 +229,6 @@
 .jt-step__state {
   color: var(--muted);
   font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .jt-step--current .jt-step__state {
   color: var(--accent);
@@ -297,7 +296,7 @@
   display: inline-flex;
   flex-direction: column;
   justify-content: center;
-  gap: 3px;
+  gap: var(--space-1);
   width: 20px;
 }
 /* Thick and thin line of the key row, in ink: the carriers' own colours are on their badges. */

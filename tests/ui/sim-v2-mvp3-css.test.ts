@@ -319,15 +319,16 @@ describe('Simulator CSS, MVP III look (#701)', () => {
 
     it('exactly the classes that hold times, IDs, counts, minutes and prices are mono', () => {
       expect(using('mono')).toEqual({
-        // The run summary numbers and the package row's status column (RunSummary.tsx, PackageList.tsx).
+        // The run summary numbers (RunSummary.tsx). The package row's status is a word, so Inter since #883.
         'SimWorkspace.css': ['.sw-mono'],
         // The compare table's numbers and its "+3 matched with relay points" line.
         'compare/compare.css': ['.cmp-summary', '.cmp-num'],
         // The Overnight card says "Overnight at <relay point>": a name, no time, so no mono here.
         'compose/compose.css': [],
         'controls/controls.css': [],
-        // Inspector values: ETA and delivered times, rewards, extra minutes, the ID line, counts, stop times.
-        'inspector/inspector.css': ['.insp-mono', '.insp-ident', '.insp-count', '.insp-stop-time', '.insp-leg-nums dd'],
+        // Inspector values: ETA and delivered times, rewards, extra minutes, counts, stop times. The ident
+        // line ("Café · Brooklyn") is words, so Inter since #883.
+        'inspector/inspector.css': ['.insp-mono', '.insp-count', '.insp-stop-time', '.insp-leg-nums dd'],
         // The number on a status filter chip.
         'packages/packages.css': ['.pk-count'],
         'page/page.css': [],
@@ -362,10 +363,9 @@ describe('Simulator CSS, MVP III look (#701)', () => {
     // Where each number is rendered: the JSX element that holds the value as text carries a mono class.
     const DATA: Array<[file: string, mono: RegExp, values: string[]]> = [
       [`${SIM}/RunSummary.tsx`, /\bsw-mono\b/, ['r.value']],
-      [`${SIM}/PackageList.tsx`, /\bsw-mono\b/, ['p.statusLabel']],
       [`${SIM}/compare/CompareSection.tsx`, /\bcmp-(num|summary)\b/, ['row.direct', 'row.relay', 'summary.line']],
-      [`${SIM}/inspector/BusinessInspector.tsx`, /\binsp-(mono|ident|count)\b/, [
-        'props.ident', 'row.timeLabel', 'row.rewardLabel', 'row.extraLabel', 'props.rows.length',
+      [`${SIM}/inspector/BusinessInspector.tsx`, /\binsp-(mono|count)\b/, [
+        'row.timeLabel', 'row.rewardLabel', 'row.extraLabel', 'props.rows.length',
       ]],
       [`${SIM}/inspector/EmployeeInspector.tsx`, /\binsp-(mono|stop-time|count)\b/, [
         's.timeLabel', 'model.earnedLabel', 'model.totalRewardLabel', 'model.legs.length',

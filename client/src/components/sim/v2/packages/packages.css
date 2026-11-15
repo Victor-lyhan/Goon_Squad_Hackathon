@@ -9,10 +9,12 @@
 .pk-search { display: grid; gap: var(--space-1, 4px); }
 .pk-search label,
 .pk-group-label { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
+/* 30px tall like the Focus selects (.sw-field select); padding on the 4px scale (#883, it was 6px). */
 .pk-search input {
   font: inherit;
   font-size: var(--text-sm, 13px);
-  padding: 6px var(--space-2, 8px);
+  min-height: 30px;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
@@ -20,13 +22,15 @@
 }
 
 .pk-status { display: flex; flex-wrap: wrap; gap: var(--space-1, 4px); }
+/* The panels' one chip look (#883, see .sw-details-toggle): 24px tall, 0 8px, 12px text. */
 .pk-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1, 4px);
+  min-height: 24px;
   font: inherit;
   font-size: var(--text-xs, 12px);
-  padding: 3px var(--space-2, 8px);
+  padding: 0 var(--space-2, 8px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);

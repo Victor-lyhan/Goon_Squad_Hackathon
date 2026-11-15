@@ -8,6 +8,9 @@ const ratio = (a: number, b: number) => `${num(a)} / ${num(b)}`;
 const minutes = (n: number | null | undefined) =>
   typeof n === 'number' && Number.isFinite(n) ? `${Number.isInteger(n) ? n : n.toFixed(1)} min` : EMPTY;
 
+/** Under the numbers while no package is picked (#883): what to do to see a journey. */
+export const PICK_A_PACKAGE_TEXT = 'Pick a package on the left to see its journey.';
+
 /** Right panel content when nothing is selected. Renders the API's metrics; computes nothing. */
 export function RunSummary({ metrics: m }: RunSummaryProps) {
   const rows = [
@@ -26,6 +29,7 @@ export function RunSummary({ metrics: m }: RunSummaryProps) {
           </div>
         ))}
       </dl>
+      <p className="sw-summary-hint">{PICK_A_PACKAGE_TEXT}</p>
     </div>
   );
 }

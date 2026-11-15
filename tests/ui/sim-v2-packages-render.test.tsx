@@ -27,7 +27,7 @@ describe('PackagePanel', () => {
     const html = panel();
     expect(html.match(/class="sw-pkg[ "]/g)).toHaveLength(4);
     for (const label of ['Brand proofs', 'Gift box', 'Signed lease', 'Spare keys']) expect(html).toContain(label);
-    expect(html).toContain('<span class="sw-pkg-status sw-mono">At relay point</span>');
+    expect(html).toContain('<span class="sw-pkg-status">At relay point</span>');
     // #832: the kind, the route and the reason are on the line under the Details toggle (closed).
     expect(html).toContain('aria-expanded="false"');
     expect(html.match(/<span class="sw-pkg-route" data-details-body="" hidden="">/g)).toHaveLength(4);
