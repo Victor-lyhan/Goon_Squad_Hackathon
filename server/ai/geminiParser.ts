@@ -194,6 +194,13 @@ export function draftFromGemini(answer: unknown, context: GeminiParseContext, te
 
   const byId = new Map(context.businesses.map((business) => [business.id, business]));
   const notes: string[] = [];
+  /** The businesses a near-miss note was written for: one note per business, however it was read. */
+  const noted = new Set<string>();
+  const noteNearMiss = (typed: string, businessId: string) => {
+    if (noted.has(businessId)) return;
+    noted.add(businessId);
+    notes.push(nearMissNote(typed, byId.get(businessId)?.name ?? businessId));
+  };
   // The id as listed. Also the id in another case or the business's exact name, when it fits one business
   // only: that is still a network business of the run, and not a stop to refuse. A name with a slip is the
   // one business that close, and the note says which (#947).
@@ -207,7 +214,7 @@ export function draftFromGemini(answer: unknown, context: GeminiParseContext, te
     if (named.length === 1) return named[0].id;
     const close = id.length <= MAX_STOP_CHARS ? closestBusiness(id, context.businesses) : null;
     if (close !== null) {
-      notes.push(nearMissNote(id, byId.get(close)?.name ?? close));
+      noteNearMiss(id, close);
       return close;
     }
     inventedId = true;
@@ -219,12 +226,10 @@ export function draftFromGemini(answer: unknown, context: GeminiParseContext, te
   const readAs: string[] = [];
   for (const miss of text === undefined ? [] : nearMissStops(text, context.businesses)) {
     const other = stops[miss.role === 'origin' ? 'destination' : 'origin'];
-    const name = byId.get(miss.businessId)?.name ?? miss.businessId;
     if (stops[miss.role] === null && other !== miss.businessId) stops[miss.role] = miss.businessId;
     if (stops[miss.role] !== miss.businessId) continue;
     readAs.push(miss.typed.toLowerCase());
-    const note = nearMissNote(miss.typed, name);
-    if (!notes.some((seen) => seen.endsWith(` as ${name}.`))) notes.push(note);
+    noteNearMiss(miss.typed, miss.businessId);
   }
   const originBusinessId = stops.origin;
   const destinationBusinessId = stops.destination;

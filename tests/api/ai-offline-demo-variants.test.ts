@@ -396,6 +396,108 @@ describe('POST /api/v2/advise with no key: priced options for the demo sentence 
   }, T);
 });
 
+// ---------- the #947 bug report ----------
+
+describe('the sentence of the #947 bug report, typed on Titan Foods\' page: a misspelt recipient, a deliver-by after the window', () => {
+  const HUMAN = 'deliver a box of cookies to Kinshop coffee by tomorrow 5pm';
+  const NO_DEADLINE = 'deliver a box of cookies to Kinshop coffee';
+  const READ_AS = 'Read "Kinshop coffee" as Kinship Coffee.';
+  const CLAMPED = 'Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.';
+  const ASSUMED = 'No deliver-by time given, so Relay delivers by 12:00 PM tomorrow.';
+
+  const business = (id: string) => {
+    const found = store.get().scenario.businesses.find((b) => b.id === id);
+    if (!found) throw new Error(`the default run has no ${id}`);
+    return found;
+  };
+
+  /** What a mocked Gemini answers to the sentence when it reads every word right (5pm tomorrow = 2460). */
+  const geminiRead = (deadlineMin: number | null) => ({
+    originBusinessId: null, destinationBusinessId: 'biz-kinship-coffee', label: 'Box', category: 'small_box',
+    description: 'Cookies', weightKg: null, readyMin: null, deadlineMin, rejected: [],
+  });
+
+  async function parsedByGemini(text: string, answer: unknown) {
+    const { businesses, settings } = store.get().scenario;
+    const fetchImpl: FetchLike = async () => ({
+      status: 200,
+      text: async () => JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(answer) }] }, finishReason: 'STOP' }] }),
+    });
+    const outcome = await parseWithGeminiUnlessPaused(
+      text, { businesses, nowMin: CLOCK_MIN, windowStartMin: settings.simStartMin, windowEndMin: settings.simEndMin },
+      { apiKey: 'AQ.FAKE_demo-variants-key', model: 'gemini-2.5-flash', fetchImpl },
+    );
+    if (!outcome.ok) throw new Error(outcome.message);
+    return outcome.response;
+  }
+
+  it('parses offline to Kinship Coffee with the deliver-by moved to the window end, and says both', async () => {
+    expect(business('biz-titan-foods').name).toBe('Titan Foods');
+    expect(business('biz-kinship-coffee').name).toBe('Kinship Coffee');
+    const body = await parse(HUMAN);
+    expect(body.draft).toMatchObject({ originBusinessId: null, destinationBusinessId: 'biz-kinship-coffee', readyMin: CLOCK_MIN, deadlineMin: 2160 });
+    expect(body.rejected).toBeNull();
+    expect(body).toMatchObject({ note: `${READ_AS} ${CLAMPED}` });
+    expect(body).not.toHaveProperty('assumed');
+    // On Titan Foods' page the sender is the signed-in business: only the weight is left to fill in.
+    const { needsInput } = draftFromParsed(body.draft, { originId: 'biz-titan-foods', businesses: store.get().scenario.businesses });
+    expect(needsInput).not.toContain('recipientId');
+    expect(needsInput).not.toContain('deadlineTime');
+  }, T);
+
+  it('parses the same with a mocked Gemini', async () => {
+    const offline = await parse(HUMAN);
+    const gemini = await parsedByGemini(HUMAN, geminiRead(2460));
+    expect(gemini.source).toBe('gemini');
+    expect(gemini.draft).toMatchObject({ destinationBusinessId: 'biz-kinship-coffee', readyMin: CLOCK_MIN, deadlineMin: 2160 });
+    expect(gemini.note).toBe(`${READ_AS} ${CLAMPED}`);
+    expect(gemini.note).toBe((offline as typeof gemini).note);
+    // Gemini left the misspelt stop open: the sentence still fills it.
+    const open = await parsedByGemini(HUMAN, { ...geminiRead(2460), destinationBusinessId: null, rejected: ['Kinshop coffee'] });
+    expect(open.draft.destinationBusinessId).toBe('biz-kinship-coffee');
+    expect(open.rejected).toBeNull();
+  }, T);
+
+  it('with no deliver-by the window end is assumed, offline and with a mocked Gemini', async () => {
+    const offline = await parse(NO_DEADLINE);
+    const gemini = await parsedByGemini(NO_DEADLINE, geminiRead(null));
+    for (const body of [offline, gemini]) {
+      expect(body.draft, body.source).toMatchObject({ destinationBusinessId: 'biz-kinship-coffee', deadlineMin: 2160 });
+      expect(body, body.source).toMatchObject({ note: `${READ_AS} ${ASSUMED}`, assumed: ['deadlineMin'] });
+      expect(body.missing, body.source).not.toContain('deadlineMin');
+    }
+  }, T);
+
+  // Before #947 /advise answered 400 for both (a deliver-by after the window, or none), and the card showed no
+  // options. Ready at the clock (the window start) and the deliver-by at the window end is the widest window
+  // the run has: no earlier ready time or later deliver-by exists to try, so the one option is the deal.
+  it.each([
+    ['the sentence, its deliver-by sent as typed (5 PM tomorrow)', HUMAN, 2460, CLAMPED],
+    ['the sentence, its deliver-by sent as parsed', HUMAN, 2160, undefined],
+    ['the sentence with no deliver-by, sent without one', NO_DEADLINE, null, ASSUMED],
+    ['the sentence with no deliver-by, sent as parsed', NO_DEADLINE, 2160, undefined],
+  ])('/advise prices %s from Titan Foods: one option, as typed, with the note', async (_name, text, deadlineMin, note) => {
+    const { draft } = await parse(text);
+    const sent = { ...draft, originBusinessId: 'biz-titan-foods', deadlineMin };
+    const body = await advise(sent);
+    expect(body.options.map((o) => [o.changes, money(o.customerPriceCents)])).toStrictEqual([[{}, '$6.00']]);
+    expect(body.note).toBe(note);
+    if (note !== undefined) expectPlain(note, 'the note');
+    expectEnginePrices(store.get(), travel, { ...sent, deadlineMin: 2160 } as ParseDraft & DraftTimes, body);
+  }, T);
+
+  it('/advise gives 2 options for the same two businesses when the times leave room: ready at 6 PM, by 10 AM tomorrow', async () => {
+    const text = 'deliver a box of cookies to Kinshop coffee by 10 a.m. tomorrow, ready at 6 p.m.';
+    const { draft, note } = await parse(text) as ParseRequestResponse & { note?: string };
+    expect(note).toBe(READ_AS);
+    expect(draft).toMatchObject({ destinationBusinessId: 'biz-kinship-coffee', readyMin: 1080, deadlineMin: 2040 });
+    const sent = { ...draft, originBusinessId: 'biz-titan-foods' } as ParseDraft & DraftTimes;
+    const body = await advise(sent);
+    expect(body.options.map((o) => [o.changes, money(o.customerPriceCents)])).toStrictEqual([[{}, '$7.00'], [{ readyMin: 960 }, '$6.00']]);
+    expectEnginePrices(store.get(), travel, sent, body);
+  }, T);
+});
+
 // ---------- the texts of a problem ----------
 
 describe('every text the two routes write for a problem is one plain sentence (#898)', () => {

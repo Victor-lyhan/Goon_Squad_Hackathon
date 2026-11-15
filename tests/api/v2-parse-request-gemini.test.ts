@@ -16,6 +16,7 @@ import type { FetchInitLike, FetchLike } from '../../server/geo/googleClient';
 import { startServer, type RelayServer } from '../../server/index';
 import type { Store } from '../../server/store';
 import type { ParseRequestResponse } from '../../shared/v2/parseRequest';
+import type { ParseAnswer } from '../../server/ai/deadline';
 import type { Run as RunV2 } from '../../shared/v2/types';
 import { T, startBootstrapApi, tempRepo, type Answer, type BootstrapApi, type BootstrapApiOptions, type TempRepo } from './v2-bootstrap-helper';
 import { ownOrigin } from './own-origin-helper';
@@ -41,7 +42,8 @@ const GOOD = {
   rejected: [],
 };
 
-// A strict copy of `ParseRequestResponse` (shared/v2 has types, not response schemas): an extra key fails.
+// A strict copy of `ParseRequestResponse` (shared/v2 has types, not response schemas) plus the optional `note`
+// and `assumed` of #947 (`ParseAnswer`): any other key fails.
 const minute = z.number().int().min(0).max(2880);
 const DRAFT_KEYS = [
   'originBusinessId', 'destinationBusinessId', 'label', 'category', 'description', 'weightKg', 'readyMin', 'deadlineMin',
@@ -60,6 +62,9 @@ const ResponseSchema = z.strictObject({
   missing: z.array(z.enum(DRAFT_KEYS)),
   rejected: z.string().nullable(),
   source: z.enum(['gemini', 'offline']),
+  // Beside the contract's fields (#947, `ParseAnswer` in server/ai/deadline.ts): left out when empty.
+  note: z.string().min(1).optional(),
+  assumed: z.array(z.enum(DRAFT_KEYS)).min(1).optional(),
 });
 
 interface Call {
@@ -148,10 +153,10 @@ async function post(body?: unknown): Promise<Answer> {
 }
 
 /** A 200 in the contract's shape, with `missing` counted from the draft and only businesses of the run. */
-function expectDraft(answer: Answer, run: RunV2): ParseRequestResponse {
+function expectDraft(answer: Answer, run: RunV2): ParseAnswer {
   expect(answer.status, JSON.stringify(answer.body)).toBe(200);
   expect(answer.headers.get('content-type')).toMatch(/^application\/json\b/);
-  const body: ParseRequestResponse = ResponseSchema.parse(answer.body);
+  const body: ParseAnswer = ResponseSchema.parse(answer.body);
   expect(body.missing).toEqual(DRAFT_KEYS.filter((key) => body.draft[key] === null));
   const ids = run.scenario.businesses.map((b) => b.id);
   for (const id of [body.draft.originBusinessId, body.draft.destinationBusinessId]) {
@@ -252,12 +257,23 @@ describe('POST /api/v2/parse-request with a Gemini key', () => {
 
   it('checks the answer against the run: a category, a time or a deadline that does not fit is null, missing is recounted', async () => {
     const { store } = await start(() => geminiSays({
-      ...GOOD, category: 'pallet', readyMin: 100, deadlineMin: 2161, missing: [], source: 'offline',
+      ...GOOD, category: 'pallet', readyMin: 100, deadlineMin: 2881, missing: [], source: 'offline',
     }));
+    // 2881 is after the end of Day 2: no deliver-by a request can name, so it is null and not moved (#947).
     const body = expectDraft(await post({ text: EXAMPLE }), store.get());
     expect(body.draft).toMatchObject({ category: null, readyMin: 930, deadlineMin: null });
     expect(body.missing).toEqual(['category', 'weightKg', 'deadlineMin']);
     expect(body.source).toBe('gemini');
+    expect(body.note).toBeUndefined();
+  }, T);
+
+  it('a deliver-by after the window end is moved to the end, with a note (#947)', async () => {
+    const { store } = await start(() => geminiSays({ ...GOOD, deadlineMin: 2161 }));
+    const body = expectDraft(await post({ text: EXAMPLE }), store.get());
+    expect(body.draft.deadlineMin).toBe(2160);
+    expect(body.missing).toEqual(['weightKg']);
+    expect(body.note).toBe('Relay delivers by 12:00 PM tomorrow, ahead of your 12:01 PM deadline.');
+    expect(body.assumed).toBeUndefined();
   }, T);
 
   it('reads the businesses, the clock and the planning window of the run as it is now', async () => {

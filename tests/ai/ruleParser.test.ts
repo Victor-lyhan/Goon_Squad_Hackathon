@@ -704,3 +704,38 @@ describe('any text gives a well-formed answer', () => {
     });
   });
 });
+
+// #947: a business name with a slip after from/to is the one network business that close, and `note` says so.
+describe('parseOffline: a misspelt business name (#947)', () => {
+  const KINSHIP = 'biz-kinship-coffee';
+  const WINDOW = { windowStartMin: 930, windowEndMin: 2160 };
+
+  it('reads "Kinshop coffee" as Kinship Coffee and says so; the deadline after the window end is moved to it', () => {
+    const answer = parseOffline('deliver a box of cookies to Kinshop coffee by tomorrow 5pm', { businesses, nowMin: NOW, ...WINDOW });
+    expect(answer.draft).toMatchObject({ originBusinessId: null, destinationBusinessId: KINSHIP, readyMin: NOW, deadlineMin: 2160 });
+    expect(answer.rejected).toBeNull();
+    expect(answer.note).toBe('Read "Kinshop coffee" as Kinship Coffee. Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.');
+    expect(answer.assumed).toBeUndefined();
+    // Without the window (the route always gives it) the time is kept as typed.
+    expect(parse('deliver a box of cookies to Kinshop coffee by tomorrow 5pm').draft.deadlineMin).toBe(DAY2 + 17 * 60);
+  });
+
+  it('a slip in the sender, a swapped letter, other case: each read as the one business', () => {
+    expect(parse('An envelope from Kinship Cofee to Etsy').draft).toMatchObject({ originBusinessId: KINSHIP, destinationBusinessId: ETSY });
+    expect(parse('An envelope from Etsy to kinhsip coffee').draft.destinationBusinessId).toBe(KINSHIP);
+    expect(parse('An envelope from Etsy to TITAN FOOD').draft.destinationBusinessId).toBe('biz-titan-foods');
+    expect(parse('An envelope from Etsy to Titan Foods').note).toBeUndefined();   // an exact name needs no note
+  });
+
+  it('is not guessed when two businesses are that close, or when the name is too far off', () => {
+    const twins: ParseContext['businesses'] = [
+      { id: 'biz-a', name: 'Kinship Coffee' }, { id: 'biz-b', name: 'Kinsham Coffee' }, { id: ETSY, name: 'Etsy' },
+    ];
+    const both = parse('An envelope from Etsy to Kinshop Coffee', NOW, twins);
+    expect(both.draft.destinationBusinessId).toBeNull();
+    expect(both.note).toBeUndefined();
+    const far = parse('An envelope from Etsy to Kingston Cafe');
+    expect(far.draft.destinationBusinessId).toBeNull();
+    expect(far.note).toBeUndefined();
+  });
+});

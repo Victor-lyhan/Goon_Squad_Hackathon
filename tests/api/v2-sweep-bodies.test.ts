@@ -14,7 +14,7 @@ import {
 import {
   BAD_MINUTES, BROKEN_BODIES, HUGE_TEXT, MISSING, NO_BODY, T, WRITE_SPECS, fieldAt, json, rawJson, startSweepApi,
   validAdvise, validCommute, validDelivery, validGenerate, validImport, validParseRequest, withField, withProtoKey, wrongTypeOf,
-  type Sent, type SweepApi, type SweepContext,
+  expectSameState, type Sent, type SweepApi, type SweepContext,
 } from './v2-sweep-helper';
 
 type Body = Record<string, unknown>;
@@ -333,14 +333,16 @@ describe.each([
    * Each field of the object at `objectPath` in `valid`: the wrong type, null, a list around it and, for a
    * required field, left out. The fields are read from the valid body, so a field added later is swept too.
    * `brief` sends only the wrong type and the left-out field (the import has some 150 fields).
+   * `open` fields may be null or left out (POST /advise since #947): only the wrong type and a list are swept.
    */
   async function sweepFields(
     method: string, url: string, valid: Body, statuses: number[],
     opts: {
       objectPath?: string; optional?: (path: string) => boolean; wrap?: (path: string, value: unknown) => Body; brief?: boolean;
+      open?: (path: string) => boolean;
     } = {},
   ) {
-    const { objectPath = '', optional = () => false, brief = false } = opts;
+    const { objectPath = '', optional = () => false, brief = false, open = () => false } = opts;
     const wrap = opts.wrap ?? ((path: string, value: unknown) => withField(valid, path, value));
     const object = objectPath === '' ? valid : fieldAt(valid, objectPath);
     expect(typeof object === 'object' && object !== null, `nothing at ${objectPath}`).toBe(true);
@@ -351,9 +353,9 @@ describe.each([
       const path = objectPath === '' ? key : `${objectPath}.${key}`;
       const original = fieldAt(valid, path);
       const variants: [string, unknown][] = [['the wrong type', wrongTypeOf(original)]];
-      if (!brief) variants.push(['null', null]);
+      if (!brief && !open(path)) variants.push(['null', null]);
       if (!brief && !Array.isArray(original)) variants.push(['a list', [original]]);
-      if (!optional(path)) variants.push(['left out', MISSING]);
+      if (!optional(path) && !open(path)) variants.push(['left out', MISSING]);
       for (const [name, value] of variants) {
         await sweep.refused(method, url, json(wrap(path, value)), statuses, `${path} ${name}`);
       }
@@ -474,8 +476,33 @@ describe.each([
   });
 
   describe('POST /advise', () => {
-    itOnFresh('refuses each draft field with the wrong type, null, in a list or left out', async () => {
-      await sweepFields('POST', '/advise', validAdvise(sweep.ctx()), [400], { objectPath: 'draft' });
+    itOnFresh('refuses each draft field with the wrong type or in a list', async () => {
+      await sweepFields('POST', '/advise', validAdvise(sweep.ctx()), [400], { objectPath: 'draft', open: () => true });
+    }, T);
+
+    // #947: a draft field null or left out is a field still to choose, not a broken body. A missing sender,
+    // recipient or ready time is a 200 with no options and a note; a missing deliver-by is the window end.
+    itOnFresh('answers 200 for each draft field null or left out, and changes nothing', async () => {
+      const valid = validAdvise(sweep.ctx());
+      const draft = valid.draft as Body;
+      const before = await sweep.state();
+      for (const key of Object.keys(draft)) {
+        for (const [name, value] of [['null', null], ['left out', MISSING]] as const) {
+          const what = `POST /advise with draft.${key} ${name}`;
+          const reply = await sweep.send('POST', '/advise', json(withField(valid, `draft.${key}`, value)));
+          expect(reply.status, `${what}: ${reply.text}`).toBe(200);
+          expect(reply.contentType, what).toMatch(/^application\/json\b/);
+          const body = JSON.parse(reply.text) as { options: unknown[]; note?: string };
+          if (key === 'deadlineMin') {
+            expect(body.options.length, what).toBeGreaterThan(0);
+            expect(body.note, what).toContain('No deliver-by time given');
+          } else {
+            expect(body.options, what).toEqual([]);
+            expect(body.note, what).toMatch(/^Choose .+ to see options\.$/);
+          }
+        }
+      }
+      expectSameState(await sweep.state(), before, 'after the drafts with a field to choose');
     }, T);
 
     it.each(ADVISE_CASES)('refuses %s', async (name, build) => {

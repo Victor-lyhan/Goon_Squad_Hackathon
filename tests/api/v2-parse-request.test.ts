@@ -11,12 +11,14 @@ import { ParseRequestBody, PARSE_TEXT_MAX, type ParseRequestResponse } from '../
 import { ApiError } from '../../shared/v2/schemas';
 import type { Run as RunV2 } from '../../shared/v2/types';
 import type { Store } from '../../server/store';
+import type { ParseAnswer } from '../../server/ai/deadline';
 import { T, noNetwork, startBootstrapApi, type Answer, type BootstrapApi } from './v2-bootstrap-helper';
 
 const EXAMPLE = 'Deliver an envelope from Etsy to Brooklyn Roasting by 10 a.m. tomorrow.';
 
 // shared/v2 has no response schema (responses are types), so the tests check every 200 against this strict
-// copy of `ParseRequestResponse`: a key the contract does not have fails the parse.
+// copy of `ParseRequestResponse` plus the optional `note` and `assumed` of #947 (`ParseAnswer`): any other key
+// fails the parse.
 const minute = z.number().int().min(0).max(2880);
 const DRAFT_KEYS = [
   'originBusinessId', 'destinationBusinessId', 'label', 'category', 'description', 'weightKg', 'readyMin', 'deadlineMin',
@@ -35,10 +37,15 @@ const ResponseSchema = z.strictObject({
   missing: z.array(z.enum(DRAFT_KEYS)),
   rejected: z.string().nullable(),
   source: z.enum(['gemini', 'offline']),
+  // Beside the contract's fields (#947, `ParseAnswer` in server/ai/deadline.ts): left out when empty.
+  note: z.string().min(1).optional(),
+  assumed: z.array(z.enum(DRAFT_KEYS)).min(1).optional(),
 });
-// Compile-time: the schema and the contract type describe the same object, in both directions.
+// Compile-time: the schema and the route's answer type describe the same object, in both directions, and the
+// answer is still a `ParseRequestResponse` of the contract.
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
-export const schemaMatchesContract: Same<z.infer<typeof ResponseSchema>, ParseRequestResponse> = true;
+export const schemaMatchesContract: Same<z.infer<typeof ResponseSchema>, ParseAnswer> = true;
+export const answerIsContract: ParseRequestResponse = {} as ParseAnswer;
 
 const StrictApiError = ApiError.strict();
 
@@ -56,13 +63,19 @@ afterEach(async () => {
   api = null;
 }, T);
 
+/** What the route gives the offline parser: the run's businesses, clock and planning window. */
+const contextOf = (run: RunV2) => ({
+  businesses: run.scenario.businesses, nowMin: run.clock.timeMin,
+  windowStartMin: run.scenario.settings.simStartMin, windowEndMin: run.scenario.settings.simEndMin,
+});
+
 const post = (body?: unknown) => (api as BootstrapApi).v2.post('/parse-request', body);
 
 /** A 200 in the contract's shape, about businesses of the run only. */
-function expectDraft(answer: Answer, run: RunV2): ParseRequestResponse {
+function expectDraft(answer: Answer, run: RunV2): ParseAnswer {
   expect(answer.status, JSON.stringify(answer.body)).toBe(200);
   expect(answer.headers.get('content-type')).toMatch(/^application\/json\b/);
-  const body: ParseRequestResponse = ResponseSchema.parse(answer.body);
+  const body: ParseAnswer = ResponseSchema.parse(answer.body);
   expect(body.missing).toEqual(DRAFT_KEYS.filter((key) => body.draft[key] === null));
   const ids = run.scenario.businesses.map((b) => b.id);
   for (const id of [body.draft.originBusinessId, body.draft.destinationBusinessId]) {
@@ -110,7 +123,7 @@ describe('POST /api/v2/parse-request', () => {
     });
     expect(run.clock.timeMin).toBe(930);
     // The route is the pure parser on the run's businesses and clock.
-    expect(body).toEqual(parseOffline(EXAMPLE, { businesses: run.scenario.businesses, nowMin: run.clock.timeMin }));
+    expect(body).toEqual(parseOffline(EXAMPLE, contextOf(run)));
   }, T);
 
   it('the draft, once its missing fields are filled in, is a request POST /shipments stores', async () => {
@@ -152,7 +165,7 @@ describe('POST /api/v2/parse-request', () => {
       rejected: null,
       source: 'offline',
     });
-    expect(body).toEqual(parseOffline(text, { businesses: run.scenario.businesses, nowMin: run.clock.timeMin }));
+    expect(body).toEqual(parseOffline(text, contextOf(run)));
 
     const weighed = expectDraft(await post({ text: 'Send 2 kg of coffee beans to Etsy.' }), run);
     expect(weighed.draft).toMatchObject({
@@ -246,9 +259,21 @@ describe('POST /api/v2/parse-request', () => {
     const before = remember(store);
 
     const renamed = expectDraft(await post({ text: 'A box from Handmade Headquarters to JetBlue by noon' }), store.get());
+    // "noon" is today at the clock's 10:00: Day 1 12:00 is before the planning window (it starts at 15:30), so
+    // the deliver-by is left open for the card (#947) rather than moved.
     expect(renamed.draft).toMatchObject({
-      originBusinessId: 'biz-etsy', destinationBusinessId: 'biz-jetblue', readyMin: 600, deadlineMin: 720,
+      originBusinessId: 'biz-etsy', destinationBusinessId: 'biz-jetblue', readyMin: 600, deadlineMin: null,
     });
+    expect(renamed.missing).toContain('deadlineMin');
+    expect(renamed.note).toBeUndefined();
+    expect(renamed.assumed).toBeUndefined();
+
+    // No deliver-by at all: the window end (Day 2 12:00), listed in `assumed`, with a note (#947).
+    const open = expectDraft(await post({ text: 'A box from Handmade Headquarters to JetBlue' }), store.get());
+    expect(open.draft).toMatchObject({ originBusinessId: 'biz-etsy', destinationBusinessId: 'biz-jetblue', readyMin: 600, deadlineMin: 2160 });
+    expect(open.assumed).toEqual(['deadlineMin']);
+    expect(open.note).toBe('No deliver-by time given, so Relay delivers by 12:00 PM tomorrow.');
+    expect(open.missing).not.toContain('deadlineMin');
 
     const gone = expectDraft(await post({ text: 'A box from Etsy to JetBlue by noon' }), store.get());
     expect(gone.draft.originBusinessId).toBeNull();

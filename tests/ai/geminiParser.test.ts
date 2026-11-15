@@ -339,6 +339,63 @@ describe('draftFromGemini', () => {
     }
   });
 
+  describe('the sentence of the #947 bug report, sent by Titan Foods', () => {
+    const HUMAN = 'deliver a box of cookies to Kinshop coffee by tomorrow 5pm';
+    /** What Gemini answers to it when it reads every word right: tomorrow 5pm is Day 2 17:00 = 2460. */
+    const READ = {
+      originBusinessId: null, destinationBusinessId: 'biz-kinship-coffee', label: 'Box', category: 'small_box',
+      description: 'Cookies', weightKg: null, readyMin: null, deadlineMin: 2460, rejected: [],
+    };
+    const NOTE = 'Read "Kinshop coffee" as Kinship Coffee. Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.';
+
+    it('Gemini read Kinship Coffee: the deliver-by is moved to the window end, and the note says both', () => {
+      const answer = drafted(READ, CONTEXT, HUMAN);
+      expect(answer.draft).toEqual({
+        originBusinessId: null, destinationBusinessId: 'biz-kinship-coffee', label: 'Box', category: 'small_box',
+        description: 'Cookies', weightKg: null, readyMin: 930, deadlineMin: 2160,
+      });
+      // The sender is the signed-in business (Titan Foods), which the Business page fills in.
+      expect(answer.missing).toEqual(['originBusinessId', 'weightKg']);
+      expect(answer.rejected).toBeNull();
+      expect(answer.note).toBe(NOTE);
+      expect(answer.assumed).toBeUndefined();
+      expect(BUSINESSES.find((b) => b.id === 'biz-titan-foods')?.name).toBe('Titan Foods');
+    });
+
+    it('Gemini left the misspelt stop open or refused it: the sentence fills it, and it is not refused', () => {
+      for (const given of [{ destinationBusinessId: null }, { destinationBusinessId: null, rejected: ['Kinshop coffee'] }]) {
+        const answer = drafted({ ...READ, ...given }, CONTEXT, HUMAN);
+        expect(answer.draft.destinationBusinessId, JSON.stringify(given)).toBe('biz-kinship-coffee');
+        expect(answer.rejected, JSON.stringify(given)).toBeNull();
+        expect(answer.note, JSON.stringify(given)).toBe(NOTE);
+      }
+      // Without the sentence nothing is guessed from Gemini's open stop.
+      expect(drafted({ ...READ, destinationBusinessId: null }).draft.destinationBusinessId).toBeNull();
+    });
+
+    it('Gemini wrote the misspelt name where the id belongs: one note for the business, in Gemini\'s words', () => {
+      const answer = drafted({ ...READ, destinationBusinessId: 'Kinshop Coffee' }, CONTEXT, HUMAN);
+      expect(answer.draft.destinationBusinessId).toBe('biz-kinship-coffee');
+      expect(answer.note).toBe('Read "Kinshop Coffee" as Kinship Coffee. Relay delivers by 12:00 PM tomorrow, ahead of your 5:00 PM deadline.');
+    });
+
+    it('with no deliver-by in the sentence the window end is assumed', () => {
+      const text = 'deliver a box of cookies to Kinshop coffee';
+      const answer = drafted({ ...READ, deadlineMin: null }, CONTEXT, text);
+      expect(answer.draft.deadlineMin).toBe(2160);
+      expect(answer.assumed).toEqual(['deadlineMin']);
+      expect(answer.note).toBe('Read "Kinshop coffee" as Kinship Coffee. No deliver-by time given, so Relay delivers by 12:00 PM tomorrow.');
+    });
+
+    it('parseWithGemini sends the sentence and answers the same draft', async () => {
+      const { fetchImpl } = fakeFetch(() => geminiSays(READ));
+      const outcome = await parseWithGemini(HUMAN, CONTEXT, { apiKey: KEY, model: MODEL, fetchImpl });
+      if (!outcome.ok) throw new Error(outcome.message);
+      expect(outcome.response).toEqual(drafted(READ, CONTEXT, HUMAN));
+      expect(buildParsePrompt(CONTEXT)).toContain('Map a misspelt or mistyped business name');
+    });
+  });
+
   it('readyMin defaults to the clock minute, like the offline parser', () => {
     for (const readyMin of [null, undefined, 100, 2161, 1000.5]) {
       expect(drafted({ ...GOOD, readyMin }).draft.readyMin, String(readyMin)).toBe(930);
