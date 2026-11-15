@@ -51,16 +51,20 @@ describe('vehicles are the largest movers: radius, white outline, colour and let
   it('journey: A blue / B green, radius VEHICLE_RADIUS (14-16 px) with a white outline and the white letter', () => {
     expect(L.VEHICLE_RADIUS).toBeGreaterThanOrEqual(14);
     expect(L.VEHICLE_RADIUS).toBeLessThanOrEqual(16);
-    const specs = specsOf(pageView(simAt(T.onLeg1, { 'shp-2': 'picked_up' }), { kind: 'package', id: 'shp-2' }));
-    const vehicles = spec<ScatterSpec>(specs, 'movers-vehicle')!.data;
-    expect(vehicles.map((d) => [d.id, hex(d.fillColor), d.radius, d.lineColor, d.lineWidth])).toEqual([
-      ['emp-3', '#1D5075', 15, L.OUTLINE, L.VEHICLE_OUTLINE_WIDTH],
-      ['emp-2', '#0F8A5F', 15, L.OUTLINE, L.VEHICLE_OUTLINE_WIDTH],
-    ]);
     expect(L.OUTLINE).toEqual([255, 255, 255, 255]);
-    const letters = spec<TextSpec>(specs, 'movers-vehicle-badge')!;
-    expect(letters.data.map((d) => [d.id, d.text, d.color])).toEqual([['emp-3', 'A', L.BADGE_TEXT], ['emp-2', 'B', L.BADGE_TEXT]]);
-    expect(letters.props.getSize).toBe(L.VEHICLE_LETTER_SIZE);
+    // #851: one carrier at a time: A on the evening commute, B on the next morning's.
+    for (const [t, status, id, color, letter] of [
+      [T.onLeg1, 'picked_up', 'emp-3', '#1D5075', 'A'], [T.onLeg2, 'out_for_delivery', 'emp-2', '#0F8A5F', 'B'],
+    ] as const) {
+      const specs = specsOf(pageView(simAt(t, { 'shp-2': status }), { kind: 'package', id: 'shp-2' }));
+      const vehicles = spec<ScatterSpec>(specs, 'movers-vehicle')!.data;
+      expect(vehicles.map((d) => [d.id, hex(d.fillColor), d.radius, d.lineColor, d.lineWidth])).toEqual([
+        [id, color, 15, L.OUTLINE, L.VEHICLE_OUTLINE_WIDTH],
+      ]);
+      const letters = spec<TextSpec>(specs, 'movers-vehicle-badge')!;
+      expect(letters.data.map((d) => [d.id, d.text, d.color])).toEqual([[id, letter, L.BADGE_TEXT]]);
+      expect(letters.props.getSize).toBe(L.VEHICLE_LETTER_SIZE);
+    }
   });
 
   it('the carrier marker is larger than every other mover and every stop circle', () => {
@@ -268,7 +272,8 @@ describe('an uncached place pair is a straight dashed line, never a crash', () =
 
 describe('text layers ask for the loaded face: Inter, at most 600', () => {
   it('no text layer names IBM Plex Sans or a 700 weight, in a journey and in the network view', () => {
-    const journey = specsOf(pageView(waitingAt(T.overnight, 'biz-roast', 'at_hub'), { kind: 'package', id: 'shp-2' }));
+    // On the evening leg, so the journey has a carrier letter (overnight it has no carrier, #851).
+    const journey = specsOf(pageView(simAt(T.onLeg1, { 'shp-2': 'picked_up' }), { kind: 'package', id: 'shp-2' }));
     const net = pageView(simAt(T.onLeg1), null).map;
     const network = [...buildLayerSpecs({ ...net }), ...buildLayerSpecs({ ...net, selectedIds: ['emp-3'] })];
     const texts = [...journey, ...network].filter((s): s is TextSpec => s.type === 'text');

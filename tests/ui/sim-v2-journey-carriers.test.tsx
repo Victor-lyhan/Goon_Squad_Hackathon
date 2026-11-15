@@ -58,8 +58,10 @@ describe('journeyModel: reward, extra minutes and delivery time come from the pl
       if (c2.employeeId in tones) expect(tones[c2.employeeId]).toBe('leg2');
       for (const m of j.movers.filter((x) => x.kind === 'package')) expect(m.tone).toBeUndefined();
     }
-    const both = relayAt(T.onLeg1).movers.filter((m) => m.kind === 'vehicle');
-    expect(both.map((m) => m.tone).sort()).toEqual(['leg1', 'leg2']);
+    // #851: one carrier at a time, each on the commute in which it handles the package.
+    const tonesAt = (t: number) => relayAt(t).movers.filter((m) => m.kind === 'vehicle').map((m) => m.tone);
+    expect(tonesAt(T.onLeg1)).toEqual(['leg1']);
+    expect(tonesAt(T.onLeg2)).toEqual(['leg2']);
   });
 
   it('the same person on both legs: one vehicle, in the first leg\'s colour and letter', () => {
@@ -123,14 +125,16 @@ describe('JourneyLegend: each carrier in the colour of its vehicle and its route
       expect(li).toContain(`jl__badge--leg${i + 1}" aria-hidden="true" style="background:${want[i]}">${'AB'[i]}</span>`);
       expect(text(li)).toContain(`${'AB'[i]} · ${j.carriers[i].name}`);
     });
-    // The badge is the colour and the letter the map gives that carrier's vehicle.
-    const specs = L.buildLayerSpecs({
-      places: [], routes: [], movers: j.movers, visible: { routes: true, businesses: true, homes: true, packages: true },
-    });
-    const vehicles = specs.find((s) => s.id === 'movers-vehicle')!.data as L.ScatterDatum[];
-    const letters = specs.find((s) => s.id === 'movers-vehicle-badge')!.data as L.TextDatum[];
+    // The badge is the colour and the letter the map gives that carrier's vehicle, each on its own commute (#851).
     j.carriers.forEach((c, i) => {
-      expect(hex(vehicles.find((d) => d.id === c.employeeId)!.fillColor)).toBe(want[i]);
+      const specs = L.buildLayerSpecs({
+        places: [], routes: [], movers: relayAt([T.onLeg1, T.onLeg2][i]).movers,
+        visible: { routes: true, businesses: true, homes: true, packages: true },
+      });
+      const vehicles = specs.find((s) => s.id === 'movers-vehicle')!.data as L.ScatterDatum[];
+      const letters = specs.find((s) => s.id === 'movers-vehicle-badge')!.data as L.TextDatum[];
+      expect(vehicles.map((d) => d.id)).toEqual([c.employeeId]);
+      expect(hex(vehicles[0].fillColor)).toBe(want[i]);
       expect(letters.find((d) => d.id === c.employeeId)!.text).toBe(c.letter);
     });
   });

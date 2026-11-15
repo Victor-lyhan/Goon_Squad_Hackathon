@@ -9,6 +9,9 @@
 // The map (docs/mvp3.md P1, P4): each carrier's whole commute of that trip thin in its colour, the part
 // where it has the package thick; symbols instead of numbered stops (sender square, relay diamond, swap
 // at the handoff, recipient flag) with short labels; carrier A and B letters on the vehicles.
+// #851: a carrier's vehicle is on the map only during the commute in which it handles this package
+// (relay: A's evening commute, B's next-morning commute; direct: the one commute). The same person
+// driving another package the next morning or the evening before is not part of this journey.
 import type { MapResponse, SimulatorResponse } from '../../../../../../shared/v2/api';
 import type { DeliveryPlan, Leg, ShipmentProgress, SimEventKind, StopKind } from '../../../../../../shared/v2/types';
 import { formatClock } from '../../../../ui/format';
@@ -87,7 +90,7 @@ export type Journey = {
   deliveredAtMin: number | null;
   steps: JourneyStep[];
   carriers: JourneyCarrier[];
-  /** One per leg, for Play (`playPlan`). */
+  /** One per leg, for Play (`playPlan`) and for when a carrier's vehicle is on the map (#851). */
   commutes: JourneyCommute[];
   /**
    * Where the last leg's carrier ends its commute after the delivery: `home` on an evening trip, `work`
@@ -98,6 +101,10 @@ export type Journey = {
   places: MapPlace[];
   routes: MapRoute[];
   stops: MapStop[];
+  /**
+   * The package, and each carrier's vehicle while the snapshot's minute is inside the commute in which
+   * that carrier handles the package (#851). No vehicle before a carrier sets off or after it arrives.
+   */
   movers: MapMover[];
   bounds: LatLngBounds | null;
 };
@@ -298,9 +305,18 @@ export function buildJourney({ shipmentId, sim, map }: BuildJourneyInput): Journ
   // person carries both legs, the vehicle keeps the first leg's tone and letter.
   const carrierOf = new Map<string, JourneyCarrier>();
   for (const c of carriers) if (!carrierOf.has(c.employeeId)) carrierOf.set(c.employeeId, c);
+  // #851: only while the carrier is on the commute in which it handles this package. The snapshot also
+  // places a carrier while it drives another package (its next morning, its evening before); that marker
+  // is not this journey's. The windows are Play's own (`legWindows`), so what Play steps through is what moves.
+  const snapshotMin = Number.isFinite(sim.snapshot.timeMin) ? sim.snapshot.timeMin : sim.clock.timeMin;
+  const handling = new Set(
+    legWindows(steps, commutes)
+      .filter((w) => snapshotMin >= w.startMin && snapshotMin <= w.endMin)
+      .map((w) => plan.legs[w.legIndex]?.employeeId),
+  );
   for (const m of sim.snapshot.markers) {
     const c = carrierOf.get(m.employeeId);
-    if (!c || !Number.isFinite(m.lat) || !Number.isFinite(m.lng)) continue;
+    if (!c || !handling.has(m.employeeId) || !Number.isFinite(m.lat) || !Number.isFinite(m.lng)) continue;
     movers.push({ id: m.employeeId, kind: 'vehicle', lat: m.lat, lng: m.lng, label: carrierName(m.employeeId), tone: c.tone, badge: c.letter });
   }
 
@@ -445,14 +461,22 @@ export type PlayPlan = { windows: PlayWindow[] };
  * `trips`) keeps the stop-based window: only the part around the package.
  */
 export function playPlan(journey: Journey): PlayPlan {
+  return { windows: legWindows(journey.steps, journey.commutes) };
+}
+
+/**
+ * The windows of `playPlan`, from the steps and the commutes. Also the minutes in which a carrier's
+ * vehicle is on the journey map (#851): outside its window a carrier does not handle this package.
+ */
+function legWindows(journeySteps: JourneyStep[], commutes: JourneyCommute[]): PlayWindow[] {
   const byLeg = new Map<number, JourneyStep[]>();
-  for (const s of journey.steps) {
+  for (const s of journeySteps) {
     const list = byLeg.get(s.legIndex) ?? [];
     list.push(s);
     byLeg.set(s.legIndex, list);
   }
-  const commuteOf = new Map(journey.commutes.map((c) => [c.legIndex, c]));
-  const windows: PlayWindow[] = [...byLeg.entries()]
+  const commuteOf = new Map(commutes.map((c) => [c.legIndex, c]));
+  return [...byLeg.entries()]
     .map(([legIndex, steps]) => {
       const carryStartMin = Math.min(...steps.map((s) => s.arrivalMin)) - 1;
       const carryEndMin = Math.max(...steps.map((s) => s.timeMin));
@@ -469,7 +493,6 @@ export function playPlan(journey: Journey): PlayPlan {
     })
     .filter((w) => Number.isFinite(w.startMin) && Number.isFinite(w.endMin) && w.endMin >= w.startMin)
     .sort((a, b) => a.startMin - b.startMin);
-  return { windows };
 }
 
 /** Total minutes inside the windows (overlaps counted once). */
