@@ -298,7 +298,9 @@ describe('shell.css: a long label does not widen the header', () => {
     expect(rule('.shell-header .demo-account')).toMatch(/min-width: 0; max-width: 100%/);
     expect(rule('.shell-header .demo-account-slot')).toMatch(/max-width: 100%/);
     expect(rule('.shell-header > *')).toMatch(/min-width: 0/);
-    expect(rule('.shell-header')).toMatch(/flex-wrap: wrap/);
+    // The tools stay inside their grid column (#868: the header is a grid, the links in its middle).
+    expect(rule('.shell-tools')).toMatch(/max-width: 100%/);
+    expect(rule('.shell-header')).toMatch(/grid-template-columns: minmax\(0, 1fr\) auto minmax\(0, 1fr\)/);
   });
 
   it('at 390 px the selector takes the row\'s width and no more', () => {

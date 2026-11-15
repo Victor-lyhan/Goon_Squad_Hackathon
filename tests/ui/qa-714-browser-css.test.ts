@@ -20,8 +20,12 @@ describe('shell.css (#714)', () => {
   it('has no rule left for the Help link (deleted in #623)', () => {
     expect(css).not.toContain('shell-help');
   });
-  it('the active nav item is underlined by a straight bar: only the top corners are rounded', () => {
-    expect(value(rules('client/src/ui/shell.css'), '.shell-nav-link', 'border-radius')).toBe('var(--radius, 4px) var(--radius, 4px) 0 0');
+  it('the active nav item is underlined by a straight bar: the link has no rounded corner (#868: it is as high as the bar)', () => {
+    const all = rules('client/src/ui/shell.css');
+    expect(value(all, '.shell-nav-link', 'border-radius')).toBeUndefined();
+    expect(value(all, '.shell-nav-link', 'border-width')).toBe('2px 0');
+    expect(value(all, ".shell-nav a.shell-nav-link[aria-current='page']", 'border-bottom-color')).toBe('var(--accent, #1D5075)');
+    expect(value(all, ".shell-nav a.shell-nav-link[aria-current='page']", 'border-radius')).toBeUndefined();
   });
 });
 

@@ -1,4 +1,4 @@
-/* App shell: compact header (docs/mvp3.md P4: flat, hairline border, no shadow). Tokens come from client/src/styles; fallbacks keep it right on their own. */
+/* App shell: the header (docs/mvp3.md P4: flat, hairline border, no shadow). Tokens come from client/src/styles; fallbacks keep it right on their own. */
 .skip-link {
   position: absolute; left: var(--space-2, 8px); top: -4rem; z-index: 100;
   background: var(--panel, #FFFFFF); color: var(--text, #171C24);
@@ -10,9 +10,19 @@
    the page cannot cut it off (#724). */
 .app-main:focus-visible { outline-offset: -2px; }
 
+/* The bar is 64 px high, its hairline included (#868). The simulator workspace is fixed right under it
+   and reads this height (sim/v2: top: var(--app-header-h)). */
+:root { --app-header-h: 64px; }
+
+/* Logo | links | tools. The two side columns are equally wide, so the links sit in the middle of the bar
+   whatever stands at its right. The first row is the bar; only the Demo account selector of a narrow
+   window gets a second row. --shell-pad is the room at the bar's two ends. */
 .shell-header {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-4, 16px);
-  width: 100%; min-height: 48px; padding: var(--space-2, 8px) var(--space-4, 16px);
+  --shell-pad: var(--space-6, 24px);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-rows: minmax(calc(var(--app-header-h, 64px) - 1px), auto);
+  align-items: center; column-gap: var(--space-4, 16px);
+  width: 100%; padding: 0 var(--shell-pad);
   background: var(--panel, #FFFFFF); color: var(--text, #171C24);
   border-bottom: 1px solid var(--border, #E3E3DE);
   font-family: var(--font-sans, 'Inter', 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif);
@@ -21,30 +31,42 @@
 .shell-header > * { min-width: 0; }
 
 .shell-wordmark {
-  display: inline-flex; align-items: center; gap: var(--space-2, 8px);
+  display: inline-flex; align-items: center; gap: var(--space-2, 8px); justify-self: start;
+  min-height: 44px;
   font-weight: 600; font-size: 16px; letter-spacing: .02em; text-decoration: none;
   color: var(--text, #171C24); padding: 0;
 }
-/* The Relay logo (client/public/brand, #784): 28 px sets the link's height, so the header stays 48 px. */
+/* The Relay logo (client/public/brand, #784), centered in the bar by the link around it. */
 .shell-logo { display: block; flex: none; width: 28px; height: 28px; }
 
-.shell-nav { display: flex; align-items: stretch; gap: var(--space-1, 4px); }
+/* The links are as high as the bar, so the active one's bar lies on the header's bottom hairline. */
+.shell-nav { display: flex; align-self: stretch; gap: var(--space-2, 8px); }
 .shell-nav-link {
-  display: inline-block; padding: var(--space-1, 4px) var(--space-2, 8px);
-  /* Only the top corners are rounded, so the active item's underline is a straight bar (#714). */
-  border-radius: var(--radius, 4px) var(--radius, 4px) 0 0; border-bottom: 2px solid transparent;
-  color: var(--muted, #5B6472); text-decoration: none; font-weight: 500;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 var(--space-4, 16px);
+  /* The same width above and below keeps the word in the middle of the bar. No radius: the active
+     item's underline is a straight bar (#714). */
+  border: solid transparent; border-width: 2px 0;
+  color: var(--muted, #5B6472); text-decoration: none; white-space: nowrap;
+  font-size: 15px; font-weight: 600;
 }
 .shell-nav a.shell-nav-link:hover { color: var(--text, #171C24); background: var(--bg, #F7F7F4); }
+/* Colour and bar only: the weight is the same as the other links', so opening a page moves no link. */
 .shell-nav a.shell-nav-link.active,
 .shell-nav a.shell-nav-link[aria-current='page'] {
-  color: var(--accent-dark, #173E5B); border-bottom-color: var(--accent, #1D5075); font-weight: 600;
+  color: var(--accent-dark, #173E5B); border-bottom-color: var(--accent, #1D5075);
 }
-.shell-header .nav-pending { opacity: .5; cursor: not-allowed; padding: var(--space-1, 4px) var(--space-2, 8px); }
+/* Not available (no account in the city, or the lists still load): the box of a link, so the links do
+   not move when it becomes one; faded, and a dashed bar where the active link has a solid one. */
+.shell-header .nav-pending {
+  opacity: .5; cursor: not-allowed; padding: 0 var(--space-4, 16px);
+  border: solid transparent; border-width: 2px 0; border-radius: 0;
+  border-bottom-style: dashed; border-bottom-color: var(--muted, #5B6472);
+}
 
 .shell-tools {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-3, 12px);
-  margin-left: auto;
+  justify-self: end; max-width: 100%;
 }
 /* No selector (every page but Business and Employee): the empty box takes no row of its own, so a narrow
    header does not end with a blank 8 px gap under the nav (#854). */
@@ -71,16 +93,32 @@
 .shell-header .demo-account-status a:focus-visible {
   outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; border-radius: var(--radius, 4px);
 }
+/* A link is as high as the bar: its ring is drawn inside it, where the window's top edge cannot cut it. */
+.shell-nav-link:focus-visible { outline-offset: -2px; }
 
-/* 390 px: the nav wraps onto its own row, the tools go full width, the selector stays reachable.
-   The tools come after the nav from 600 px down, so Tab reaches the selector in the order it is drawn (#724). */
+/* The header is drawn in the order Tab visits it at every width: logo, links, selector. No rule here
+   reorders it (#724). */
+/* Up to 900 px the selector (Business and Employee pages) has its own row under the bar, at the right:
+   in the bar it would be squeezed to a few letters beside the centered links. The row is as wide as
+   the header and starts with a hairline, so the active link's bar still lies on a line. The selector is
+   44 px high for a finger. */
+@media (max-width: 900px) {
+  .shell-tools {
+    grid-column: 1 / -1; justify-self: stretch; justify-content: flex-end; max-width: none;
+    margin: 0 calc(-1 * var(--shell-pad)); padding: var(--space-2, 8px) var(--shell-pad);
+    border-top: 1px solid var(--border, #E3E3DE);
+  }
+  .shell-header .demo-account select { min-height: 44px; }
+}
+/* 390 px: the logo at the left and the three links share the rest of the bar. In a window too narrow
+   for that the links wrap inside the nav; they never run past the edge. */
 @media (max-width: 600px) {
-  .shell-header { padding: var(--space-2, 8px) var(--space-3, 12px); }
-  .shell-nav { order: 3; flex: 1 1 100%; flex-wrap: wrap; }
-  .shell-tools { margin-left: auto; order: 4; }
+  .shell-header { --shell-pad: var(--space-3, 12px); grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-2, 8px); }
+  .shell-nav { flex-wrap: wrap; gap: 0; }
+  .shell-nav-link { flex: 1 1 auto; }
+  .shell-nav-link, .shell-header .nav-pending { padding: 0 var(--space-1, 4px); }
 }
 @media (max-width: 480px) {
-  .shell-tools { flex: 1 1 100%; margin-left: 0; }
   .shell-header .demo-account-slot, .shell-header .demo-account { width: 100%; }
   .shell-header .demo-account select { flex: 1 1 auto; width: 100%; max-width: 100%; }
 }
