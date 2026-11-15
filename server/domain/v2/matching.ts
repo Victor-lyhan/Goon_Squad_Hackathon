@@ -197,8 +197,8 @@ export function generateCandidates(
       id: planIdFor(shipment.id), shipmentId: shipment.id, kind, legs,
       ...(relayBusinessId === undefined ? {} : { relayBusinessId }),
       deliveryMin: legs[legs.length - 1].stops[1].serviceEndMin,
-      customerPriceCents: customerPriceCents(ctx.settings),
-      platformContributionCents: platformContributionCents(kind, ctx.settings),
+      customerPriceCents: customerPriceCents({ kind, legs }, shipment, ctx.settings),
+      platformContributionCents: platformContributionCents({ kind, legs }, shipment, ctx.settings),
     });
   };
   for (const { trip, employee } of [...evenings, ...mornings]) {

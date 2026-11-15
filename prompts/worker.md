@@ -16,3 +16,7 @@ You are in a private git worktree that already has the right branch checked out.
 - Do NOT commit or push. The script around you commits and pushes your changes.
 - Write SUMMARY.md at the repo root: 3-8 bullet points on what you changed, how you tested it, and anything the reviewer should look at. It becomes the PR description.
 - If you cannot complete the task (missing information, broken contract, depends on unfinished work), write BLOCKED.md instead: first line = one-sentence reason, then details and a suggested fix. Then stop.
+
+## UI work
+Before any UI or styling change, read `.claude/skills/frontend-design/SKILL.md` and follow it (restraint, one bold element, quality floor: responsive, focus states, reduced motion, accessibility; plain copy).
+Where it conflicts with `docs/mvp3.md` / `docs/mvp4.md`, the docs win: keep Inter for UI and IBM Plex Mono for times, ids and numbers, and the MVP III colors.

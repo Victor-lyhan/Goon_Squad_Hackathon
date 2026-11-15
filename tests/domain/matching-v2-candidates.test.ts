@@ -35,7 +35,8 @@ it.each(['evening', 'morning'] as const)('schedules %s direct with endpoint hand
   expect(plan.legs[0].stops[0].serviceStartMin).toBe(readyMin);
   expect(plan.deliveryMin).toBe(readyMin + 14);
   expect(plan.legs[0].finishMin).toBe(evening ? 1047 : 1962);
-  expect(plan).toMatchObject({ customerPriceCents: 1000, platformContributionCents: 650 });
+  // #861: one leg at 300 + platform fee 400, no flexibility discount (the window is under 18 h); 700 - 300 - 50 = 350.
+  expect(plan).toMatchObject({ customerPriceCents: 700, platformContributionCents: 350 });
   expect(generateCandidates(shipment({ readyMin: readyMin + 2 }), ctx)).toEqual([]);
   expect(generateCandidates(shipment({ deadlineMin: (evening ? 1020 : 1945) + 13 }), ctx)).toEqual([]);
   expect(generateCandidates(shipment(), { ...ctx, employees: [{ ...e, maxExtraMin: 3 }] })).toEqual([]);

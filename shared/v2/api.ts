@@ -22,6 +22,8 @@
 //   GET   /api/v2/scenario/export               -> ExportFile
 //   POST  /api/v2/scenario/import (body: Run)   -> SimulatorResponse
 //   GET   /api/v2/geocode?q=                    -> GeocodeResponse (503 TravelUnavailable without a server key)
+//   POST  /api/v2/advise (body: AdviseRequest)  -> AdviseResponse (reads the run, never changes it; #862)
+import type { ParseDraft } from './parseRequest';
 import type {
   NetworkBusiness, Home, Employee, Trip, Shipment, DeliveryPlan, Job, Notification,
   ShipmentProgress, JobStatus, Snapshot, Run, Clock, AssignmentResult, Metrics,
@@ -129,4 +131,33 @@ export type GeocodeResponse = { results: { label: string; neighborhood: string; 
 export type TravelUnavailable = {
   error: string;
   code: 'google_key_missing' | 'travel_data_missing' | 'google_unavailable';
+};
+
+// POST /api/v2/advise (#862, the AI what-if advisor). Read-only: nothing is reserved or saved.
+// The body is the parsed draft; `originBusinessId`, `destinationBusinessId`, `readyMin` and `deadlineMin`
+// must be filled (else 400 with the ApiError body). Every number of an option is copied from the engine's
+// plan for that variant, never from Gemini; Gemini (when there is a key) only picks variants and writes
+// `label` and `summary`.
+export type AdviseRequest = { draft: ParseDraft };
+
+export type AdviseOption = {
+  label: string;                                   // <= 60 characters
+  summary: string;                                 // <= 140 characters
+  /** What to change in the form to get this option. Empty for the request as typed. */
+  changes: { readyMin?: number; deadlineMin?: number };
+  kind: 'direct' | 'relay';
+  relayBusinessId?: string;
+  carrierNames: string[];                          // the plan's carriers, in leg order
+  deliveryMin: number;
+  extraMin: number;                                // the carriers' added minutes, summed over the legs
+  extraMiles: number;                              // the carriers' added distance in miles, one decimal
+  customerPriceCents: number;                      // the plan's customerPriceCents
+};
+
+export type AdviseResponse = {
+  /** 0 to 3 options, all matchable now. 0 when no allowed variant finds a carrier (`note` says why). */
+  options: AdviseOption[];
+  source: 'gemini' | 'offline';
+  /** A plain sentence when there is something to add, e.g. why no option could be matched. */
+  note?: string;
 };

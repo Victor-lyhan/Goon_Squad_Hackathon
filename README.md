@@ -72,7 +72,7 @@ A changed story or default limit starts a fresh run at the next restart: if `bus
 So expect this on the first start after a `git pull` that changed the story, also on the demo machine. The line comes before the one about the built client:
 
 ```
-The NYC story files or the default detour limit changed since data/state-v2.json was saved. Started from the new default run; the old run is kept as data/state-v2.json.stale-1.
+The NYC story files, the default detour limit or the default prices changed since data/state-v2.json was saved. Started from the new default run; the old run is kept as data/state-v2.json.stale-1.
 ```
 
 It is not an error. The deliveries made before the pull are in the `.stale-<n>` file and no longer in the app; the number goes up with every run that is set aside.
@@ -127,7 +127,7 @@ deliver_by: Day 2, 10:00 AM
 relay_point: Etsy
 evening_carrier: Elena Rossi
 morning_carrier: Reese Green
-price: $10.00
+price: $9.50
 ```
 
 The package name is "Envelope" because the offline parser names a delivery by its item word; "Espresso blend samples" becomes the contents. The sender is not in the sentence: a request is always sent from the business whose page it is typed on. The card shows the times as its fields hold them: "Ready for pickup (Day 1)" 16:00, "Deliver by: day" Day 2 and "Deliver by: time" 10:00 (the browser may write the two times as 04:00 PM and 10:00 AM).
@@ -140,7 +140,7 @@ Press **Back to start** in the Simulator before step 2 if a journey or **Play** 
 
 1. **Employee** (`/employee/emp-7`, or choose **Elena Rossi** as the **Demo account**, where she is listed as "Elena Rossi · Brooklyn Roasting Company"): show the **Saved commute** between the Upper East Side and Brooklyn Roasting Company, the two departure times and the **Detour limit**.
 2. **Business** (`/business/biz-brooklyn-roasting`, Brooklyn Roasting Company): choose **New delivery**, which opens on the text box "Describe the delivery". Type the sentence above and choose **Read my request**. The form opens filled in, as the card to check: the label above it reads "Parsed offline" without a Gemini key and "Parsed by Gemini" with one (the page prints it in capitals), with the sentence next to it, and the fields hold the recipient "Blue Bottle Coffee · Financial District", the package name "Envelope", the type Envelope, 0.5 kg and the contents "Espresso blend samples". Nothing is sent yet. Then choose **Find a delivery match**: the backend looks for a matching commute. If the sentence is not read as above, **Fill in the form instead** in the text box opens the same form empty: pick the recipient and enter the package name and the contents of the block (the type, the weight and the times are the form's defaults).
-3. The form answers **Delivery arranged** with the shipment ID, under the form's fields. **View delivery** opens the details on the right: plan **Relay via Etsy (relay point)**, the ETA, price **$10.00**, and the carriers Elena Rossi (evening commute, Day 1) and Reese Green (morning commute, Day 2).
+3. The form answers **Delivery arranged** with the shipment ID, under the form's fields. **View delivery** opens the details on the right: plan **Relay via Etsy (relay point)**, the ETA, price **$9.50** ([Pricing](#pricing): a relay with the flexibility discount, since the request leaves 18 hours between ready and deliver-by), and the carriers Elena Rossi (evening commute, Day 1) and Reese Green (morning commute, Day 2).
 4. Back in **Employee** as Elena Rossi, without refreshing (the header's link opens her page, because step 1 chose her): the new job, "Envelope", is under **Assigned deliveries**, with its pickup, drop-off, extra time and reward. Her leg of "Navy Yard grinder burrs" is listed there too.
 5. **Simulator**: on the new delivery, "Envelope", choose **Watch in simulator** (or **View journey** in the Business delivery details). Both open `/simulator?package=<shipment ID>&play=1`, and the journey starts playing by itself; it takes about 16 seconds. Elena Rossi leaves work, which is the sender: the package is picked up at Brooklyn Roasting Company, dropped at the relay point Etsy, waits there overnight (an "Overnight at Etsy" card stands in for the wait), and is delivered to Blue Bottle Coffee in the morning, on Reese Green's commute to work. The controls are at the bottom center of the map: **Pause** stops it where it is, **Play** goes on from there, and **Back to start** rewinds. Let it play to the end before step 6: the line under the buttons then reads "Journey complete: Delivered to recipient at Blue Bottle Coffee."
 6. The same run is in every workspace: once the journey has played to the end, the delivery reads **Delivered** for the sender (`/business/biz-brooklyn-roasting`) and for the recipient (`/business/biz-blue-bottle-wall`), and **Earnings** on the pages of Elena Rossi and Reese Green (choose each as the **Demo account**) show the reward as **Earned**. Elena Rossi's amount also counts her leg of "Navy Yard grinder burrs", which is delivered by the same minute.
@@ -226,6 +226,20 @@ curl -s -X POST http://localhost:3001/api/v2/parse-request \
 
 The answer ends with `"source":"gemini"` when Gemini wrote the draft and with `"source":"offline"` when the offline parser did.
 
+## Pricing
+The sender's price is set per delivery plan by one function, `customerPriceCents` in `server/domain/pricing.ts`. Every price in the app (the match result, the delivery details, the shipments table, the notifications, the summary numbers and the study) is its result:
+
+price = carrier pay + relay fee + platform fee − flexibility discount
+
+| Part | Default | Setting | When |
+| --- | --- | --- | --- |
+| Carrier pay | $3.00 per commute | `legRewardCents` | Once for a direct delivery, twice for a relay |
+| Relay fee | $0.50 | `hubCostCents` | Only when the package waits at a relay point |
+| Platform fee | $4.00 | `platformFeeCents` | Every delivery |
+| Flexibility discount | $1.00 off | `flexDiscountCents` | When deliver-by is at least 18 hours after ready (`flexWindowMin`, 1080 minutes) |
+
+So a direct delivery costs $7.00 ($6.00 flexible) and a relay $10.50 ($9.50 flexible). The courier price the summary compares with is unchanged ($14.00, `courierPriceCents`), and a saving is never shown as negative. Which plan a package gets does not depend on the price: the matcher still ranks by carrier cost, then added time, then delivery time.
+
 ## The numbers: Relay vs traditional delivery
 `/study.html` compares Relay with traditional delivery: the same packages sent two ways, on a commute an employee already drives or on a dedicated courier trip. The page is one committed file, `client/public/study.html`, with its charts inside; every run behind it is in `client/public/study/runs.csv`, which the page links to as **Download every run (CSV)**. It needs no key, no network and no study run: open http://localhost:5173/study.html with `npm run dev`, or http://localhost:3001/study.html with `npm start` after `npm run build`.
 
@@ -235,7 +249,7 @@ The headline numbers of the committed page, per package that Relay matched:
 
 | Measure | Relay against the courier | In figures |
 | --- | --- | --- |
-| Cost to the sender | 37.5% less | Relay $10.00 vs courier $16.00 per package |
+| Cost to the sender | 54.8% less | Relay $7.24 vs courier $16.00 per package |
 | Added vehicle miles | 77.0% less | Relay 1.2 mi vs courier 5.0 mi per package |
 | CO₂ | 77.0% less | Relay 0.46 kg vs courier 2.01 kg per package |
 | Delivered by the courier's promised time | 100.0% | 33.4% a day early, 0.0% late |
@@ -247,9 +261,10 @@ What the numbers mean, and what they do not:
 
 - **"Per package" means per package that Relay matched.** A package with no suitable commute would go by courier at the courier's price, so it is left out of the comparison and counted in the match rate. Read the savings together with the match rate: 58.2% of the requested packages got them. The match rate rises as more employees join: 37.4% with 30 employees, 77.8% with 120.
 - **"100% on time" holds by construction. It is not a measured reliability.** Every simulated deadline is at or before Day 2, 10:00 AM, which is before the courier's promise (Day 2, 10:30 AM), and Relay only accepts a package it can deliver by its deadline. So a matched package cannot be late. The cost of that rule shows in the match rate, not in lateness: a package Relay cannot deliver in time is not matched.
+- **Relay's price is set per package, by the app's own price rule** ([Pricing](#pricing)): $3.00 for each commute that carries it, $0.50 when it waits at a relay point, a $4.00 platform fee, less $1.00 for a flexible delivery window. Every simulated package is ready at 4:00 PM and due by 10:00 AM the next day, which is exactly the 18 hours that count as flexible, so every simulated price has the discount: $6.00 on one commute, $9.50 on two. A request with a tighter window would cost $1.00 more.
 - **CO₂ follows the miles.** Both sides are counted with the same CO₂ per mile, so the two percentages are equal.
 - **The saving varies from run to run.** Relay is ahead on cost in 3,013 of 3,013 runs, and on miles and CO₂ in 3,003 of 3,013 runs. In the other ten only 1 to 4 packages matched, and 11 of the 3,024 runs matched no package, so they have no per-package value. The page has the spread across runs (median and 10th to 90th percentile), the match rate by number of employees and the results by detour limit; every run is in the CSV.
-- **Every assumption is listed on the page with its value and the reason for it**: the prices of Relay and of the courier, the courier's promise, how the miles of each side are counted and the CO₂ per mile. No other number is typed in; the rest is travel data from the cache and simulation output. The values are in `scripts/study/assumptions.ts`.
+- **Every assumption is listed on the page with its value and the reason for it**: the four values Relay's price is built from and the flexible window, the courier's prices, the courier's promise, how the miles of each side are counted and the CO₂ per mile. No other number is typed in; the rest is travel data from the cache and simulation output. The values are in `scripts/study/assumptions.ts`.
 
 ### Run the study again
 ```bash

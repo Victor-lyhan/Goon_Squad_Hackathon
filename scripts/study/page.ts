@@ -632,6 +632,7 @@ ${tiles}
 We ran every combination of seeds ${listOrRange(grid.seeds)}; ${list(grid.employeeCounts)} commuting employees; ${list(grid.packageCounts)} packages; and detour limits of ${list(grid.detourLimitsMin)} minutes per commute:
 ${count(grid.plannedRuns)} runs planned, ${count(grid.completedRuns)} simulated, ${count(skipped)} skipped (a skipped run needs a driving distance the cache does not have; it is never estimated).
 For every package Relay matched to a commute, the baseline is the same package sent with a <strong>standard next-day B2B courier</strong>: one dedicated trip from sender to recipient, promised by ${promiseClock} on the next business day. It is <strong>not a same-hour courier</strong>.
+Relay’s price is built for each package from the pricing values in the assumptions table: the pay of each carrier, a relay fee when the package waits overnight at a relay point, and the platform fee, minus a discount for a flexible delivery window.
 “Per package” always means per package Relay matched. A package with no suitable commute would go by courier at the courier’s price, so it is left out of the comparison and counted in the match rate instead.
 Every number that is not travel data or simulation output is in the <a href="#assumptions">assumptions table</a>.</p>
 <dl class="facts">${facts}</dl>

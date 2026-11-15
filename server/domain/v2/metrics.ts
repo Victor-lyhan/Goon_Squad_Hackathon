@@ -56,8 +56,11 @@ export function computeMetrics(input: ComputeMetricsInput): Metrics {
       ),
       0,
     ), 0),
-    projectedCustomerSavingsCents: plans.length * projectedCustomerSavingsCents(settings),
-    projectedCustomerSpendCents: plans.length * settings.priceCents
+    projectedCustomerSavingsCents: plans.reduce(
+      (total, plan) => total + projectedCustomerSavingsCents(plan, settings),
+      0,
+    ),
+    projectedCustomerSpendCents: plans.reduce((total, plan) => total + plan.customerPriceCents, 0)
       + unmatched.length * settings.courierPriceCents,
     projectedPlatformContributionCents: plans.reduce(
       (total, plan) => total + plan.platformContributionCents,

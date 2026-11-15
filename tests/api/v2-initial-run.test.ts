@@ -23,7 +23,7 @@ const RELAY_PLAN = {
       finishMin: 1964, extraMin: 4, extraDistanceM: 0, rewardCents: 300,
     },
   ],
-  deliveryMin: 1964, customerPriceCents: 1000, platformContributionCents: 300,
+  deliveryMin: 1964, customerPriceCents: 1050, platformContributionCents: 350,
 };
 
 const DIRECT_PLAN = {
@@ -35,7 +35,7 @@ const DIRECT_PLAN = {
       finishMin: 1059, extraMin: 4, extraDistanceM: 0, rewardCents: 300,
     },
   ],
-  deliveryMin: 1054, customerPriceCents: 1000, platformContributionCents: 650,
+  deliveryMin: 1054, customerPriceCents: 700, platformContributionCents: 350,
 };
 
 describe('v2 createInitialRun on the hand-built scenario', () => {
@@ -111,7 +111,7 @@ describe('v2 createInitialRun on the hand-built scenario', () => {
     });
     expect(run.notifications).toEqual([
       n('ntf-plan-shp-1-biz-print-shop', 'business', PRINT, 'plan-shp-1',
-        'Delivery arranged: "Poster proofs" to Midtown Agency via Corner Cafe (relay point), $10.00.', 1),
+        'Delivery arranged: "Poster proofs" to Midtown Agency via Corner Cafe (relay point), $10.50.', 1),
       n('ntf-plan-shp-1-biz-agency', 'business', AGENCY, 'plan-shp-1',
         'Incoming delivery: "Poster proofs" from Northside Print Shop via Corner Cafe (relay point).', 2),
       // The relay business itself (#535): it holds the package overnight.
@@ -122,7 +122,7 @@ describe('v2 createInitialRun on the hand-built scenario', () => {
       n('ntf-plan-shp-1-L1', 'employee', 'emp-2', 'plan-shp-1',
         'New delivery job: "Poster proofs". Collect from Corner Cafe and deliver to Midtown Agency. Reward $3.00.', 5, 'plan-shp-1-L1'),
       n('ntf-plan-shp-2-biz-agency', 'business', AGENCY, 'plan-shp-2',
-        'Delivery arranged: "Signed contract" to Northside Print Shop, $10.00.', 6),
+        'Delivery arranged: "Signed contract" to Northside Print Shop, $7.00.', 6),
       n('ntf-plan-shp-2-biz-print-shop', 'business', PRINT, 'plan-shp-2',
         'Incoming delivery: "Signed contract" from Midtown Agency.', 7),
       n('ntf-plan-shp-2-L0', 'employee', 'emp-3', 'plan-shp-2',

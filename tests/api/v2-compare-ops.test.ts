@@ -44,9 +44,9 @@ describe('compareRun on a city where only a relay can carry one package', () => 
       requested: 3, matched: 1, delivered: 0, direct: 1, relay: 0, unmatched: 2,
       avgExtraMinPerTrip: 8, maxExtraMin: 8,
       earnedRewardsCents: 0,
-      projectedCustomerSavingsCents: 400,          // 1 matched x (1400 - 1000)
-      projectedCustomerSpendCents: 3800,           // 1 x 1000 + 2 unmatched x 1400
-      projectedPlatformContributionCents: 650,
+      projectedCustomerSavingsCents: 700,          // 1 matched direct: 1400 - 700
+      projectedCustomerSpendCents: 3500,           // 1 x 700 + 2 unmatched x 1400
+      projectedPlatformContributionCents: 350,
       earnedPlatformContributionCents: 0,
       extraDistanceM: 2100,
     });

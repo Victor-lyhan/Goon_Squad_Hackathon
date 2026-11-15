@@ -10,6 +10,7 @@ import {
   bootV2Run, buildDefaultRun, defaultRunFingerprint, readNycFixtures, sourcePathFor,
   DEFAULT_RUN_REQUEST, DEFAULT_V2_STATE_PATH, type NycFixtures, type V2Boot,
 } from '../../server/api/v2/bootRun';
+import { DEFAULT_SETTINGS } from '../../server/domain/pricing';
 import { pairKey } from '../../shared/v2/types';
 import { bootSample, FIXTURES_DIR, runJson, type BootSample } from './v2-boot-sample';
 
@@ -110,6 +111,25 @@ describe('defaultRunFingerprint', () => {
       defaultRunFingerprint(fixtures, { ...DEFAULT_RUN_REQUEST, seed: DEFAULT_RUN_REQUEST.seed + 1 }),
     ];
     expect(new Set([base, ...others]).size).toBe(others.length + 1);
+  }, T);
+
+  it('differs when a default price changes: a run saved under other prices is stale (#861)', () => {
+    // A run saved before #861 has plans at the old flat price and settings without the pricing values, so the
+    // default settings are part of the fingerprint. The exported object is changed here and put back.
+    const settings = DEFAULT_SETTINGS as { platformFeeCents: number; flexWindowMin: number };
+    const { platformFeeCents, flexWindowMin } = settings;
+    try {
+      settings.platformFeeCents = platformFeeCents + 50;
+      const dearer = defaultRunFingerprint(fixtures, DEFAULT_RUN_REQUEST);
+      settings.platformFeeCents = platformFeeCents;
+      settings.flexWindowMin = flexWindowMin + 60;
+      const longer = defaultRunFingerprint(fixtures, DEFAULT_RUN_REQUEST);
+      expect(new Set([base, dearer, longer]).size).toBe(3);
+    } finally {
+      settings.platformFeeCents = platformFeeCents;
+      settings.flexWindowMin = flexWindowMin;
+    }
+    expect(defaultRunFingerprint(fixtures, DEFAULT_RUN_REQUEST)).toBe(base);
   }, T);
 
   it('the travel cache is not an input: the function takes the three files and the request only', () => {
@@ -240,7 +260,7 @@ describe('bootV2Run: the sidecar and the stale rule', () => {
     expect(sidecar().fingerprint).not.toBe(oldFingerprint);
 
     expect(result.notice).toBe(
-      `The NYC story files or the default detour limit changed since ${statePath} was saved. `
+      `The NYC story files, the default detour limit or the default prices changed since ${statePath} was saved. `
       + `Started from the new default run; the old run is kept as ${statePath}.stale-1.`,
     );
     expect(result.notice).not.toMatch(/\n/);

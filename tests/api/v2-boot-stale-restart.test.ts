@@ -104,7 +104,7 @@ describe('v2 runtime restarts around a story change', () => {
     // --- the notice: on the runtime, printed once by the server start, by nothing else
     const notice = second.runtime.notice!;
     expect(notice).toBe(
-      `The NYC story files or the default detour limit changed since ${repo.statePath} was saved. `
+      `The NYC story files, the default detour limit or the default prices changed since ${repo.statePath} was saved. `
       + `Started from the new default run; the old run is kept as ${repo.statePath}.stale-1.`,
     );
     const lines = v2StartLines(second.runtime);

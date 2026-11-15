@@ -79,9 +79,11 @@ export type Notification = {
 export type Settings = {
   handlingMin: number;                 // 2
   defaultMaxExtraMin: number;          // 8
-  priceCents: number;                  // 1000
-  legRewardCents: number;              // 300
-  hubCostCents: number;                // 50
+  legRewardCents: number;              // 300  carrier pay per leg
+  hubCostCents: number;                // 50   relay fee, relay plans only
+  platformFeeCents: number;            // 400  per package
+  flexDiscountCents: number;           // 100  off when deadlineMin - readyMin >= flexWindowMin
+  flexWindowMin: number;               // 1080 (18 h)
   platformVariableCostCents: number;   // 50
   courierPriceCents: number;           // 1400
   simStartMin: number;                 // 930  (Day 1 15:30)
@@ -147,7 +149,7 @@ export type Metrics = {
   avgExtraMinPerTrip: number | null; maxExtraMin: number | null;
   earnedRewardsCents: number;
   projectedCustomerSavingsCents: number;
-  projectedCustomerSpendCents: number;        // matched*price + unmatched*courier
+  projectedCustomerSpendCents: number;        // sum of matched plans' prices + unmatched*courier
   projectedPlatformContributionCents: number;
   earnedPlatformContributionCents: number;
   extraDistanceM: number;

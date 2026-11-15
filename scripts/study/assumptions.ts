@@ -6,7 +6,11 @@ import { DEFAULT_SETTINGS } from '../../server/domain/pricing';
 import type { Assumption, AssumptionKey } from './types';
 
 export const ASSUMPTION_KEYS: readonly AssumptionKey[] = [
-  'relayPriceCents',
+  'legRewardCents',
+  'hubCostCents',
+  'platformFeeCents',
+  'flexDiscountCents',
+  'flexWindowMin',
   'courierEnvelopeCents',
   'courierSmallBoxCents',
   'courierPromisedByMin',
@@ -21,11 +25,39 @@ export const ASSUMPTION_KEYS: readonly AssumptionKey[] = [
 /** The study's default assumptions, in the order the page shows them. */
 export const ASSUMPTIONS: readonly Assumption[] = [
   {
-    key: 'relayPriceCents',
-    label: 'Relay price per package',
-    value: DEFAULT_SETTINGS.priceCents,
+    key: 'legRewardCents',
+    label: 'Relay price: pay to the carrier, per commute',
+    value: DEFAULT_SETTINGS.legRewardCents,
+    unit: 'cents per commute that carries the package',
+    reason: 'The app pays this to the employee for each commute that carries the package, one for a direct delivery and two for a relay: a few dollars for a stop of a few minutes on a drive they make anyway.',
+  },
+  {
+    key: 'hubCostCents',
+    label: 'Relay price: relay fee',
+    value: DEFAULT_SETTINGS.hubCostCents,
+    unit: 'cents per package held overnight at a relay point',
+    reason: 'Only a package carried on two commutes pays it, for the business that keeps the package overnight between the evening carrier and the morning carrier.',
+  },
+  {
+    key: 'platformFeeCents',
+    label: 'Relay price: platform fee',
+    value: DEFAULT_SETTINGS.platformFeeCents,
     unit: 'cents per package',
-    reason: "Relay's flat price in the app's own settings, the same for an envelope and a small box; every simulated plan is priced with it.",
+    reason: "Relay's own charge for matching, tracking and support, the same for a direct and a relay delivery and for an envelope and a small box.",
+  },
+  {
+    key: 'flexDiscountCents',
+    label: 'Relay price: flexibility discount',
+    value: DEFAULT_SETTINGS.flexDiscountCents,
+    unit: 'cents off per package with a flexible delivery window',
+    reason: 'A long delivery window is easier to match, so it costs less; every simulated package is ready at 4:00 p.m. and due by 10:00 a.m. the next day, so every simulated price includes this discount, and a tighter request would cost this much more.',
+  },
+  {
+    key: 'flexWindowMin',
+    label: 'Relay price: shortest flexible delivery window',
+    value: DEFAULT_SETTINGS.flexWindowMin,
+    unit: `minutes from the ready time to the deadline (${DEFAULT_SETTINGS.flexWindowMin / 60} hours)`,
+    reason: 'A request counts as flexible when its deadline is at least this long after its ready time, such as ready in the afternoon and due the next morning, which leaves both the evening and the morning commutes open to it.',
   },
   {
     key: 'courierEnvelopeCents',

@@ -32,7 +32,7 @@ const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const bodyOf = (method: string): Sent => (method === 'GET' ? NO_BODY : json({}));
 
 describe('the write routes of /api/v2, as the router lists them', () => {
-  it('are the nine of the issue plus the read-only comparison and parse-request, and each has a sweep entry', () => {
+  it('are the nine of the issue plus the read-only comparison, parse-request and advise, and each has a sweep entry', () => {
     const listed = sweep.writeRoutes.map((route) => route.key);
     expect(listed).toEqual(expect.arrayContaining([
       'POST /shipments', 'PATCH /shipments/:id', 'POST /shipments/:id/match',   // create, edit, retry
@@ -40,7 +40,7 @@ describe('the write routes of /api/v2, as the router lists them', () => {
       'POST /simulator/control',                                                 // the simulator control
       'POST /planning/reset', 'POST /matches/recompute',                         // new planning cycle, recompute
       'POST /scenario/generate', 'POST /scenario/import',                        // generate, import
-      'POST /matches/compare', 'POST /parse-request',                            // the two that only read
+      'POST /matches/compare', 'POST /parse-request', 'POST /advise',            // the three that only read
     ]));
     // A route added to the router fails here until it has an entry (and so its own broken-field cases).
     expect([...listed].sort(), 'keep WRITE_SPECS in tests/api/v2-sweep-helper.ts in step with the router')

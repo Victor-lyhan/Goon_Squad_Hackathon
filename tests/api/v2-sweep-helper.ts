@@ -140,6 +140,19 @@ export const validImport = (ctx: SweepContext): Record<string, unknown> => JSON.
 export const validParseRequest = (): Record<string, unknown> =>
   ({ text: 'Deliver an envelope from Etsy to Brooklyn Roasting by 10 a.m. tomorrow.' });
 
+/** A parsed draft POST /advise accepts (#862): the four fields the engine needs, the rest may be left out. */
+export function validAdvise(ctx: SweepContext): Record<string, unknown> {
+  const { simStartMin, simEndMin } = ctx.run.scenario.settings;
+  return {
+    draft: {
+      originBusinessId: ctx.businesses[0].id,
+      destinationBusinessId: ctx.businesses[1].id,
+      readyMin: simStartMin + 30,
+      deadlineMin: simEndMin,
+    },
+  };
+}
+
 const none = () => '';
 
 /**
@@ -170,6 +183,9 @@ export const WRITE_SPECS: Record<string, WriteSpec> = {
   // Reads the run to draft a delivery request from a sentence; stores nothing (docs/mvp4.md F1).
   'POST /parse-request':
     { id: none, valid: validParseRequest, withoutBody: 'refused', emptyObject: 'refused', changesRun: false },
+  // Reads the run and asks the engine about what-if variants of a draft; stores nothing (#862).
+  'POST /advise':
+    { id: none, valid: validAdvise, withoutBody: 'refused', emptyObject: 'refused', changesRun: false },
 };
 
 /** The ID a route added after this sweep gets in its URL. */

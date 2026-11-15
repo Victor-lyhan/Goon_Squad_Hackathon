@@ -4,7 +4,7 @@ import { buildTimeline } from '../../server/domain/v2/timeline.js';
 
 const direct: DeliveryPlan = {
   id: 'plan-direct', shipmentId: 'shp-direct', kind: 'direct', deliveryMin: 110,
-  customerPriceCents: 1000, platformContributionCents: 650,
+  customerPriceCents: 700, platformContributionCents: 350,
   legs: [{
     tripId: 'emp-direct-eve', employeeId: 'emp-direct', placeIds: ['biz-a', 'biz-b', 'home-a'],
     stops: [
@@ -17,7 +17,7 @@ const direct: DeliveryPlan = {
 
 const relay: DeliveryPlan = {
   id: 'plan-relay', shipmentId: 'shp-relay', kind: 'relay', relayBusinessId: 'biz-relay', deliveryMin: 210,
-  customerPriceCents: 1000, platformContributionCents: 300,
+  customerPriceCents: 1050, platformContributionCents: 350,
   legs: [
     {
       tripId: 'emp-evening-eve', employeeId: 'emp-evening', placeIds: ['biz-a', 'biz-relay', 'home-a'],

@@ -52,11 +52,24 @@ export function studyInputOf(data: StudyData): StudyInput {
   };
 }
 
-/** The scenario of one grid cell: a Random city, priced with the study's Relay price. */
+/**
+ * The scenario of one grid cell: a Random city whose settings hold the study's pricing values, so the engine's
+ * one price function (`customerPriceCents` in server/domain/pricing.ts) prices every plan with them.
+ */
 function scenarioFor(params: RunParams, input: StudyInput, a: AssumptionValues): Scenario {
   const request = GenerateScenarioRequest.parse({ preset: 'random', ...params });
   const scenario = buildNycScenario({ ...input.fixtures, places: input.places, request });
-  return { ...scenario, settings: { ...scenario.settings, priceCents: a.relayPriceCents } };
+  return {
+    ...scenario,
+    settings: {
+      ...scenario.settings,
+      legRewardCents: a.legRewardCents,
+      hubCostCents: a.hubCostCents,
+      platformFeeCents: a.platformFeeCents,
+      flexDiscountCents: a.flexDiscountCents,
+      flexWindowMin: a.flexWindowMin,
+    },
+  };
 }
 
 /**

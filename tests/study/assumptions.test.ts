@@ -126,7 +126,7 @@ describe('the assumptions list', () => {
 
   it('money is whole cents and the promise is a whole minute of the morning', () => {
     const a = assumptionValues(ASSUMPTIONS);
-    for (const cents of [a.relayPriceCents, a.courierEnvelopeCents, a.courierSmallBoxCents]) {
+    for (const cents of [a.legRewardCents, a.hubCostCents, a.platformFeeCents, a.flexDiscountCents, a.courierEnvelopeCents, a.courierSmallBoxCents]) {
       expect(Number.isInteger(cents)).toBe(true);
       expect(cents).toBeGreaterThan(0);
     }
@@ -135,9 +135,14 @@ describe('the assumptions list', () => {
     expect(a.courierPromisedByMin).toBeLessThan(12 * 60);
   });
 
-  it('agrees with the app: the same Relay price and the same courier price for an envelope', () => {
+  it('agrees with the app: the same four Relay pricing values, the same flexible window and the same courier price for an envelope', () => {
     const a = assumptionValues(ASSUMPTIONS);
-    expect(a.relayPriceCents).toBe(DEFAULT_SETTINGS.priceCents);
+    // #861: carrier pay per commute, relay fee, platform fee and flexibility discount, as the app's settings hold them.
+    expect([a.legRewardCents, a.hubCostCents, a.platformFeeCents, a.flexDiscountCents]).toEqual([300, 50, 400, 100]);
+    for (const key of ['legRewardCents', 'hubCostCents', 'platformFeeCents', 'flexDiscountCents', 'flexWindowMin'] as const) {
+      expect(a[key], key).toBe(DEFAULT_SETTINGS[key]);
+    }
+    expect(a.flexWindowMin).toBe(18 * 60);
     expect(a.courierEnvelopeCents).toBe(DEFAULT_SETTINGS.courierPriceCents);
     expect(a.courierSmallBoxCents).toBeGreaterThanOrEqual(a.courierEnvelopeCents);
   });
@@ -156,7 +161,7 @@ describe('assumptionValues', () => {
   });
 
   it('refuses a missing, repeated, unknown or non-finite assumption', () => {
-    expect(() => assumptionValues(ASSUMPTIONS.slice(1))).toThrow(/missing: relayPriceCents/);
+    expect(() => assumptionValues(ASSUMPTIONS.slice(1))).toThrow(/missing: legRewardCents/);
     expect(() => assumptionValues([...ASSUMPTIONS, ASSUMPTIONS[0]!])).toThrow(/listed twice/);
     expect(() => assumptionValues([...ASSUMPTIONS, { ...ASSUMPTIONS[0]!, key: 'tipCents' as never }])).toThrow(/Unknown study assumption "tipCents"/);
     expect(() => assumptionValues(ASSUMPTIONS.map((assumption, index) => (index === 0 ? { ...assumption, value: Number.NaN } : assumption)))).toThrow(/finite number/);

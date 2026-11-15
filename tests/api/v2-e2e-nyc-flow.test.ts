@@ -11,6 +11,7 @@ import type {
   BusinessDashboard, EmployeeDashboard, JobResponse, ShipmentResponse, SimulatorResponse,
 } from '../../shared/v2/api';
 import type { DeliveryPlan, Leg } from '../../shared/v2/types';
+import { customerPriceCents } from '../../server/domain/pricing';
 import {
   businessAt, DAY_2_MIN, deliveryRequest, expectInNyc, expectPositionsInNyc, expectStatusesFromPlans,
   findMatchingDelivery, readCity, recordFetch, startNycApi, stopsOf, T,
@@ -59,9 +60,9 @@ function expectArranged(view: ShipmentResponse): void {
   expect(plan.deliveryMin).toBeLessThanOrEqual(shipment.deadlineMin);
   expect(plan.deliveryMin).toBe(stopsOf(plan).at(-1)!.serviceEndMin);
 
-  // Price: whole cents, and the price list's amount.
+  // Price: whole cents, and the one price function's amount for this plan and this delivery window (#861).
   expect(Number.isInteger(plan.customerPriceCents)).toBe(true);
-  expect(plan.customerPriceCents).toBe(city.settings.priceCents);
+  expect(plan.customerPriceCents).toBe(customerPriceCents(plan, shipment, city.settings));
 
   // Carriers: one known employee per leg, one job per leg, each with a reward.
   expect(plan.legs).toHaveLength(plan.kind === 'relay' ? 2 : 1);
@@ -457,7 +458,7 @@ describe('MVP II demo flow on the committed NYC cache, no key', () => {
     expect(metrics.earnedRewardsCents).toBe(sum(end.jobs.map((job) => job.rewardCents)));
     expect(metrics.earnedRewardsCents).toBe(sum(Object.values(end.snapshot.earningsCents)));
     expect(metrics.projectedCustomerSpendCents).toBe(
-      end.plans.length * city.settings.priceCents + end.unmatched.length * city.settings.courierPriceCents,
+      sum(end.plans.map((plan) => plan.customerPriceCents)) + end.unmatched.length * city.settings.courierPriceCents,
     );
     expect(metrics.maxExtraMin).toBe(Math.max(...end.plans.flatMap((plan) => plan.legs).map((leg) => leg.extraMin)));
     expect(metrics.avgExtraMinPerTrip).toBeLessThanOrEqual(metrics.maxExtraMin as number);
