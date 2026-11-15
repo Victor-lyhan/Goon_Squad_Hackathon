@@ -56,17 +56,45 @@
 
 /* ---------- Notes, the step line, a refused step ---------- */
 .ctl-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-/* The status line stays in the page when empty (never display: none), so its next text is announced. */
-.ctl-status { margin: 0; font-size: var(--text-sm, 13px); line-height: 1.45; }
+/* The status line (the live region) stays in the page when empty (never display: none), so its next text
+   is announced. #842: it is visually hidden and holds the full text for screen readers; `.ctl-line` above
+   it is the copy that is shown (aria-hidden, with the full text as its title). */
+.ctl-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* #842: the shown step line is never more than two lines. In the narrowest map (220 px: a 900 px window
+   with both panels open) a step line took three or four lines, so the bar grew upward and Play/Pause
+   moved at each step; now a longer line is cut with an ellipsis. */
+.ctl-line {
+  margin: 0;
+  font-size: var(--text-sm, 13px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-height: 2.9em;
+}
 /* #816 (headless Chrome at 1440 x 900): a journey's step line goes between one and two lines as it plays
    ("Step 2 of 4 next: Drop at relay point at Etsy." / "Step 4 of 4 next: Delivered to recipient at
    Brooklyn Roasting Company."), which moved the Packages list up and down under it while nobody touched
-   the page. Once it has text it keeps two lines' height (every step line of the default run's 24 packages
-   is one or two lines at the 295 px column). It applies while the button plays or pauses a seek play:
+   the page. Once it has text it keeps two lines' height, and with the two-line cap above (#842) it is
+   exactly two lines at any map width. It applies while the button plays or pauses a seek play:
    a picked package's journey, and also a running network Play, whose Pause is `pause_journey` too
-   (playButtonView), so "Playing every carrier's commute." keeps a second, empty line. Empty (idle) it
-   takes no room. */
-.ctl-playback[data-play-action$="_journey"] .ctl-status:not(:empty) { min-height: 2.9em; }
+   (playButtonView), so "Playing every carrier's commute." keeps a second, empty line. Empty (idle) the
+   shown line is not rendered and takes no room. */
+.ctl-playback[data-play-action$="_journey"] .ctl-line { min-height: 2.9em; }
 .ctl-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); overflow-wrap: anywhere; }
 
 /* ---------- Keyboard focus: 2px outline plus a 1px ring ---------- */

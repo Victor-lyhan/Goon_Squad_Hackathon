@@ -85,9 +85,10 @@ describe('the floating Play/Pause control (#831)', () => {
 
   it('the empty step line takes no room in the control and is still in the page', () => {
     // The live region is never display: none (controls.css), so the rows are spaced by margins here.
+    // #842: the live region is visually hidden; the shown step line `.ctl-line` is only there with text.
     expect(decls('.spc-playbar .ctl-block').get('gap')).toBe('0');
-    const spaced = RULES.find((r) => r.selectors.includes('.spc-playbar .ctl-status:not(:empty)'))!;
-    expect(spaced.selectors).toEqual(['.spc-playbar .ctl-note', '.spc-playbar .ctl-status:not(:empty)', '.spc-playbar .ctl-error']);
+    const spaced = RULES.find((r) => r.selectors.includes('.spc-playbar .ctl-line'))!;
+    expect(spaced.selectors).toEqual(['.spc-playbar .ctl-note', '.spc-playbar .ctl-line', '.spc-playbar .ctl-error']);
     expect(spaced.decls.map(([k]) => k)).toEqual(['margin-top']);
     expect(decls('.ctl-status').has('display')).toBe(false);
   });

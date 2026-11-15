@@ -95,12 +95,13 @@
   border-radius: var(--radius, 4px);
   text-align: center;
 }
-/* The step line is in the page while empty (controls.css), so the rows are spaced by margins, not by a
-   grid gap: an empty line then adds no room under the buttons. */
+/* The live region is in the page while empty (controls.css; visually hidden since #842), so the rows are
+   spaced by margins, not by a grid gap: it then adds no room under the buttons. The shown step line
+   (`.ctl-line`) is only there with text. */
 .spc-playbar .ctl-block { gap: 0; }
 .spc-playbar .ctl-row { justify-content: center; }
 .spc-playbar .ctl-note,
-.spc-playbar .ctl-status:not(:empty),
+.spc-playbar .ctl-line,
 .spc-playbar .ctl-error { margin-top: var(--space-2, 8px); }
 
 /* ---------- Left panel: failed action ---------- */

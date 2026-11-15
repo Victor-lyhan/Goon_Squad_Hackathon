@@ -10,7 +10,7 @@
 // route. Colours come only from map/layers.ts.
 // #832: one line per step (what happens, and when, in IBM Plex Mono). The carrier lines and each step's
 // short label, place, carrier and extra minutes are under the header's one "Details" toggle, closed at first.
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { formatCents, formatMin } from '../../../../ui/format';
 import { RELAY_INK, toneLabelColor } from '../../../map/layers';
 import type { RouteTone, StopSymbol } from '../../../map/types';
@@ -36,6 +36,8 @@ export type JourneyTimelineViewProps = JourneyTimelineProps & {
   onToggleDetails: () => void;
   /** Prefix of the ids the Details toggle controls; one timeline per page, so the default is enough. */
   idPrefix?: string;
+  /** The journey has just ended (JourneyTimeline's useJustEnded): its last step scrolls into view (#842). */
+  justEnded?: boolean;
 };
 
 const STATE_TEXT: Record<StepState, string> = { done: 'Done', current: 'Next', upcoming: 'Upcoming' };
@@ -140,15 +142,37 @@ function showCurrentStep(el: HTMLLIElement | null): void {
   el.scrollIntoView?.({ block: 'nearest' });
 }
 
-type StepProps = { step: JourneyStep; next: JourneyStep | undefined; onSeek: JourneyTimelineProps['onSeek']; detailsOpen: boolean };
+/**
+ * #842: when the journey ends (every step done) there is no current step, so the Delivered step and its
+ * meta line stayed about 45 px below the Inspector's fold at 1440 x 900. The last step then scrolls into
+ * view once, by the same rules. A function of its own, not showCurrentStep: the Delivered step was the
+ * current one just before, and React calls a callback ref again only when the function changes.
+ */
+function showEndStep(el: HTMLLIElement | null): void {
+  showCurrentStep(el);
+}
 
-function Step({ step, next, onSeek, detailsOpen }: StepProps) {
+type StepProps = {
+  step: JourneyStep;
+  next: JourneyStep | undefined;
+  onSeek: JourneyTimelineProps['onSeek'];
+  detailsOpen: boolean;
+  /** The last step of a journey that has just ended: scroll it into view (#842). */
+  showEnd?: boolean;
+};
+
+function stepRef(step: JourneyStep, showEnd: boolean | undefined) {
+  if (step.state === 'current') return showCurrentStep;
+  return showEnd ? showEndStep : undefined;
+}
+
+function Step({ step, next, onSeek, detailsOpen, showEnd }: StepProps) {
   const tone: RouteTone = step.legIndex === 0 ? 'leg1' : 'leg2';
   // The rail to the next step is the carrier's colour while the same carrier has the package (the thick
   // line on the map); between legs (overnight at the relay point) it stays a thin grey rail.
   const carried = next !== undefined && next.legIndex === step.legIndex;
   return (
-    <li ref={step.state === 'current' ? showCurrentStep : undefined} className={`jt-step jt-step--${step.state}`}>
+    <li ref={stepRef(step, showEnd)} className={`jt-step jt-step--${step.state}`}>
       <button
         type="button"
         className="jt-step__button"
@@ -194,17 +218,38 @@ function Step({ step, next, onSeek, detailsOpen }: StepProps) {
   );
 }
 
+/** The package of this journey while one of its steps is current, or null. */
+function underWay(journey: JourneyResult): string | null {
+  return journey.kind === 'journey' && journey.steps.some((s) => s.state === 'current') ? journey.shipmentId : null;
+}
+
+/**
+ * #842: true on the render where this package's journey goes from a current step to every step done.
+ * Not when a delivered package is opened (nothing was under way), and false again on the next poll, so
+ * the end is scrolled into view once.
+ */
+function useJustEnded(journey: JourneyResult): boolean {
+  const lastUnderWay = useRef<string | null>(null);
+  const now = underWay(journey);
+  useEffect(() => {
+    lastUnderWay.current = now;
+  });
+  return journey.kind === 'journey' && journey.steps.length > 0 && journey.steps.every((s) => s.state === 'done')
+    && lastUnderWay.current === journey.shipmentId;
+}
+
 /** The journey timeline with its Details toggle closed at first; the open state survives every poll. */
 export function JourneyTimeline(props: JourneyTimelineProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const idPrefix = useId();
+  const justEnded = useJustEnded(props.journey);
   return (
     <JourneyTimelineView {...props} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen((o) => !o)}
-      idPrefix={idPrefix} />
+      idPrefix={idPrefix} justEnded={justEnded} />
   );
 }
 
-export function JourneyTimelineView({ journey, onSeek, detailsOpen, onToggleDetails, idPrefix = 'jt' }: JourneyTimelineViewProps) {
+export function JourneyTimelineView({ journey, onSeek, detailsOpen, onToggleDetails, idPrefix = 'jt', justEnded = false }: JourneyTimelineViewProps) {
   const legsId = `${idPrefix}-legs`;
   const stepsId = `${idPrefix}-steps`;
   const reasonId = `${idPrefix}-reason`;
@@ -246,7 +291,8 @@ export function JourneyTimelineView({ journey, onSeek, detailsOpen, onToggleDeta
       </ul>
       <ol id={stepsId} className="jt__steps">
         {journey.steps.map((s, i) => (
-          <Step key={s.n} step={s} next={journey.steps[i + 1]} onSeek={onSeek} detailsOpen={detailsOpen} />
+          <Step key={s.n} step={s} next={journey.steps[i + 1]} onSeek={onSeek} detailsOpen={detailsOpen}
+            showEnd={justEnded && i === journey.steps.length - 1} />
         ))}
       </ol>
     </section>
