@@ -255,12 +255,35 @@ describe('employee v2 poller', () => {
     const before = count(f, 'dash:emp-01');
     const put = vi.fn(async () => ({ employee: dash(2, []).employee, home: dash(2, []).home, trips: [], rematchedShipmentIds: [] }));
     f.setDash('emp-01', dash(2, ['job-new']));
-    const res = await saveCommuteWith({ putCommute: put }, 'emp-01', {} as never, p.refetchNow);
-    expect(res.rematchedShipmentIds).toEqual([]);
-    await vi.advanceTimersByTimeAsync(20);
+    // The save is done when its refetch is (#720): the page closes the editor on it, so the new dashboard
+    // must be in the state by then.
+    let done = false;
+    const saving = saveCommuteWith({ putCommute: put }, 'emp-01', {} as never, p.refetchNow);
+    void saving.then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(5);
+    expect(count(f, 'dash:emp-01')).toBe(before + 1); // asked at once
+    expect(done).toBe(false); // and still open
+    await vi.advanceTimersByTimeAsync(15);
+    expect(done).toBe(true);
+    expect((await saving).rematchedShipmentIds).toEqual([]);
     expect(count(f, 'dash:emp-01')).toBe(before + 1);
     expect(s.get().newJobIds).toEqual(['job-new']);
+    expect(s.get().dashboard?.version).toBe(2);
     p.stop();
+  });
+
+  it('a save whose poller is stopped meanwhile still resolves', async () => {
+    const f = fakeApi();
+    f.setDash('emp-01', dash(1, []));
+    const s = sinkState();
+    const p = createEmployeePoller('emp-01', f.api, s.sink);
+    p.start();
+    await vi.advanceTimersByTimeAsync(50);
+    const response = { employee: dash(2, []).employee, home: dash(2, []).home, trips: [], rematchedShipmentIds: [] };
+    const saving = saveCommuteWith({ putCommute: async () => response }, 'emp-01', {} as never, p.refetchNow);
+    await vi.advanceTimersByTimeAsync(1);
+    p.stop(); // the employee was switched or the page left while the refetch was open
+    expect(await saving).toBe(response);
   });
 });
 
@@ -408,6 +431,26 @@ describe('saveCommute', () => {
     expect(COMMUTE_SAVE_TIMEOUT_MS).toBe(20000);
     expect(put).toHaveBeenCalledWith('emp-01', req, { timeoutMs: 20000 });
     expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves only when the refetch is done, so the saved values are in the state before the editor closes (#720)', async () => {
+    const response = { employee: dash(1, []).employee, home: dash(1, []).home, trips: [], rematchedShipmentIds: [] };
+    let release!: () => void;
+    const refetch = vi.fn(() => new Promise<void>((resolve) => { release = resolve; }));
+    let done = false;
+    const saving = saveCommuteWith({ putCommute: async () => response }, 'emp-01', {} as never, refetch);
+    void saving.then(() => { done = true; });
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(done).toBe(false);
+    release();
+    expect(await saving).toBe(response);
+  });
+
+  it('a refetch that throws does not lose the saved answer', async () => {
+    const response = { employee: dash(1, []).employee, home: dash(1, []).home, trips: [], rematchedShipmentIds: ['shp-1'] };
+    const refetch = vi.fn(async () => { throw new Error('offline'); });
+    expect(await saveCommuteWith({ putCommute: async () => response }, 'emp-01', {} as never, refetch)).toBe(response);
   });
 
   it('rethrows errors unchanged and does not refetch', async () => {
