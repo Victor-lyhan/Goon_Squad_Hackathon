@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Relay compared with a standard next-day B2B courier on cost, added miles, CO₂ and delivery time, with every assumption listed.">
+<meta name="theme-color" content="#1D5075">
+<title>Relay vs. a next-day courier: the numbers</title>
+<style>
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#F7F7F4;color:#171C24;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5}
+main{max-width:1120px;margin:0 auto;padding:20px 20px 56px}
+a{color:#1D5075}
+a:focus-visible,summary:focus-visible{outline:2px solid #1D5075;outline-offset:2px}
+.back{display:inline-block;font-size:14px;font-weight:600;text-decoration:none;padding:6px 0}
+.back:hover{text-decoration:underline}
+h1{font-size:30px;line-height:1.2;margin:20px 0 8px;font-weight:600;letter-spacing:-0.01em}
+h2{font-size:19px;line-height:1.3;margin:40px 0 4px;font-weight:600}
+p{margin:0 0 12px}
+.lede{font-size:17px;color:#5B6472;max-width:760px}
+.intro{color:#5B6472;max-width:760px}
+.how{max-width:760px}
+.num,code{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0 0}
+.tile,.card{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:6px}
+.tile{padding:14px 16px}
+.tile p{margin:0}
+.tile-label{font-size:13px;color:#5B6472}
+.tile-value{font-size:26px;line-height:1.25;font-weight:600;margin:2px 0 4px}
+.tile-detail{font-size:13px;color:#5B6472}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}
+.card{margin:0;padding:14px 16px 12px;min-width:0}
+figcaption{font-size:14px;font-weight:600;margin-bottom:10px}
+svg{display:block;width:100%;height:auto;max-width:460px}
+svg text{font-size:12px}
+.t{fill:#171C24}
+.tm{fill:#5B6472}
+.t-on{fill:#FFFFFF;font-weight:600}
+.grid{stroke:#E3E3DE;stroke-width:1}
+.f-relay{fill:#1D5075}
+.f-courier{fill:#A8ABB2}
+.f-track{fill:#E8EEF1}
+.f-ontime{fill:#0F8A5F}
+.f-late{fill:#A4322A}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:10px 0 0;padding:0;font-size:13px;color:#5B6472}
+.legend li{display:flex;align-items:center;gap:6px}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:2px;flex:none}
+.note{font-size:13px;color:#5B6472;margin:10px 0 0}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 20px;margin:16px 0 0;max-width:760px}
+.facts div{border-top:1px solid #E3E3DE;padding-top:6px}
+.facts dt{font-size:13px;color:#5B6472}
+.facts dd{margin:0;font-weight:600}
+.scroll{overflow-x:auto;margin-top:12px;background:#FFFFFF;border:1px solid #E3E3DE;border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid #E3E3DE}
+thead th{border-top:0;font-size:12px;font-weight:600;color:#5B6472;white-space:nowrap}
+tbody th{font-weight:600}
+.assumptions tbody th{width:26%}
+.assumptions .value{width:24%}
+.assumptions .value b{font-weight:600}
+.assumptions code{display:block;margin-top:2px;font-size:12px;font-weight:400;color:#5B6472;overflow-wrap:anywhere}
+.runs{font-size:13px;font-variant-numeric:tabular-nums}
+.runs th,.runs td{padding:6px 10px;white-space:nowrap}
+.runs td{text-align:right;font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.runs thead th{text-align:right}
+.runs thead th:first-child{text-align:left}
+details{margin-top:12px}
+summary{cursor:pointer;font-weight:600;color:#1D5075;padding:6px 0}
+.skipped{font-size:13px;color:#5B6472;padding-left:20px}
+footer{margin-top:40px;padding-top:12px;border-top:1px solid #E3E3DE;font-size:13px;color:#5B6472}
+@media (max-width:640px){
+main{padding:12px 16px 40px}
+h1{font-size:25px}
+.assumptions thead{display:none}
+.assumptions tr{display:block;padding:12px 14px;border-top:1px solid #E3E3DE}
+.assumptions tbody tr:first-child{border-top:0}
+.assumptions th,.assumptions td{display:block;width:auto!important;padding:0;border:0}
+.assumptions .value{margin:4px 0}
+}
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="/">← Back to Relay</a>
+<h1>Relay vs. a next-day courier: the numbers</h1>
+<p class="lede">The same packages sent two ways: on a commute an employee already drives, or on a dedicated courier trip. 81 simulated runs, 1,211 packages compared.</p>
+
+<section class="tiles" aria-label="Headline numbers">
+<div class="tile"><p class="tile-label">Cost to the sender</p><p class="tile-value">37.4% less</p><p class="tile-detail">Relay $10.00 vs courier $15.99 per package</p></div>
+<div class="tile"><p class="tile-label">Added vehicle miles</p><p class="tile-value">74.8% less</p><p class="tile-detail">Relay 1.3 mi vs courier 5.2 mi per package</p></div>
+<div class="tile"><p class="tile-label">CO₂</p><p class="tile-value">74.8% less</p><p class="tile-detail">Relay 0.52 kg vs courier 2.07 kg per package</p></div>
+<div class="tile"><p class="tile-label">Delivered by the courier’s promised time</p><p class="tile-value">100.0%</p><p class="tile-detail">32.2% a day early, 0.0% late</p></div>
+<div class="tile"><p class="tile-label">Match rate</p><p class="tile-value">53.4%</p><p class="tile-detail">1,211 of 2,268 packages found a commute</p></div>
+</section>
+
+<section>
+<h2>How we compared</h2>
+<p class="how">Each run is a full two-day Relay simulation of a random New York City scenario, on the committed cache of driving distances.
+We ran every combination of seeds 1, 2, 3; 30, 60, 120 commuting employees; 12, 24, 48 packages; and detour limits of 8, 12, 16 minutes per commute:
+81 runs planned, 81 simulated, 0 skipped (a skipped run needs a driving distance the cache does not have; it is never estimated).
+For every package Relay matched to a commute, the baseline is the same package sent with a <strong>standard next-day B2B courier</strong>: one dedicated trip from sender to recipient, promised by 10:30 a.m. on the next business day. It is <strong>not a same-hour courier</strong>.
+“Per package” always means per package Relay matched. A package with no suitable commute would go by courier at the courier’s price, so it is left out of the comparison and counted in the match rate instead.
+Every number that is not travel data or simulation output is in the <a href="#assumptions">assumptions table</a>.</p>
+<dl class="facts"><div><dt>Runs simulated</dt><dd class="num">81</dd></div><div><dt>Runs skipped</dt><dd class="num">0</dd></div><div><dt>Packages requested</dt><dd class="num">2,268</dd></div><div><dt>Matched and compared</dt><dd class="num">1,211</dd></div><div><dt>Carried on one commute</dt><dd class="num">748</dd></div><div><dt>Carried on two commutes, one relay point</dt><dd class="num">463</dd></div></dl>
+
+</section>
+
+<section>
+<h2>Per package: cost, added miles and CO₂</h2>
+<p class="intro">Averages over all 1,211 matched packages. Shorter is better.</p>
+<ul class="legend"><li><span class="swatch" style="background:#1D5075"></span>Relay, on a commute</li><li><span class="swatch" style="background:#A8ABB2"></span>Next-day courier, dedicated trip</li></ul>
+<div class="grid3">
+<figure class="card"><figcaption>Cost to the sender, per package</figcaption><svg data-chart="cost" viewBox="0 0 360 64" role="img" aria-label="Cost to the sender per package: Relay $10.00, courier $15.99"><text class="t" x="0" y="20">Relay</text><path class="f-relay" d="M60 6h139.84a4 4 0 0 1 4 4v12a4 4 0 0 1 -4 4h-139.84z"/><text class="t num" x="209.84" y="20">$10.00</text><text class="t" x="0" y="52">Courier</text><path class="f-courier" d="M60 38h226a4 4 0 0 1 4 4v12a4 4 0 0 1 -4 4h-226z"/><text class="t num" x="296" y="52">$15.99</text></svg><p class="note">Relay saves $5.99 per package.</p></figure>
+<figure class="card"><figcaption>Added vehicle miles, per package</figcaption><svg data-chart="miles" viewBox="0 0 360 64" role="img" aria-label="Added vehicle miles per package: Relay 1.3 mi, courier 5.2 mi"><text class="t" x="0" y="20">Relay</text><path class="f-relay" d="M60 6h54.04a4 4 0 0 1 4 4v12a4 4 0 0 1 -4 4h-54.04z"/><text class="t num" x="124.04" y="20">1.3 mi</text><text class="t" x="0" y="52">Courier</text><path class="f-courier" d="M60 38h226a4 4 0 0 1 4 4v12a4 4 0 0 1 -4 4h-226z"/><text class="t num" x="296" y="52">5.2 mi</text></svg><p class="note">Relay adds 3.9 mi less driving per package.</p></figure>
+<figure class="card"><figcaption>CO₂, per package</figcaption><svg data-chart="co2" viewBox="0 0 360 64" role="img" aria-label="CO₂ per package: Relay 0.52 kg, courier 2.07 kg"><text class="t" x="0" y="20">Relay</text><path class="f-relay" d="M60 6h54.06a4 4 0 0 1 4 4v12a4 4 0 0 1 -4 4h-54.06z"/><text class="t num" x="124.06" y="20">0.52 kg</text><text class="t" x="0" y="52">Courier</text><path class="f-courier" d="M60 38h226a4 4 0 0 1 4 4v12a4 4 0 0 1 -4 4h-226z"/><text class="t num" x="296" y="52">2.07 kg</text></svg><p class="note">Relay emits 1.55 kg less per package.</p></figure>
+</div>
+</section>
+
+<section>
+<h2>How much the saving varies from run to run</h2>
+<p class="intro">One value per run: what Relay saved per matched package in that run. Each column counts the runs in that range; a value below zero means the courier was ahead in that run.</p>
+<div class="grid3">
+<figure class="card"><figcaption>Cost saved per package</figcaption><svg data-chart="runs-cost" viewBox="0 0 360 176" role="img" aria-label="Runs by cost saved per package: 81 runs, from $4.67 to $8.00"><line class="grid" x1="30" x2="340" y1="138" y2="138"/><text class="tm num" x="24" y="142" text-anchor="end">0</text><line class="grid" x1="30" x2="340" y1="78" y2="78"/><text class="tm num" x="24" y="82" text-anchor="end">20</text><line class="grid" x1="30" x2="340" y1="18" y2="18"/><text class="tm num" x="24" y="22" text-anchor="end">40</text><g><title>$4.50 to $5.00: 2 runs</title><path class="f-relay" d="M40.14 138v-2a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v2z"/></g><g><title>$5.00 to $5.50: 11 runs</title><path class="f-relay" d="M84.43 138v-29a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v29z"/></g><g><title>$5.50 to $6.00: 21 runs</title><path class="f-relay" d="M128.71 138v-59a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v59z"/></g><g><title>$6.00 to $6.50: 35 runs</title><path class="f-relay" d="M173 138v-101a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v101z"/></g><text class="t num" x="185" y="28" text-anchor="middle">35</text><g><title>$6.50 to $7.00: 5 runs</title><path class="f-relay" d="M217.29 138v-11a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v11z"/></g><g><title>$7.00 to $7.50: 2 runs</title><path class="f-relay" d="M261.57 138v-2a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v2z"/></g><g><title>$7.50 to $8.00: 5 runs</title><path class="f-relay" d="M305.86 138v-11a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v11z"/></g><line class="grid" x1="30" x2="30" y1="138" y2="142"/><text class="tm num" x="30" y="155" text-anchor="middle">$4.50</text><line class="grid" x1="74.29" x2="74.29" y1="138" y2="142"/><line class="grid" x1="118.57" x2="118.57" y1="138" y2="142"/><text class="tm num" x="118.57" y="155" text-anchor="middle">$5.50</text><line class="grid" x1="162.86" x2="162.86" y1="138" y2="142"/><line class="grid" x1="207.14" x2="207.14" y1="138" y2="142"/><text class="tm num" x="207.14" y="155" text-anchor="middle">$6.50</text><line class="grid" x1="251.43" x2="251.43" y1="138" y2="142"/><line class="grid" x1="295.71" x2="295.71" y1="138" y2="142"/><text class="tm num" x="295.71" y="155" text-anchor="middle">$7.50</text><line class="grid" x1="340" x2="340" y1="138" y2="142"/><text class="tm" x="185" y="170" text-anchor="middle">cost saved per package</text><text class="tm" x="0" y="10">runs</text></svg><p class="note">Median $6.00 · range $4.67 to $8.00 · Relay ahead in 81 of 81 runs</p></figure>
+<figure class="card"><figcaption>Miles saved per package</figcaption><svg data-chart="runs-miles" viewBox="0 0 360 176" role="img" aria-label="Runs by miles saved per package: 81 runs, from −5.7 mi to 5.9 mi"><line class="grid" x1="30" x2="340" y1="138" y2="138"/><text class="tm num" x="24" y="142" text-anchor="end">0</text><line class="grid" x1="30" x2="340" y1="78" y2="78"/><text class="tm num" x="24" y="82" text-anchor="end">20</text><line class="grid" x1="30" x2="340" y1="18" y2="18"/><text class="tm num" x="24" y="22" text-anchor="end">40</text><g><title>−6.0 mi to −5.0 mi: 1 run</title><path class="f-relay" d="M31 138v0a3 3 0 0 1 3 -3h17.83a3 3 0 0 1 3 3v0z"/></g><g><title>−3.0 mi to −2.0 mi: 1 run</title><path class="f-relay" d="M108.5 138v0a3 3 0 0 1 3 -3h17.83a3 3 0 0 1 3 3v0z"/></g><g><title>−2.0 mi to −1.0 mi: 1 run</title><path class="f-relay" d="M134.33 138v0a3 3 0 0 1 3 -3h17.83a3 3 0 0 1 3 3v0z"/></g><g><title>0.0 mi to 1.0 mi: 2 runs</title><path class="f-relay" d="M186 138v-2a4 4 0 0 1 4 -4h15.83a4 4 0 0 1 4 4v2z"/></g><g><title>1.0 mi to 2.0 mi: 12 runs</title><path class="f-relay" d="M211.83 138v-32a4 4 0 0 1 4 -4h15.83a4 4 0 0 1 4 4v32z"/></g><g><title>2.0 mi to 3.0 mi: 13 runs</title><path class="f-relay" d="M237.67 138v-35a4 4 0 0 1 4 -4h15.83a4 4 0 0 1 4 4v35z"/></g><g><title>3.0 mi to 4.0 mi: 13 runs</title><path class="f-relay" d="M263.5 138v-35a4 4 0 0 1 4 -4h15.83a4 4 0 0 1 4 4v35z"/></g><g><title>4.0 mi to 5.0 mi: 31 runs</title><path class="f-relay" d="M289.33 138v-89a4 4 0 0 1 4 -4h15.83a4 4 0 0 1 4 4v89z"/></g><text class="t num" x="301.25" y="40" text-anchor="middle">31</text><g><title>5.0 mi to 6.0 mi: 7 runs</title><path class="f-relay" d="M315.17 138v-17a4 4 0 0 1 4 -4h15.83a4 4 0 0 1 4 4v17z"/></g><line class="grid" x1="30" x2="30" y1="138" y2="142"/><text class="tm num" x="30" y="155" text-anchor="middle">−6</text><line class="grid" x1="55.83" x2="55.83" y1="138" y2="142"/><text class="tm num" x="55.83" y="155" text-anchor="middle">−5</text><line class="grid" x1="81.67" x2="81.67" y1="138" y2="142"/><text class="tm num" x="81.67" y="155" text-anchor="middle">−4</text><line class="grid" x1="107.5" x2="107.5" y1="138" y2="142"/><text class="tm num" x="107.5" y="155" text-anchor="middle">−3</text><line class="grid" x1="133.33" x2="133.33" y1="138" y2="142"/><text class="tm num" x="133.33" y="155" text-anchor="middle">−2</text><line class="grid" x1="159.17" x2="159.17" y1="138" y2="142"/><text class="tm num" x="159.17" y="155" text-anchor="middle">−1</text><line class="grid" x1="185" x2="185" y1="138" y2="142"/><text class="tm num" x="185" y="155" text-anchor="middle">0</text><line class="grid" x1="210.83" x2="210.83" y1="138" y2="142"/><text class="tm num" x="210.83" y="155" text-anchor="middle">1</text><line class="grid" x1="236.67" x2="236.67" y1="138" y2="142"/><text class="tm num" x="236.67" y="155" text-anchor="middle">2</text><line class="grid" x1="262.5" x2="262.5" y1="138" y2="142"/><text class="tm num" x="262.5" y="155" text-anchor="middle">3</text><line class="grid" x1="288.33" x2="288.33" y1="138" y2="142"/><text class="tm num" x="288.33" y="155" text-anchor="middle">4</text><line class="grid" x1="314.17" x2="314.17" y1="138" y2="142"/><text class="tm num" x="314.17" y="155" text-anchor="middle">5</text><line class="grid" x1="340" x2="340" y1="138" y2="142"/><text class="tm num" x="340" y="155" text-anchor="middle">6</text><text class="tm" x="185" y="170" text-anchor="middle">miles saved per package</text><text class="tm" x="0" y="10">runs</text></svg><p class="note">Median 3.8 mi · range −5.7 mi to 5.9 mi · Relay ahead in 78 of 81 runs</p></figure>
+<figure class="card"><figcaption>CO₂ saved per package, kg</figcaption><svg data-chart="runs-co2" viewBox="0 0 360 176" role="img" aria-label="Runs by kg of CO₂ saved per package: 81 runs, from −2.30 kg to 2.37 kg"><line class="grid" x1="30" x2="340" y1="138" y2="138"/><text class="tm num" x="24" y="142" text-anchor="end">0</text><line class="grid" x1="30" x2="340" y1="78" y2="78"/><text class="tm num" x="24" y="82" text-anchor="end">20</text><line class="grid" x1="30" x2="340" y1="18" y2="18"/><text class="tm num" x="24" y="22" text-anchor="end">40</text><g><title>−2.50 kg to −2.00 kg: 1 run</title><path class="f-relay" d="M33.5 138v0a3 3 0 0 1 3 -3h18a3 3 0 0 1 3 3v0z"/></g><g><title>−1.50 kg to −1.00 kg: 1 run</title><path class="f-relay" d="M95.5 138v0a3 3 0 0 1 3 -3h18a3 3 0 0 1 3 3v0z"/></g><g><title>−1.00 kg to −0.50 kg: 1 run</title><path class="f-relay" d="M126.5 138v0a3 3 0 0 1 3 -3h18a3 3 0 0 1 3 3v0z"/></g><g><title>0.00 kg to 0.50 kg: 4 runs</title><path class="f-relay" d="M188.5 138v-8a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v8z"/></g><g><title>0.50 kg to 1.00 kg: 16 runs</title><path class="f-relay" d="M219.5 138v-44a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v44z"/></g><g><title>1.00 kg to 1.50 kg: 17 runs</title><path class="f-relay" d="M250.5 138v-47a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v47z"/></g><g><title>1.50 kg to 2.00 kg: 34 runs</title><path class="f-relay" d="M281.5 138v-98a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v98z"/></g><text class="t num" x="293.5" y="31" text-anchor="middle">34</text><g><title>2.00 kg to 2.50 kg: 7 runs</title><path class="f-relay" d="M312.5 138v-17a4 4 0 0 1 4 -4h16a4 4 0 0 1 4 4v17z"/></g><line class="grid" x1="30" x2="30" y1="138" y2="142"/><text class="tm num" x="30" y="155" text-anchor="middle">−2.5</text><line class="grid" x1="61" x2="61" y1="138" y2="142"/><line class="grid" x1="92" x2="92" y1="138" y2="142"/><text class="tm num" x="92" y="155" text-anchor="middle">−1.5</text><line class="grid" x1="123" x2="123" y1="138" y2="142"/><line class="grid" x1="154" x2="154" y1="138" y2="142"/><text class="tm num" x="154" y="155" text-anchor="middle">−0.5</text><line class="grid" x1="185" x2="185" y1="138" y2="142"/><line class="grid" x1="216" x2="216" y1="138" y2="142"/><text class="tm num" x="216" y="155" text-anchor="middle">0.5</text><line class="grid" x1="247" x2="247" y1="138" y2="142"/><line class="grid" x1="278" x2="278" y1="138" y2="142"/><text class="tm num" x="278" y="155" text-anchor="middle">1.5</text><line class="grid" x1="309" x2="309" y1="138" y2="142"/><line class="grid" x1="340" x2="340" y1="138" y2="142"/><text class="tm num" x="340" y="155" text-anchor="middle">2.5</text><text class="tm" x="185" y="170" text-anchor="middle">kg of CO₂ saved per package</text><text class="tm" x="0" y="10">runs</text></svg><p class="note">Median 1.51 kg · range −2.30 kg to 2.37 kg · Relay ahead in 78 of 81 runs</p></figure>
+</div>
+</section>
+
+<section>
+<h2>Match rate: 53.4%</h2>
+<p class="intro">Relay matched 1,211 of 2,268 requested packages to a commute; the other 1,057 would go by courier. The rate depends on how many employees commute, how many packages are asked for and how long a detour is allowed.</p>
+<div class="grid3">
+<figure class="card"><figcaption>By number of commuting employees</figcaption><svg data-chart="match-employees" viewBox="0 0 360 80" role="img" aria-label="Match rate by number of employees: 30 employees 31.5%, 60 employees 53.4%, 120 employees 75.3%"><text class="t" x="0" y="15">30 employees</text><rect class="f-track" x="104" y="4" width="206" height="14" rx="4"/><path class="f-relay" d="M104 4h60.85a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-60.85z"/><text class="t num" x="360" y="15" text-anchor="end">31.5%</text><text class="t" x="0" y="41">60 employees</text><rect class="f-track" x="104" y="30" width="206" height="14" rx="4"/><path class="f-relay" d="M104 30h106.09a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-106.09z"/><text class="t num" x="360" y="41" text-anchor="end">53.4%</text><text class="t" x="0" y="67">120 employees</text><rect class="f-track" x="104" y="56" width="206" height="14" rx="4"/><path class="f-relay" d="M104 56h151.04a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-151.04z"/><text class="t num" x="360" y="67" text-anchor="end">75.3%</text></svg></figure>
+<figure class="card"><figcaption>By number of packages requested</figcaption><svg data-chart="match-packages" viewBox="0 0 360 80" role="img" aria-label="Match rate by number of packages: 12 packages 60.5%, 24 packages 55.6%, 48 packages 50.5%"><text class="t" x="0" y="15">12 packages</text><rect class="f-track" x="104" y="4" width="206" height="14" rx="4"/><path class="f-relay" d="M104 4h120.61a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-120.61z"/><text class="t num" x="360" y="15" text-anchor="end">60.5%</text><text class="t" x="0" y="41">24 packages</text><rect class="f-track" x="104" y="30" width="206" height="14" rx="4"/><path class="f-relay" d="M104 30h110.45a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-110.45z"/><text class="t num" x="360" y="41" text-anchor="end">55.6%</text><text class="t" x="0" y="67">48 packages</text><rect class="f-track" x="104" y="56" width="206" height="14" rx="4"/><path class="f-relay" d="M104 56h100.11a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-100.11z"/><text class="t num" x="360" y="67" text-anchor="end">50.5%</text></svg></figure>
+<figure class="card"><figcaption>By detour limit per commute</figcaption><svg data-chart="match-detour" viewBox="0 0 360 80" role="img" aria-label="Match rate by detour limit: 8 min detour 25.8%, 12 min detour 59.9%, 16 min detour 74.5%"><text class="t" x="0" y="15">8 min detour</text><rect class="f-track" x="104" y="4" width="206" height="14" rx="4"/><path class="f-relay" d="M104 4h49.13a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-49.13z"/><text class="t num" x="360" y="15" text-anchor="end">25.8%</text><text class="t" x="0" y="41">12 min detour</text><rect class="f-track" x="104" y="30" width="206" height="14" rx="4"/><path class="f-relay" d="M104 30h119.44a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-119.44z"/><text class="t num" x="360" y="41" text-anchor="end">59.9%</text><text class="t" x="0" y="67">16 min detour</text><rect class="f-track" x="104" y="56" width="206" height="14" rx="4"/><path class="f-relay" d="M104 56h149.41a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-149.41z"/><text class="t num" x="360" y="67" text-anchor="end">74.5%</text></svg></figure>
+</div>
+</section>
+
+<section>
+<h2>On time against the courier’s promised window</h2>
+<p class="intro">The courier promises delivery by 10:30 a.m. on the next business day and is assumed to always keep that promise. Each matched package is early, on time or late against it.</p>
+<div class="grid3">
+<figure class="card"><figcaption>1,211 matched packages</figcaption><svg data-chart="timing" viewBox="0 0 360 28" role="img" aria-label="Relay delivery time against the courier’s promise: A day early 390, On time 821, Late 0"><g><title>A day early: 390 (32.2%)</title><rect class="f-relay" x="0" y="0" width="115.29" height="28" rx="4"/></g><text class="t-on num" x="8" y="18">32.2%</text><g><title>On time: 821 (67.8%)</title><rect class="f-ontime" x="117.29" y="0" width="242.71" height="28" rx="4"/></g><text class="t-on num" x="125.29" y="18">67.8%</text></svg><ul class="legend"><li><span class="swatch" style="background:#1D5075"></span>A day early: delivered the day it was sent · 390 (32.2%)</li><li><span class="swatch" style="background:#0F8A5F"></span>On time: the next day by 10:30 a.m. · 821 (67.8%)</li><li><span class="swatch" style="background:#A4322A"></span>Late: after 10:30 a.m. · 0 (0.0%)</li></ul></figure>
+<div class="how"><p>On average a Relay package arrives 6 h 41 min before the courier’s promised time.</p><p>Why nothing is late here: Relay only accepts a package it can deliver by the sender’s deadline. The simulated packages were ready from Day 1, 4:00 p.m. and every deadline was at or before Day 2, 10:00 a.m., which is no later than the courier’s promise (Day 2, 10:30 a.m.), so a matched package cannot be late. The price of that rule is the match rate above, not lateness.</p></div>
+</div>
+</section>
+
+<section id="assumptions">
+<h2>Assumptions</h2>
+<p class="intro">Every number the comparison uses that is not travel data or simulation output, with the reason for its value and the side it favours.</p>
+<div class="scroll">
+<table class="assumptions">
+<thead><tr><th scope="col">Assumption</th><th scope="col">Value</th><th scope="col">Why this value</th></tr></thead>
+<tbody>
+<tr data-key="relayPriceCents"><th scope="row">Relay price per package<code>relayPriceCents</code></th><td class="value"><b class="num">$10.00</b> per package</td><td>Relay&#39;s flat price in the app&#39;s own settings, the same for an envelope and a small box; every simulated plan is priced with it.</td></tr>
+<tr data-key="courierEnvelopeCents"><th scope="row">Courier price, envelope<code>courierEnvelopeCents</code></th><td class="value"><b class="num">$14.00</b> per package</td><td>The courier price the Relay app already shows senders; it is at the low end for a booked next-day local courier in New York, and a guaranteed morning overnight service usually costs more, so it favours the courier.</td></tr>
+<tr data-key="courierSmallBoxCents"><th scope="row">Courier price, small box<code>courierSmallBoxCents</code></th><td class="value"><b class="num">$18.00</b> per package</td><td>Couriers charge more for a parcel than for a flat envelope; $4 more for a box of up to 2 kg is a modest step.</td></tr>
+<tr data-key="courierPromisedByMin"><th scope="row">Courier promise: next business day by 10:30 a.m.<code>courierPromisedByMin</code></th><td class="value"><b class="num">10:30 a.m.</b> (630 minutes after midnight on the next business day)</td><td>By 10:30 a.m. on the next business day is a common commitment of priority overnight services, and the courier is assumed to always meet it.</td></tr>
+<tr data-key="courierTripSharePerPackage"><th scope="row">Share of the courier&#39;s trip counted for one package<code>courierTripSharePerPackage</code></th><td class="value"><b class="num">1</b> share of the trip (1 = a dedicated trip)</td><td>The baseline is a dedicated trip for one package, the way a local courier is booked for a single urgent item; a van route shared with other parcels would split these miles and is not modelled, which favours Relay.</td></tr>
+<tr data-key="courierEmptyMilesPerLoadedMile"><th scope="row">Courier empty miles per loaded mile (depot legs)<code>courierEmptyMilesPerLoadedMile</code></th><td class="value"><b class="num">0</b> empty miles per loaded mile</td><td>Only the loaded drive from sender to recipient is counted; the courier&#39;s drive to the pickup and away from the drop-off is left out, which favours the courier.</td></tr>
+<tr data-key="relayCommuteMilesShare"><th scope="row">Share of the employee&#39;s normal commute counted for Relay<code>relayCommuteMilesShare</code></th><td class="value"><b class="num">0</b> share of the commute</td><td>The employee drives the commute with or without a package, so only the detour to the pickup and drop-off is added traffic.</td></tr>
+<tr data-key="relayMinAddedMPerLeg"><th scope="row">Least added distance counted per Relay commute<code>relayMinAddedMPerLeg</code></th><td class="value"><b class="num">0</b> meters</td><td>When the route through the stops is shorter in meters than the usual commute it counts as 0 added meters, never as a saving, the same rule as Relay&#39;s own summary numbers.</td></tr>
+<tr data-key="commuterCo2KgPerMile"><th scope="row">CO2 per mile, employee&#39;s car<code>commuterCo2KgPerMile</code></th><td class="value"><b class="num">0.4</b> kg CO2 per vehicle mile</td><td>About 400 g of CO2 per mile is the U.S. EPA&#39;s figure for the average gasoline passenger vehicle.</td></tr>
+<tr data-key="courierCo2KgPerMile"><th scope="row">CO2 per mile, courier vehicle<code>courierCo2KgPerMile</code></th><td class="value"><b class="num">0.4</b> kg CO2 per vehicle mile</td><td>The courier is assumed to drive, with the same per-mile figure as the commuter&#39;s car so the CO2 gap comes only from miles; a delivery van would emit more per mile.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section>
+<h2>Every run</h2>
+<details>
+<summary>Show the 81 simulated runs as a table</summary>
+<div class="scroll">
+<table class="runs">
+<thead><tr><th scope="col">Run</th><th scope="col">Employees</th><th scope="col">Packages</th><th scope="col">Detour limit</th><th scope="col">Matched</th><th scope="col">Match rate</th><th scope="col">Cost saved / pkg</th><th scope="col">Relay added mi / pkg</th><th scope="col">Courier mi / pkg</th><th scope="col">Relay CO₂ / pkg</th><th scope="col">Courier CO₂ / pkg</th><th scope="col">Early</th><th scope="col">On time</th><th scope="col">Late</th></tr></thead>
+<tbody>
+<tr><th scope="row">s1-e30-p12-d8</th><td>30</td><td>12</td><td>8 min</td><td>1</td><td>8.3%</td><td>$8.00</td><td>5.4 mi</td><td>2.8 mi</td><td>2.17 kg</td><td>1.13 kg</td><td>0</td><td>1</td><td>0</td></tr>
+<tr><th scope="row">s1-e30-p12-d12</th><td>30</td><td>12</td><td>12 min</td><td>4</td><td>33.3%</td><td>$7.00</td><td>2.3 mi</td><td>4.4 mi</td><td>0.91 kg</td><td>1.77 kg</td><td>1</td><td>3</td><td>0</td></tr>
+<tr><th scope="row">s1-e30-p12-d16</th><td>30</td><td>12</td><td>16 min</td><td>6</td><td>50.0%</td><td>$6.00</td><td>2.3 mi</td><td>5.2 mi</td><td>0.91 kg</td><td>2.07 kg</td><td>1</td><td>5</td><td>0</td></tr>
+<tr><th scope="row">s1-e30-p24-d8</th><td>30</td><td>24</td><td>8 min</td><td>2</td><td>8.3%</td><td>$6.00</td><td>3.0 mi</td><td>4.1 mi</td><td>1.18 kg</td><td>1.62 kg</td><td>0</td><td>2</td><td>0</td></tr>
+<tr><th scope="row">s1-e30-p24-d12</th><td>30</td><td>24</td><td>12 min</td><td>7</td><td>29.2%</td><td>$5.71</td><td>1.2 mi</td><td>4.4 mi</td><td>0.49 kg</td><td>1.77 kg</td><td>1</td><td>6</td><td>0</td></tr>
+<tr><th scope="row">s1-e30-p24-d16</th><td>30</td><td>24</td><td>16 min</td><td>10</td><td>41.7%</td><td>$5.20</td><td>1.9 mi</td><td>5.3 mi</td><td>0.76 kg</td><td>2.13 kg</td><td>1</td><td>9</td><td>0</td></tr>
+<tr><th scope="row">s1-e30-p48-d8</th><td>30</td><td>48</td><td>8 min</td><td>3</td><td>6.3%</td><td>$5.33</td><td>2.0 mi</td><td>2.9 mi</td><td>0.81 kg</td><td>1.15 kg</td><td>1</td><td>2</td><td>0</td></tr>
+<tr><th scope="row">s1-e30-p48-d12</th><td>30</td><td>48</td><td>12 min</td><td>11</td><td>22.9%</td><td>$5.09</td><td>0.5 mi</td><td>4.2 mi</td><td>0.20 kg</td><td>1.68 kg</td><td>3</td><td>8</td><td>0</td></tr>
+<tr><th scope="row">s1-e30-p48-d16</th><td>30</td><td>48</td><td>16 min</td><td>19</td><td>39.6%</td><td>$5.47</td><td>1.8 mi</td><td>4.8 mi</td><td>0.73 kg</td><td>1.93 kg</td><td>3</td><td>16</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p12-d8</th><td>60</td><td>12</td><td>8 min</td><td>2</td><td>16.7%</td><td>$6.00</td><td>0.1 mi</td><td>1.6 mi</td><td>0.03 kg</td><td>0.66 kg</td><td>0</td><td>2</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p12-d12</th><td>60</td><td>12</td><td>12 min</td><td>8</td><td>66.7%</td><td>$6.50</td><td>1.1 mi</td><td>3.4 mi</td><td>0.43 kg</td><td>1.38 kg</td><td>2</td><td>6</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p12-d16</th><td>60</td><td>12</td><td>16 min</td><td>10</td><td>83.3%</td><td>$6.40</td><td>1.4 mi</td><td>4.7 mi</td><td>0.56 kg</td><td>1.90 kg</td><td>4</td><td>6</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p24-d8</th><td>60</td><td>24</td><td>8 min</td><td>6</td><td>25.0%</td><td>$5.33</td><td>0.3 mi</td><td>2.8 mi</td><td>0.11 kg</td><td>1.13 kg</td><td>0</td><td>6</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p24-d12</th><td>60</td><td>24</td><td>12 min</td><td>13</td><td>54.2%</td><td>$6.46</td><td>0.8 mi</td><td>3.8 mi</td><td>0.33 kg</td><td>1.53 kg</td><td>2</td><td>11</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p24-d16</th><td>60</td><td>24</td><td>16 min</td><td>19</td><td>79.2%</td><td>$6.11</td><td>1.8 mi</td><td>5.0 mi</td><td>0.72 kg</td><td>2.02 kg</td><td>4</td><td>15</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p48-d8</th><td>60</td><td>48</td><td>8 min</td><td>17</td><td>35.4%</td><td>$6.12</td><td>1.4 mi</td><td>4.0 mi</td><td>0.57 kg</td><td>1.60 kg</td><td>5</td><td>12</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p48-d12</th><td>60</td><td>48</td><td>12 min</td><td>25</td><td>52.1%</td><td>$6.56</td><td>0.8 mi</td><td>4.7 mi</td><td>0.33 kg</td><td>1.87 kg</td><td>7</td><td>18</td><td>0</td></tr>
+<tr><th scope="row">s1-e60-p48-d16</th><td>60</td><td>48</td><td>16 min</td><td>36</td><td>75.0%</td><td>$6.33</td><td>1.7 mi</td><td>5.4 mi</td><td>0.69 kg</td><td>2.17 kg</td><td>13</td><td>23</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p12-d8</th><td>120</td><td>12</td><td>8 min</td><td>6</td><td>50.0%</td><td>$7.33</td><td>1.4 mi</td><td>6.0 mi</td><td>0.57 kg</td><td>2.39 kg</td><td>0</td><td>6</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p12-d12</th><td>120</td><td>12</td><td>12 min</td><td>11</td><td>91.7%</td><td>$6.55</td><td>1.9 mi</td><td>5.9 mi</td><td>0.77 kg</td><td>2.35 kg</td><td>2</td><td>9</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p12-d16</th><td>120</td><td>12</td><td>16 min</td><td>12</td><td>100.0%</td><td>$6.33</td><td>2.6 mi</td><td>5.8 mi</td><td>1.02 kg</td><td>2.33 kg</td><td>6</td><td>6</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p24-d8</th><td>120</td><td>24</td><td>8 min</td><td>13</td><td>54.2%</td><td>$5.85</td><td>1.6 mi</td><td>5.9 mi</td><td>0.63 kg</td><td>2.35 kg</td><td>0</td><td>13</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p24-d12</th><td>120</td><td>24</td><td>12 min</td><td>23</td><td>95.8%</td><td>$6.26</td><td>1.3 mi</td><td>6.1 mi</td><td>0.52 kg</td><td>2.43 kg</td><td>5</td><td>18</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p24-d16</th><td>120</td><td>24</td><td>16 min</td><td>24</td><td>100.0%</td><td>$6.17</td><td>1.6 mi</td><td>6.0 mi</td><td>0.63 kg</td><td>2.42 kg</td><td>10</td><td>14</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p48-d8</th><td>120</td><td>48</td><td>8 min</td><td>22</td><td>45.8%</td><td>$6.00</td><td>0.6 mi</td><td>4.9 mi</td><td>0.23 kg</td><td>1.96 kg</td><td>0</td><td>22</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p48-d12</th><td>120</td><td>48</td><td>12 min</td><td>43</td><td>89.6%</td><td>$5.67</td><td>1.1 mi</td><td>5.5 mi</td><td>0.42 kg</td><td>2.21 kg</td><td>8</td><td>35</td><td>0</td></tr>
+<tr><th scope="row">s1-e120-p48-d16</th><td>120</td><td>48</td><td>16 min</td><td>45</td><td>93.8%</td><td>$5.69</td><td>1.2 mi</td><td>5.5 mi</td><td>0.49 kg</td><td>2.20 kg</td><td>16</td><td>29</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p12-d8</th><td>30</td><td>12</td><td>8 min</td><td>2</td><td>16.7%</td><td>$6.00</td><td>0.1 mi</td><td>0.5 mi</td><td>0.02 kg</td><td>0.21 kg</td><td>1</td><td>1</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p12-d12</th><td>30</td><td>12</td><td>12 min</td><td>7</td><td>58.3%</td><td>$5.71</td><td>1.1 mi</td><td>2.9 mi</td><td>0.42 kg</td><td>1.16 kg</td><td>3</td><td>4</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p12-d16</th><td>30</td><td>12</td><td>16 min</td><td>10</td><td>83.3%</td><td>$6.00</td><td>2.3 mi</td><td>4.2 mi</td><td>0.92 kg</td><td>1.69 kg</td><td>2</td><td>8</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p24-d8</th><td>30</td><td>24</td><td>8 min</td><td>3</td><td>12.5%</td><td>$5.33</td><td>0.2 mi</td><td>1.7 mi</td><td>0.07 kg</td><td>0.69 kg</td><td>2</td><td>1</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p24-d12</th><td>30</td><td>24</td><td>12 min</td><td>11</td><td>45.8%</td><td>$5.82</td><td>1.4 mi</td><td>3.7 mi</td><td>0.54 kg</td><td>1.47 kg</td><td>4</td><td>7</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p24-d16</th><td>30</td><td>24</td><td>16 min</td><td>17</td><td>70.8%</td><td>$5.65</td><td>3.1 mi</td><td>4.7 mi</td><td>1.23 kg</td><td>1.89 kg</td><td>4</td><td>13</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p48-d8</th><td>30</td><td>48</td><td>8 min</td><td>4</td><td>8.3%</td><td>$6.00</td><td>0.2 mi</td><td>1.7 mi</td><td>0.08 kg</td><td>0.69 kg</td><td>3</td><td>1</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p48-d12</th><td>30</td><td>48</td><td>12 min</td><td>20</td><td>41.7%</td><td>$6.40</td><td>1.2 mi</td><td>3.6 mi</td><td>0.49 kg</td><td>1.44 kg</td><td>10</td><td>10</td><td>0</td></tr>
+<tr><th scope="row">s2-e30-p48-d16</th><td>30</td><td>48</td><td>16 min</td><td>25</td><td>52.1%</td><td>$6.08</td><td>2.5 mi</td><td>4.5 mi</td><td>0.99 kg</td><td>1.81 kg</td><td>9</td><td>16</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p12-d8</th><td>60</td><td>12</td><td>8 min</td><td>2</td><td>16.7%</td><td>$6.00</td><td>0.2 mi</td><td>1.2 mi</td><td>0.08 kg</td><td>0.49 kg</td><td>2</td><td>0</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p12-d12</th><td>60</td><td>12</td><td>12 min</td><td>7</td><td>58.3%</td><td>$6.29</td><td>1.5 mi</td><td>3.1 mi</td><td>0.60 kg</td><td>1.23 kg</td><td>4</td><td>3</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p12-d16</th><td>60</td><td>12</td><td>16 min</td><td>10</td><td>83.3%</td><td>$6.00</td><td>1.3 mi</td><td>4.1 mi</td><td>0.51 kg</td><td>1.66 kg</td><td>4</td><td>6</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p24-d8</th><td>60</td><td>24</td><td>8 min</td><td>5</td><td>20.8%</td><td>$4.80</td><td>0.2 mi</td><td>3.2 mi</td><td>0.09 kg</td><td>1.26 kg</td><td>2</td><td>3</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p24-d12</th><td>60</td><td>24</td><td>12 min</td><td>15</td><td>62.5%</td><td>$5.87</td><td>1.1 mi</td><td>4.6 mi</td><td>0.45 kg</td><td>1.83 kg</td><td>7</td><td>8</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p24-d16</th><td>60</td><td>24</td><td>16 min</td><td>18</td><td>75.0%</td><td>$5.33</td><td>1.2 mi</td><td>5.3 mi</td><td>0.48 kg</td><td>2.11 kg</td><td>7</td><td>11</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p48-d8</th><td>60</td><td>48</td><td>8 min</td><td>6</td><td>12.5%</td><td>$4.67</td><td>0.3 mi</td><td>5.8 mi</td><td>0.10 kg</td><td>2.34 kg</td><td>1</td><td>5</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p48-d12</th><td>60</td><td>48</td><td>12 min</td><td>19</td><td>39.6%</td><td>$5.68</td><td>1.3 mi</td><td>5.3 mi</td><td>0.52 kg</td><td>2.13 kg</td><td>6</td><td>13</td><td>0</td></tr>
+<tr><th scope="row">s2-e60-p48-d16</th><td>60</td><td>48</td><td>16 min</td><td>29</td><td>60.4%</td><td>$5.66</td><td>2.0 mi</td><td>6.1 mi</td><td>0.81 kg</td><td>2.43 kg</td><td>5</td><td>24</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p12-d8</th><td>120</td><td>12</td><td>8 min</td><td>5</td><td>41.7%</td><td>$6.40</td><td>0.4 mi</td><td>5.4 mi</td><td>0.18 kg</td><td>2.17 kg</td><td>2</td><td>3</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p12-d12</th><td>120</td><td>12</td><td>12 min</td><td>10</td><td>83.3%</td><td>$6.40</td><td>1.0 mi</td><td>5.5 mi</td><td>0.42 kg</td><td>2.19 kg</td><td>3</td><td>7</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p12-d16</th><td>120</td><td>12</td><td>16 min</td><td>12</td><td>100.0%</td><td>$6.67</td><td>1.5 mi</td><td>5.8 mi</td><td>0.58 kg</td><td>2.31 kg</td><td>7</td><td>5</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p24-d8</th><td>120</td><td>24</td><td>8 min</td><td>8</td><td>33.3%</td><td>$5.00</td><td>0.2 mi</td><td>5.9 mi</td><td>0.10 kg</td><td>2.37 kg</td><td>4</td><td>4</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p24-d12</th><td>120</td><td>24</td><td>12 min</td><td>18</td><td>75.0%</td><td>$5.78</td><td>0.8 mi</td><td>5.8 mi</td><td>0.32 kg</td><td>2.32 kg</td><td>4</td><td>14</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p24-d16</th><td>120</td><td>24</td><td>16 min</td><td>23</td><td>95.8%</td><td>$6.26</td><td>1.6 mi</td><td>6.4 mi</td><td>0.65 kg</td><td>2.56 kg</td><td>9</td><td>14</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p48-d8</th><td>120</td><td>48</td><td>8 min</td><td>16</td><td>33.3%</td><td>$5.25</td><td>0.5 mi</td><td>5.0 mi</td><td>0.20 kg</td><td>1.98 kg</td><td>6</td><td>10</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p48-d12</th><td>120</td><td>48</td><td>12 min</td><td>35</td><td>72.9%</td><td>$5.94</td><td>1.0 mi</td><td>5.6 mi</td><td>0.41 kg</td><td>2.24 kg</td><td>11</td><td>24</td><td>0</td></tr>
+<tr><th scope="row">s2-e120-p48-d16</th><td>120</td><td>48</td><td>16 min</td><td>46</td><td>95.8%</td><td>$6.00</td><td>1.6 mi</td><td>5.7 mi</td><td>0.64 kg</td><td>2.30 kg</td><td>18</td><td>28</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p12-d8</th><td>30</td><td>12</td><td>8 min</td><td>1</td><td>8.3%</td><td>$8.00</td><td>9.2 mi</td><td>3.5 mi</td><td>3.68 kg</td><td>1.38 kg</td><td>0</td><td>1</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p12-d12</th><td>30</td><td>12</td><td>12 min</td><td>5</td><td>41.7%</td><td>$8.00</td><td>2.7 mi</td><td>4.7 mi</td><td>1.10 kg</td><td>1.87 kg</td><td>0</td><td>5</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p12-d16</th><td>30</td><td>12</td><td>16 min</td><td>5</td><td>41.7%</td><td>$8.00</td><td>0.6 mi</td><td>4.7 mi</td><td>0.24 kg</td><td>1.87 kg</td><td>1</td><td>4</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p24-d8</th><td>30</td><td>24</td><td>8 min</td><td>3</td><td>12.5%</td><td>$8.00</td><td>3.1 mi</td><td>1.7 mi</td><td>1.23 kg</td><td>0.70 kg</td><td>0</td><td>3</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p24-d12</th><td>30</td><td>24</td><td>12 min</td><td>10</td><td>41.7%</td><td>$6.80</td><td>1.5 mi</td><td>3.3 mi</td><td>0.61 kg</td><td>1.30 kg</td><td>3</td><td>7</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p24-d16</th><td>30</td><td>24</td><td>16 min</td><td>11</td><td>45.8%</td><td>$5.82</td><td>1.0 mi</td><td>3.9 mi</td><td>0.41 kg</td><td>1.54 kg</td><td>3</td><td>8</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p48-d8</th><td>30</td><td>48</td><td>8 min</td><td>5</td><td>10.4%</td><td>$6.40</td><td>1.9 mi</td><td>3.2 mi</td><td>0.75 kg</td><td>1.30 kg</td><td>0</td><td>5</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p48-d12</th><td>30</td><td>48</td><td>12 min</td><td>17</td><td>35.4%</td><td>$6.35</td><td>1.3 mi</td><td>3.8 mi</td><td>0.53 kg</td><td>1.50 kg</td><td>3</td><td>14</td><td>0</td></tr>
+<tr><th scope="row">s3-e30-p48-d16</th><td>30</td><td>48</td><td>16 min</td><td>19</td><td>39.6%</td><td>$5.05</td><td>1.2 mi</td><td>4.1 mi</td><td>0.48 kg</td><td>1.63 kg</td><td>6</td><td>13</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p12-d8</th><td>60</td><td>12</td><td>8 min</td><td>6</td><td>50.0%</td><td>$5.33</td><td>0.5 mi</td><td>5.9 mi</td><td>0.20 kg</td><td>2.37 kg</td><td>1</td><td>5</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p12-d12</th><td>60</td><td>12</td><td>12 min</td><td>10</td><td>83.3%</td><td>$5.60</td><td>0.6 mi</td><td>5.4 mi</td><td>0.25 kg</td><td>2.17 kg</td><td>1</td><td>9</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p12-d16</th><td>60</td><td>12</td><td>16 min</td><td>11</td><td>91.7%</td><td>$5.82</td><td>0.5 mi</td><td>5.5 mi</td><td>0.22 kg</td><td>2.21 kg</td><td>2</td><td>9</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p24-d8</th><td>60</td><td>24</td><td>8 min</td><td>6</td><td>25.0%</td><td>$6.00</td><td>1.1 mi</td><td>5.3 mi</td><td>0.42 kg</td><td>2.13 kg</td><td>1</td><td>5</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p24-d12</th><td>60</td><td>24</td><td>12 min</td><td>17</td><td>70.8%</td><td>$5.88</td><td>1.0 mi</td><td>5.2 mi</td><td>0.40 kg</td><td>2.08 kg</td><td>3</td><td>14</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p24-d16</th><td>60</td><td>24</td><td>16 min</td><td>22</td><td>91.7%</td><td>$6.00</td><td>1.1 mi</td><td>5.4 mi</td><td>0.42 kg</td><td>2.15 kg</td><td>7</td><td>15</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p48-d8</th><td>60</td><td>48</td><td>8 min</td><td>11</td><td>22.9%</td><td>$6.18</td><td>0.8 mi</td><td>4.6 mi</td><td>0.33 kg</td><td>1.84 kg</td><td>3</td><td>8</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p48-d12</th><td>60</td><td>48</td><td>12 min</td><td>33</td><td>68.8%</td><td>$5.82</td><td>0.9 mi</td><td>5.4 mi</td><td>0.35 kg</td><td>2.17 kg</td><td>9</td><td>24</td><td>0</td></tr>
+<tr><th scope="row">s3-e60-p48-d16</th><td>60</td><td>48</td><td>16 min</td><td>41</td><td>85.4%</td><td>$5.95</td><td>1.1 mi</td><td>5.8 mi</td><td>0.43 kg</td><td>2.31 kg</td><td>16</td><td>25</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p12-d8</th><td>120</td><td>12</td><td>8 min</td><td>9</td><td>75.0%</td><td>$5.78</td><td>0.5 mi</td><td>6.4 mi</td><td>0.21 kg</td><td>2.58 kg</td><td>3</td><td>6</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p12-d12</th><td>120</td><td>12</td><td>12 min</td><td>12</td><td>100.0%</td><td>$6.33</td><td>0.9 mi</td><td>6.2 mi</td><td>0.34 kg</td><td>2.49 kg</td><td>9</td><td>3</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p12-d16</th><td>120</td><td>12</td><td>16 min</td><td>12</td><td>100.0%</td><td>$6.33</td><td>0.9 mi</td><td>6.2 mi</td><td>0.34 kg</td><td>2.49 kg</td><td>10</td><td>2</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p24-d8</th><td>120</td><td>24</td><td>8 min</td><td>11</td><td>45.8%</td><td>$5.82</td><td>0.8 mi</td><td>5.7 mi</td><td>0.31 kg</td><td>2.28 kg</td><td>3</td><td>8</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p24-d12</th><td>120</td><td>24</td><td>12 min</td><td>21</td><td>87.5%</td><td>$6.10</td><td>1.5 mi</td><td>6.0 mi</td><td>0.59 kg</td><td>2.40 kg</td><td>12</td><td>9</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p24-d16</th><td>120</td><td>24</td><td>16 min</td><td>24</td><td>100.0%</td><td>$6.17</td><td>1.3 mi</td><td>6.3 mi</td><td>0.54 kg</td><td>2.52 kg</td><td>16</td><td>8</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p48-d8</th><td>120</td><td>48</td><td>8 min</td><td>20</td><td>41.7%</td><td>$6.20</td><td>0.7 mi</td><td>5.2 mi</td><td>0.27 kg</td><td>2.06 kg</td><td>5</td><td>15</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p48-d12</th><td>120</td><td>48</td><td>12 min</td><td>41</td><td>85.4%</td><td>$5.95</td><td>1.5 mi</td><td>5.5 mi</td><td>0.58 kg</td><td>2.20 kg</td><td>14</td><td>27</td><td>0</td></tr>
+<tr><th scope="row">s3-e120-p48-d16</th><td>120</td><td>48</td><td>16 min</td><td>47</td><td>97.9%</td><td>$6.04</td><td>1.5 mi</td><td>5.9 mi</td><td>0.61 kg</td><td>2.37 kg</td><td>24</td><td>23</td><td>0</td></tr>
+</tbody>
+</table>
+</div>
+</details>
+</section>
+
+<footer>Generated by <code>npm run study</code> from the study results. Run ids read s (seed), e (employees), p (packages), d (detour limit in minutes). <a href="/">Back to Relay</a></footer>
+</main>
+</body>
+</html>

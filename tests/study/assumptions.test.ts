@@ -25,6 +25,7 @@ const NUMBER_FILES: Record<string, string> = {
   'grid.ts': 'the grid, repeated in the results under `grid`',
   'units.ts': 'unit definitions and output rounding',
   'cli.ts': 'exit codes and text formatting',
+  'page.ts': 'chart geometry, CSS sizes and number formatting of the study page; it reads totals, it computes no comparison',
   'types.ts': 'documentation only',
 };
 
