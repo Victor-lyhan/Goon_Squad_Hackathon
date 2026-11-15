@@ -1,8 +1,7 @@
 /* NYC map (Google basemap + deck.gl). MVP III look (docs/mvp3.md P4, #701): colours only through
-   tokens (a fallback is the token's value in client/src/styles/tokens.css); the load overlay is the
-   --bg token at 85%. Hairline borders, radius 4px, no shadows, no gradients; the day/night badge, a
-   control on the map, is the one dark translucent pill (#864). The colours drawn on the map itself are
-   in layers.ts, not here. */
+   tokens (a fallback is the token's value in client/src/styles/tokens.css). Hairline borders, radius
+   4px, no shadows, no gradients; the day/night badge, a control on the map, is the one dark translucent
+   pill (#864). The colours drawn on the map itself are in layers.ts, not here. */
 .map-v2 {
   position: relative;
   width: 100%;
@@ -17,49 +16,135 @@
   inset: 0;
 }
 
-.map-v2__overlay {
+/* ---------- The placeholder: no key, key rejected, load error, loading (#890) ----------
+   One block for every map in the app, in the place of the map: one plain line, an optional short hint
+   and, for a load error, Retry. It is not a card: the words sit on the map frame itself.
+   - A map that is not coming is the ink frame (--text, as the night map and the homepage's map), with
+     white words: it reads as "the map is off", not as a broken page.
+   - Loading keeps the frame of the map that is about to appear (--bg by day, the ink at night), so a
+     normal load never flashes dark.
+   Flat fills, the token radius, Inter; IBM Plex Mono only for a name (a variable, a file, an origin).
+   Nothing here moves, so there is nothing to turn off under reduced motion. */
+.map-v2__state {
   position: absolute;
   inset: 0;
+  /* Above the canvas, under the controls on the map (the badge, the legend and Play are 2 and 3). */
+  z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: safe center;
   justify-content: center;
-  background: color-mix(in srgb, var(--bg, #F7F7F4) 85%, transparent);
+  padding: var(--space-3, 12px);
+  overflow-y: auto;
+  /* The block below asks how large this map is (see the @container rule). */
+  container-type: size;
 }
 
-.map-v2--state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+.map-v2__state--dark {
+  background: var(--text, #171C24);
+  color: var(--panel, #FFFFFF);
 }
 
-.map-v2__panel {
-  max-width: 440px;
-  padding: 16px;
-  background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
-  color: var(--text, #171C24);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-/* The panel's lead line ("Google Maps key missing."): 600, the heaviest Inter weight fonts.css loads, so
-   the browser never fakes a bold (#725). */
-.map-v2__panel strong {
-  font-weight: 600;
-}
-
-.map-v2__panel p {
-  margin: 8px 0 12px;
+.map-v2__state--plain {
   color: var(--muted, #5B6472);
 }
 
-.map-v2__panel code {
+/* Loading a night map: the ink is behind, so the line is the soft white of the hints. */
+.map-v2--night .map-v2__state--plain {
+  color: color-mix(in srgb, var(--panel, #FFFFFF) 72%, transparent);
+}
+
+/* The map is showing: only the empty live region is left, out of sight and out of the pointer's way. */
+.map-v2__state--off {
+  inset: auto;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  pointer-events: none;
+}
+
+.map-v2__state-body {
+  display: grid;
+  gap: var(--space-3, 12px);
+  justify-items: center;
+  max-width: 360px;
+  text-align: center;
+}
+
+.map-v2__state-text {
+  display: grid;
+  gap: var(--space-1, 4px);
+}
+
+/* The line for whoever is watching. 600 is the heaviest Inter weight fonts.css loads (#725). */
+.map-v2__state-line {
+  margin: 0;
+  font-size: var(--text-md, 14px);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.map-v2__state--plain .map-v2__state-line {
+  font-size: var(--text-sm, 13px);
+  font-weight: 400;
+}
+
+/* The hint for whoever runs the demo: smaller and softer (9:1 on the ink). */
+.map-v2__state-hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--panel, #FFFFFF) 72%, transparent);
+  font-size: var(--text-xs, 12px);
+  line-height: 1.5;
+}
+
+.map-v2__state-hint code {
+  color: var(--panel, #FFFFFF);
   font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
-  font-size: 12px;
-  padding: 0 2px;
-  background: var(--bg, #F7F7F4);
+  font-size: 11px;
+  /* An origin has no underscores to wrap at: it breaks where it must instead of leaving the map. */
+  overflow-wrap: anywhere;
+}
+
+/* Retry on the ink: a hairline white outline, as large as the page's other small buttons. */
+.map-v2__retry {
+  min-height: 36px;
+  padding: 0 var(--space-4, 16px);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--panel, #FFFFFF) 48%, transparent);
+  border-radius: var(--radius, 4px);
+  color: var(--panel, #FFFFFF);
+  font: inherit;
+  font-size: var(--text-sm, 13px);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.map-v2__retry:hover:not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--panel, #FFFFFF) 14%, transparent);
+}
+
+/* While a retry loads the button stays, softer (still 5.5:1 on the ink), and does nothing. */
+.map-v2__retry[aria-disabled='true'] {
+  border-color: color-mix(in srgb, var(--panel, #FFFFFF) 24%, transparent);
+  color: color-mix(in srgb, var(--panel, #FFFFFF) 60%, transparent);
+  cursor: default;
+}
+
+.map-v2__retry:focus-visible {
+  outline: 2px solid var(--panel, #FFFFFF);
+  outline-offset: 2px;
+}
+
+/* A narrow, tall map is the simulator's between its two panels (220px wide in a 900px window). There
+   the legend fills the top and Play (two rows of buttons) the bottom, so the block sits just above
+   Play instead of in the middle, under the legend. */
+@container (max-width: 320px) and (min-height: 480px) {
+  .map-v2__state-body {
+    align-self: flex-end;
+    margin-bottom: 136px;
+  }
 }
 
 .map-v2__tooltip {
@@ -99,26 +184,10 @@
   white-space: nowrap;
 }
 
-/* Google rejected the browser key (gm_authFailure): hide Google's own error box under an opaque
-   overlay that keeps the map area's size; the alert scrolls if the map is short. */
+/* A map that is not coming (key rejected, load error): the canvas is hidden under the ink frame, so
+   Google's own grey error box never shows. */
 .map-v2__canvas--hidden {
   visibility: hidden;
-}
-
-.map-v2__overlay--solid {
-  align-items: safe center;
-  padding: 16px;
-  overflow-y: auto;
-  background: var(--bg, #F7F7F4);
-}
-
-.map-v2__checks {
-  margin: 0 0 12px;
-  padding-left: 20px;
-}
-
-.map-v2__checks li + li {
-  margin-top: 4px;
 }
 
 /* Day and night (simulator only, #649). Only the basemap gets dark (the Google style); this colours

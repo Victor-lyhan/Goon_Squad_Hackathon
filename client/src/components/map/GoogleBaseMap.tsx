@@ -9,22 +9,19 @@
 //
 // deck.gl is imported dynamically inside the load effect, so this file can be statically rendered
 // in Node tests (no WebGL) and the heavy deck bundle loads only when a key is present.
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 import type { GoogleMapsOverlay } from '@deck.gl/google-maps';
 import type { PickingInfo } from '@deck.gl/core';
-import { Button, Spinner } from '../../ui';
 import { DAY_NIGHT_ALT, withNightCasing, type DayNight } from './dayNight';
 import { buildLayerSpecs, type LayerSpec, type PathDatum, type ScatterDatum, type TextDatum } from './layers';
 import { mapStyleFor } from './mapStyle';
 import {
-  AUTH_ERROR_TEXT,
   FIT_PADDING_PX,
-  KEY_MISSING_TEXT,
-  LOAD_ERROR_TEXT,
   fitKey,
   initialStatus,
   mapOptions,
+  mapStateCopy,
   nextMapStatus,
   panDecision,
   readBrowserKey,
@@ -32,6 +29,7 @@ import {
   selectedItemText,
   watchAuthFailure,
   type AuthFailureTarget,
+  type MapStateCopy,
 } from './mapModel';
 import type {
   LatLngBounds,
@@ -129,56 +127,75 @@ function toDeckLayer(spec: LayerSpec, mod: DeckLayersModule) {
   }
 }
 
-/**
- * The no-key message. A calm notice (role="status", which implies aria-live="polite"), not an alert: it
- * is there on every page load without a browser key and must not interrupt a screen reader (#767). The
- * load error and the rejected key below stay alerts: they are failures to act on. Vite reads the key
- * when `npm run dev` starts and when `npm run build` runs, so the advice names both (#737).
- */
-export function MapKeyMissing() {
+/** A name inside a hint. It may wrap after an underscore, so a long variable name fits a narrow map. */
+function HintCode({ text }: { text: string }) {
+  const pieces = text.split('_');
   return (
-    <div className="map-v2__panel" role="status">
-      <strong>{KEY_MISSING_TEXT}</strong> Add <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code> to <code>.env</code>, then
-      restart <code>npm run dev</code>, or run <code>npm run build</code> again before <code>npm start</code> (the
-      key is read at build time).
+    <code>
+      {pieces.map((piece, i) => (
+        <Fragment key={i}>
+          {i > 0 && <wbr />}
+          {i < pieces.length - 1 ? `${piece}_` : piece}
+        </Fragment>
+      ))}
+    </code>
+  );
+}
+
+export type MapPlaceholderProps = {
+  /** What to say, or null for a map that is showing: then only the empty live region is left. */
+  copy: MapStateCopy | null;
+  /** Called by Retry, which is shown only when the copy says a retry can help. */
+  onRetry?: () => void;
+};
+
+/**
+ * The one placeholder of every map in the app (#890): no key, key rejected, load error and loading.
+ * One plain line, an optional short hint and, where it can help, Retry.
+ *
+ * The text is in one `role="status"` region (polite, never an alert: nothing here should interrupt a
+ * screen reader, #767). The region is in the page before its text and stays while the map shows, so a
+ * change of state is announced once and the 1 s poll, which changes no text, announces nothing.
+ * Retry is outside the region, so the announcement is the words only.
+ */
+export function MapPlaceholder({ copy, onRetry }: MapPlaceholderProps) {
+  return (
+    <div className={copy ? `map-v2__state map-v2__state--${copy.tone}` : 'map-v2__state map-v2__state--off'}>
+      <div className="map-v2__state-body">
+        <div className="map-v2__state-text" role="status">
+          {copy && <p className="map-v2__state-line">{copy.line}</p>}
+          {copy && copy.hint.length > 0 && (
+            <p className="map-v2__state-hint">
+              {copy.hint.map((part, i) =>
+                typeof part === 'string' ? <Fragment key={i}>{part}</Fragment> : <HintCode key={i} text={part.code} />,
+              )}
+            </p>
+          )}
+        </div>
+        {copy?.retry && onRetry && (
+          // aria-disabled, not disabled, while a retry loads: a disabled button would drop the focus.
+          <button
+            type="button"
+            className="map-v2__retry"
+            aria-disabled={copy.busy || undefined}
+            onClick={copy.busy ? undefined : onRetry}
+          >
+            Retry
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-/** The load-error message with Retry. An alert: the map failed and Retry is the way out. */
-export function MapLoadError({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div className="map-v2__panel" role="alert">
-      <strong>{LOAD_ERROR_TEXT}</strong>
-      <p>Check your connection and the key's allowed referrers, then try again.</p>
-      <Button variant="secondary" onClick={onRetry}>
-        Retry
-      </Button>
-    </div>
-  );
-}
-
 /**
- * Google rejected the browser key (gm_authFailure). An alert, like the load error, with what to
- * check. Never shows the key, the script URL or Google's error text; only this page's origin.
+ * A map area that holds only the placeholder, for a page whose own map data is loading or failed (the
+ * Business route preview): the same box and words as the map that replaces it.
  */
-export function MapAuthError({ origin }: { origin: string }) {
+export function MapStateFrame({ copy, onRetry }: { copy: MapStateCopy; onRetry?: () => void }) {
   return (
-    <div className="map-v2__panel" role="alert">
-      <strong>{AUTH_ERROR_TEXT}</strong>
-      <p>In the Google Cloud project that owns the key, check:</p>
-      <ul className="map-v2__checks">
-        <li>The Maps JavaScript API is enabled in the key's project.</li>
-        <li>
-          The key's website restriction allows this page's origin: <code>{origin || 'this page'}</code>
-        </li>
-        <li>Billing is active on the project.</li>
-      </ul>
-      <p>
-        The key is read from <code>VITE_GOOGLE_MAPS_BROWSER_KEY</code>. Reload the page after the fix. If you
-        changed <code>.env</code>, first restart <code>npm run dev</code>, or run <code>npm run build</code> again
-        before <code>npm start</code> (the key is read at build time).
-      </p>
+    <div className="map-v2">
+      <MapPlaceholder copy={copy} onRetry={onRetry} />
     </div>
   );
 }
@@ -401,15 +418,11 @@ export function GoogleBaseMap({
 
   const selectedText = selectedItemText(selectedIds, places, movers, stops);
 
-  if (status === 'missing-key') {
-    return (
-      <div className="map-v2 map-v2--state">
-        <MapKeyMissing />
-        {dayNight && <DayNightBadge phase={dayNight} clockText={clockText} />}
-        <SelectedAnnouncement text={selectedText} />
-      </div>
-    );
-  }
+  // `attempt` only grows when Retry is pressed, so a load with attempt > 0 is a retry.
+  const copy = mapStateCopy(status, pageOrigin(), attempt > 0);
+  // A map that is not coming (no key, key rejected, load error): the ink frame, and the canvas hidden
+  // under it, so Google's own grey error box never shows.
+  const noMap = copy?.tone === 'dark';
 
   return (
     <div
@@ -422,26 +435,12 @@ export function GoogleBaseMap({
         }
       }}
     >
-      <div
-        ref={containerRef}
-        className={status === 'auth-error' ? 'map-v2__canvas map-v2__canvas--hidden' : 'map-v2__canvas'}
-      />
-      {status === 'loading' && (
-        <div className="map-v2__overlay">
-          <Spinner label="Loading map" />
-        </div>
+      {/* Without a key nothing loads, so there is no canvas at all. */}
+      {status !== 'missing-key' && (
+        <div ref={containerRef} className={noMap ? 'map-v2__canvas map-v2__canvas--hidden' : 'map-v2__canvas'} />
       )}
-      {status === 'error' && (
-        <div className="map-v2__overlay">
-          <MapLoadError onRetry={() => setAttempt((a) => a + 1)} />
-        </div>
-      )}
-      {status === 'auth-error' && (
-        <div className="map-v2__overlay map-v2__overlay--solid">
-          <MapAuthError origin={pageOrigin()} />
-        </div>
-      )}
-      {dayNight && status !== 'auth-error' && <DayNightBadge phase={dayNight} clockText={clockText} />}
+      <MapPlaceholder copy={copy} onRetry={() => setAttempt((a) => a + 1)} />
+      {dayNight && <DayNightBadge phase={dayNight} clockText={clockText} />}
       {status === 'ready' && hover && (
         <div className="map-v2__tooltip" role="tooltip" style={{ left: hover.x + 12, top: hover.y + 12 }}>
           <div className="map-v2__tooltip-label">{hover.item.label}</div>
