@@ -354,7 +354,7 @@ describe('F1: the typed demo sentence, from the Business text box to the carrier
     expect(new Set([sender.id, relayPoint.id, recipient.id]).size).toBe(3);
   });
 
-  it('typed as the sender: "Parsed offline" with no field to fill, Find a delivery match shows the README\'s relay, and one poll later each carrier\'s page lists its own leg', async () => {
+  it('typed as the sender: "Read by Relay’s rules" with no field to fill, Find a delivery match shows the README\'s relay, and one poll later each carrier\'s page lists its own leg', async () => {
     // Three tabs. The Business page is first in the document, so its labels find its own fields.
     const biz = mountPage(`/business/${enc(sender.id)}`);
     const evening = mountPage(`/employee/${enc(eveningCarrier.id)}`);
@@ -398,9 +398,9 @@ describe('F1: the typed demo sentence, from the Business text box to the carrier
     expect(parsed.missing).toStrictEqual(['originBusinessId']); // the sender: the signed-in business (pass 81)
     expect(requests(from, 'POST', '/api/v2/shipments'), 'nothing is sent before Find a delivery match').toStrictEqual([]);
 
-    // ----- The card: "Parsed offline", the sentence, and the form with every field filled. -----
+    // ----- The card: "Read by Relay’s rules", the sentence, and the form with every field filled. -----
     const card = byRole(biz, 'region', 'Your request');
-    expect(textOf(card)).toContain('Parsed offline');
+    expect(textOf(card)).toContain('Read by Relay’s rules');
     expect(textOf(card)).not.toContain(REQUEST_COPY.parsedByModel);
     expect(textOf(card)).toContain(SENTENCE);
     expect(textOf(card), 'no sender note: the sentence names no other sender').not.toContain('signed in as');

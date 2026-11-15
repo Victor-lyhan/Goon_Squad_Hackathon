@@ -138,7 +138,7 @@ describe('the Options card after "Read my request"', () => {
     expect(card.tagName).toBe('SECTION');
     expect(textOf(document.getElementById(card.getAttribute('aria-labelledby')!)!)).toBe('Options');
     expect(card.hasAttribute('aria-busy')).toBe(false);
-    expect(p.status()).toBe('Planned by Gemini, checked by the engine.');
+    expect(p.status()).toBe('Planned by Gemini, priced by Relay.');
     expect(p.skeletons()).toHaveLength(0);
 
     const rows = p.rows();
@@ -171,7 +171,7 @@ describe('the Options card after "Read my request"', () => {
     const p = setup({ advise: async () => ({ ...OPTIONS, source: 'offline', note: 'Only two variants found a carrier.' }) });
     await p.read();
     // One plain line: the label, and what "offline" means.
-    expect(p.status()).toBe('Options computed offline: priced by Relay’s matching engine, with no AI model.');
+    expect(p.status()).toBe('Priced by Relay, with no AI model.');
     expect(textOf(p.card()!)).not.toContain('Gemini');
     expect(textOf(p.card()!)).toContain('Only two variants found a carrier.');
   }, T);
@@ -368,7 +368,7 @@ describe('no options: one plain sentence in the card, and the flow is as before'
       // It is a polite status, not an alert: the request is not in trouble, and the form is not blocked.
       expect([...p.container.querySelectorAll('[role="alert"]')].map(textOf).filter(Boolean)).toEqual([]);
       // The confirmation card is the one of before #863.
-      expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed by Gemini');
+      expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Gemini');
       expect(p.note()!.nextElementSibling).toBe(p.form());
       expect(p.times()).toEqual(['16:00', '2', '10:00']);
       await p.send();

@@ -141,7 +141,7 @@ export type ParsedRequestNoteProps = {
 
 /**
  * The lines above the prefilled form, which together with it are the confirmation card: the sentence, who
- * read it ("Parsed by Gemini" / "Parsed offline", the latter with one plain line that says what it means), the
+ * read it ("Read by Gemini" / "Read by Relay’s rules", the latter with one plain line that says what it means), the
  * sender note and a rejected stop, each as plain text.
  */
 export function ParsedRequestNote({ parsed, onEdit }: ParsedRequestNoteProps) {

@@ -261,7 +261,7 @@ export function NewDeliveryForm(props: NewDeliveryFormProps) {
   }, [status]);
   // A prefilled form opens on the first field the request left out. Once, on mount: never on a poll's re-render.
   // Without scrolling (#807): at 390 px the browser moved that field to the middle of the screen, and the top
-  // of the card ("Parsed offline", the sentence, the notes about the sender or a refused stop) was scrolled away.
+  // of the card (who read the sentence, the sentence, the notes about the sender or a refused stop) was scrolled away.
   useEffect(() => {
     const first = firstNeedsInput(props.needsInput ?? []);
     if (first) fields.current[first]?.focus({ preventScroll: true });

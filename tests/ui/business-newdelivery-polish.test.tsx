@@ -196,18 +196,18 @@ describe('while the request is read (up to 6 s)', () => {
 });
 
 describe('an offline answer says so in one plain line', () => {
-  it('the request: "Parsed offline" and what that means, without naming Gemini', async () => {
+  it('the request: "Read by Relay’s rules" and what that means, without naming Gemini', async () => {
     const p = setup();
     await p.read();
-    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed offline');
-    expect([...p.note()!.querySelectorAll('.nd-parsed__how')].map(textOf)).toEqual(['Read by Relay’s built-in rules, with no AI model.']);
+    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Relay’s rules');
+    expect([...p.note()!.querySelectorAll('.nd-parsed__how')].map(textOf)).toEqual(['No AI model was used.']);
     expect(textOf(p.note()!)).not.toContain('Gemini');
   }, T);
 
   it('a request Gemini read has the label only', async () => {
     const p = setup({ parse: async () => read('gemini'), advise: async () => options('gemini') });
     await p.read();
-    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed by Gemini');
+    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Gemini');
     expect(p.note()!.querySelector('.nd-parsed__how')).toBeNull();
     expect(sourceLine('gemini')).toBeNull();
     for (const s of [undefined, null, 'GEMINI', 'offline']) expect(sourceLine(s)).toBe(REQUEST_COPY.offlineLine);
@@ -216,13 +216,13 @@ describe('an offline answer says so in one plain line', () => {
   it('the options: one line under the title, and a Gemini answer names Gemini there', async () => {
     const offline = setup();
     await offline.read();
-    expect(textOf(offline.cardStatus())).toBe('Options computed offline: priced by Relay’s matching engine, with no AI model.');
+    expect(textOf(offline.cardStatus())).toBe('Priced by Relay, with no AI model.');
     expect(textOf(offline.card()!)).not.toContain('Gemini');
     offline.unmount();
 
     const model = setup({ parse: async () => read('gemini'), advise: async () => options('gemini') });
     await model.read();
-    expect(textOf(model.cardStatus())).toBe('Planned by Gemini, checked by the engine.');
+    expect(textOf(model.cardStatus())).toBe('Planned by Gemini, priced by Relay.');
     // Anything but "gemini" never claims the model.
     for (const s of [undefined, null, 'GEMINI', 'offline']) expect(adviceSourceLine(s)).toBe(ADVICE_COPY.offlineLine);
   }, T);

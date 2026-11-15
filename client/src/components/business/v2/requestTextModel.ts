@@ -10,7 +10,7 @@ import {
 
 export { PARSE_TEXT_MAX };
 
-/** The server falls back to its offline parser after 6 s (docs/mvp4.md F1), so the page waits a little longer. */
+/** The server falls back to its own rules after 6 s (docs/mvp4.md F1), so the page waits a little longer. */
 export const PARSE_TIMEOUT_MS = 10_000;
 
 export const REQUEST_COPY = {
@@ -20,31 +20,35 @@ export const REQUEST_COPY = {
   reading: 'Reading…',
   /**
    * The line beside the disabled button while the server reads (#880): the wait is at most the 6 s the
-   * model gets before the offline parser takes over (docs/mvp4.md F1), so the line says what happens and how long.
+   * model gets before the server's own rules take over (docs/mvp4.md F1), so the line says what happens and how long.
    */
   readingLine: 'Reading your request. This takes a few seconds at most.',
   fillForm: 'Fill in the form instead',
   edit: 'Edit request',
-  parsedByModel: 'Parsed by Gemini',
-  parsedOffline: 'Parsed offline',
   /**
-   * What "Parsed offline" means, in one plain line under the label (#880). Not shown when the model read
-   * the sentence, and it does not name the model: an offline card never does.
+   * Who read the sentence (#919: plain words, so no "parsed" and no "offline"). The keys keep the names of
+   * the contract's two `source` values; the second label is for every source but 'gemini'.
    */
-  offlineLine: 'Read by Relay’s built-in rules, with no AI model.',
+  parsedByModel: 'Read by Gemini',
+  parsedOffline: 'Read by Relay’s rules',
+  /**
+   * One plain line under "Read by Relay’s rules" (#880): what that means for the user. Not shown when the
+   * model read the sentence, and it does not name the model: a card without it never does.
+   */
+  offlineLine: 'No AI model was used.',
   /** Under the source label: the form below is the confirmation card, and only its button sends. */
   confirm: 'Check the details below. Nothing is sent until you press Find a delivery match.',
   failed: 'Your request could not be read. Try again, or fill in the form instead.',
-  noAnswer: 'The server did not answer, so your request was not read. Try again, or fill in the form instead.',
+  noAnswer: 'Relay did not answer, so your request was not read. Try again, or fill in the form instead.',
   empty: 'Describe the delivery in one sentence',
 } as const;
 
-/** "Parsed by Gemini" only when the server says so; anything else never claims the model read it. */
+/** "Read by Gemini" only when the server says so; anything else never claims the model read it. */
 export function sourceLabel(source: unknown): string {
   return source === 'gemini' ? REQUEST_COPY.parsedByModel : REQUEST_COPY.parsedOffline;
 }
 
-/** The plain line under "Parsed offline"; null when the server says the model read the sentence. */
+/** The plain line under "Read by Relay’s rules"; null when the server says the model read the sentence. */
 export function sourceLine(source: unknown): string | null {
   return source === 'gemini' ? null : REQUEST_COPY.offlineLine;
 }

@@ -51,17 +51,18 @@ function scan(files: string[], find: (text: string) => Hit[]): string[] {
 // ---------------------------------------------------------------------------------------------------------------
 
 const CLIENT_GEMINI =
-  'mentions Gemini: client code may only hold the labels "Parsed by Gemini" and "Planned by Gemini, checked by the engine" and the source value \'gemini\'';
+  'mentions Gemini: client code may only hold the labels "Read by Gemini" and "Planned by Gemini, priced by Relay" and the source value \'gemini\'';
 const CLIENT_HOST = 'names the Gemini API host: only the server may call it';
 
 /**
- * The mentions client code needs, and nothing else: docs/mvp4.md asks for a "Parsed by Gemini" label on the
- * card, and the parse-request answer says `source: 'gemini' | 'offline'` (shared/v2/parseRequest.ts, #764).
- * The Options card of the AI advisor (#863) has one more label, in full: "Planned by Gemini, checked by the
- * engine"; its answer (POST /api/v2/advise, #862) carries the same `source`.
+ * The mentions client code needs, and nothing else: docs/mvp4.md asks for a label on the card that names
+ * Gemini, which the page words "Read by Gemini" (#919: plain words, it was "Parsed by Gemini"), and the
+ * parse-request answer says `source: 'gemini' | 'offline'` (shared/v2/parseRequest.ts, #764).
+ * The Options card of the AI advisor (#863) has one more label, in full: "Planned by Gemini, priced by
+ * Relay" (#919, it was "... checked by the engine"); its answer (POST /api/v2/advise, #862) carries the same `source`.
  * All are case-sensitive, so `GEMINI_API_KEY`, `geminiKey` or a comment about Gemini still fail.
  */
-const CLIENT_MAY_SAY = [/Parsed by Gemini/g, /Planned by Gemini, checked by the engine/g, /(['"`])gemini\1/g];
+const CLIENT_MAY_SAY = [/Read by Gemini/g, /Planned by Gemini, priced by Relay/g, /(['"`])gemini\1/g];
 
 function clientHits(text: string): Hit[] {
   const hits: Hit[] = [];
@@ -102,9 +103,9 @@ describe('Gemini key rule: client code', () => {
 
   it('lets the label and the source value through, and nothing next to them', () => {
     for (const fine of [
-      "const label = draft.source === 'gemini' ? 'Parsed by Gemini' : 'Parsed offline';",
-      '<span className="tag">Parsed by Gemini</span>',
-      "const label = answer.source === 'gemini' ? 'Planned by Gemini, checked by the engine' : 'Options computed offline';",
+      "const label = draft.source === 'gemini' ? 'Read by Gemini' : 'Read by Relay’s rules';",
+      '<span className="tag">Read by Gemini</span>',
+      "const label = answer.source === 'gemini' ? 'Planned by Gemini, priced by Relay' : 'Priced by Relay, no AI model';",
       'type Source = "gemini" | "offline";',
       'const SOURCES = [`gemini`, `offline`];',
       'const key = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY;',
@@ -112,8 +113,11 @@ describe('Gemini key rule: client code', () => {
       expect(clientHits(fine), fine).toStrictEqual([]);
     }
     expect(rulesOf(clientHits("source === 'gemini' // the Gemini answer"))).toStrictEqual([CLIENT_GEMINI]);
-    expect(rulesOf(clientHits('<span>Parsed by Gemini 2.5 (gemini-2.5-flash)</span>'))).toStrictEqual([CLIENT_GEMINI]);
-    expect(rulesOf(clientHits('<span>PARSED BY GEMINI</span>'))).toStrictEqual([CLIENT_GEMINI]);
+    expect(rulesOf(clientHits('<span>Read by Gemini 2.5 (gemini-2.5-flash)</span>'))).toStrictEqual([CLIENT_GEMINI]);
+    expect(rulesOf(clientHits('<span>READ BY GEMINI</span>'))).toStrictEqual([CLIENT_GEMINI]);
+    // The labels the page had before #919 are no longer let through.
+    expect(rulesOf(clientHits('<span>Parsed by Gemini</span>'))).toStrictEqual([CLIENT_GEMINI]);
+    expect(rulesOf(clientHits('<span>Planned by Gemini, checked by the engine</span>'))).toStrictEqual([CLIENT_GEMINI]);
     // The advisor's label only in full: "Planned by Gemini" with other words after it is not it.
     expect(rulesOf(clientHits('<span>Planned by Gemini</span>'))).toStrictEqual([CLIENT_GEMINI]);
     expect(rulesOf(clientHits('<span>Planned by Gemini, checked by nobody</span>'))).toStrictEqual([CLIENT_GEMINI]);
