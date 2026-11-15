@@ -74,7 +74,7 @@ function shownText(root: HTMLElement): string {
 }
 
 const PAGES = () => [
-  { path: '/', marker: '.landing.landing-nyc', ready: '.op-summary-list', full: false },
+  { path: '/', marker: '.landing.landing-nyc', ready: 'a.workspace-entry', full: false },
   { path: `/business/${bizId}`, marker: 'div.bp', ready: 'div.bp .bp-notices', full: false }, // no <main> of its own (#581)
   { path: `/employee/${empId}`, marker: 'div.ep', ready: 'div.ep h1', full: false }, // the shell has the only <main> (#584)
   { path: '/simulator', marker: '.sim-v2', ready: '.sim-v2 .sw-left', full: true },
@@ -92,7 +92,9 @@ describe('the four main paths show the MVP II pages on the real NYC run', () => 
       expect(s.main().querySelector('.error-fallback'), p.path).toBeNull();
       expect(textOf(s.main()), p.path).not.toMatch(/not found|unavailable|something went wrong/i);
       expect(s.main().className, p.path).toBe(p.full ? 'app-main app-main--full' : 'app-main');
-      expect(textOf(s.header().querySelector('.shell-env')!), p.path).toBe(ENV_LABELS.nyc);
+      // The NYC indicator, on every page but the homepage (#833).
+      if (p.path === '/') expect(s.header().querySelector('.shell-env'), p.path).toBeNull();
+      else expect(textOf(s.header().querySelector('.shell-env')!), p.path).toBe(ENV_LABELS.nyc);
       expect(link(s.header(), 'Relay').getAttribute('href')).toBe('/');
       expect(s.header().querySelector('a[href="/help"]'), p.path).toBeNull();
       expect(link(s.header(), 'Business').getAttribute('href')).toBe(`/business/${bizId}`);

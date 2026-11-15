@@ -108,7 +108,8 @@ describe('workspace links use the stored identity', () => {
   it('the header never calls an MVP 1 route', async () => {
     for (const p of ['/', '/simulator', '/business/biz-01', '/employee/emp-01', '/nowhere']) {
       const s = await renderShell(p);
-      expect(textOf(s.header())).toContain(ENV_LABELS.nyc);
+      // The environment line is on every page but the homepage (#833).
+      expect(textOf(s.header()).includes(ENV_LABELS.nyc), p).toBe(p !== '/');
       s.unmount();
     }
     expect(api.calls.filter((u) => MVP1_ROUTE.test(u))).toEqual([]);

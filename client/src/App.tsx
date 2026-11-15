@@ -225,7 +225,8 @@ export function Header({ employees, businesses }: { employees: V2Directory; busi
         <div className="demo-account-slot" data-slot="demo-account-selector">
           <DemoAccountSelector employees={employees} businesses={businesses} />
         </div>
-        <span className="shell-env">{ENV_INDICATOR_TEXT}</span>
+        {/* Not on the homepage (#833): its header has no text at the top right. Every other page keeps the line. */}
+        {pathname !== HOME_PATH && <span className="shell-env">{ENV_INDICATOR_TEXT}</span>}
       </div>
     </header>
   );

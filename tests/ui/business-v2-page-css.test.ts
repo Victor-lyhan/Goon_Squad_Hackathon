@@ -59,8 +59,12 @@ describe('desktop width (#581)', () => {
     // The simulator's full-width rule aside, no other stylesheet changes the shell's column.
     const widths = [...shell.matchAll(/\.app-main[^{]*\{[^}]*max-width:\s*([^;}]+)/g)].map((x) => x[1].trim());
     expect(widths).toEqual(['960px', 'none']);
+    // The homepage's own rule aside (#833: its dark hero runs edge to edge), scoped to the page like this one.
+    const landing = readFileSync('client/src/styles/landing.css', 'utf8');
+    expect(landing.match(/\.app-main\b[^{]*\{/g)).toEqual(['.app-main:has(.landing) {']);
     const others = readdirSync('client/src', { recursive: true, encoding: 'utf8' })
-      .filter((f) => f.endsWith('.css') && !f.endsWith('styles/global.css') && !f.endsWith('page/businessPage.css'));
+      .filter((f) => f.endsWith('.css') && !f.endsWith('styles/global.css') && !f.endsWith('page/businessPage.css')
+        && !f.endsWith('styles/landing.css'));
     expect(others.length).toBeGreaterThan(5);
     for (const f of others) expect(readFileSync(`client/src/${f}`, 'utf8'), f).not.toMatch(/\.app-main\b[^{]*\{[^}]*max-width/);
   });

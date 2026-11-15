@@ -34,7 +34,7 @@ The main paths:
 
 | Path | Page |
 | --- | --- |
-| `/` | Homepage: one sentence on what Relay does, the **Watch a package** button (it opens the simulator on an example package and plays it), the Business and Employee entries, and one line with the numbers of the current run. |
+| `/` | Homepage: a dark hero with the title, the **Watch a package** button (it opens the simulator on an example package and plays it), the Business and Employee entries and a drawn map of New York on which a package is relayed in a loop (an illustration, not a run; no map key needed), then **How it works** in three lines with the **See the numbers** button to `/study.html`. |
 | `/business/<id>` | Business workspace, for example `/business/biz-brooklyn-roasting`: the **Shipments** table, **New delivery**, delivery details. |
 | `/employee/<id>` | Employee workspace, for example `/employee/emp-7`: the saved commute, assigned deliveries, earnings. |
 | `/simulator` | Simulator: the whole network, the package list, playback, and the journey of one package. |

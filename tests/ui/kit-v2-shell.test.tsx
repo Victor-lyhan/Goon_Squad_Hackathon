@@ -59,8 +59,8 @@ describe('compact header', () => {
     expect(navLabels(html)).toEqual(['Business', 'Employee', 'Simulator']);
     expect(nav(html).match(/<a /g)).toHaveLength(3);
     expect(current(html)).toEqual(active ? [active] : []);
-    // The header says it once.
-    expect(header(html).split(ENV_INDICATOR_TEXT)).toHaveLength(2);
+    // The header says it once; on the homepage it does not say it (#833).
+    expect(header(html).split(ENV_INDICATOR_TEXT)).toHaveLength(path === '/' ? 1 : 2);
     // The brand link (#784): to "/", the logo first (decorative, so the link's name is the word), then "Relay".
     const brand = /<a ([^>]*)>(.*?)<\/a>/.exec(header(html))!;
     expect(brand[1]).toContain('class="shell-wordmark"');
@@ -68,7 +68,8 @@ describe('compact header', () => {
     expect(brand[2]).toBe('<img class="shell-logo" src="/brand/relay-logo.png" alt="" width="28" height="28"/>Relay');
     expect(header(html).match(/<img /g)).toHaveLength(1);
     expect(header(html)).not.toContain('href="/help"'); // the Help page is deleted (#623)
-    expect(header(html)).toContain(`class="shell-env">${ENV_INDICATOR_TEXT}<`);
+    if (path === '/') expect(header(html)).not.toContain('shell-env');
+    else expect(header(html)).toContain(`class="shell-env">${ENV_INDICATOR_TEXT}<`);
   });
   it('nav links point to the current identity portals', () => {
     const h = nav(render('/'));

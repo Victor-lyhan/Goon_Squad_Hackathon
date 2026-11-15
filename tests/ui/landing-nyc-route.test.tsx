@@ -29,27 +29,26 @@ const noPreviewLinks = (html: string) => {
 };
 
 describe('/', () => {
-  it('ready: the NYC homepage with its numbers and main-path links', () => {
+  it('ready: the NYC homepage with its main-path links, and no numbers of the run (#833)', () => {
     const html = render('/', ready);
     const body = main(html);
     expect(body).toContain('class="landing landing-nyc"');
     expect(body).not.toContain('Page not found');
-    expect(body.replace(/<[^>]+>/g, '')).toContain('19 of 24 packages matched');
+    expect(body.replace(/<[^>]+>/g, '')).not.toMatch(/packages matched|19|24/);
     expect(body).toContain(`href="/business/${firstBiz}"`);
     expect(body).toContain(`href="/employee/${firstEmp}"`);
     expect(body).toContain('href="/simulator"'); // the sample run has no plans: the button opens the plain simulator
     expect(body).not.toContain('Guided demo');
     expect(body).not.toContain('href="/help"');
-    expect(body).not.toContain(ENV_LABELS.nyc); // the header says it, once (#724)
-    expect(html.split(ENV_LABELS.nyc)).toHaveLength(2);
+    expect(html).not.toContain(ENV_LABELS.nyc); // not in the page (#724), and not in its header either (#833)
     expect(body).not.toMatch(/hub|synthetic/i);
     expect(body).not.toContain('nav-pending');
     noPreviewLinks(html);
   });
   it.each<[string, NycSummary | undefined, RegExp]>([
-    ['loading', undefined, /class="op-summary"/],
+    ['loading', undefined, /class="landing-hero"/],
     ['503', { status: 'unavailable' }, new RegExp(NYC_UNAVAILABLE_TEXT.replace(/\./g, '\\.'))],
-    ['error', { status: 'error' }, /class="op-summary"/],
+    ['error', { status: 'error' }, /class="landing-note" role="status">Accounts unavailable</],
   ])('%s: still the NYC homepage, no /nyc links', (_name, summary, marker) => {
     const html = render('/', summary);
     expect(main(html)).toContain('landing-nyc');

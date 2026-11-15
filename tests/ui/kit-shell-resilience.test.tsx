@@ -62,10 +62,11 @@ describe('shell render', () => {
   it('valid ids show no note', () => {
     expect(render(`/business/${bids[0]}`)).not.toContain('current city');
   });
-  it('badge is on every route', () => {
-    for (const p of ['/', `/business/${bids[0]}`, `/employee/${eids[0]}`, '/simulator', '/nope']) {
+  it('badge is on every route but the homepage (#833)', () => {
+    for (const p of [`/business/${bids[0]}`, `/employee/${eids[0]}`, '/simulator', '/nope']) {
       expect(render(p)).toContain('Real NYC locations · simulated deliveries');
     }
+    expect(render('/')).not.toContain('Real NYC locations · simulated deliveries');
   });
 });
 
