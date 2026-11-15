@@ -17,6 +17,9 @@ a { color: var(--accent-dark); }
 h1, h2 { line-height: 1.2; margin: 0 0 var(--space-2); font-weight: 600; }
 h1 { font-size: var(--text-xl); letter-spacing: -.01em; }
 h2 { font-size: var(--text-lg); }
+/* The browser draws these at 700, and fonts.css loads no 700 face of Inter or IBM Plex Mono, so the bold
+   would be faked. 600 is the heaviest loaded weight of both. A component's own rule still wins (#743). */
+strong, b, th { font-weight: 600; }
 
 .app-header {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4);

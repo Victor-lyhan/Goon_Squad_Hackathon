@@ -38,7 +38,7 @@ describe('landing.css (#714)', () => {
 });
 
 describe('Business CSS (#714)', () => {
-  it('mono numbers are never bolder than 500, the heaviest IBM Plex Mono the app loads', () => {
+  it('mono numbers are never bolder than the heaviest IBM Plex Mono the app loads', () => {
     const loaded = [...readFileSync('client/src/styles/fonts.css', 'utf8').matchAll(/ibm-plex-mono\/latin-(\d+)\.css/g)].map((m) => Number(m[1]));
     const heaviest = Math.max(...loaded);
     expect(Number(value(rules(`${BUSINESS}/activity/activity.css`), '.ba-totals__value', 'font-weight'))).toBeLessThanOrEqual(heaviest);
