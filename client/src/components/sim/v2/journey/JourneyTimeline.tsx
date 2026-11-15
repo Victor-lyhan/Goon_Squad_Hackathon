@@ -8,9 +8,13 @@
 // reward. All read from the plan and the snapshot by journeyModel.ts; nothing is computed here. The
 // extra minutes are the leg's own value with its sign (DECISIONS pass 62): "-3 min extra" for a shorter
 // route. Colours come only from map/layers.ts.
+// #832: one line per step (what happens, and when, in IBM Plex Mono). The carrier lines and each step's
+// short label, place, carrier and extra minutes are under the header's one "Details" toggle, closed at first.
+import { useId, useState } from 'react';
 import { formatCents, formatMin } from '../../../../ui/format';
 import { RELAY_INK, toneLabelColor } from '../../../map/layers';
 import type { RouteTone, StopSymbol } from '../../../map/types';
+import { DetailsToggle } from '../Details';
 import { formatExtraMin } from '../inspector/inspectorModel';
 import { SHIPMENT_STATUS_TEXT } from '../packages/statusText';
 import type { Journey, JourneyCarrier, JourneyResult, JourneyStep, StepState } from './journeyModel';
@@ -19,6 +23,19 @@ import './journey.css';
 export type JourneyTimelineProps = {
   journey: JourneyResult;
   onSeek: (timeMin: number, placeId: string) => void;
+};
+
+/**
+ * The stateless render (#832). Each step is one line: what happens and when. The carriers' line and
+ * each step's place, carrier and extra minutes (or the reason of an unmatched package) are shown only
+ * while `detailsOpen`; they stay in the page with `hidden`. A step is a button, so the one Details
+ * toggle sits in the header and opens them all.
+ */
+export type JourneyTimelineViewProps = JourneyTimelineProps & {
+  detailsOpen: boolean;
+  onToggleDetails: () => void;
+  /** Prefix of the ids the Details toggle controls; one timeline per page, so the default is enough. */
+  idPrefix?: string;
 };
 
 const STATE_TEXT: Record<StepState, string> = { done: 'Done', current: 'Next', upcoming: 'Upcoming' };
@@ -123,9 +140,9 @@ function showCurrentStep(el: HTMLLIElement | null): void {
   el.scrollIntoView?.({ block: 'nearest' });
 }
 
-type StepProps = { step: JourneyStep; next: JourneyStep | undefined; onSeek: JourneyTimelineProps['onSeek'] };
+type StepProps = { step: JourneyStep; next: JourneyStep | undefined; onSeek: JourneyTimelineProps['onSeek']; detailsOpen: boolean };
 
-function Step({ step, next, onSeek }: StepProps) {
+function Step({ step, next, onSeek, detailsOpen }: StepProps) {
   const tone: RouteTone = step.legIndex === 0 ? 'leg1' : 'leg2';
   // The rail to the next step is the carrier's colour while the same carrier has the package (the thick
   // line on the map); between legs (overnight at the relay point) it stays a thin grey rail.
@@ -150,16 +167,19 @@ function Step({ step, next, onSeek }: StepProps) {
               <span className="jt-sr">Step {step.n}: </span>
               {step.label}
             </span>
-            <span className="jt-step__state">{STATE_TEXT[step.state]}</span>
+            {/* "Next" marks the step the package is heading for; the other two states are read, not shown. */}
+            <span className={`jt-step__state${step.state === 'current' ? '' : ' jt-sr'}`}>{STATE_TEXT[step.state]}</span>
+            <span className="jt-step__time">{timeText(step.timeMin)}</span>
           </span>
-          <span className="jt-step__short">{step.symbolLabel}</span>
-          {/* Shown only when the short label does not already name the place ("DUMBO Studio", "Overnight ·
-              Brooklyn Roasting"); then it is visually hidden but still read with the step. */}
-          <span className={`jt-step__place${step.symbolLabel.includes(step.placeName) ? ' jt-sr' : ''}`}>{step.placeName}</span>
-          <span className="jt-step__meta">
-            <span>{timeText(step.timeMin)}</span>
-            <span>{step.carrierName}</span>
-            <span>{extraText(step.extraMin)}</span>
+          <span className="jt-step__more" data-details-body="" hidden={!detailsOpen}>
+            <span className="jt-step__short">{step.symbolLabel}</span>
+            {/* Shown only when the short label does not already name the place ("DUMBO Studio", "Overnight ·
+                Brooklyn Roasting"); then it is visually hidden but still read with the step. */}
+            <span className={`jt-step__place${step.symbolLabel.includes(step.placeName) ? ' jt-sr' : ''}`}>{step.placeName}</span>
+            <span className="jt-step__meta">
+              <span>{step.carrierName}</span>
+              <span>{extraText(step.extraMin)}</span>
+            </span>
           </span>
         </span>
       </button>
@@ -174,7 +194,20 @@ function Step({ step, next, onSeek }: StepProps) {
   );
 }
 
-export function JourneyTimeline({ journey, onSeek }: JourneyTimelineProps) {
+/** The journey timeline with its Details toggle closed at first; the open state survives every poll. */
+export function JourneyTimeline(props: JourneyTimelineProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const idPrefix = useId();
+  return (
+    <JourneyTimelineView {...props} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen((o) => !o)}
+      idPrefix={idPrefix} />
+  );
+}
+
+export function JourneyTimelineView({ journey, onSeek, detailsOpen, onToggleDetails, idPrefix = 'jt' }: JourneyTimelineViewProps) {
+  const legsId = `${idPrefix}-legs`;
+  const stepsId = `${idPrefix}-steps`;
+  const reasonId = `${idPrefix}-reason`;
   if (journey.kind === 'unmatched') {
     return (
       <section className="jt" aria-label="Package journey">
@@ -183,8 +216,11 @@ export function JourneyTimeline({ journey, onSeek }: JourneyTimelineProps) {
           <p className="jt__status">
             <span className="jt__status-label">Status</span> <strong>{SHIPMENT_STATUS_TEXT.unmatched}</strong>
           </p>
+          <div className="jt__details">
+            <DetailsToggle open={detailsOpen} onToggle={onToggleDetails} controls={reasonId} about={journey.title} />
+          </div>
         </header>
-        <p className="jt__reason">{journey.reason}</p>
+        <p id={reasonId} className="jt__reason" data-details-body="" hidden={!detailsOpen}>{journey.reason}</p>
       </section>
     );
   }
@@ -192,22 +228,25 @@ export function JourneyTimeline({ journey, onSeek }: JourneyTimelineProps) {
     <section className="jt" aria-label="Package journey">
       <header className="jt__header">
         <h2 className="jt__title">{journey.title}</h2>
-        <p className="jt__kind">{journey.planKind === 'relay' ? 'Relay through a network business' : 'Direct'}</p>
+        <p className="jt__kind">{journey.planKind === 'relay' ? 'Relay' : 'Direct'}</p>
         {/* Not a live region (#725): the step line under Play/Pause is the one that announces a step, so a
             screen reader does not hear every step twice. */}
         <p className="jt__status">
           <span className="jt__status-label">Status</span> <strong>{journey.statusLabel}</strong>
         </p>
         <Times journey={journey} />
+        <div className="jt__details">
+          <DetailsToggle open={detailsOpen} onToggle={onToggleDetails} controls={`${legsId} ${stepsId}`} about={journey.title} />
+        </div>
       </header>
-      <ul className="jt__legs" aria-label="Carriers">
+      <ul id={legsId} className="jt__legs" aria-label="Carriers" data-details-body="" hidden={!detailsOpen}>
         {journey.carriers.map((c) => (
           <LegLine key={c.legIndex} carrier={c} />
         ))}
       </ul>
-      <ol className="jt__steps">
+      <ol id={stepsId} className="jt__steps">
         {journey.steps.map((s, i) => (
-          <Step key={s.n} step={s} next={journey.steps[i + 1]} onSeek={onSeek} />
+          <Step key={s.n} step={s} next={journey.steps[i + 1]} onSeek={onSeek} detailsOpen={detailsOpen} />
         ))}
       </ol>
     </section>

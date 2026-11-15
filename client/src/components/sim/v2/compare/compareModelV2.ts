@@ -6,8 +6,9 @@ import { formatCents, formatDuration } from '../../../../ui/format';
 // Every number is read from `result` / `metrics` of one CompareResponse. The only arithmetic is the
 // difference between the two displayed matched counts; no status, price or time is computed here.
 
-export const COMPARE_INTRO =
-  'See how many more deliveries get matched when any network business can hold a package overnight as a relay point.';
+export const COMPARE_INTRO = 'Compare matching with and without relay points.';
+/** Under the section's Details toggle (#832), with PROJECTION_NOTE. */
+export const RELAY_POINT_NOTE = 'A relay point is a network business that holds a package overnight.';
 export const NO_GAIN_LINE = 'Relay points add no matches in this scenario';
 export const NO_REQUESTS_LINE = 'No delivery requests in this scenario yet';
 export const PROJECTION_NOTE = 'Projection only. Comparing does not change the live plan.';

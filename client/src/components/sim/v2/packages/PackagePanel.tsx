@@ -40,7 +40,7 @@ export function PackagePanel({ sim, map, selectedId, onSelect }: PackagePanelPro
         />
       )}
       {rows.length > 0 && (
-        <p className="pk-total" aria-live="polite">{shown.length} of {rows.length} packages</p>
+        <p className="pk-total sw-mono" aria-live="polite">{shown.length} of {rows.length} packages</p>
       )}
       {rows.length > 0 && shown.length === 0 ? (
         <div className="pk-empty">

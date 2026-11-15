@@ -26,15 +26,18 @@ describe('CompareSection states', () => {
     expect(html).toContain(COMPARE_TITLE);
     expect(html).toContain('relay point');
     expect(html).not.toContain('<table');
-    const [btn] = buttons(html);
-    expect(buttons(html)).toHaveLength(1);
+    // #832: the Details toggle (closed) comes first, then the one run button.
+    const [details, btn] = buttons(html);
+    expect(buttons(html)).toHaveLength(2);
+    expect(details[1]).toContain('aria-expanded="false"');
+    expect(text(details[2])).toBe('+ Details');
     expect(btn[1]).toContain('type="button"');
     expect(btn[1]).not.toContain('disabled');
     expect(text(btn[2])).toBe('Compare');
   });
 
   it('respects the disabled prop', () => {
-    const [btn] = buttons(render({ disabled: true }));
+    const btn = buttons(render({ disabled: true })).at(-1)!;
     expect(btn[1]).toContain('disabled');
   });
 
@@ -75,7 +78,7 @@ describe('CompareSection states', () => {
       expect(nums).toEqual([model[i].direct, model[i].relay]);
     });
     expect(html).toContain('+1 matched with relay points');
-    expect(text(buttons(html)[0][2])).toBe('Compare again');
+    expect(text(buttons(html).at(-1)![2])).toBe('Compare again');
   });
 
   it.each([

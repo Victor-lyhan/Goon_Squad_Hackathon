@@ -20,6 +20,7 @@ import { JourneyTimeline } from '../../client/src/components/sim/v2/journey/Jour
 import { INITIAL_SIM_DATA, TRAVEL_DATA_MISSING_MESSAGE, type SimDataState } from '../../client/src/components/sim/v2/live/simDataModel';
 import type { SimulatorV2 } from '../../client/src/components/sim/v2/live/useSimulatorV2';
 import type { Selection } from '../../client/src/components/sim/v2/network/selectionModel';
+import { COMPARE_INTRO } from '../../client/src/components/sim/v2/compare/compareModelV2';
 import { PackageList } from '../../client/src/components/sim/v2/PackageList';
 import { SimWorkspace } from '../../client/src/components/sim/v2/SimWorkspace';
 import { DEFAULT_LAYERS, NO_FOCUS, type Focus } from '../../client/src/components/sim/v2/workspaceModel';
@@ -113,7 +114,7 @@ describe('SimPageBody render', () => {
       'Playback', 'Pause', 'Back to start', // the clock in the fixture is playing
       'Focus', 'Focus on employee', 'Focus on business', 'Maya Ortiz', 'Sunrise Bakery',
       'Packages', 'Astoria product proofs', 'Chelsea Print Studio → Sunrise Bakery', 'Unmatched',
-      'Run summary', 'Delivered / requested', '0 / 3', 'Matched / requested', '2 / 3', '9 min',
+      'Run summary', 'Delivered 0 / 3', 'Matched 2 / 3', 'Extra per trip 9 min',
     ]) {
       expect(t).toContain(s);
     }
@@ -185,12 +186,12 @@ describe('SimPageBody render', () => {
     expect(t).toContain('Etsy');
     expect(t).toContain('Shop · Brooklyn');
     expect(t).toContain('DUMBO, Brooklyn');
-    expect(t).toContain('1 commuter works here');
+    expect(t).toContain('Commuters 1');
     expect(t).toContain('Focus on this business');
     expect(html).toContain('aria-label="Close business inspector"');
     expect(t).toContain('Spare keys'); // sent, unmatched, with the reason
     expect(t).toContain('No commute passes both businesses in time.');
-    expect(t).toContain('Held overnight as relay point');
+    expect(t).toContain('Held overnight');
     expect(t).toContain('Ceramic samples'); // held as relay point
     expect(t).not.toContain('Run summary');
     expect(html).not.toContain('spc-entity');
@@ -232,7 +233,9 @@ describe('SimPageBody render', () => {
     expect(t).toMatch(/Unmatched\s*1/);
     expect(t).toContain('3 of 3 packages');
     expect(t).toContain('Etsy → Sunrise Bakery · No commute passes both businesses in time.');
-    expect(t).toContain('Relay via Etsy · Picked up');
+    // #832: one line per package; the kind and the relay point are on the line under the list's Details toggle.
+    expect(t).toContain('Ceramic samples Picked up Relay via Etsy · Sunrise Bakery → Chelsea Print Studio');
+    expect(html).toMatch(/aria-expanded="false"[^>]*aria-label="Details: packages"/);
     assertClean(html);
   });
 
@@ -277,7 +280,7 @@ describe('SimPageBody render', () => {
     const html = render(networkHook());
     const t = text(html);
     expect(t).toContain('Direct only vs relay points');
-    expect(t).toContain('See how many more deliveries get matched');
+    expect(t).toContain(COMPARE_INTRO);
     expect(t).toContain('Compare');
     // Left panel, after the packages; not a card above the map.
     expect(html.indexOf('Direct only vs relay points')).toBeGreaterThan(html.indexOf('Search packages'));
@@ -349,7 +352,9 @@ function collect(node: ReactNode, out: El[] = []): El[] {
   if (!isValidElement(node)) return out;
   const el = node as El;
   out.push(el);
-  if (typeof el.type === 'function' && EXPAND.has(el.type.name)) {
+  // The left panel's PackageList holds its Details state (#832), so it is not called; the inspector's
+  // own hook-free PackageList (same name, BusinessInspector.tsx) still is.
+  if (typeof el.type === 'function' && EXPAND.has(el.type.name) && el.type !== PackageList) {
     collect((el.type as (p: unknown) => ReactNode)(el.props), out);
     return out;
   }
@@ -532,7 +537,8 @@ describe('#460 wiring: the package panel', () => {
 
     const pending = setup(networkHook({ map: null }));
     expect(pending.tree.some((e) => e.type === PackagePanel)).toBe(false);
-    click(pending.buttons('Spare keys')[0]);
+    // The list holds its Details state (#832), so the walker does not call it: its onSelect is the row click.
+    pending.find<{ onSelect: (id: string) => void }>(PackageList).onSelect('shp-3');
     expect(pending.onSelectionChange).toHaveBeenLastCalledWith({ kind: 'package', id: 'shp-3' });
   });
 
@@ -610,7 +616,7 @@ describe('#460 wiring: direct-only vs relay comparison', () => {
 
     const loading = setup({ ...hook, busy: true }, null, { compare: { status: 'loading', runId: 'run-1' } });
     const lt = text(loading.html());
-    expect(lt).toContain('Comparing direct only with relay points…');
+    expect(lt).toContain('Comparing…');
     expect(loading.html()).toContain('aria-busy="true"');
     // A second click while loading does nothing.
     loading.find<{ onRun: () => void }>(CompareSection).onRun();
@@ -642,7 +648,8 @@ describe('#460 wiring: direct-only vs relay comparison', () => {
   it('the run button is disabled while another action is busy', () => {
     const s = setup(networkHook({ busy: true }));
     expect(s.find<{ disabled: boolean }>(CompareSection).disabled).toBe(true);
-    const compareButton = (html: string) => html.slice(html.indexOf('class="cmp"')).match(/<button[^>]*>/)![0];
+    // The run button is the section's last one: the Details toggle (#832) comes before it.
+    const compareButton = (html: string) => html.slice(html.indexOf('class="cmp"')).match(/<button[^>]*class="[^"]*cmp-run[^"]*"[^>]*>/)![0];
     expect(compareButton(s.html())).toContain('disabled=""');
     expect(compareButton(setup(networkHook()).html())).not.toContain('disabled');
   });
@@ -650,7 +657,7 @@ describe('#460 wiring: direct-only vs relay comparison', () => {
   it('a result from an earlier run is not shown for a new scenario', () => {
     const s = setup(networkHook(), null, { compare: { status: 'done', runId: 'run-0', response: relayGainCompare() } });
     expect(text(s.html())).not.toContain('matched with relay points');
-    expect(text(s.html())).toContain('See how many more deliveries get matched');
+    expect(text(s.html())).toContain(COMPARE_INTRO);
   });
 });
 

@@ -45,11 +45,11 @@ describe('FocusSelector', () => {
 });
 
 describe('RunSummary', () => {
-  it('shows delivered/requested, matched/requested and average extra minutes in mono', () => {
+  it('shows delivered, matched and extra minutes per trip, one line each, in mono', () => {
     const html = renderToStaticMarkup(<RunSummary metrics={metrics()} />);
-    expect(html).toMatch(/Delivered \/ requested<\/dt><dd class="sw-mono">7 \/ 24<\/dd>/);
-    expect(html).toMatch(/Matched \/ requested<\/dt><dd class="sw-mono">20 \/ 24<\/dd>/);
-    expect(html).toMatch(/Avg extra minutes per trip<\/dt><dd class="sw-mono">6.4 min<\/dd>/);
+    expect(html).toMatch(/Delivered<\/dt><dd class="sw-mono">7 \/ 24<\/dd>/);
+    expect(html).toMatch(/Matched<\/dt><dd class="sw-mono">20 \/ 24<\/dd>/);
+    expect(html).toMatch(/Extra per trip<\/dt><dd class="sw-mono">6.4 min<\/dd>/);
   });
 
   it('shows a dash when the average is null and never prints NaN, undefined or null', () => {
@@ -64,7 +64,7 @@ describe('RunSummary', () => {
       expect(html).not.toMatch(/NaN|undefined|null/);
     }
     const html = renderToStaticMarkup(<RunSummary metrics={metrics({ avgExtraMinPerTrip: null })} />);
-    expect(html).toMatch(/Avg extra minutes per trip<\/dt><dd class="sw-mono">—<\/dd>/);
+    expect(html).toMatch(/Extra per trip<\/dt><dd class="sw-mono">—<\/dd>/);
   });
 });
 
@@ -76,9 +76,13 @@ describe('PackageList', () => {
 
   it('renders one button per package and marks only the selected one', () => {
     const html = renderToStaticMarkup(<PackageList items={items} selectedId="shp-002" onSelect={noop} />);
-    const buttons = tags(html, 'button');
+    // #832: the list's Details toggle (closed), then one button per package.
+    const [details, ...buttons] = tags(html, 'button');
+    expect(attr(details!, 'aria-expanded')).toBe('false');
     expect(buttons).toHaveLength(2);
     expect(buttons.map((b) => attr(b, 'aria-current') ?? null)).toEqual([null, 'true']);
+    // One line per package: the route line is in the page, hidden until Details is opened.
+    expect(html.match(/<span class="sw-pkg-route" data-details-body="" hidden="">/g)).toHaveLength(2);
     expect(html).toContain('Design proofs');
     expect(html).toContain('<span class="sw-pkg-status sw-mono">At relay point</span>');
     expect(html).toContain('LIC Bakery → Chelsea Office');

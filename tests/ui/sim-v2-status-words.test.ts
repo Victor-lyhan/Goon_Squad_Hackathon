@@ -120,7 +120,10 @@ describe('the list and the inspector give the same words', () => {
       expect(inspectorRow(sim, id).statusLabel).toBe('Status unavailable');
     }
     expect(toListItems(buildPackageRows(sim, map)).map((i) => i.statusLabel)).toEqual([
-      'Direct · Status unavailable', 'Relay via LIC Bookshop · Status unavailable', 'No match · Status unavailable',
+      'Status unavailable', 'Status unavailable', 'Status unavailable',
+    ]);
+    expect(toListItems(buildPackageRows(sim, map)).map((i) => i.routeLabel.split(' · ')[0])).toEqual([
+      'Direct', 'Relay via LIC Bookshop', 'No match',
     ]);
     // No status is made up, so no status filter appears.
     expect(statusFilters(buildPackageRows(sim, map))).toEqual([{ value: 'all', label: 'All', count: 3 }]);

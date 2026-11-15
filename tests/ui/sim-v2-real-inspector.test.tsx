@@ -130,7 +130,7 @@ describe.each(real.moments)('every business inspector at $name', (moment) => {
       const commuters = map.employees.filter((e) => e.businessId === b.id).length;
       const allowed = [
         ...namesOf(sim, map),
-        `${commuters} ${commuters === 1 ? 'commuter works' : 'commuters work'} here`,
+        `Commuters ${commuters}`,
         ...rows.map((r) => r.timeLabel ?? ''),
         ...rows.flatMap((r) => [r.rewardLabel ?? '', r.extraLabel ?? '']),
         ...rows.flatMap((r) => r.carriers.map((_, i) => `Leg ${i + 1}`)),

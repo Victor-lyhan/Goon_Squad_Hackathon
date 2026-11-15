@@ -11,9 +11,9 @@ const minutes = (n: number | null | undefined) =>
 /** Right panel content when nothing is selected. Renders the API's metrics; computes nothing. */
 export function RunSummary({ metrics: m }: RunSummaryProps) {
   const rows = [
-    { key: 'delivered', label: 'Delivered / requested', value: ratio(m.delivered, m.requested) },
-    { key: 'matched', label: 'Matched / requested', value: ratio(m.matched, m.requested) },
-    { key: 'extra', label: 'Avg extra minutes per trip', value: minutes(m.avgExtraMinPerTrip) },
+    { key: 'delivered', label: 'Delivered', value: ratio(m.delivered, m.requested) },
+    { key: 'matched', label: 'Matched', value: ratio(m.matched, m.requested) },
+    { key: 'extra', label: 'Extra per trip', value: minutes(m.avgExtraMinPerTrip) },
   ];
   return (
     <div className="sw-summary">

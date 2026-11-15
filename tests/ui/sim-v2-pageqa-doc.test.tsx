@@ -145,9 +145,9 @@ describe('doc §1: "Right panel: the selected item… When nothing is selected, 
   it.each(STATES.filter((s) => s.selection === null))('$name: nothing selected: delivered, matched, average extra minutes', (s) => {
     const m = s.sim.snapshot.metrics;
     expect(summaryRows(s)).toEqual([
-      ['Delivered / requested', `${m.delivered} / ${m.requested}`],
-      ['Matched / requested', `${m.matched} / ${m.requested}`],
-      ['Avg extra minutes per trip', `${m.avgExtraMinPerTrip} min`],
+      ['Delivered', `${m.delivered} / ${m.requested}`],
+      ['Matched', `${m.matched} / ${m.requested}`],
+      ['Extra per trip', `${m.avgExtraMinPerTrip} min`],
     ]);
     expect(byClass(s.right, 'jt')).toEqual([]);
     expect(all(s.right, (n) => (n.attrs['data-testid'] ?? '').startsWith('insp-'))).toEqual([]);
@@ -204,8 +204,10 @@ describe('doc §1: package journey mode', () => {
     steps.forEach((li, i) => {
       const { leg, stop } = stops[i];
       expect(readText(byClass(li, 'jt-step__place')[0])).toBe(bizName(s, stop.placeId));
+      // #832: the time is on the step's one line; the carrier and the extra minutes are under Details.
+      expect(readText(byClass(li, 'jt-step__time')[0])).toBe(formatMin(stop.serviceEndMin));
       expect(elements(byClass(li, 'jt-step__meta')[0]).map(readText)).toEqual([
-        formatMin(stop.serviceEndMin), nameOf(s, leg.employeeId), `+${leg.extraMin} min extra`,
+        nameOf(s, leg.employeeId), `+${leg.extraMin} min extra`,
       ]);
     });
     expect(readText(byClass(s.right, 'jt__status')[0])).toMatch(/^Status \S/);
