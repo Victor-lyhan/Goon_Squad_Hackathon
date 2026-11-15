@@ -85,15 +85,13 @@ export function WorkspaceEntries({ paths }: { paths: { business: string | null; 
     <ul className="workspaces" aria-label="Workspaces">
       {WORKSPACES.map((w) => {
         const to = paths[w.key];
+        // Title and text by name: spreading `w` would hand its `key` to JSX, which React reports (#746).
+        const body = <EntryBody title={w.title} text={w.text} />;
         return (
           <li key={w.key}>
             {to
-              ? <Link className="workspace-entry" to={to}><EntryBody {...w} /></Link>
-              : (
-                <div className="workspace-entry is-disabled" aria-disabled="true">
-                  <EntryBody {...w} />
-                </div>
-              )}
+              ? <Link className="workspace-entry" to={to}>{body}</Link>
+              : <div className="workspace-entry is-disabled" aria-disabled="true">{body}</div>}
           </li>
         );
       })}
