@@ -16,6 +16,8 @@
 //   A time without a day is its next occurrence after the run clock. "tomorrow morning" = by Day 2 10:00.
 //   The ready time is "ready at 4 pm"; without the "at" it must be an exact time ("ready 4pm", "pickup 16:00").
 // - Category, a package name, a description ("a box of coffee samples") and a weight ("1.5 kg") from words.
+//   Without a package word, what is sent names the package and is its description ("Send coffee beans to
+//   Etsy": "Coffee beans"); the category stays null, because the Type is the user's choice (#827).
 // Whatever the sentence does not say stays null and is listed in `missing`; `readyMin` defaults to the clock.
 import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequest';
 import type { NetworkBusiness, PackageCategory } from '../../shared/v2/types';
@@ -370,12 +372,56 @@ const CONTENTS_END = /\s+(?:from|to|by|before|until|till|for|at|on|ready|due|tod
 const MAX_DESCRIPTION_CHARS = 120;
 const WEIGHT = /(?<![\d.])(?<amount>\d+(?:\.\d+)?)\s*(?<unit>kg|kgs|kilos?|kilograms?|g|grams?|lbs?|pounds?|oz|ounces?)\b/;
 
+// No package word (#827): "Send espresso blend samples to X" names what is sent right after the verb.
+const SEND_VERB = /\b(?:send|deliver|ship|bring|take|drop[\s-]?off)\b/;
+// What may stand before the thing itself: a weight ("2 kg of"), a count ("3", "two"), an article and the like.
+const BEFORE_OBJECT = new RegExp(String.raw`^(?:\s+(?:${WEIGHT.source}(?:\s+of\b)?|\d+(?:\.\d+)?\b|(?:`
+  + String.raw`a|an|the|some|any|several|few|this|that|these|those|my|our|your|his|her|their|over|out|along|`
+  + String.raw`one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b))*`);
+// Words that name nothing: a pronoun or a time as the first word ("it", "them", "now"), a vague word alone ("stuff").
+const NO_OBJECT = /^(?:(?:it|them|something|anything|everything|me|us|you|him|now|noon|midday|midnight|later|soon)\b|(?:stuff|things?|items?|goods)$)/;
+const MAX_LABEL_CHARS = 60; // as in geminiParser.ts
+
 type Item = Pick<ParseDraft, 'label' | 'category' | 'description'>;
+
+/**
+ * What is sent, as typed, when the sentence has no package word: the words after the first send verb up to the
+ * next part of the sentence (CONTENTS_END) or a business name. Null when they name nothing ("Send it to Etsy").
+ */
+function findObject(text: string, lower: string): string | null {
+  const verb = SEND_VERB.exec(lower);
+  if (!verb) return null;
+  let from = verb.index + verb[0].length;
+  from += BEFORE_OBJECT.exec(lower.slice(from))?.[0].length ?? 0;
+  const rest = lower.slice(from);
+  const phrase = rest.slice(0, rest.search(CONTENTS_END));
+  const lead = phrase.search(/\S/);
+  if (lead < 0) return null; // "Send to Etsy", "Deliver by noon"
+  const start = from + lead;
+  let end = from + phrase.length;
+  // A business name is blanked in `lower` and still there in `text`: the phrase ends before it.
+  for (let i = start; i < end; i += 1) {
+    if (lower.charAt(i) === ' ' && /\S/.test(text.charAt(i))) end = i;
+  }
+  if (NO_OBJECT.test(lower.slice(start, end).trim())) return null;
+  // One line, without a joining word left over by the cut ("Send Etsy samples and Zabar's bagels": "samples").
+  const typed = text.slice(start, end).trim().replace(/\s+/g, ' ').replace(/(?: (?:and|or|of|with|the|a|an|&))+$/i, '');
+  return /\p{L}/u.test(typed) && !/^\d/.test(typed) ? typed : null;
+}
 
 /** `lower` has the business names blanked, so "Print Shop" or "The Box Factory" is never the package. */
 function findItem(text: string, lower: string): Item {
   const match = ITEM.exec(lower);
-  if (!match) return { label: null, category: null, description: null };
+  if (!match) {
+    // The object of the sentence is the package name and its contents. The Type stays the user's choice.
+    const typed = findObject(text, lower);
+    if (typed === null) return { label: null, category: null, description: null };
+    return {
+      label: capitalised(typed.slice(0, MAX_LABEL_CHARS).trimEnd()),
+      category: null,
+      description: capitalised(typed.slice(0, MAX_DESCRIPTION_CHARS).trimEnd()),
+    };
+  }
   const category: PackageCategory = match.groups?.envelope ? 'envelope' : 'small_box';
   const end = match.index + match[0].length;
 

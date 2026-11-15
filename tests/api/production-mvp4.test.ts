@@ -2,9 +2,9 @@
 // API and the built client. Two MVP IV pieces are new there, and this file proves both on the real server
 // (`startServer` of server/index.ts, as `npm start` runs it) with a temp `clientDist`:
 // - the study page: `npm run build` copies client/public/study.html to client/dist/study.html, and the link
-//   "The numbers" on `/` is a plain <a href="/study.html"> (DECISIONS pass 85). The server must answer the
-//   file itself, byte for byte, not the app shell; HEAD answers like GET without a body. `/` stays the app
-//   shell and a missing /assets file stays a 404 (pass 73);
+//   "See the numbers" on `/` (#833; "The numbers" before) is a plain <a href="/study.html"> (DECISIONS
+//   pass 85). The server must answer the file itself, byte for byte, not the app shell; HEAD answers like
+//   GET without a body. `/` stays the app shell and a missing /assets file stays a 404 (pass 73);
 // - POST /api/v2/parse-request with no GEMINI_API_KEY: 200 from the offline parser, and nothing is sent
 //   (pass 83).
 // As in the app, the server gets no `fetch` option, so every client of it (Google, Gemini) takes the global

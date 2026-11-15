@@ -72,11 +72,13 @@ describe('business package rows: role, reward and extra minutes', () => {
     expect(row).not.toMatch(/\$|\bmin\b|Reward|Extra/);
   });
 
-  it('renders role, reward and extra next to kind, status and ETA, with time and money in mono', () => {
+  it('one line with kind and status; role, ETA, reward and extra under Details, with time and money in mono', () => {
     const html = renderToStaticMarkup(<BusinessInspector model={businessInspector(BIZ.relay, sim, map)} {...handlers} />);
     const t = textOf(html);
-    expect(t).toContain('Author galleys Relay · At relay point · ETA Day 2, 8:12 AM Relay point Reward $9.00 Extra +11 min');
-    expect(html).toContain('<span class="insp-mono">ETA Day 2, 8:12 AM</span>');
+    expect(t).toContain('Author galleys Relay · At relay point + Details Relay point ETA Day 2, 8:12 AM Reward $9.00 Extra +11 min');
+    expect(html).toContain('<span class="insp-row-meta">Relay · At relay point</span></button>');
+    expect(html).toMatch(/aria-expanded="false"[^>]*aria-label="Details: Author galleys"/);
+    expect(html).toContain('<span class="insp-fig insp-mono">ETA Day 2, 8:12 AM</span>');
     expect(html).toContain('<span class="insp-mono">$9.00</span>');
     expect(html).toContain('<span class="insp-mono">+11 min</span>');
     expect(html).toContain('<span class="insp-row-role">Relay point</span>');

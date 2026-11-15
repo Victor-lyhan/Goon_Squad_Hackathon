@@ -152,7 +152,10 @@ describe('left panel: focus, packages and the map legend', () => {
       { id: 'shp-1', label: 'Brand proofs', statusLabel: 'In transit', routeLabel: 'A → B' },
       { id: 'shp-2', label: 'Gift box', statusLabel: 'Delivered', routeLabel: 'C → D' },
     ];
-    const all = expectReachable(render(<PackageList items={items} selectedId="shp-2" onSelect={noop} />));
+    // #832: the list's Details toggle comes first: a named button, closed, that controls the list.
+    const [details, ...all] = expectReachable(render(<PackageList items={items} selectedId="shp-2" onSelect={noop} />));
+    expect(details.name).toBe('Details: packages');
+    expect(attr(details.open, 'aria-expanded')).toBe('false');
     expect(all.map((c) => c.name)).toEqual(['Brand proofs In transit A → B', 'Gift box Delivered C → D']);
     expect(all.map((c) => attr(c.open, 'aria-current'))).toEqual([undefined, 'true']);
   });
@@ -194,7 +197,10 @@ describe('right panel: inspectors and journey steps', () => {
 
   it('journey steps are buttons named "Step n: …", the current one marked as the step', () => {
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight, { 'shp-2': 'at_hub' }), map: journeyMap }) as Journey;
-    const all = expectReachable(render(<JourneyTimeline journey={j} onSeek={noop} />));
+    // #832: the header's Details toggle comes first, named after the package.
+    const [details, ...all] = expectReachable(render(<JourneyTimeline journey={j} onSeek={noop} />));
+    expect(details.name).toBe(`Details: ${j.title}`);
+    expect(attr(details.open, 'aria-expanded')).toBe('false');
     expect(all).toHaveLength(j.steps.length);
     all.forEach((c, i) => expect(c.name.startsWith(`Step ${i + 1}: `), c.name).toBe(true));
     expect(all.filter((c) => attr(c.open, 'aria-current') === 'step')).toHaveLength(1);

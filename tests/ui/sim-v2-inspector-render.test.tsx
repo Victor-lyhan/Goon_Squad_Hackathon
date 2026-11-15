@@ -52,13 +52,15 @@ describe('inspector static renders', () => {
     expect(html).toContain('Office · Brooklyn');
     expect(html).toContain('55 Water St, Brooklyn, NY');
     expect(html).toContain('DUMBO, Brooklyn');
-    expect(html).toContain('2 commuters work here');
+    expect(html).toContain('<dt>Commuters</dt><dd><span class="insp-mono">2</span></dd>');
+    // #832: the address is under the Details toggle, closed at first.
+    expect(html).toMatch(/aria-expanded="false"[^>]*aria-label="Details: Dumbo Print Studio"/);
     expect(html).toContain('>Focus on this business</button>');
-    for (const t of ['Sent', 'Received', 'Held overnight as relay point']) expect(textOf(html)).toContain(t);
+    for (const t of ['Sent', 'Received', 'Held overnight']) expect(textOf(html)).toContain(t);
     expect(html).toContain('aria-label="Open package Menu proofs"');
     expect(html).toContain('aria-label="Inspect carrier Maya Ortiz"');
     expect(html).toContain('aria-label="Inspect business Harlem Bakery"');
-    expect(html).toContain('No package stays here overnight.');
+    expect(html).toContain('No packages held.');
   });
 
   it('business: the relay business shows the held package with both ends', () => {
@@ -74,7 +76,7 @@ describe('inspector static renders', () => {
   it('business: the unmatched row shows its reason', () => {
     const html = renderBusiness(BIZ.recipient);
     expect(html).toContain('No commuter passes both businesses within their detour limit');
-    expect(textOf(html)).toContain('Spare keys No match · Unmatched Sender No match yet To Dumbo Print Studio');
+    expect(textOf(html)).toContain('Spare keys No match · Unmatched + Details Sender No match yet To Dumbo Print Studio');
     expect(textOf(html)).not.toContain('Not matched');
   });
 
@@ -88,8 +90,11 @@ describe('inspector static renders', () => {
     expect(text).toContain('Day 2, 7:42 AM · LIC Bookshop Pickup at relay point Relay point');
     expect(text).toContain('+7 min');
     expect(text).toContain('$5.20');
-    expect(text).toContain('Earned so far $4.50');
-    expect(text).toContain('Reward of all legs $9.70');
+    expect(text).toContain('Earned $4.50');
+    expect(text).toContain('Total reward $9.70');
+    // #832: the id is a detail; the leg is one line and its stops are under its own Details toggle.
+    expect(text).toContain('+ Details ID EMP-1');
+    expect(text).toContain('Author galleys Relay leg 2 of 2 · Assigned + Details Day 2, 7:42 AM');
     expect(html).toContain('>Focus on this employee</button>');
     expect(html).toContain('aria-label="Inspect business Dumbo Print Studio"');
   });

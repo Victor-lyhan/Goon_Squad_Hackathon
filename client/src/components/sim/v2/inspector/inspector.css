@@ -83,10 +83,13 @@
   background: var(--panel, #FFFFFF);
 }
 
+/* One line (#832): the name, then kind and status; they wrap only when the name is long. */
 .insp-row-main {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px var(--space-2, 8px);
   width: 100%;
   margin: 0;
   padding: var(--space-2, 8px);
@@ -101,6 +104,13 @@
 .insp-row-main:hover { background: var(--accent-soft, #E8EEF1); }
 .insp-row-title { font-weight: 600; overflow-wrap: anywhere; }
 .insp-row-meta { color: var(--muted, #5B6472); font-size: var(--text-xs, 12px); }
+/* The Details toggle of a row or a leg (#832), and of the header's rows. */
+.insp-row > .sw-details,
+.insp-leg > .sw-details { padding: 0 0 var(--space-2, 8px); }
+.insp-row > .sw-details > .sw-details-toggle,
+.insp-leg > .sw-details > .sw-details-toggle { margin-left: var(--space-2, 8px); }
+.insp > .sw-details { padding: 0 0 var(--space-2, 8px); }
+.insp > .sw-details .insp-defs { padding: 0; }
 
 /* Role of this business, then the plan's reward and extra minutes (or "No match yet"). */
 .insp-row-figs {

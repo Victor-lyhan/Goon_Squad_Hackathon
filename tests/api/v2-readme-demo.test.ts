@@ -383,6 +383,8 @@ const PAGE_WORDS: [label: string, file: string][] = [
   ['New delivery', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
   // #786 (MVP IV F1): New delivery opens on the request text box; this button of it opens the form.
   ['Fill in the form instead', 'client/src/components/business/v2/requestTextModel.ts'],
+  // #815: the demo types the request as a sentence; this button of the text box reads it into the form.
+  ['Read my request', 'client/src/components/business/v2/requestTextModel.ts'],
   ['Find a delivery match', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
   ['Delivery arranged', 'client/src/components/business/v2/deliveryDetailsModel.ts'],
   ['View delivery', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
@@ -397,6 +399,10 @@ const PAGE_WORDS: [label: string, file: string][] = [
   ['Delivered', 'client/src/components/business/v2/shipmentsTableModel.ts'],
   ['Earnings', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
   ['Earned', 'client/src/components/employee/v2/EmployeeWorkspace.tsx'],
+  // #815: the demo ends on the homepage's link to the study page (STUDY_LABEL). Since the #833 redesign it is
+  // the "See the numbers" button under the "How it works" heading (HOW_TITLE).
+  ['See the numbers', 'client/src/pages/Landing.tsx'],
+  ['How it works', 'client/src/pages/Landing.tsx'],
 ];
 
 describe('README demo steps, in the words of the pages', () => {

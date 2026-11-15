@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { PACKAGE_FILL, PACKAGE_HALO, RELAY_INK, SYMBOL_GLYPH } from '../../client/src/components/map/layers';
 import { JourneyLegend } from '../../client/src/components/sim/v2/journey/JourneyLegend';
 import { cssColor } from '../../client/src/components/sim/v2/legend/legendModel';
-import { JourneyTimeline } from '../../client/src/components/sim/v2/journey/JourneyTimeline';
+import { JourneyTimeline, JourneyTimelineView } from '../../client/src/components/sim/v2/journey/JourneyTimeline';
 import { buildJourney, type Journey } from '../../client/src/components/sim/v2/journey/journeyModel';
 import { T, map, simAt } from './sim-v2-journey-sample';
 
@@ -37,7 +37,12 @@ describe('JourneyTimeline', () => {
     expect(t).toContain('Ben Okafor');
     expect(t).toContain('+5 min extra');
     expect(t).toContain('At the relay point');
-    expect((html.match(/<button/g) ?? []).length).toBe(4);
+    // Four step buttons and the header's Details toggle (#832), closed: one line per step.
+    expect((html.match(/<button/g) ?? []).length).toBe(5);
+    expect(html.match(/class="jt-step__button"/g)).toHaveLength(4);
+    expect(html).toMatch(/class="sw-details-toggle" aria-expanded="false"/);
+    expect(html.match(/<span class="jt-step__more" data-details-body="" hidden="">/g)).toHaveLength(4);
+    expect(html).toContain('<span class="jt-step__time">Day 1, 5:22 PM</span>');
     expect(html).toContain('type="button"');
     assertClean(html);
   });
@@ -153,20 +158,43 @@ describe('JourneyTimeline', () => {
     assertClean(html);
   });
 
-  it('unmatched shows the reason', () => {
+  it('unmatched: the status, and the reason under the Details toggle', () => {
     const j = buildJourney({ shipmentId: 'shp-3', sim: simAt(T.overnight), map })!;
     const html = renderToStaticMarkup(<JourneyTimeline journey={j} onSeek={noop} />);
     expect(text(html)).toContain('No commuter passes both businesses within their detour limit.');
     expect(text(html)).toContain('Status Unmatched');
-    expect(html).not.toContain('<button');
+    // #832: the one button is the Details toggle; the long reason is folded, closed at first.
+    expect(html.match(/<button/g)).toHaveLength(1);
+    expect(html).toMatch(/class="sw-details-toggle" aria-expanded="false"/);
+    expect(html).toMatch(/<p id="[^"]+" class="jt__reason" data-details-body="" hidden="">/);
     assertClean(html);
+  });
+
+  it('the Details toggle shows the carrier lines, each step\'s detail and the reason', () => {
+    const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map }) as Journey;
+    let toggled = 0;
+    const open = renderToStaticMarkup(
+      <JourneyTimelineView journey={j} onSeek={noop} detailsOpen onToggleDetails={() => { toggled += 1; }} />);
+    expect(open).toContain('aria-expanded="true" aria-controls="jt-legs jt-steps"');
+    expect(open).toContain('<ul id="jt-legs" class="jt__legs" aria-label="Carriers" data-details-body="">');
+    expect(open).toContain('<ol id="jt-steps" class="jt__steps">');
+    expect(open).not.toContain('hidden=""');
+    const closed = renderToStaticMarkup(<JourneyTimelineView journey={j} onSeek={noop} detailsOpen={false} onToggleDetails={noop} />);
+    expect(closed.match(/hidden=""/g)).toHaveLength(1 + j.steps.length);
+    // The same words either way: nothing is dropped, only folded.
+    expect(text(closed)).toBe(text(open).replace('− Details', '+ Details'));
+    const u = buildJourney({ shipmentId: 'shp-3', sim: simAt(T.overnight), map })!;
+    const reason = renderToStaticMarkup(<JourneyTimelineView journey={u} onSeek={noop} detailsOpen onToggleDetails={noop} />);
+    expect(reason).toContain('<p id="jt-reason" class="jt__reason" data-details-body="">');
+    expect(toggled).toBe(0);
   });
 
   it('each step button calls onSeek(timeMin, placeId)', () => {
     // Static render cannot click; call the element tree's handlers directly.
     const j = buildJourney({ shipmentId: 'shp-2', sim: simAt(T.overnight), map }) as Journey;
     const calls: [number, string][] = [];
-    const tree = JourneyTimeline({ journey: j, onSeek: (t, p) => calls.push([t, p]) });
+    // The stateless view (#832): JourneyTimeline itself holds the Details state, so it is not called as a function.
+    const tree = JourneyTimelineView({ journey: j, onSeek: (t, p) => calls.push([t, p]), detailsOpen: false, onToggleDetails: noop });
     type El = { type: unknown; props: Record<string, unknown> };
     const kids = (tree as unknown as El).props.children as unknown[];
     // The steps list is the <ol> (the header and the per-leg <ul> come before it).
@@ -228,8 +256,9 @@ describe('JourneyLegend', () => {
     // The package: an orange ring over a white halo, the map's own colours.
     expect(rows[0].svg).toContain(`stroke="${cssColor(PACKAGE_HALO)}"`);
     expect(rows[0].svg).toContain(`stroke="${cssColor(PACKAGE_FILL)}"`);
-    // Under the carrier rows and the thick/thin key, which stays.
-    expect(html.indexOf('jl__symbols')).toBeGreaterThan(html.indexOf('Thick: carrying the package · thin: rest of the commute'));
+    // Under the carrier rows; the thick/thin key stays, under the Details toggle (#832), closed at first.
+    expect(html.indexOf('Thick: carrying the package · thin: rest of the commute')).toBeGreaterThan(html.indexOf('data-details-body="" hidden=""'));
+    expect(html.indexOf('aria-expanded="false"')).toBeGreaterThan(html.indexOf('jl__symbols'));
     expect(html.indexOf('jl__symbols')).toBeGreaterThan(html.indexOf('B · Ben Okafor'));
     expect(text(html)).not.toMatch(/Numbered stop|\bLeg [12]\b/);
     assertClean(html);

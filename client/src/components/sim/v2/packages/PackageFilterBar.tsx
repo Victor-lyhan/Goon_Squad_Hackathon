@@ -23,7 +23,7 @@ export function PackageFilterBar({ query, onQueryChange, status, onStatusChange,
           id={searchId}
           type="search"
           value={query}
-          placeholder="Package, sender, recipient or relay point"
+          placeholder="Name or business"
           autoComplete="off"
           onChange={(e) => onQueryChange(e.target.value)}
         />

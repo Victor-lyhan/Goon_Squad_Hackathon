@@ -155,10 +155,15 @@ describe('a collapsed panel: its controls cannot be reached', () => {
     const leftShut = parse(renderLayout(relayState, { panels: { leftOpen: false, rightOpen: true } }));
     expect(names(leftShut, 'sw-right')).toEqual(expect.arrayContaining(['Back to network', expect.stringMatching(/^Step 1: Pickup at sender\b/)]));
     expect(names(leftShut, 'sw-left')).toEqual(['Controls']);
-    // The one Play/Pause button is in the left panel (#648): it stays reachable with the right panel shut.
     const rightShut = parse(renderLayout(relayState, { panels: { leftOpen: true, rightOpen: false } }));
-    expect(names(rightShut, 'sw-left')).toEqual(expect.arrayContaining([PLAY_LABEL, 'Back to start', 'Back to network']));
+    expect(names(rightShut, 'sw-left')).toEqual(expect.arrayContaining(['Back to network']));
     expect(names(rightShut, 'sw-right')).toEqual(['Inspector']);
+    // The one Play/Pause button floats on the map (#831): it stays reachable whichever panels are shut.
+    const bothShut = parse(renderLayout(relayState, { panels: { leftOpen: false, rightOpen: false } }));
+    for (const root of [leftShut, rightShut, bothShut]) {
+      const onMap = controlsIn(one(root, (n) => hasClass(n, 'sw-map'), 'map region')).filter((c) => !isHidden(c)).map((c) => accessibleName(c, root));
+      expect(onMap).toEqual(expect.arrayContaining([PLAY_LABEL, 'Back to start']));
+    }
   });
 });
 
@@ -169,9 +174,13 @@ describe('the one Play/Pause button: announced in a live region, Pause reachable
   const status = (root: Node) => one(block(root), (n) => hasClass(n, 'ctl-status'), 'status');
   const buttons = (root: Node) => all(block(root), (n) => n.tag === 'button');
 
-  it('the page has one playback block, in the left panel', () => {
+  it('the page has one playback block, in a named group on the map and in no panel (#831)', () => {
     for (const root of [idle, playing]) {
-      expect(ancestors(block(root)).some((a) => a.tag === 'aside' && hasClass(a, 'sw-left'))).toBe(true);
+      const up = ancestors(block(root));
+      expect(up.some((a) => a.tag === 'aside')).toBe(false);
+      expect(up.some((a) => hasClass(a, 'sw-map') && a.attrs.role === 'region')).toBe(true);
+      const group = up.find((a) => hasClass(a, 'spc-playbar'))!;
+      expect([group.attrs.role, group.attrs['aria-label']]).toEqual(['group', 'Playback']);
     }
   });
 

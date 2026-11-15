@@ -15,7 +15,7 @@ import { simDataReducer, type SimDataState } from '../../client/src/components/s
 import { createSimActions } from '../../client/src/components/sim/v2/live/useSimulatorV2';
 import { button, buttons, click, press, textOf } from './kitDom';
 import {
-  FakeSimServer, T, advance, currentSearch, journeySteps, leftBody, mountBody, mountPage, overnightCard, packageRow, playPause,
+  FakeSimServer, T, advance, currentSearch, journeySteps, leftBody, mountBody, mountPage, overnightCard, packageRow, playbar, playPause,
   playStatus, readyState, rightBody, runAt, settle, stubMatchMedia,
 } from './sim-v2-dom-helpers';
 
@@ -110,11 +110,15 @@ describe('one Play/Pause button: a picked package plays its journey', () => {
     expect(server.seeks()).toHaveLength(PLANNED.length);
   }, T);
 
-  it('the page has one Play/Pause button, in the left panel; the journey panel has none of its own', async () => {
+  it('the page has one Play/Pause button, floating on the map (#831); the left panel and the journey panel have none of their own', async () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountBody(server, SHP2);
     const playLike = () => buttons(c, /^(Play|Pause|Stop|Resume)\b/);
     expect(playLike()).toEqual([playPause(c)]);
+    expect(playbar(c).contains(playPause(c))).toBe(true);
+    expect(buttons(playbar(c), /./).map((b) => textOf(b))).toEqual(['Play', 'Back to start']); // Back to start is next to it
+    expect(buttons(leftBody(c), /Play|Pause|Stop|Back to start/)).toHaveLength(0);
+    expect(leftBody(c).querySelector('.ctl-playback')).toBeNull();
     expect(buttons(rightBody(c), /Play|Pause|Stop/)).toHaveLength(0);
     expect(textOf(c)).not.toMatch(/Play journey|about \d+ s/);
     clickPlayPause(c, 'Play');
@@ -243,7 +247,7 @@ describe('pause and resume (#648)', () => {
     const { container: c } = mountBody(server, SHP2);
     clickPlayPause(c, 'Play');
     await advance(3 * STEP_MS);
-    click(button(leftBody(c), 'Back to start'));
+    click(button(playbar(c), 'Back to start'));
     await advance(10 * STEP_MS);
     expect(server.controls().slice(4)).toEqual([{ action: 'reset_playback' }]);
     expect(label(c)).toBe('Play');
@@ -435,7 +439,7 @@ describe('one Play/Pause button: no package picked steps every commute with seek
     // Finished at the end of the run: Play is disabled and names Back to start; the step line says it is done.
     expect(label(c)).toBe('Play');
     expect(isOff(playPause(c))).toBe(true);
-    expect(textOf(leftBody(c))).toContain('Run finished. Use Back to start to watch again.');
+    expect(textOf(playbar(c))).toContain('Run finished. Use Back to start to watch again.');
     expect(textOf(playStatus(c)!)).toBe('Every commute played.');
     await advance(5_000);
     expect(server.controls()).toHaveLength(NET_PLANNED.length);
@@ -498,7 +502,7 @@ describe('one Play/Pause button: no package picked steps every commute with seek
     clickPlayPause(c, 'Play');
     await settle();
     await advance(2 * STEP_MS);
-    click(button(leftBody(c), 'Back to start'));
+    click(button(playbar(c), 'Back to start'));
     await settle();
     const before = server.controls();
     expect(before[before.length - 1]).toEqual({ action: 'reset_playback' });
@@ -565,7 +569,7 @@ describe('one Play/Pause button: no package picked steps every commute with seek
     await advance(STEP_MS);
     expect(server.controls()).toHaveLength(2);
     expect(label(c)).toBe('Play');
-    expect(textOf(leftBody(c).querySelector('.ctl-error')!)).toBe('Play stopped: the simulator did not accept a step.');
+    expect(textOf(playbar(c).querySelector('.ctl-error')!)).toBe('Play stopped: the simulator did not accept a step.');
     await advance(5_000);
     expect(server.controls()).toHaveLength(2);
   }, T);
@@ -583,8 +587,8 @@ describe('one Play/Pause button: no package picked steps every commute with seek
     const server = new FakeSimServer(readyState(2160));
     const { container: c } = mountBody(server, null);
     expect(isOff(playPause(c))).toBe(true);
-    expect(textOf(leftBody(c))).toContain('Run finished. Use Back to start to watch again.');
-    click(button(leftBody(c), 'Back to start'));
+    expect(textOf(playbar(c))).toContain('Run finished. Use Back to start to watch again.');
+    click(button(playbar(c), 'Back to start'));
     await settle();
     expect(server.controls()).toEqual([{ action: 'reset_playback' }]);
     expect(isOff(playPause(c))).toBe(false);
@@ -783,13 +787,15 @@ class SlowControlServer extends FakeSimServer {
   }
 }
 
-describe('a playing journey keeps the left panel still (#594)', () => {
-  const backToStart = (c: ParentNode) => button(leftBody(c), 'Back to start');
+describe('a playing journey keeps the playback control and the left panel still (#594)', () => {
+  const backToStart = (c: ParentNode) => button(playbar(c), 'Back to start');
+  /** The text of the floating control (where the busy note shows since #831) and of the left panel. */
+  const controlsText = (c: ParentNode) => `${textOf(playbar(c))} ${textOf(leftBody(c))}`;
 
   it('with slow answers, no busy text and no disabled button while a journey or network Play runs; Back to start still shows busy', async () => {
     const server = new SlowControlServer(readyState(1000));
     const { container: c } = mountPage(server, '?package=shp-2');
-    expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+    expect(controlsText(c)).not.toContain(BUSY_REASON);
 
     clickPlayPause(c, 'Play');
     let checks = 0;
@@ -797,7 +803,7 @@ describe('a playing journey keeps the left panel still (#594)', () => {
     for (let t = 0; t < 80 * STEP_MS && (checks === 0 || label(c) === 'Pause'); t += 100) {
       await advance(100);
       expect(server.state.busy).toBe(false);
-      expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+      expect(controlsText(c)).not.toContain(BUSY_REASON);
       expect(isOff(playPause(c))).toBe(false);
       expect(isOff(backToStart(c))).toBe(false);
       checks += 1;
@@ -812,10 +818,10 @@ describe('a playing journey keeps the left panel still (#594)', () => {
     expect(currentSearch(server)).toBe('');
     click(backToStart(c));
     await settle();
-    expect(textOf(leftBody(c))).toContain(BUSY_REASON);
+    expect(textOf(playbar(c))).toContain(BUSY_REASON);
     expect(isOff(playPause(c))).toBe(true);
     await advance(DELAY_MS);
-    expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+    expect(controlsText(c)).not.toContain(BUSY_REASON);
     expect(isOff(backToStart(c))).toBe(false);
 
     // #790: with no package the button plays every commute with the same quiet seeks: never busy either.
@@ -823,7 +829,7 @@ describe('a playing journey keeps the left panel still (#594)', () => {
     for (let t = 0; t < 10 * STEP_MS; t += 100) {
       await advance(100);
       expect(server.state.busy).toBe(false);
-      expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
+      expect(controlsText(c)).not.toContain(BUSY_REASON);
       expect(isOff(playPause(c))).toBe(false);
       expect(isOff(backToStart(c))).toBe(false);
     }

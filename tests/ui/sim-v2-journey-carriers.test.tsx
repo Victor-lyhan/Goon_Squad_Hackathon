@@ -160,7 +160,8 @@ describe('JourneyTimeline: delivery time and one line per carrier', () => {
       expect(li).toContain(`style="border-left-color:${colour}"`);
       expect(li).toContain(`jt-badge--leg${i + 1}" aria-hidden="true" style="background:${colour}">${letters[i]}</span>`);
     });
-    expect(html).toContain('<ul class="jt__legs" aria-label="Carriers">');
+    // #832: the carrier lines are under the header's Details toggle, closed at first.
+    expect(html).toMatch(/<ul id="[^"]+" class="jt__legs" aria-label="Carriers" data-details-body="" hidden="">/);
     expect(text(html)).not.toMatch(/NaN|undefined|null|\bhub\b/i);
   });
 

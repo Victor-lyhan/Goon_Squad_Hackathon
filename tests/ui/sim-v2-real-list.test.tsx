@@ -68,7 +68,8 @@ describe.each(real.moments)('network mode at $name', (moment) => {
       expect(status).toBeDefined();
       if (status !== 'unmatched') expect(t).toContain(packageStatusLabel(status));
       const plan = sim.plans.find((p) => p.shipmentId === s.id);
-      if (plan?.kind === 'relay') expect(t).toContain(`Relay via ${names.get(plan.relayBusinessId!)}`);
+      // #832: the kind is on the detail line, before the route.
+      if (plan?.kind === 'relay') expect(t).toContain(`Relay via ${names.get(plan.relayBusinessId!)} · `);
       if (plan?.kind === 'direct') expect(t).toContain('Direct');
     });
     expect(text(html)).toContain(`${sim.shipments.length} of ${sim.shipments.length} packages`);

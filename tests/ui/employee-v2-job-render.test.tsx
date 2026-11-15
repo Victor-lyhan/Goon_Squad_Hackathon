@@ -108,6 +108,36 @@ describe('JobDetailV2 render', () => {
     expect(marks(render(eveningDirect('in_progress')))).toEqual(['start true', 'pickup true', 'delivery false', 'end false']);
   });
 
+  // #836: "(done)" on the end row comes from the API's `arrived`, not from the job status.
+  it('marks "Arrive home (done)" / "Arrive at work (done)" only once the server says the commute has arrived', () => {
+    const marks = (html: string) => [...html.matchAll(/data-kind="([^"]+)" data-done="([^"]+)"/g)].map((m) => `${m[1]} ${m[2]}`);
+    // The relay drop is handled, the job is "Completed", and the carrier is still driving home.
+    const driving = render({ ...relayLeg1('completed'), stopsDone: 2, departed: true, arrived: false });
+    expect(text(driving)).toContain('Leave it at the relay point for the morning carrier (done)');
+    expect(text(driving)).toContain('Arrive home');
+    expect(text(driving)).not.toContain('Arrive home (done)');
+    expect(text(driving).match(/\(done\)/g)).toHaveLength(3);
+    expect(marks(driving)).toEqual(['start true', 'pickup true', 'hub_drop true', 'end false']);
+    // The status is the API's, untouched.
+    expect(driving).toMatch(/data-status="completed"/);
+    expect(text(driving)).toContain('Completed');
+    expectClean(driving);
+    // Home.
+    const home = render({ ...relayLeg1('completed'), stopsDone: 2, departed: true, arrived: true });
+    expect(text(home)).toContain('Arrive home (done)');
+    expect(marks(home)).toEqual(['start true', 'pickup true', 'hub_drop true', 'end true']);
+    expectClean(home);
+    // A morning leg ends at work.
+    const atWork = render({ ...relayLeg2('completed'), stopsDone: 2, departed: true, arrived: true }, 'Park Slope');
+    expect(text(atWork)).toContain('Arrive at work (done)');
+    expect(marks(atWork)).toEqual(['start true', 'hub_pickup true', 'delivery true', 'end true']);
+    expect(text(render({ ...relayLeg2('completed'), stopsDone: 2, departed: true, arrived: false }, 'Park Slope')))
+      .not.toContain('Arrive at work (done)');
+    // An answer without the flag keeps the old marks: the end row follows the status.
+    expect(marks(render({ ...relayLeg1('completed'), stopsDone: 2, departed: true }))).toEqual(['start true', 'pickup true', 'hub_drop true', 'end true']);
+    expect(marks(render({ ...relayLeg1('in_progress'), stopsDone: 1, departed: true }))).toEqual(['start true', 'pickup true', 'hub_drop false', 'end false']);
+  });
+
   it('"What it adds" lists the reward first and a shorter detour as "km shorter" (#551)', () => {
     const job = eveningDirect();
     job.plan.legs[job.job.legIndex].extraDistanceM = -5496;

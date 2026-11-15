@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { headerModel } from '../../client/src/components/business/v2/activity/activityModel';
-import { RESULT_COPY } from '../../client/src/components/business/v2/newDeliveryModel';
+import { NEEDS_INPUT_HINT, RESULT_COPY } from '../../client/src/components/business/v2/newDeliveryModel';
 import { NEW_DELIVERY_CLOSED_TEXT } from '../../client/src/components/business/v2/page/businessPageModel';
 import { UNAVAILABLE_TEXT as ADDRESS_SEARCH_NEEDS_KEY_TEXT } from '../../client/src/components/employee/v2/addressSearchModel';
 import { LOCKED_TEXT } from '../../client/src/components/employee/v2/employeeWorkspaceModel';
 import { TRAVEL_DATA_MISSING_TEXT } from '../../client/src/components/employee/v2/live/employeeWorkspaceState';
-import { RESET_LABEL } from '../../client/src/components/sim/v2/controls/controlsModel';
+import { NETWORK_OVERNIGHT_TEXT } from '../../client/src/components/sim/v2/compose/journeyPlay';
+import { FINISHED_REASON, RESET_LABEL } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { ENV_INDICATOR_TEXT } from '../../client/src/ui/shellModel';
 import { DEFAULT_V2_STATE_PATH, sourcePathFor } from '../../server/api/v2/bootRun';
 import { SERVER_KEY_NAME } from '../../server/geo/env';
@@ -157,13 +158,31 @@ describe('README after the cutover', () => {
     // "Back to start" unlocks the run, so the README says what locks it and names that button, not a reset.
     expect(state).not.toContain('Start new planning cycle');
     expect(fs.existsSync(path.join(root, 'client/src/components/sim/v2/controls/PlanningControls.tsx'))).toBe(false);
-    expect(state).toMatch(/\*\*Play\*\* with no package picked runs the whole network and locks the run/);
+    // #815 (after #790, DECISIONS pass 84): Play with no package picked steps the clock with seeks, like a
+    // journey, so it no longer locks the run. The paragraph quotes the page's own lines.
+    const play = state.split('\n').find((line) => line.startsWith('In the Simulator, **Play** with no package picked')) ?? '';
+    expect(play).toMatch(/\*\*Play\*\* with no package picked plays every carrier's commute.*and does not lock the run/);
+    expect(state).not.toMatch(/runs the whole network and locks the run/);
+    expect(play).toContain(`"${NETWORK_OVERNIGHT_TEXT}" card`);
+    expect(play).toContain(`"${FINISHED_REASON}"`);
+    expect(FINISHED_REASON).toContain(`Use ${RESET_LABEL} to`);
+    expect(play).toMatch(/New deliveries and commute changes stay open while it plays and after it/);
+    expect(play).toMatch(/Playing one package's journey does not lock the run either/);
+    // No file of the client sends the `play` control: the pages step with `seek`, pause and reset.
+    const sends = (dir: string): string[] => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) return sends(rel);
+      return /\.tsx?$/.test(entry.name) && /action:\s*['"]play['"]/.test(read(rel)) ? [rel] : [];
+    });
+    expect(sends('client/src'), "client files that send { action: 'play' }").toStrictEqual([]);
+    // Only the API's `play` control locks (server/api/v2/controlOps.ts), and the README names it.
+    const lock = state.split('\n').find((line) => line.startsWith('No button of the pages locks the run.')) ?? '';
+    expect(lock).toContain('Only the `play` control of the API does (`POST /api/v2/simulator/control` with the body `{"action":"play"}`)');
+    expect(read('server/api/v2/controlOps.ts')).toMatch(/`play` locks the run and `reset_playback` \("Back to start"\) returns it to `planning`/);
     expect(state).toMatch(/\*\*Back to start\*\* in the Simulator unlocks it/);
     expect(state).not.toMatch(/reset as above to unlock it/);
     expect(RESET_LABEL).toBe('Back to start'); // the button's own label
-    expect(state).toMatch(/Playing one package's journey does not lock the run/);
     // #756: the locked lines are quoted as the pages print them (#742, #745), and both name the button.
-    const lock = state.split('\n').find((line) => line.startsWith('In the Simulator, **Play** with no package picked')) ?? '';
     expect(NEW_DELIVERY_CLOSED_TEXT).toBe(RESULT_COPY.locked); // the Business page's line is the form's text
     for (const text of [RESULT_COPY.locked, LOCKED_TEXT]) {
       expect(text).toContain(`${RESET_LABEL} in the simulator`);
@@ -209,7 +228,16 @@ describe('README after the cutover', () => {
     expect(note).toContain(`A rehearsal of only **Play**, **${RESET_LABEL}** and a package's journey adds no delivery and needs no reset.`);
     // The older "after an earlier try, reset first" is replaced, and the way out of a locked run is still there.
     expect(demo).not.toMatch(/after an earlier try/);
-    expect(demo).toMatch(/the run is locked and the \*\*New delivery\*\* button is disabled: press \*\*Back to start\*\* in the Simulator first/);
+    // #815: no page's Play locks the run any more, so the line on a locked run became a paragraph on the
+    // clock: Back to start before step 2, because a watched journey or Play leaves the clock on Day 2.
+    expect(demo).not.toMatch(/the run is locked and the \*\*New delivery\*\* button is disabled/);
+    const clock = demo.split('\n').find((line) => line.startsWith(`Press **${RESET_LABEL}** in the Simulator before step 2`)) ?? '';
+    expect(clock).not.toBe('');
+    expect(demo.indexOf(clock)).toBeGreaterThan(demo.indexOf(note));
+    expect(demo.indexOf(clock)).toBeLessThan(demo.indexOf('\n1. **Employee**'));
+    expect(clock).toContain(`"${NEEDS_INPUT_HINT}"`); // the hint of the form's field, as the page prints it
+    expect(clock).toMatch(/An earlier \*\*Play\*\* does not close \*\*New delivery\*\*/);
+    expect(clock).toContain(`Should the Business page say "Locked" all the same, **${RESET_LABEL}** reopens it ([State file and reset](#state-file-and-reset)).`);
   });
 
   it('the repository layout names folders and files that exist', () => {

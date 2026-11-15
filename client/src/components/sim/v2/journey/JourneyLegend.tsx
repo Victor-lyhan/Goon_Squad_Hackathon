@@ -7,6 +7,7 @@
 // (map/layers.ts, through legendModel), so the legend always matches what the map draws. A direct
 // journey has one carrier, so it lists only A, and no overnight or handoff symbol.
 import { PACKAGE_FILL, toneLabelColor } from '../../../map/layers';
+import { Details } from '../Details';
 import { cssColor } from '../legend/legendModel';
 import { journeySymbolRows, type JourneySymbolRow } from '../legend/legendModel';
 import type { JourneyCarrier } from './journeyModel';
@@ -58,27 +59,36 @@ export function JourneyLegend({ carriers }: JourneyLegendProps) {
               <span className="jl__name">
                 {c.letter} · {c.name}
               </span>
-              <span className="jl__sub">
-                {c.letter} {CARRIER_MARKER_TEXT} · from {c.homeNeighborhood}
-              </span>
             </span>
           </li>
         ))}
-        <li className="jl__item jl__item--key">
-          <span className="jl__swatches" aria-hidden="true">
-            <span className="jl__swatch jl__swatch--thick" />
-            <span className="jl__swatch jl__swatch--thin" />
-          </span>
-          <span className="jl__text">
-            <span className="jl__sub">Thick: carrying the package · thin: rest of the commute</span>
-          </span>
-        </li>
       </ul>
       <ul className="jl__list jl__symbols" aria-label="Map symbols">
         {symbols.map((row) => (
           <SymbolItem key={row.key} row={row} />
         ))}
       </ul>
+      {/* #832: one line per carrier and symbol; what the marker and the two line widths mean is a detail. */}
+      <Details about="journey legend">
+        <ul className="jl__list jl__notes">
+          {carriers.map((c) => (
+            <li key={c.legIndex} className="jl__item">
+              <span className="jl__sub">
+                {c.letter} {CARRIER_MARKER_TEXT} · from {c.homeNeighborhood}
+              </span>
+            </li>
+          ))}
+          <li className="jl__item jl__item--key">
+            <span className="jl__swatches" aria-hidden="true">
+              <span className="jl__swatch jl__swatch--thick" />
+              <span className="jl__swatch jl__swatch--thin" />
+            </span>
+            <span className="jl__text">
+              <span className="jl__sub">Thick: carrying the package · thin: rest of the commute</span>
+            </span>
+          </li>
+        </ul>
+      </Details>
     </section>
   );
 }

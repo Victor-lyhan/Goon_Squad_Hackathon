@@ -37,7 +37,18 @@ function buildJobView(run: Run, snapshot: Snapshot, job: Job): EmployeeJobView |
     job, status: snapshot.jobStatus[job.id] ?? 'assigned', shipment, plan,
     stopsDone: stopsDoneAt(job, plan, snapshot.timeMin),
     departed: departedAt(run, job, plan, snapshot.timeMin),
+    arrived: arrivedAt(job, plan, snapshot.timeMin),
   };
+}
+
+// Has the job's commute arrived, home or at work, at the snapshot's minute (#836)? Yes from its leg's
+// `finishMin` on: the time the page shows on the "Arrive home" / "Arrive at work" row. This is not the job
+// status: a job is `completed` when its last stop is handled, and an evening carrier then still drives home.
+// A plan without this leg falls back to the end of the job's last stop, the time the page shows then.
+function arrivedAt(job: Job, plan: DeliveryPlan, timeMin: number): boolean {
+  const leg = plan.legs[job.legIndex];
+  const lastStop = leg?.stops?.length ? leg.stops[leg.stops.length - 1] : job.dropoff;
+  return (leg?.finishMin ?? lastStop.serviceEndMin) <= timeMin;
 }
 
 // Has the job's commute left at the snapshot's minute (#791)? Yes from its trip's `departureMin` on: the

@@ -1,3 +1,4 @@
+import { Details } from '../Details';
 import type { EmployeeInspectorModel, LegBlock } from './inspectorModel';
 import { BusinessLink, DefRows, InspectorHeader, NotInCity } from './BusinessInspector';
 import './inspector.css';
@@ -21,6 +22,8 @@ function LegItem({ leg, h }: { leg: LegBlock; h: LegHandlers }) {
           <span className="insp-row-meta">{leg.legLabel} · {leg.statusLabel}</span>
         </button>
       </div>
+      {/* #832: the leg is one line; its stops, finish time, extra minutes and reward are details. */}
+      <Details about={`${leg.packageLabel}, ${leg.legLabel}`}>
       <ol className="insp-stops">
         {leg.stops.map((s) => (
           <li key={s.key} className={s.isRelay ? 'insp-stop is-relay' : 'insp-stop'}>
@@ -37,6 +40,7 @@ function LegItem({ leg, h }: { leg: LegBlock; h: LegHandlers }) {
         <div><dt>Extra</dt><dd>{leg.extraLabel}</dd></div>
         <div><dt>Reward</dt><dd>{leg.rewardLabel}</dd></div>
       </dl>
+      </Details>
     </li>
   );
 }
@@ -52,15 +56,18 @@ export function EmployeeInspector({ model, onFocus, onClear, ...h }: EmployeeIns
   if (!model) return <NotInCity kind="employee" onClear={onClear} />;
   return (
     <div className="insp" data-testid="insp-employee">
-      <InspectorHeader ident={model.ident} name={model.name} kind="employee" onClear={onClear} />
+      <InspectorHeader ident="Employee" name={model.name} kind="employee" onClear={onClear} />
       <DefRows
         rows={[
           { key: 'workplace', label: 'Works at', value: <BusinessLink place={model.workplace} onSelect={h.onSelectBusiness} /> },
           { key: 'home', label: 'Home', value: model.homeNeighborhood },
-          { key: 'earned', label: 'Earned so far', value: <span className="insp-mono">{model.earnedLabel}</span> },
-          { key: 'reward', label: 'Reward of all legs', value: <span className="insp-mono">{model.totalRewardLabel}</span> },
+          { key: 'earned', label: 'Earned', value: <span className="insp-mono">{model.earnedLabel}</span> },
+          { key: 'reward', label: 'Total reward', value: <span className="insp-mono">{model.totalRewardLabel}</span> },
         ]}
       />
+      <Details about={model.name}>
+        <DefRows rows={[{ key: 'ident', label: 'ID', value: <span className="insp-mono">{model.ident}</span> }]} />
+      </Details>
       <div className="insp-actions">
         <button type="button" className="insp-btn" aria-label={`Focus on this employee: ${model.name}`} onClick={() => onFocus(model.id)}>
           Focus on this employee
