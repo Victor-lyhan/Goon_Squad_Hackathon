@@ -57,7 +57,16 @@
 /* ---------- Notes, the step line, a refused step ---------- */
 .ctl-note { margin: 0; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 /* The status line stays in the page when empty (never display: none), so its next text is announced. */
-.ctl-status { margin: 0; font-size: var(--text-sm, 13px); }
+.ctl-status { margin: 0; font-size: var(--text-sm, 13px); line-height: 1.45; }
+/* #816 (headless Chrome at 1440 x 900): a journey's step line goes between one and two lines as it plays
+   ("Step 2 of 4 next: Drop at relay point at Etsy." / "Step 4 of 4 next: Delivered to recipient at
+   Brooklyn Roasting Company."), which moved the Packages list up and down under it while nobody touched
+   the page. Once it has text it keeps two lines' height (every step line of the default run's 24 packages
+   is one or two lines at the 295 px column). It applies while the button plays or pauses a seek play:
+   a picked package's journey, and also a running network Play, whose Pause is `pause_journey` too
+   (playButtonView), so "Playing every carrier's commute." keeps a second, empty line. Empty (idle) it
+   takes no room. */
+.ctl-playback[data-play-action$="_journey"] .ctl-status:not(:empty) { min-height: 2.9em; }
 .ctl-error { margin: 0; font-size: var(--text-xs, 12px); color: var(--danger, #A4322A); overflow-wrap: anywhere; }
 
 /* ---------- Keyboard focus: 2px outline plus a 1px ring ---------- */

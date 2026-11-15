@@ -172,6 +172,33 @@ describe('controls.css', () => {
     expect(noComments).toMatch(/prefers-reduced-motion/);
   });
 
+  // #816 (headless Chrome at 1440 x 900): a playing journey's step line went between one and two lines
+  // ("Step 2 of 4 next: Drop at relay point at Etsy." / "Step 4 of 4 next: Delivered to recipient at
+  // Brooklyn Roasting Company."), so the Packages list under it jumped up and down by one line while
+  // nobody touched the page. In journey mode the line keeps two lines' height once it has text.
+  it('a journey step line with text keeps two lines of height; an empty one takes none (#816)', () => {
+    const decl = (body: string, prop: string) => body.match(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`))?.[1].trim();
+    const rules = [...noComments.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, sel, body]) => ({ sel: sel.trim(), body }));
+    const status = rules.find((r) => r.sel === '.ctl-status');
+    const lineHeight = Number(decl(status?.body ?? '', 'line-height'));
+    expect(lineHeight, '.ctl-status needs a unitless line-height').toBeGreaterThan(1);
+
+    const journey = rules.find((r) => r.sel === '.ctl-playback[data-play-action$="_journey"] .ctl-status:not(:empty)');
+    const minHeight = decl(journey?.body ?? '', 'min-height');
+    expect(minHeight, 'journey step line min-height').toMatch(/^\d+(\.\d+)?em$/);
+    expect(parseFloat(minHeight!)).toBeGreaterThanOrEqual(2 * lineHeight - 0.001);
+    // No other .ctl-status rule sets a height, so the empty (idle) line takes no room.
+    for (const r of rules) if (r.sel !== journey!.sel && /\.ctl-status/.test(r.sel)) expect(decl(r.body, 'min-height'), r.sel).toBeUndefined();
+
+    // The selector matches what PlaybackControls renders: the two seek-play actions end in "_journey"
+    // (`pause_journey` is also a running network Play's Pause), Play on the network and a clock pause do not.
+    for (const [action, isJourney] of [['play_journey', true], ['pause_journey', true], ['play_network', false], ['pause_clock', false]] as const) {
+      const html = render({ button: { ...PLAY, action }, status: 'Step 1 of 4 next: Pickup at sender.' });
+      expect(attr(html.match(/<div\b[^>]*class="ctl-block ctl-playback"[^>]*>/)![0], 'data-play-action')!.endsWith('_journey'), action).toBe(isJourney);
+      expect(html).toMatch(/<p class="ctl-status" role="status">Step 1 of 4/);
+    }
+  });
+
   it('has no rule left for the speed buttons, the scrubber or the scenario form (#648)', () => {
     for (const c of ['.ctl-seg', '.ctl-range', '.ctl-input', '.ctl-fields', '.ctl-confirm', '.ctl-phase', '.ctl-grid']) {
       expect(noComments, c).not.toContain(c);
