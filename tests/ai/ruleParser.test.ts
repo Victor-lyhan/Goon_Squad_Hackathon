@@ -23,9 +23,10 @@ const ROASTING = 'biz-brooklyn-roasting';
 const KEYS: (keyof ParseDraft)[] = [
   'originBusinessId', 'destinationBusinessId', 'label', 'category', 'description', 'weightKg', 'readyMin', 'deadlineMin',
 ];
+const RULE = NOT_A_NETWORK_BUSINESS.replace(/\.$/, '');
 const refusal = (...stops: string[]) => (stops.length === 1
-  ? `${NOT_A_NETWORK_BUSINESS} "${stops[0]}" is not one of them.`
-  : `${NOT_A_NETWORK_BUSINESS} "${stops[0]}" and "${stops[1]}" are not among them.`);
+  ? `${RULE}, and "${stops[0]}" is not one.`
+  : `${RULE}, and "${stops[0]}" and "${stops[1]}" are not.`);
 
 /** What every answer must be, whatever the text. */
 function expectWellFormed(answer: ParseRequestResponse) {
@@ -46,7 +47,8 @@ function expectWellFormed(answer: ParseRequestResponse) {
   }
   expect(answer.draft.readyMin).not.toBeNull();
   if (answer.rejected === null) return;
-  expect(answer.rejected.startsWith(NOT_A_NETWORK_BUSINESS)).toBe(true);
+  expect(answer.rejected.startsWith(`${RULE}, and "`)).toBe(true);
+  expect(answer.rejected.slice(0, -1).replace(/"[^"]*"/g, '')).not.toMatch(/[.!?;]/);   // one sentence (#898)
   // A refusal always leaves the refused stop empty.
   expect(answer.draft.originBusinessId === null || answer.draft.destinationBusinessId === null).toBe(true);
 }
@@ -187,7 +189,7 @@ describe('a stop that is not a network business is refused, never guessed', () =
   it('a home', () => {
     const answer = parse('Deliver an envelope from Etsy to my home by noon');
     expect(answer.draft).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: null, category: 'envelope' });
-    expect(answer.rejected).toBe('Relay delivers only between network businesses. "my home" is not one of them.');
+    expect(answer.rejected).toBe('Relay delivers only between network businesses, and "my home" is not one.');
     expect(answer.missing).toContain('destinationBusinessId');
     expectWellFormed(answer);
   });
@@ -195,15 +197,18 @@ describe('a stop that is not a network business is refused, never guessed', () =
   it('a street address', () => {
     const answer = parse('Send a box from 350 5th Avenue, New York to JetBlue by 9:30 am tomorrow');
     expect(answer.draft).toMatchObject({ originBusinessId: null, destinationBusinessId: 'biz-jetblue', deadlineMin: DAY2 + 570 });
-    expect(answer.rejected).toBe('Relay delivers only between network businesses. "350 5th Avenue" is not one of them.');
+    expect(answer.rejected).toBe('Relay delivers only between network businesses, and "350 5th Avenue" is not one.');
     expect(answer.missing).toContain('originBusinessId');
     expectWellFormed(answer);
   });
 
-  it('the address of a network business is still an address', () => {
-    const answer = parse('Pick up a parcel from Etsy and take it to 200 Flushing Avenue');
+  // Until #898 the address of a network business was refused like any other address. It now names that
+  // business (see "a network business by its street address" below); any other address is still refused.
+  it('an address next to a network business is still an address', () => {
+    const answer = parse('Pick up a parcel from Etsy and take it to 202 Flushing Avenue');
     expect(answer.draft).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: null });
-    expect(answer.rejected).toBe(refusal('200 Flushing Avenue'));
+    expect(answer.rejected).toBe(refusal('202 Flushing Avenue'));
+    expectWellFormed(answer);
   });
 
   it('an unknown name', () => {
@@ -234,7 +239,98 @@ describe('a stop that is not a network business is refused, never guessed', () =
 
   it('a very long stop is cut in the message', () => {
     const { rejected } = parse(`Send a box from ${'Supercalifragilistic'.repeat(10)} Depot to Etsy`);
-    expect(rejected).toMatch(/^Relay delivers only between network businesses\. "Supercali.{51}…" is not one of them\.$/);
+    expect(rejected).toMatch(/^Relay delivers only between network businesses, and "Supercali.{51}…" is not one\.$/);
+  });
+});
+
+describe('a network business by its street address (#898)', () => {
+  const BLUE_BOTTLE = 'biz-blue-bottle-wall';   // 1 Wall Street, New York, NY 10005
+  const LEVAIN = 'biz-levain-uws';              // 167 West 74th Street, New York, NY 10023
+  const JETBLUE = 'biz-jetblue';                // 27-01 Queens Plaza North, Long Island City, NY 11101
+  const BH = 'biz-bh-photo';                    // 420 9th Avenue, New York, NY 10001
+
+  it.each<[string, string]>([
+    ['1 Wall Street', BLUE_BOTTLE],
+    ['1 Wall St', BLUE_BOTTLE],
+    ['1 Wall St.', BLUE_BOTTLE],
+    ['1 wall street', BLUE_BOTTLE],
+    ['1 WALL STREET', BLUE_BOTTLE],
+    ['One Wall Street', BLUE_BOTTLE],
+    ['1 Wall Street, New York', BLUE_BOTTLE],
+    ['1 Wall Street, New York, NY 10005', BLUE_BOTTLE],
+    ['the 1 Wall Street', BLUE_BOTTLE],
+    ['200 Flushing Avenue', ROASTING],
+    ['200 Flushing Ave', ROASTING],
+    ['200 flushing ave., brooklyn', ROASTING],
+    ['167 West 74th Street', LEVAIN],
+    ['167 W 74th St', LEVAIN],
+    ['167 W. 74th St.', LEVAIN],
+    ['420 9th Avenue', BH],
+    ['420 Ninth Ave', BH],
+    ['27-01 Queens Plaza North', JETBLUE],
+    ['27-01 Queens Plaza N', JETBLUE],
+  ])('"to %s" is %s', (address, id) => {
+    const answer = parse(`Send an envelope from Etsy to ${address} by 10 a.m. tomorrow`);
+    expect(answer.draft).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: id, deadlineMin: DAY2 + 600 });
+    expect(answer.rejected).toBeNull();
+    expect(answer.missing).not.toContain('destinationBusinessId');
+    expectWellFormed(answer);
+  });
+
+  it('after "from" it is the sender, and both stops may be addresses', () => {
+    const answer = parse('Send a 0.5 kg envelope from 200 Flushing Ave to 1 Wall St by 10 a.m. tomorrow, ready at 4 p.m.');
+    expect(answer.draft).toMatchObject({
+      originBusinessId: ROASTING, destinationBusinessId: BLUE_BOTTLE, weightKg: 0.5, readyMin: 960, deadlineMin: DAY2 + 600,
+    });
+    expect(answer.rejected).toBeNull();
+  });
+
+  it('the house number is not read as a time or a weight', () => {
+    expect(draftOf('Send an envelope to 1 Wall Street by 5')).toMatchObject({ destinationBusinessId: BLUE_BOTTLE, deadlineMin: 1020, weightKg: null });
+    expect(draftOf('Send a 2 kg box by 10 Wall Street tomorrow to 1 Wall St')).toMatchObject({ destinationBusinessId: BLUE_BOTTLE, weightKg: 2 });
+  });
+
+  it.each<[string, string]>([
+    ['2 Wall Street', '2 Wall Street'],                 // another house number
+    ['11 Wall Street', '11 Wall Street'],
+    ['12-1 Wall Street', '12-1 Wall Street'],
+    ['Wall Street', 'Wall Street'],                     // no house number
+    ['1 Wall Street Court', '1 Wall Street Court'],     // another street
+    ['1 Wall Avenue', '1 Wall Avenue'],
+    ['1 Water Street', '1 Water Street'],
+    ['201 Flushing Avenue', '201 Flushing Avenue'],
+    ['1325 6th Ave', '1325 6th Ave'],                   // "Avenue of the Americas" under another name: not guessed
+  ])('"to %s" is not a network business: refused, never matched to the nearest one', (address, typed) => {
+    const answer = parse(`Send an envelope from Etsy to ${address} by 10 a.m. tomorrow`);
+    expect(answer.draft).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: null });
+    expect(answer.rejected).toBe(refusal(typed));
+    expectWellFormed(answer);
+  });
+
+  it('an address names a stop only after from/to: elsewhere it is left alone', () => {
+    const answer = parse('Send an envelope, 1 Wall Street, by 10 a.m. tomorrow');
+    expect(answer.draft).toMatchObject({ originBusinessId: null, destinationBusinessId: null });
+    expect(answer.rejected).toBeNull();
+  });
+
+  it('after the business\'s own name the address is a part of that name, and gives no second stop', () => {
+    const own = parse('Send an envelope to Blue Bottle Coffee, 1 Wall Street, New York by 10 a.m. tomorrow');
+    expect(own.draft).toMatchObject({ originBusinessId: null, destinationBusinessId: BLUE_BOTTLE });
+    // The address of another business after a name is not a hint for the open stop either: the name wins.
+    const other = parse('Send an envelope to Blue Bottle Coffee, 117 Adams Street by 10 a.m. tomorrow');
+    expect(other.draft).toMatchObject({ originBusinessId: null, destinationBusinessId: BLUE_BOTTLE });
+    expect([own.rejected, other.rejected]).toStrictEqual([null, null]);
+  });
+
+  it('an address two businesses share names neither, and a list without addresses still parses', () => {
+    const shared = businesses.map((b) => (b.id === ETSY ? { ...b, address: '1 Wall St, New York, NY 10005' } : b));
+    const answer = parse('Send an envelope to 1 Wall Street', NOW, shared);
+    expect(answer.draft.destinationBusinessId).toBeNull();
+    expect(answer.rejected).toBe(refusal('1 Wall Street'));
+
+    const bare = businesses.map(({ id, name }) => ({ id, name }));
+    expect(parse('Send an envelope from Etsy to 1 Wall Street', NOW, bare).draft).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: null });
+    expect(parse('Send an envelope from Etsy to Blue Bottle', NOW, bare).draft).toMatchObject({ originBusinessId: ETSY, destinationBusinessId: BLUE_BOTTLE });
   });
 });
 
@@ -264,6 +360,29 @@ describe('time phrases, in minutes since Day 1 00:00 (today = Day 1, tomorrow = 
     ['tomorrow morning', TOMORROW_MORNING_MIN],
     ['by tomorrow morning', TOMORROW_MORNING_MIN],
     ['by Day 2 9:15', DAY2 + 555],
+    // #898: the next morning is tomorrow's, and the part of the day says which 8 is meant.
+    ['next morning', TOMORROW_MORNING_MIN],
+    ['by next morning', TOMORROW_MORNING_MIN],
+    ['by the next morning', TOMORROW_MORNING_MIN],
+    ['by 10 the next morning', DAY2 + 600],
+    ['by 9 next morning', DAY2 + 540],
+    ['by 9 a.m. the next day', DAY2 + 540],
+    ['by 7 tomorrow morning', DAY2 + 420],          // not 7 p.m.
+    ['by 8 this evening', 1200],
+    ['by 8 pm this evening', 1200],
+    ['this evening at 8', 1200],
+    ['by 8 in the evening', 1200],
+    ['by 8 tomorrow evening', DAY2 + 1200],
+    ['tomorrow evening at 8', DAY2 + 1200],
+    ['by 5 this afternoon', 1020],
+    ['tomorrow 10am', DAY2 + 600],                  // a day and an exact time, with no "by" or "at"
+    ['tomorrow morning 10:00', DAY2 + 600],
+    ['Day 2 9:15', DAY2 + 555],
+    ['tomorrow 10', null],                          // not exact: "tomorrow 10 boxes"
+    ['Day 1 16:00 to Day 2 10:00', null],           // two such times: nothing says which is the deliver-by
+    ['this evening', null],                         // an evening without an hour is no time
+    ['by this evening', null],
+    ['tonight', null],
     ['', null],
     ['tomorrow', null],                            // a day without a time is not a deadline
     ['by 25:00 tomorrow', null],
@@ -305,6 +424,9 @@ describe('time phrases, in minutes since Day 1 00:00 (today = Day 1, tomorrow = 
     ['ready 4 p.m.', 960],
     ['pickup 16:00', 960],
     ['ready today 4:30 pm', 990],
+    ['ready at 4 this afternoon', 960],             // #898: was skipped, so ready stayed at the clock
+    ['ready this afternoon at 4', 960],
+    ['ready at 6 this evening', 1080],
     ['ready noon tomorrow', DAY2 + 720],
     ['available 9 am tomorrow', DAY2 + 540],
   ])('an exact ready time needs no "at": "%s" -> %s', (phrase, readyMin) => {

@@ -232,14 +232,14 @@ describe('offline options', () => {
     const { engine } = fakeEngine({ match: () => ({ reason: 'Every matching commute is already carrying a package' }) });
     const answer = adviseOffline(engine);
     expect(answer.options).toStrictEqual([]);
-    expect(answer.note).toContain('Every matching commute is already carrying a package');
+    expect(answer.note).toBe('Even with more time, every matching commute is already carrying a package.');
   });
 
   it('when only a variant matches, the note says the request as typed cannot be', () => {
     const { engine } = fakeEngine({ draft: { originBusinessId: 'biz-a', destinationBusinessId: 'biz-b', readyMin: 960, deadlineMin: 1980 } });
     const answer = adviseOffline(engine);
     expect(answer.options.map((o) => o.changes)).toStrictEqual([{ deadlineMin: 2040 }]);
-    expect(answer.note).toMatch(/^As typed, no carrier can take it: No commute can arrive before the deadline\.$/);
+    expect(answer.note).toBe('As typed, no commute can arrive before the deadline.');
   });
 });
 

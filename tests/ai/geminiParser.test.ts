@@ -263,18 +263,18 @@ describe('draftFromGemini', () => {
   it('a stop outside the network is named in the sentence, in the words of the offline parser', () => {
     const home = drafted({ ...GOOD, destinationBusinessId: null, rejected: ['my home'] });
     expect(home.draft.destinationBusinessId).toBeNull();
-    expect(home.rejected).toBe('Relay delivers only between network businesses. "my home" is not one of them.');
+    expect(home.rejected).toBe('Relay delivers only between network businesses, and "my home" is not one.');
 
     const two = drafted({ ...GOOD, originBusinessId: null, destinationBusinessId: null, rejected: ['350 5th Avenue', 'my home'] });
-    expect(two.rejected).toBe('Relay delivers only between network businesses. "350 5th Avenue" and "my home" are not among them.');
+    expect(two.rejected).toBe('Relay delivers only between network businesses, and "350 5th Avenue" and "my home" are not.');
 
     // One text instead of a list, the same stop twice, quotes, blanks and an invented id next to it.
     expect(drafted({ ...GOOD, destinationBusinessId: null, rejected: '  my   home ' }).rejected)
-      .toBe('Relay delivers only between network businesses. "my home" is not one of them.');
+      .toBe('Relay delivers only between network businesses, and "my home" is not one.');
     expect(drafted({ ...GOOD, destinationBusinessId: 'biz-my-home', rejected: ['"My home"', 'my home', ' ', 'null'] }).rejected)
-      .toBe('Relay delivers only between network businesses. "My home" is not one of them.');
+      .toBe('Relay delivers only between network businesses, and "My home" is not one.');
     const long = drafted({ ...GOOD, destinationBusinessId: null, rejected: ['x'.repeat(200)] });
-    expect(long.rejected).toBe(`Relay delivers only between network businesses. "${'x'.repeat(60)}…" is not one of them.`);
+    expect(long.rejected).toBe(`Relay delivers only between network businesses, and "${'x'.repeat(60)}…" is not one.`);
   });
 
   it('refuses nothing when both stops are network businesses, or when no stop is outside', () => {
@@ -439,7 +439,7 @@ describe('parseWithGemini', () => {
     const outcome = await parseWithGemini('An envelope from Etsy to grandma\'s house', CONTEXT, settings(fetchImpl));
     if (!outcome.ok) throw new Error(outcome.message);
     expect(outcome.response.draft).toMatchObject({ originBusinessId: 'biz-etsy', destinationBusinessId: null });
-    expect(outcome.response.rejected).toBe('Relay delivers only between network businesses. "grandma\'s house" is not one of them.');
+    expect(outcome.response.rejected).toBe('Relay delivers only between network businesses, and "grandma\'s house" is not one.');
     expect(outcome.response.source).toBe('gemini');
   });
 

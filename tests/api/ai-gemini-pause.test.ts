@@ -306,7 +306,7 @@ describe('one failed Gemini call pauses Gemini for parse-request and advise', ()
 
     expect(answer.source).toBe('offline');
     expect(answer.options).toStrictEqual([]);
-    expect(answer.note).toMatch(/^No carrier can take it/);
+    expect(answer.note).toMatch(/^Even with more time, /);
     expect(s.gemini.adviseCalls).toBe(2);    // Gemini tried and had nothing to present
     expect(s.pause.current()).toBeNull();
     expect((await parse()).body.source).toBe('gemini');
