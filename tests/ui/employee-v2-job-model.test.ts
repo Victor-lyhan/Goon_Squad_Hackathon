@@ -46,7 +46,7 @@ describe('jobDetail (v2 model)', () => {
 
   it('relay leg 1: drop at the relay point, sentence names the relay business', () => {
     const m = jobDetail(relayLeg1(), businesses, 'Astoria');
-    expect(m.legKind).toBe('Relay leg 1 of 2: drop at the relay point');
+    expect(m.legKind).toBe('Relay: you take it to River Cafe Roasters; another carrier takes it from there');
     expect(rows(m).map((r) => r[3])).toEqual([
       'Leave work', 'Collect the package', 'Leave it at the relay point for the morning carrier', 'Arrive home',
     ]);
@@ -56,7 +56,7 @@ describe('jobDetail (v2 model)', () => {
 
   it('relay leg 2: collect from the relay point, then hand over', () => {
     const m = jobDetail(relayLeg2(), businesses, 'Park Slope');
-    expect(m.legKind).toBe('Relay leg 2 of 2: collect from the relay point');
+    expect(m.legKind).toBe('Relay: another carrier brings it to River Cafe Roasters; you take it from there');
     expect(rows(m)).toEqual([
       ['start', 'Day 2, 8:30 AM', 'Home · Park Slope', 'Leave home'],
       ['hub_pickup', 'Day 2, 8:45 AM', 'River Cafe Roasters', 'Collect it from the relay point'],

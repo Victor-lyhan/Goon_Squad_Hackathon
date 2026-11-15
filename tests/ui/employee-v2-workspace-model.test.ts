@@ -71,7 +71,7 @@ describe('deliveryRows', () => {
     expect(relay).toMatchObject({
       pickup: 'Day 2, 8:40 AM · Relay point: Corner Books', dropoff: 'Day 2, 9:10 AM · Acme Studio',
       pickupTime: 'Day 2, 8:40 AM', dropoffTime: 'Day 2, 9:10 AM',
-      extraMin: '+4 min', reward: '$7.00', legKind: 'Relay leg 2 of 2', commute: 'Morning commute from Astoria',
+      extraMin: '+4 min', reward: '$7.00', legKind: 'Relay: you take it from Corner Books', commute: 'Morning commute from Astoria',
       jobHref: '/employee/emp-001?job=plan-shp-002-L1', simulatorHref: '/simulator?package=shp-002&play=1',
     });
   });
@@ -80,7 +80,7 @@ describe('deliveryRows', () => {
     const l1 = relayView.plan.legs[0];
     const job = { ...relayView.job, id: 'plan-shp-002-L0', legIndex: 0, tripId: 'emp-001-eve', pickup: l1.stops[0], dropoff: l1.stops[1], rewardCents: 600 };
     const [row] = deliveryRows([{ ...relayView, job }], businesses, 'Astoria');
-    expect(row.legKind).toBe('Relay leg 1 of 2');
+    expect(row.legKind).toBe('Relay: you take it to Corner Books');
     expect(row.dropoff).toBe('Day 1, 6:10 PM · Relay point: Corner Books');
     expect(row.extraMin).toBe('+5 min');
   });

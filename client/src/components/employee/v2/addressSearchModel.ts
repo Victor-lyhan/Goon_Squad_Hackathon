@@ -41,10 +41,11 @@ export const MIN_QUERY_LENGTH = 3;
 export const DEFAULT_DEBOUNCE_MS = 350;
 
 export const EMPTY_TEXT = 'No address found. Try a street and number in New York City.';
-export const UNAVAILABLE_TEXT = 'Address search needs the Google key on the server. Your saved home is unchanged.';
+/** The search cannot run at all (#916: what failed and what to do, with no word about how it is set up). */
+export const UNAVAILABLE_TEXT = 'Address search is not available right now. Keep your saved home, or try again later.';
 export const SEARCHING_TEXT = 'Searching…';
 export const SHORT_QUERY_TEXT = 'Type at least 3 characters to search.';
-/** Every failure that is not a missing key: Google slow or down, a timeout, no network (#598). */
+/** Every other failure: the search refused, slow or down, a timeout, no network (#598). Shown with Retry. */
 export const NOT_ANSWERING_TEXT = 'Address search is not answering. Try again.';
 
 export const initialSearchState: AddressSearchState = {
@@ -112,8 +113,8 @@ export function pickHome(state: AddressSearchState, index: number = state.highli
 }
 
 /**
- * Classifies anything a SearchFn rejects with (#598, DECISIONS pass 61). Aborts are silent. The key
- * sentence is only for a 503 with code `google_key_missing` (or a 503 with no code at all). Everything
+ * Classifies anything a SearchFn rejects with (#598, DECISIONS pass 61). Aborts are silent. The "not
+ * available" sentence is only for a 503 with code `google_key_missing` (or a 503 with no code at all). Everything
  * else (`google_unavailable`, a browser timeout, no network, any other answer) is one plain sentence with
  * Retry: the raw message ("Request timed out after 8000 ms", "Request failed (500)") is never shown.
  */

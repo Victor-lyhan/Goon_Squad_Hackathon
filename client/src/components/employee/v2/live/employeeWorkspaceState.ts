@@ -6,16 +6,21 @@
 import type { EmployeeDashboard, JobResponse } from '../../../../../../shared/v2/api';
 import type { NetworkBusiness } from '../../../../../../shared/v2/types';
 import { ApiRequestError, isTravelUnavailable, type TravelUnavailableCode } from '../../../../api/v2';
+import { ownSentence } from '../errorWording';
 
-export const TRAVEL_DATA_MISSING_TEXT = 'NYC travel data is not loaded on this server yet.';
+// #916: every sentence here says what failed and what the person can do, and none says how Relay is
+// set up (no "server", no key, no status number). The codes the page reads are unchanged.
+/** A 503 `travel_data_missing`: on the first load, on a poll and on a commute save. */
+export const TRAVEL_DATA_MISSING_TEXT = 'Travel times for New York are not loaded yet. Try again in a moment.';
+/** A 503 with one of the other two codes (`google_key_missing`, `google_unavailable`). */
+export const TRAVEL_UNAVAILABLE_TEXT = 'Travel times are not available right now. Try again in a moment.';
 export const RECONNECTING_TEXT = 'Reconnecting…';
 export const RUN_CHANGED_NOTE = 'The city changed, so your workspace was reloaded.';
 // The first load failed (#882). Plain words for the three ways it fails, never the browser's or the
-// HTTP client's own text ("Failed to fetch", "Request failed (500)"). "Can't reach the Relay server" is
-// the sentence the header banner and the simulator use.
-export const CANT_REACH_TEXT = "Can't reach the Relay server. Check that it is running, then press Retry.";
-export const TOO_SLOW_TEXT = 'The Relay server took too long to answer. Press Retry.';
-export const SERVER_ERROR_TEXT = 'The Relay server answered with an error. Press Retry; if it keeps failing, restart the server.';
+// HTTP client's own text ("Failed to fetch", "Request failed (500)"). The screen has a Retry button.
+export const CANT_REACH_TEXT = "Can't reach Relay. Check your connection, then press Retry.";
+export const TOO_SLOW_TEXT = 'Relay took too long to answer. Press Retry.';
+export const SERVER_ERROR_TEXT = 'Relay ran into a problem while loading. Press Retry.';
 
 export type WorkspaceView = 'loading' | 'ready' | 'not_found' | 'unavailable' | 'error';
 
@@ -63,13 +68,13 @@ export const initialWorkspaceState: EmployeeWorkspaceState = {
 
 const jobIdsOf = (d: EmployeeDashboard) => [...d.assigned, ...d.completed].map((v) => v.job.id);
 
-/** The text a TravelUnavailable 503 shows: fixed copy for missing travel data, the server's text otherwise. */
-export function unavailableText(code: TravelUnavailableCode, serverMessage: string): string {
-  return code === 'travel_data_missing' ? TRAVEL_DATA_MISSING_TEXT : serverMessage;
+/**
+ * The text a TravelUnavailable 503 shows, by its `code` alone (#916). The server's own sentence for these
+ * is written for whoever runs Relay (it names a key and a file), so the page never prints it.
+ */
+export function unavailableText(code: TravelUnavailableCode): string {
+  return code === 'travel_data_missing' ? TRAVEL_DATA_MISSING_TEXT : TRAVEL_UNAVAILABLE_TEXT;
 }
-
-/** The HTTP client's own wording: a status with no message from the server, or the browser's fetch error. */
-const CLIENT_WORDING = /^(Request failed|Request timed out|Failed to fetch|Network error|Load failed|NetworkError)/i;
 
 /**
  * Why the first load failed, in plain words. A sentence the server wrote itself (an error body with a
@@ -79,8 +84,7 @@ export function loadErrorText(e: unknown): string {
   if (e instanceof ApiRequestError) {
     if (e.kind === 'timeout') return TOO_SLOW_TEXT;
     if (e.status === 0) return CANT_REACH_TEXT;
-    const own = e.message.trim();
-    return own && !CLIENT_WORDING.test(own) ? own : SERVER_ERROR_TEXT;
+    return ownSentence(e.message) || SERVER_ERROR_TEXT;
   }
   return SERVER_ERROR_TEXT;
 }
@@ -138,7 +142,7 @@ function onFailure(s: EmployeeWorkspaceState, e: unknown): EmployeeWorkspaceStat
     return employeeWorkspaceReducer(s, { type: 'notFound', fallbackEmployeeId: s.fallbackEmployeeId });
   }
   if (isTravelUnavailable(e)) {
-    const unavailable = { code: e.code, message: unavailableText(e.code, e.message) };
+    const unavailable = { code: e.code, message: unavailableText(e.code) };
     if (hadData) return { ...s, unavailable, reconnecting: true };
     return { ...s, view: 'unavailable', unavailable, error: null };
   }

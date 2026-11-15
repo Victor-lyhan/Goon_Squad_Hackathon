@@ -146,7 +146,7 @@ describe('commute editor messages: address search failures (#598)', () => {
     const f = openEditor();
     await failSearch(f, new ApiRequestError(503, 'GOOGLE_MAPS_SERVER_KEY is not set.', undefined, undefined, 'google_key_missing'));
     expect(textOf(f.status())).toBe(UNAVAILABLE_TEXT);
-    expect(UNAVAILABLE_TEXT).toContain('needs the Google key on the server');
+    expect(UNAVAILABLE_TEXT).toBe('Address search is not available right now. Keep your saved home, or try again later.'); // #916
     expect(buttons(f.form(), 'Retry')).toHaveLength(0);
     expectNoRawError(textOf(f.editor()));
   }, T);

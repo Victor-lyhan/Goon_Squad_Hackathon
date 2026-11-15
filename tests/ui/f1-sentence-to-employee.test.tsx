@@ -522,7 +522,8 @@ describe('F1: the typed demo sentence, from the Business text box to the carrier
       expect(textOf(row), what).toContain(SENTENCE_LABEL);
       expect(textOf(row), what).toContain('New');
       expect(textOf(row), what).toContain('Assigned');
-      expect(textOf(row), what).toContain(`Relay leg ${i + 1} of 2`);
+      // #916: who carries it where, by the relay point's name; the first carrier takes it there, the second from there.
+      expect(textOf(row), what).toContain(`Relay: you take it ${i === 0 ? 'to' : 'from'} ${relayPoint.name}`);
       const stops = terms(row);
       const place = (b: NetworkBusiness) => (b.id === relayPoint.id ? `Relay point: ${b.name}` : b.name);
       expect(stops.get('Pickup'), what).toBe(`${formatMin(job.pickup.serviceStartMin)} · ${place(legPlaces[i][0])}`);

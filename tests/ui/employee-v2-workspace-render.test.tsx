@@ -44,7 +44,7 @@ describe('EmployeeWorkspace static render', () => {
   it('renders delivery rows with stops, relay wording, links and earnings', () => {
     expect(t).toContain('Fabric swatches');
     expect(t).toContain('Relay point: Corner Books');
-    expect(t).toContain('Relay leg 2 of 2');
+    expect(t).toContain('Relay: you take it from Corner Books');
     expect(t).toContain('Direct');
     expect(html).toContain('href="/employee/emp-001?job=plan-shp-001-L0"');
     // "Watch in simulator" opens the package and plays its journey (DECISIONS pass 64); `&` is `&amp;` in markup.

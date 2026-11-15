@@ -125,7 +125,7 @@ describe('CommuteForm static renders', () => {
   });
 
   it('words each 503 code', () => {
-    expect(states.keyMissing).toContain('Travel times for a new address need the Google key on the server. Your saved commute is unchanged.');
+    expect(states.keyMissing).toContain('A new home address cannot be saved right now, so your commute is unchanged. Keep your saved home, or try again later.');
     expect(states.keyMissing).toContain('Park Slope');
     for (const h of [states.travelMissing, states.googleDown]) {
       expect(h).toMatch(/role="alert"[^>]*>Travel times for this address could not be loaded\. Your saved commute is unchanged\. Try again\./);
