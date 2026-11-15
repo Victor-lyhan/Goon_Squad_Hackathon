@@ -24,7 +24,7 @@ import { buildNycScenario, generateHomePool } from '../domain/v2/generator';
 import { assignShipments } from '../domain/v2/matching';
 import { buildTrips } from '../domain/v2/trips';
 import type { TravelFiles } from './cache';
-import { commutePairs, planGeocodes, planLegPairs, planMatrixPairs, planPolylines } from './fetchPlan';
+import { carrierCommutePairs, commutePairs, planGeocodes, planLegPairs, planMatrixPairs, planPolylines } from './fetchPlan';
 import type { PlacePair } from './fetchPlan';
 import { emptySummary, mergeSummaries, runGeocodes, runMatrix, runPolylines, scrubKeys } from './fetchRunner';
 import type { FetchClient, FetchSummary, Log } from './fetchRunner';
@@ -46,6 +46,13 @@ const RESUME = 'Run again to resume.';
 
 /** A plan has one leg (direct) or two (relay), and a leg drives two stretches: origin → stop → destination. */
 const MAX_ROUTE_LINES_PER_PLAN = 4;
+
+/**
+ * The dry run's line for the carriers' home ↔ work stretches (MVP IV F2), and what follows its number: these
+ * lines are a part of the two counts printed above it, so the `Google requests` total does not add them again.
+ */
+export const CARRIER_COMMUTE_LINES_LABEL = 'commute route lines to fetch for carriers';
+export const CARRIER_COMMUTE_LINES_NOTE = '(home ↔ work stretches of the employees who carry a package; part of the route lines above)';
 
 export const PLAN_POLYLINES_NOTE =
   'The route lines of matched plans are known only after the matrix is fetched: the matcher has to run on the fetched times first.';
@@ -172,6 +179,13 @@ export interface FetchEstimate {
   planPolylines: number | null;
   /** The most `planPolylines` can be: every package matched as a relay with no line cached. */
   planPolylinesAtMost: number;
+  /**
+   * Of the route lines above, the ones a carrier's home ↔ work drive lacks (MVP IV F2): the stretches of the
+   * matched plans' legs that touch a home, and the baseline commutes of the employees who carry a leg
+   * (`carrierCommutePairs`). They are part of `commutePolylines` and `planPolylines`, not requests on top.
+   * Null while the matrix cannot answer the matcher, like `planPolylines`: who carries is the matcher's result.
+   */
+  carrierCommutePolylines: number | null;
   /** Always PLAN_POLYLINES_NOTE. */
   note: string;
 }
@@ -180,6 +194,8 @@ export interface FetchEstimate {
  * What `runFetchRoutes` would ask Google for on these files. Pure: no client, nothing is fetched or written.
  * It assumes every request succeeds, so on a first run the numbers are exactly the calls the run makes for
  * geocodes, matrix pairs and commute lines.
+ * `carrierCommutePolylines` is not one more kind of request: it says how many of the route lines counted in
+ * `commutePolylines` and `planPolylines` belong to a carrier's home ↔ work drive.
  */
 export function estimateFetch(input: FetchRoutesInput): FetchEstimate {
   const { files, businessesFile } = input;
@@ -196,6 +212,9 @@ export function estimateFetch(input: FetchRoutesInput): FetchEstimate {
   const planLines = matched.ok
     ? planPolylines([...commutes, ...planLegPairs(matched.assignments.plans)], files.polylines).length - commutePolylines
     : null;
+  const carrierLines = matched.ok
+    ? planPolylines(carrierCommutePairs(matched.assignments.plans, matched.scenario.employees), files.polylines).length
+    : null;
 
   return {
     businesses: businessesFile.businesses.length,
@@ -207,6 +226,7 @@ export function estimateFetch(input: FetchRoutesInput): FetchEstimate {
     commutePolylines,
     planPolylines: planLines,
     planPolylinesAtMost: input.storyFile.shipments.length * MAX_ROUTE_LINES_PER_PLAN,
+    carrierCommutePolylines: carrierLines,
     note: PLAN_POLYLINES_NOTE,
   };
 }
@@ -229,12 +249,14 @@ export function formatEstimate(estimate: FetchEstimate): string[] {
   if (estimate.planPolylines === null) {
     lines.push(
       `  route lines to fetch for matched plans: not known yet, at most ${estimate.planPolylinesAtMost}`,
+      `  ${CARRIER_COMMUTE_LINES_LABEL}: not known yet ${CARRIER_COMMUTE_LINES_NOTE}`,
       `  Google requests: ${known}, plus at most ${estimate.planPolylinesAtMost} for the matched plans`,
       `  ${estimate.note}`,
     );
   } else {
     lines.push(
       `  route lines to fetch for matched plans: ${estimate.planPolylines}`,
+      `  ${CARRIER_COMMUTE_LINES_LABEL}: ${estimate.carrierCommutePolylines ?? 'not known yet'} ${CARRIER_COMMUTE_LINES_NOTE}`,
       `  Google requests: ${known + estimate.planPolylines}`,
     );
     if (nothingToFetch(estimate)) lines.push('  Nothing to fetch: the cache has everything the default scenario needs.');
@@ -349,10 +371,16 @@ export async function runFetchRoutes(
       `${assignments.plans.length} matched, ${assignments.unmatched.length} unmatched`,
   );
 
-  // 4. Route lines: both baseline commutes of every employee, then each stretch the matched plans drive.
-  const wanted: PlacePair[] = [...commutePairs(scenario.employees), ...planLegPairs(assignments.plans)];
+  // 4. Route lines: both baseline commutes of every employee, then each stretch the matched plans drive. The
+  // carriers' home ↔ work stretches (MVP IV F2) are named last: each is already one of the pairs before it, so
+  // the plan is the same list, and the log says how many of its lines a carrier's commute lacks.
+  const carrierCommutes = carrierCommutePairs(assignments.plans, scenario.employees);
+  const wanted: PlacePair[] = [...commutePairs(scenario.employees), ...planLegPairs(assignments.plans), ...carrierCommutes];
   const polylinePlan = planPolylines(wanted, files.polylines);
-  log(`Step 4/4 route lines: ${polylinePlan.length} to fetch for the baseline commutes and the matched plans' legs`);
+  log(
+    `Step 4/4 route lines: ${polylinePlan.length} to fetch for the baseline commutes and the matched plans' legs, ` +
+      `${planPolylines(carrierCommutes, files.polylines).length} of them for the carriers' commutes (home ↔ work)`,
+  );
   let polylineSummary = emptySummary();
   if (polylinePlan.length > 0) {
     const fetchedLines = await runPolylines({ plan: polylinePlan, polylines: files.polylines, places: files.matrix.places, client, log });

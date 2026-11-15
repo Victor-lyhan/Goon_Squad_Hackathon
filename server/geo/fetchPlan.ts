@@ -147,3 +147,24 @@ export function planLegPairs(plans: readonly { legs: readonly { placeIds: readon
   }
   return pairs;
 }
+
+/**
+ * The home ↔ work stretches of the carriers (MVP IV F2: a carrier is drawn along its whole commute): every
+ * neighbouring pair of every plan leg's `placeIds` that touches a home, in the plans' order, then both baseline
+ * commutes of every employee who carries a leg, in the employees' order. The other half of a carrier's day is
+ * its baseline commute, so both are needed to draw it from home to work and back.
+ * A home is a place some employee lives at. Every pair here is also in `planLegPairs(plans)` or in
+ * `commutePairs(employees)`: this names a part of what the fetch already asks for, it adds no request.
+ * Duplicates are kept, as in those two; `planPolylines` drops them.
+ */
+export function carrierCommutePairs(
+  plans: readonly { legs: readonly { employeeId: string; placeIds: readonly string[] }[] }[],
+  employees: readonly { id: string; businessId: string; homeId: string }[],
+): PlacePair[] {
+  const homeIds = new Set(employees.map((employee) => employee.homeId));
+  const carrierIds = new Set(plans.flatMap((plan) => plan.legs.map((leg) => leg.employeeId)));
+  return [
+    ...planLegPairs(plans).filter(({ from, to }) => homeIds.has(from) || homeIds.has(to)),
+    ...commutePairs(employees.filter((employee) => carrierIds.has(employee.id))),
+  ];
+}
