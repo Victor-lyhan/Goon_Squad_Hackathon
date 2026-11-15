@@ -199,6 +199,32 @@ describe('pages and deep links with a built client', () => {
   }, T);
 });
 
+describe('the brand files with a built client (#784)', () => {
+  // `npm run build` copies client/public/brand to client/dist/brand. Here the real files are copied the same
+  // way into the temp dist, and the server must answer them as images, not with index.html.
+  const BRAND: [name: string, type: string][] = [
+    ['favicon.ico', 'image/vnd.microsoft.icon'], // the registered type of .ico; browsers take it
+    ['icon-32.png', 'image/png'],
+    ['icon-180.png', 'image/png'],
+    ['icon-192.png', 'image/png'],
+    ['relay-logo.png', 'image/png'],
+  ];
+
+  it('/brand/favicon.ico, the PNG icons and the logo answer 200 with the file and an image content type', async () => {
+    const one = await boot();
+    const source = path.resolve('client/public/brand');
+    expect(fs.readdirSync(source).filter((name) => !name.startsWith('.')).sort()).toStrictEqual(BRAND.map(([name]) => name).sort());
+    fs.cpSync(source, path.join(one.repo.root, 'client', 'dist', 'brand'), { recursive: true });
+    for (const [name, type] of BRAND) {
+      const res = await fetch(`${one.origin}/brand/${name}`);
+      const body = Buffer.from(await res.arrayBuffer());
+      expect([name, res.status, res.headers.get('content-type')]).toStrictEqual([name, 200, type]);
+      expect(body.equals(fs.readFileSync(path.join(source, name))), name).toBe(true);
+    }
+    expect(one.network).toStrictEqual([]);
+  }, T);
+});
+
 describe('a restart in production mode', () => {
   it('stop and start on the same folder: the page is served again and the run is the saved one, paused at the same minute', async () => {
     const first = await boot();

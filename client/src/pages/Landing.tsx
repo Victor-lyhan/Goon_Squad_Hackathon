@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { readIdentity } from '../demoIdentity';
+import { LOGO_SRC } from '../ui/brand';
 import {
   NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, watchPackageHref, type NycSummary,
 } from './landingModel';
@@ -120,7 +121,7 @@ function nycFacts(s: NycSummary): SummaryFacts {
 }
 
 /**
- * The homepage (docs/mvp3.md P4): one sentence, one large "Watch a package" button that opens the simulator
+ * The homepage (docs/mvp3.md P4): the logo, one sentence, one large "Watch a package" button that opens the simulator
  * on the story package and plays it, Business and Employee as two smaller entries, one stats line.
  * The environment line ("Real NYC locations · simulated deliveries") is the header's, not repeated here (#724).
  */
@@ -137,6 +138,8 @@ export default function Landing({ initialSummary }: {
   return (
     <div className="landing landing-nyc">
       <section className="landing-intro">
+        {/* Decorative: the sentence under it says the name (#784). */}
+        <img className="landing-logo" src={LOGO_SRC} alt="" width={96} height={96} />
         <h1>{LANDING_SENTENCE}</h1>
         <WatchButton to={watchPackageHref(summary)} />
       </section>

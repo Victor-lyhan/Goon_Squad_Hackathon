@@ -10,6 +10,8 @@
 
 /* 1. The sentence and the primary button */
 .landing-intro { padding: var(--space-8, 32px) 0; }
+/* The Relay logo above the sentence (#784): flat, no frame, no shadow; left-aligned with the text. */
+.landing-logo { display: block; width: 96px; height: 96px; margin: 0 0 var(--space-4, 16px); }
 .landing-intro h1 {
   margin: 0 0 var(--space-6, 24px);
   max-width: 20ch;
@@ -106,6 +108,7 @@ a.workspace-entry:focus-visible {
 
 @media (max-width: 480px) {
   .landing-intro { padding: var(--space-4, 16px) 0 var(--space-6, 24px); }
+  .landing-logo { width: 72px; height: 72px; margin-bottom: var(--space-3, 12px); }
   .watch-button { display: flex; }
   .workspaces { grid-template-columns: 1fr; }
   /* so the three facts stay on one line at 390 px */
