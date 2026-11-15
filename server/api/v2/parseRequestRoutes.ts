@@ -34,7 +34,7 @@ export type ParseRequestRouteDeps = {
    */
   gemini?: GeminiParseSettings;
   /**
-   * The pause shared with POST /advise (#884): after one failed Gemini call neither route asks Gemini for
+   * The pause of #884 (POST /advise no longer reads it, #959): after one failed Gemini call this route does not ask Gemini for
    * 2 minutes. The app gives one (server/index.ts). Left out: every sentence asks Gemini, as before #884.
    */
   pause?: GeminiPause;

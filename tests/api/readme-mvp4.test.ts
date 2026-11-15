@@ -11,7 +11,7 @@ import { ADVICE_COPY, MAX_OPTIONS, adviceCard, adviceSourceLabel } from '../../c
 import { FINISHED_REASON } from '../../client/src/components/sim/v2/controls/controlsModel';
 import { DEFAULT_GRID, gridRuns } from '../../scripts/study/grid';
 import { DEFAULT_STUDY_CSV, DEFAULT_STUDY_OUT, DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
-import { ADVISE_TIMEOUT_MS, MAX_OPTIONS as SERVER_MAX_OPTIONS, MAX_TOOL_CALLS, OFFLINE_EARLIER_MIN } from '../../server/ai/advisor';
+import { ADVISE_TIMEOUT_MS, MAX_OPTIONS as SERVER_MAX_OPTIONS, OFFLINE_EARLIER_MIN, tagWords } from '../../server/ai/advisor';
 import { DEFAULT_GEMINI_MODEL, GEMINI_KEY_NAME, GEMINI_MODEL_NAME, geminiKey } from '../../server/ai/env';
 import { DEFAULT_GEMINI_TIMEOUT_MS, GeminiUnavailable } from '../../server/ai/gemini';
 import { INVALID_ANSWER_MESSAGE } from '../../server/ai/geminiParser';
@@ -152,13 +152,24 @@ describe('README: Options for a request (the Options card and POST /api/v2/advis
     expect(noKey.endsWith(`| \`offline\` | "${ADVICE_COPY.offline}" |`)).toBe(true);
     expect(answered.endsWith(`| \`gemini\` | "${ADVICE_COPY.byModel}" |`)).toBe(true);
     expect(failed.endsWith(`| \`offline\` | "${ADVICE_COPY.offline}" |`)).toBe(true);
-    // The limits are the advisor's own: Gemini's time for the whole answer and its number of tries.
+    // #959: the engine picks the fastest and the cheapest; the third is Gemini's in one call within the advisor's
+    // own limit, else the balanced plan.
+    expect(section).toContain('the **fastest** (the earliest arrival; on a tie the lower price), the **cheapest** (the lowest price; on a tie the earlier arrival)');
+    expect(noKey).toContain('the **balanced** plan');
     expect(answered).toContain(`Gemini answers within ${ADVISE_TIMEOUT_MS / 1000} s`);
-    expect(answered).toContain(`at most ${MAX_TOOL_CALLS} tries`);
-    // The three offline variants: as typed, ready earlier, deliver-by out to the flexibility window.
-    expect(noKey).toContain(`ready ${OFFLINE_EARLIER_MIN / 60} hours earlier (never before the simulated time)`);
-    expect(noKey).toContain(`deliver-by moved to ${DEFAULT_SETTINGS.flexWindowMin / 60} hours after ready, where the flexibility discount starts`);
-    expect(read('server/ai/advisor.ts')).toContain('{ deadlineMin: Math.max(draft.deadlineMin, draft.readyMin + engine.flexWindowMin) }');
+    expect(answered).toContain('Gemini, in one call, recommends the plan that fits the request best');
+    expect(failed).toContain(`does not answer within ${ADVISE_TIMEOUT_MS / 1000} s`);
+    expect(failed).toContain('the balanced plan, as without a key');
+    expect(read('server/ai/advisor.ts')).not.toMatch(/MAX_TOOL_CALLS|functionDeclarations/);   // no tool loop any more
+    // The labels as the advisor writes them (`optionLabel`: the tags, the route, the price).
+    for (const tags of [['fastest'], ['cheapest'], ['balanced']] as const) expect(section).toContain(`"${tagWords(tags)}: `);
+    // The body: the draft, and the sentence for Gemini to read.
+    expect(section).toContain('`{ "draft": <the draft, with sender, recipient and both times>, "text": <the sentence, optional> }`');
+    expect(read('server/api/v2/adviseRoutes.ts')).toContain('text: optionalText,');
+    // The what-ifs, tried only when the request as typed has no plan: ready earlier, deliver-by out to the window.
+    expect(section).toContain(`ready ${OFFLINE_EARLIER_MIN / 60} hours earlier (never before the simulated time)`);
+    expect(section).toContain(`deliver-by moved to ${DEFAULT_SETTINGS.flexWindowMin / 60} hours after ready when that is later`);
+    expect(read('server/ai/advisor.ts')).toContain('Math.max(draft.deadlineMin, draft.readyMin + engine.flexWindowMin)');
   });
 
   it('names the marks and the button of the card as the page has them, and says up to three options', () => {
@@ -184,33 +195,44 @@ describe('README: Options for a request (the Options card and POST /api/v2/advis
     expect(adviceCard({ source: 'offline', options: [] }, { draft, businesses: [] })).toBeNull();
   });
 
-  it('the 2-minute demo names the card after Read my request and before Find a delivery match, with this sentence\'s one option', () => {
+  it('the 2-minute demo names the card after Read my request and before Find a delivery match, with this sentence\'s two options', () => {
     const at = (text: string) => step2.indexOf(text);
     expect(at('choose **Read my request**')).toBeGreaterThan(0);
     expect(at(`Above the card, the **${ADVICE_COPY.title}** card`)).toBeGreaterThan(at('choose **Read my request**'));
     expect(at('Then choose **Find a delivery match**')).toBeGreaterThan(at(`Above the card, the **${ADVICE_COPY.title}** card`));
     const price = /^price: (.+)$/m.exec(demo)?.[1] ?? 'no price in the block';
     expect(step2).toContain(
-      // #954: the one option is the best relay as typed, labelled with its price; the note says why there is no direct one.
-      `for this sentence it has one option, "Relay via Etsy, ${price}", marked "${ADVICE_COPY.chosen}", `
-      + `with a note on why there is no direct one, and without a Gemini key its label reads "${ADVICE_COPY.offline}".`,
+      // #959: one relay is both the fastest and the cheapest, the balanced one is next, both at the block's price;
+      // the note says why there is no direct one (#954). v2-advise-readme-demo.test.ts gets this answer on the run.
+      `for this sentence it has two options, "${tagWords(['fastest', 'cheapest'])}: Relay via Etsy, ${price}" and "${tagWords(['balanced'])}: Relay via Etsy, ${price}", `
+      + `the first marked "${ADVICE_COPY.chosen}", with a note on why there is no direct one, and without a Gemini key its label reads "${ADVICE_COPY.offline}".`,
     );
     expect(step2).toContain(
       `The card lists up to three options, marks the lowest price "${ADVICE_COPY.cheapest}" when they differ, and each **${ADVICE_COPY.choose}** button `
       + 'only sets the ready and deliver-by times in the form ([Options for a request](#options-for-a-request)).',
     );
-    // "As requested" is the server's name for the request as typed (advisor.ts `defaultLabel`).
-    expect(read('server/ai/advisor.ts')).toContain("return parts.length === 0 ? 'As requested'");
+    // The label is the advisor's own: the tags, then the route, then the price (advisor.ts `optionLabel`).
+    expect(read('server/ai/advisor.ts')).toContain('`${tagWords(tags)}: ${routeWords(candidate, engine)}`');
   });
 
   it('says what goes to Gemini for the options, and that every price is the engine\'s', () => {
     const sent = gemini.split('\n').find((line) => line.startsWith('- With the key set, each sentence goes to Google')) ?? '';
-    expect(sent).toContain('So does each request the **Options** card asks about: the names of its two businesses, its two times and the simulated time');
+    expect(sent).toContain(
+      'So does each request the **Options** card asks about: the names of its two businesses, its two times, the package\'s name, type, contents and weight, '
+      + 'the sentence when the call sends one, and the engine\'s plans for it (relay point, carriers\' first names, arrival, price, extra minutes, handoffs)',
+    );
     expect(sent).toMatch(/Without the key nothing is sent\.$/);
-    // The user turn the advisor sends (advisor.ts `buildAdvisorRequest`): the two names, the two times, the clock.
+    // The user turn the advisor sends (advisor.ts `buildAdviceRequest`): the sentence, the draft's facts
+    // (`draftFacts`) and each plan's facts (`candidateFacts`).
     const advisor = read('server/ai/advisor.ts');
-    for (const part of ['`From ${name(draft.originBusinessId)} to ${name(draft.destinationBusinessId)}.`', 'Ready at ${draft.readyMin}', 'Deliver by ${draft.deadlineMin}', 'The simulation clock is at ${engine.clockMin}']) {
-      expect(advisor).toContain(part);
+    for (const part of [
+      '`The business wrote: ${', 'from: name(draft.originBusinessId)', 'to: name(draft.destinationBusinessId)',
+      'readyAt: timeText(variant.readyMin)', 'deliverBy: timeText(variant.deadlineMin)',
+      '{ packageName: text(draft.label) }', '{ category: text(draft.category) }', '{ contents: text(draft.description) }', '{ weightKg: draft.weightKg }',
+      '{ relayPoint: relayName(candidate, engine) }', "carriers: option.carrierNames.map((name) => name.split(/\\s+/)[0])",
+      'arrives: timeText(option.deliveryMin)', 'price: money(option.customerPriceCents)', 'extraMinutes: option.extraMin', 'handoffs: candidate.handoffs',
+    ]) {
+      expect(advisor, part).toContain(part);
     }
     expect(section).toMatch(/The matching engine computes every option\./);
     expect(advisor).toContain('customerPriceCents: plan.customerPriceCents,');

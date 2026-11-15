@@ -1,23 +1,22 @@
 // #884: a slow or failing Gemini key must never stall the demo twice. After one failed Gemini call (the time
-// limit, HTTP 500, HTTP 429, a network error or an unusable answer) on POST /api/v2/parse-request or
-// POST /api/v2/advise, both answer offline at once for the next 2 minutes, without asking Gemini; then Gemini
-// is tried again, and a call that succeeds clears the pause. One pause is shared by both routes.
+// limit, HTTP 500, HTTP 429, a network error or an unusable answer) POST /api/v2/parse-request answers offline at
+// once for the next 2 minutes, without asking Gemini; then Gemini is tried again, and a call that succeeds clears
+// the pause. #959: POST /api/v2/advise has no pause: it neither reads nor starts it, and each request makes its
+// one Gemini call with its own time limit, its options built by the engine first.
 // The server here is the real one (createV2Runtime on the sample travel cache, and `startServer` as `npm start`
 // runs it). Gemini is a fake behind the injected `fetch` and the pause runs on an injected clock:
 // no network, no real key, no .env of the repo, no waiting for 2 minutes.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  adviseOffline, adviseUnlessPaused, PRESENT_OPTIONS, TRY_VARIANT, type AdvisorEngine,
-} from '../../server/ai/advisor';
+import { adviseOffline } from '../../server/ai/advisor';
 import { GEMINI_MODELS_URL } from '../../server/ai/gemini';
 import {
   createGeminiPause, GEMINI_PAUSE_MS, pauseCause, pausedMessage, type GeminiPause,
 } from '../../server/ai/geminiPause';
 import { parseWithGeminiUnlessPaused, type GeminiParseContext } from '../../server/ai/geminiParser';
 import { parseOffline } from '../../server/ai/ruleParser';
-import { advisorEngine, pausedLogLine as advisePausedLine } from '../../server/api/v2/adviseRoutes';
+import { advisorEngine } from '../../server/api/v2/adviseRoutes';
 import { NO_KEY_LOG_LINE, pausedLogLine as parsePausedLine } from '../../server/api/v2/parseRequestRoutes';
 import type { FetchLike } from '../../server/geo/googleClient';
 import { startServer, type RelayServer } from '../../server/index';
@@ -52,15 +51,14 @@ const GOOD_DRAFT = {
 
 /**
  * How the fake Gemini behaves, for both kinds of call:
- * - 'good': a usable draft for parse-request; for advise two tries, then both results presented;
+ * - 'good': a usable draft for parse-request; for advise a valid recommendation (shp-7 has one plan, p1);
  * - 'hang': no answer until the request is aborted; 'http500' / 'http429': that status; 'network': the request throws;
- * - 'unusable': an HTTP 200 that is no draft (a list) and, for advise, text without a function call;
- * - 'bad-picks': advise tries the request, then presents a result that does not exist.
+ * - 'unusable': an HTTP 200 that is no draft and no recommendation (a list);
+ * - 'bad-picks': advise recommends a plan that does not exist.
  */
 type Mode = 'good' | 'hang' | 'http500' | 'http429' | 'network' | 'unusable' | 'bad-picks';
 
 type Part = Record<string, unknown>;
-const call = (name: string, args: unknown): Part => ({ functionCall: { name, args } });
 const says = (parts: Part[]) => ({
   status: 200,
   text: async () => JSON.stringify({ candidates: [{ content: { role: 'model', parts }, finishReason: 'STOP' }] }),
@@ -71,8 +69,8 @@ function fakeGemini(first: Mode) {
   const state = { mode: first, calls: 0, parseCalls: 0, adviseCalls: 0 };
   const fetchImpl: FetchLike = (url, init) => {
     if (!url.startsWith(GEMINI_MODELS_URL)) return Promise.reject(new Error('these tests only know the fake Gemini'));
-    const body = JSON.parse(String(init?.body)) as { tools?: unknown; contents: unknown[] };
-    const isAdvise = body.tools !== undefined;
+    const body = JSON.parse(String(init?.body)) as { generationConfig?: { responseSchema?: unknown } };
+    const isAdvise = JSON.stringify(body.generationConfig?.responseSchema ?? {}).includes('recommendedId');
     state.calls++;
     if (isAdvise) state.adviseCalls++;
     else state.parseCalls++;
@@ -88,15 +86,14 @@ function fakeGemini(first: Mode) {
       case 'network':
         return Promise.reject(new Error(`socket hang up ${KEY}`));
       case 'unusable':
-        return Promise.resolve(says([{ text: isAdvise ? `Take the first one. ${BODY_MARKER}` : JSON.stringify([GOOD_DRAFT]) }]));
+        return Promise.resolve(says([{ text: JSON.stringify([GOOD_DRAFT]) }]));
       case 'bad-picks':
       case 'good': {
         if (!isAdvise) return Promise.resolve(says([{ text: JSON.stringify(GOOD_DRAFT) }]));
-        if (body.contents.length === 1) return Promise.resolve(says([call(TRY_VARIANT, {}), call(TRY_VARIANT, { readyMin: 0 })]));
-        const picks = state.mode === 'good'
-          ? [{ resultId: 'r1', label: 'As you asked', summary: 'The request as typed.' }, { resultId: 'r2', label: 'Earlier', summary: 'Ready earlier.' }]
-          : [{ resultId: 'r9', label: `Teleport ${BODY_MARKER}`, summary: 'Invented.' }];
-        return Promise.resolve(says([call(PRESENT_OPTIONS, { options: picks })]));
+        const recommendedId = state.mode === 'good' ? 'p1' : 'p9';
+        // The marker sits in a sentence for a plan that is not shown: never used, never logged.
+        const answer = { recommendedId, reason: 'One carrier the whole way.', sentences: [{ id: 'p9', text: BODY_MARKER }] };
+        return Promise.resolve(says([{ text: JSON.stringify(answer) }]));
       }
     }
   };
@@ -150,7 +147,7 @@ async function start(mode: Mode, gemini: Partial<GeminiOptions> = {}) {
   const store = api.store as Store<RunV2>;
   const travel = api.runtime.deps.travel as TravelProvider;
   const run = store.get();
-  // shp-7 of the sample run has matched variants (tests/api/v2-advise.test.ts); shp-8 has none.
+  // shp-7 of the sample run has one plan as typed (tests/api/v2-advise.test.ts); shp-8 has none.
   const draft = draftOf(run, 'shp-7');
   return {
     gemini: fake.state, pause, store, run, draft,
@@ -185,17 +182,20 @@ async function advise(draft: unknown): Promise<{ body: AdviseResponse; ms: numbe
   return { body: answer.body as unknown as AdviseResponse, ms };
 }
 
-/** Failure of the fake Gemini -> the words after "Gemini paused after", and the line parse-request prints for the failed call itself. */
-const FAILURES: [Mode, string, string][] = [
-  ['hang', 'timeout', '[parse-request] Gemini is unavailable: no answer within 80 ms. Parsed offline.'],
-  ['http500', 'HTTP 500', '[parse-request] Gemini is unavailable: HTTP 500. Parsed offline.'],
-  ['http429', 'HTTP 429', '[parse-request] Gemini is unavailable: HTTP 429. Parsed offline.'],
-  ['network', 'a network error', '[parse-request] Gemini is unavailable: the request failed before an answer arrived. Parsed offline.'],
-  ['unusable', 'an unusable answer', '[parse-request] Gemini answered, but not with a usable draft. Parsed offline.'],
+/**
+ * Failure of the fake Gemini -> the words after "Gemini paused after", the line parse-request prints for the
+ * failed call itself, and the words of advise's own line for the same failure (#959).
+ */
+const FAILURES: [Mode, string, string, string][] = [
+  ['hang', 'timeout', '[parse-request] Gemini is unavailable: no answer within 80 ms. Parsed offline.', 'timeout'],
+  ['http500', 'HTTP 500', '[parse-request] Gemini is unavailable: HTTP 500. Parsed offline.', 'HTTP 500'],
+  ['http429', 'HTTP 429', '[parse-request] Gemini is unavailable: HTTP 429. Parsed offline.', 'HTTP 429'],
+  ['network', 'a network error', '[parse-request] Gemini is unavailable: the request failed before an answer arrived. Parsed offline.', 'network error'],
+  ['unusable', 'an unusable answer', '[parse-request] Gemini answered, but not with a usable draft. Parsed offline.', 'invalid answer: invalid shape'],
 ];
 
-describe('one failed Gemini call pauses Gemini for parse-request and advise', () => {
-  it.each(FAILURES)('parse-request fails first (%s): both routes answer offline without asking Gemini, for 120 s', async (mode, cause, firstLine) => {
+describe('one failed parse-request call pauses parse-request; advise has no pause (#959)', () => {
+  it.each(FAILURES)('parse-request fails first (%s): it answers offline without asking Gemini for 120 s; advise still asks', async (mode, cause, firstLine, adviseWords) => {
     const s = await start(mode);
 
     // The failed call itself: asked once, offline as before #884, with the line of #811.
@@ -204,79 +204,68 @@ describe('one failed Gemini call pauses Gemini for parse-request and advise', ()
     expect(logged).toStrictEqual([firstLine]);
     expect(s.pause.current()).toStrictEqual({ cause, remainingMs: GEMINI_PAUSE_MS });
 
-    // Paused: the same offline answers, the same shapes, and nothing is sent.
+    // Paused for parse-request: nothing is sent. Advise asks Gemini all the same, and falls back on its own.
     expect((await parse()).body).toStrictEqual(s.offlineParse);
+    expect(s.gemini.parseCalls).toBe(1);
     expect((await advise(s.draft)).body).toStrictEqual(s.offlineAdvice);
-    expect(s.gemini.calls).toBe(1);
+    expect(s.gemini.adviseCalls).toBe(1);
     expect(logged.slice(1)).toStrictEqual([
       `[parse-request] Parsed offline: Gemini paused after ${cause}, next try in 120 s.`,
-      `[advise] Options computed offline: Gemini paused after ${cause}, next try in 120 s.`,
+      `[advise] fallback: ${adviseWords}`,
     ]);
+    expect(s.pause.current()).toStrictEqual({ cause, remainingMs: GEMINI_PAUSE_MS });   // advise did not touch it
 
-    // One millisecond before the 2 minutes are over: still paused, even though Gemini would answer now.
+    // While parse-request is paused, a Gemini that answers again answers advise at once.
     s.gemini.mode = 'good';
     clock += GEMINI_PAUSE_MS - 1;
-    expect((await advise(s.draft)).body).toStrictEqual(s.offlineAdvice);
+    expect((await advise(s.draft)).body.source).toBe('gemini');
     expect((await parse()).body).toStrictEqual(s.offlineParse);
-    expect(s.gemini.calls).toBe(1);
-    expect(logged.slice(3)).toStrictEqual([
-      `[advise] Options computed offline: Gemini paused after ${cause}, next try in 1 s.`,
-      `[parse-request] Parsed offline: Gemini paused after ${cause}, next try in 1 s.`,
-    ]);
+    expect(s.gemini.parseCalls).toBe(1);
+    expect(s.pause.current()?.remainingMs).toBe(1);   // a good advise answer does not clear parse-request's pause
 
-    // After 120 s Gemini is tried again, by whichever route is called first.
+    // After 120 s parse-request tries Gemini again.
     clock += 1;
     expect((await parse()).body.source).toBe('gemini');
     expect(s.gemini.parseCalls).toBe(2);
-    expect((await advise(s.draft)).body.source).toBe('gemini');
-    expect(s.gemini.adviseCalls).toBe(2);   // two model turns of one conversation
     expect(s.pause.current()).toBeNull();
-    expect(logged).toHaveLength(5);          // a Gemini answer adds no line to `log`
+    expect(logged).toHaveLength(4);          // a Gemini answer adds no line to `log`
     expect(printed).toStrictEqual([]);
   }, T);
 
-  it.each(FAILURES)('advise fails first (%s): parse-request is paused too, and advise logs only while paused', async (mode, cause) => {
+  it.each(FAILURES)('advise fails (%s): its offline options and one line, no pause; parse-request still asks Gemini', async (mode, _cause, _line, adviseWords) => {
     const s = await start(mode);
 
     expect((await advise(s.draft)).body).toStrictEqual(s.offlineAdvice);
-    expect(s.gemini.calls).toBe(1);
-    expect(logged).toStrictEqual([]);        // the failed advise call logs nothing, as before #884
-    expect(s.pause.current()).toStrictEqual({ cause, remainingMs: GEMINI_PAUSE_MS });
-
-    clock += 33_000;
-    expect((await parse()).body).toStrictEqual(s.offlineParse);
     expect((await advise(s.draft)).body).toStrictEqual(s.offlineAdvice);
-    expect(s.gemini.calls).toBe(1);
-    expect(logged).toStrictEqual([
-      `[parse-request] Parsed offline: Gemini paused after ${cause}, next try in 87 s.`,
-      `[advise] Options computed offline: Gemini paused after ${cause}, next try in 87 s.`,
-    ]);
+    expect(s.gemini.adviseCalls).toBe(2);    // no pause: each request asks
+    expect(logged).toStrictEqual([`[advise] fallback: ${adviseWords}`, `[advise] fallback: ${adviseWords}`]);
+    expect(s.pause.current()).toBeNull();
 
     s.gemini.mode = 'good';
-    clock += 87_000;
-    expect((await advise(s.draft)).body.source).toBe('gemini');
     expect((await parse()).body.source).toBe('gemini');
+    expect((await advise(s.draft)).body.source).toBe('gemini');
     expect(s.pause.current()).toBeNull();
     expect(logged).toHaveLength(2);
     expect(printed).toStrictEqual([]);
   }, T);
 
-  it('Gemini answers a conversation with picks that do not exist: that is an unusable answer too', async () => {
+  it('Gemini recommends a plan that does not exist: the offline options, and still no pause', async () => {
     const s = await start('bad-picks');
     expect((await advise(s.draft)).body).toStrictEqual(s.offlineAdvice);
-    expect(s.gemini.adviseCalls).toBe(2);
-    expect(s.pause.current()).toStrictEqual({ cause: 'an unusable answer', remainingMs: GEMINI_PAUSE_MS });
-    expect((await parse()).body).toStrictEqual(s.offlineParse);
-    expect(s.gemini.parseCalls).toBe(0);
+    expect(s.gemini.adviseCalls).toBe(1);
+    expect(logged).toStrictEqual(['[advise] fallback: invalid answer: unknown id']);
+    expect(s.pause.current()).toBeNull();
+    expect((await parse()).body.source).toBe('gemini');
+    expect(s.gemini.parseCalls).toBe(1);
   }, T);
 
-  it('Gemini still fails after the 2 minutes: one more try, then a new pause of 120 s with the new cause', async () => {
+  it('Gemini still fails after the 2 minutes: one more parse-request try, then a new pause of 120 s with the new cause', async () => {
     const s = await start('http500');
     await parse();
     clock += GEMINI_PAUSE_MS;
     s.gemini.mode = 'http429';
 
-    expect((await advise(s.draft)).body).toStrictEqual(s.offlineAdvice);
+    expect((await parse()).body).toStrictEqual(s.offlineParse);
     expect(s.gemini.calls).toBe(2);
     expect(s.pause.current()).toStrictEqual({ cause: 'HTTP 429', remainingMs: GEMINI_PAUSE_MS });
 
@@ -286,19 +275,19 @@ describe('one failed Gemini call pauses Gemini for parse-request and advise', ()
     expect(logged.at(-1)).toBe('[parse-request] Parsed offline: Gemini paused after HTTP 429, next try in 1 s.');
   }, T);
 
-  it('while Gemini answers, nothing is paused: every call asks Gemini', async () => {
+  it('while Gemini answers, nothing is paused: every call asks Gemini, advise once per request', async () => {
     const s = await start('good');
     for (let i = 0; i < 3; i++) {
       expect((await parse()).body.source).toBe('gemini');
       expect((await advise(s.draft)).body.source).toBe('gemini');
     }
     expect(s.gemini.parseCalls).toBe(3);
-    expect(s.gemini.adviseCalls).toBe(6);
+    expect(s.gemini.adviseCalls).toBe(3);
     expect(s.pause.current()).toBeNull();
     expect(logged).toStrictEqual([]);
   }, T);
 
-  it('a request no variant can match is no Gemini failure: the offline note, and no pause', async () => {
+  it('a request with no plan asks Gemini nothing: the offline note, and no pause', async () => {
     const s = await start('good');
     const unmatched = draftOf(s.run, 'shp-8');
 
@@ -307,7 +296,7 @@ describe('one failed Gemini call pauses Gemini for parse-request and advise', ()
     expect(answer.source).toBe('offline');
     expect(answer.options).toStrictEqual([]);
     expect(answer.note).toMatch(/^Even with more time, /);
-    expect(s.gemini.adviseCalls).toBe(2);    // Gemini tried and had nothing to present
+    expect(s.gemini.adviseCalls).toBe(0);
     expect(s.pause.current()).toBeNull();
     expect((await parse()).body.source).toBe('gemini');
     expect(logged).toStrictEqual([]);
@@ -322,7 +311,7 @@ describe('one failed Gemini call pauses Gemini for parse-request and advise', ()
     expect(logged).toStrictEqual([]);
   }, T);
 
-  it('a log that throws does not cost the sender the paused answer', async () => {
+  it('a log that throws does not cost the sender the answer', async () => {
     const s = await start('http500', {
       log: () => {
         throw new Error('the log is broken');
@@ -331,12 +320,12 @@ describe('one failed Gemini call pauses Gemini for parse-request and advise', ()
     await parse();
     expect((await parse()).body).toStrictEqual(s.offlineParse);
     expect((await advise(s.draft)).body).toStrictEqual(s.offlineAdvice);
-    expect(s.gemini.calls).toBe(1);
+    expect(s.gemini.calls).toBe(2);
   }, T);
 });
 
-describe('a paused answer does not wait for Gemini', () => {
-  it('a hanging Gemini with a 400 ms limit: the first call waits for the limit, the next ones answer in under 200 ms', async () => {
+describe('a paused answer does not wait for Gemini; advise waits at most its own limit', () => {
+  it('a hanging Gemini with a 400 ms limit: parse-request waits once, then answers in under 200 ms; each advise waits its limit, not more', async () => {
     const s = await start('hang', { timeoutMs: 400, adviseTimeoutMs: 400 });
 
     const first = await parse();
@@ -348,11 +337,15 @@ describe('a paused answer does not wait for Gemini', () => {
     const adviseMs: number[] = [];
     for (let i = 0; i < 3; i++) {
       parseMs.push((await parse()).ms);
-      adviseMs.push((await advise(s.draft)).ms);
+      const advised = await advise(s.draft);
+      expect(advised.body).toStrictEqual(s.offlineAdvice);
+      adviseMs.push(advised.ms);
     }
     expect(Math.min(...parseMs)).toBeLessThan(200);
-    expect(Math.min(...adviseMs)).toBeLessThan(200);
-    expect(s.gemini.calls).toBe(1);          // the real reason they are fast: nothing was sent
+    expect(Math.min(...adviseMs)).toBeGreaterThanOrEqual(390);
+    expect(Math.max(...adviseMs)).toBeLessThan(5000);
+    expect(s.gemini.parseCalls).toBe(1);     // the real reason parse-request is fast: nothing was sent
+    expect(s.gemini.adviseCalls).toBe(3);
   }, T);
 });
 
@@ -374,7 +367,7 @@ describe('no key: offline as before, and the pause is not involved', () => {
 
     expect(s.gemini.calls).toBe(0);
     expect(touched).toStrictEqual([]);
-    expect(logged).toStrictEqual([NO_KEY_LOG_LINE, NO_KEY_LOG_LINE]);
+    expect(logged).toStrictEqual([NO_KEY_LOG_LINE, '[advise] fallback: no key', NO_KEY_LOG_LINE]);
   }, T);
 });
 
@@ -386,11 +379,11 @@ describe('a runtime that is given no pause asks Gemini every time, as before #88
     s.gemini.mode = 'good';
     expect((await parse()).body.source).toBe('gemini');
     expect(s.gemini.calls).toBe(3);
-    expect(logged).toStrictEqual(['[parse-request] Gemini is unavailable: HTTP 500. Parsed offline.']);
+    expect(logged).toStrictEqual(['[parse-request] Gemini is unavailable: HTTP 500. Parsed offline.', '[advise] fallback: HTTP 500']);
   }, T);
 });
 
-describe('startServer: the app has the pause on', () => {
+describe('startServer: the app has the pause on for parse-request', () => {
   const started: { server: RelayServer; repo: TempRepo }[] = [];
   afterEach(async () => {
     for (const one of started.splice(0)) {
@@ -429,29 +422,32 @@ describe('startServer: the app has the pause on', () => {
       expect(res.status).toBe(200);
       return (await res.json()) as B;
     };
-    return { gemini: fake.state, info, post };
+    const simulator = (await (await fetch(`${origin}/api/v2/simulator`)).json()) as { shipments: Shipment[] };
+    const shp1 = draftOf({ scenario: { shipments: simulator.shipments } } as RunV2, 'shp-1');
+    return { gemini: fake.state, info, post, shp1 };
   }
 
-  it('with a key in .env: one HTTP 500, then parse-request and advise answer offline without asking, and console.warn says why', async () => {
+  it('with a key in .env: one HTTP 500, then parse-request answers offline without asking, advise still asks; console.warn says why', async () => {
     const one = await boot(`GEMINI_API_KEY=${KEY}\n`, 'http500');
 
     const first = await one.post<ParseRequestResponse>('/parse-request', { text: SENTENCE });
     expect(first.source).toBe('offline');
     expect(one.gemini.calls).toBe(1);
 
-    one.gemini.mode = 'good';   // Gemini is fine again, but it is paused
     const second = await one.post<ParseRequestResponse>('/parse-request', { text: SENTENCE });
     expect(second).toStrictEqual(first);
-    const { originBusinessId, destinationBusinessId, readyMin, deadlineMin } = second.draft;
-    const advice = await one.post<AdviseResponse>('/advise', { draft: { originBusinessId, destinationBusinessId, readyMin, deadlineMin } });
-    expect(advice.source).toBe('offline');
     expect(one.gemini.calls).toBe(1);
+    // Advise has no pause: the sample run's shp-1 has plans, so it asks Gemini (still HTTP 500) and falls back.
+    const advice = await one.post<AdviseResponse>('/advise', { draft: one.shp1 });
+    expect(advice.source).toBe('offline');
+    expect(advice.options.length).toBeGreaterThan(0);
+    expect(one.gemini.calls).toBe(2);
 
     expect(printed.map((p) => p.method)).toStrictEqual(['warn', 'warn', 'warn']);
     expect(printed[0].args).toStrictEqual(['[parse-request] Gemini is unavailable: HTTP 500. Parsed offline.']);
     expect(printed[1].args).toHaveLength(1);
     expect(String(printed[1].args[0])).toMatch(/^\[parse-request\] Parsed offline: Gemini paused after HTTP 500, next try in (119|120) s\.$/);
-    expect(String(printed[2].args[0])).toMatch(/^\[advise\] Options computed offline: Gemini paused after HTTP 500, next try in (119|120) s\.$/);
+    expect(printed[2].args).toStrictEqual(['[advise] fallback: HTTP 500']);
     expect(one.info).toStrictEqual([]);
   }, T);
 
@@ -543,8 +539,6 @@ describe('pauseCause and pausedMessage', () => {
     expect(pausedMessage({ cause: 'a network error', remainingMs: 1 })).toBe('Gemini paused after a network error, next try in 1 s.');
     expect(parsePausedLine(pausedMessage({ cause: 'timeout', remainingMs: 87_000 })))
       .toBe('[parse-request] Parsed offline: Gemini paused after timeout, next try in 87 s.');
-    expect(advisePausedLine(pausedMessage({ cause: 'timeout', remainingMs: 87_000 })))
-      .toBe('[advise] Options computed offline: Gemini paused after timeout, next try in 87 s.');
   });
 });
 
@@ -558,19 +552,7 @@ const CONTEXT: GeminiParseContext = {
   windowEndMin: 2880,
 };
 
-/** An engine that matches nothing: enough for the calls below, which are about who is asked, not about plans. */
-const NO_MATCH_ENGINE: AdvisorEngine = {
-  draft: { originBusinessId: 'biz-etsy', destinationBusinessId: 'biz-brooklyn-roasting', readyMin: 600, deadlineMin: 900 },
-  clockMin: 480,
-  windowStartMin: 360,
-  windowEndMin: 2880,
-  flexWindowMin: 1080,
-  match: () => ({ reason: 'No commute fits' }),
-  employeeName: () => 'A carrier',
-  businessName: (id) => (id === 'biz-etsy' ? 'Etsy' : 'Brooklyn Roasting'),
-};
-
-describe('parseWithGeminiUnlessPaused and adviseUnlessPaused', () => {
+describe('parseWithGeminiUnlessPaused', () => {
   it('a call that was already under way and succeeds clears a pause another call started', async () => {
     const pause = createGeminiPause({ now: () => clock });
     const good = says([{ text: JSON.stringify(GOOD_DRAFT) }]);
@@ -599,33 +581,6 @@ describe('parseWithGeminiUnlessPaused and adviseUnlessPaused', () => {
     expect(sent).toBe(3);
   });
 
-  it('an advise conversation that was already under way and succeeds clears the pause too', async () => {
-    const s = await start('good');
-    const real = (api as BootstrapApi).runtime.deps.travel as TravelProvider;
-    const engine = advisorEngine(s.run, real, s.draft);
-    const pause = createGeminiPause({ now: () => clock });
-    const fake = fakeGemini('good');
-    let release: () => void = () => undefined;
-    const held = new Promise<void>((resolve) => void (release = resolve));
-    let sent = 0;
-    // The first turn of the conversation waits until `release`; everything after it answers at once.
-    const fetchImpl: FetchLike = async (url, init) => {
-      if (sent++ === 0) await held;
-      return fake.fetch(url, init);
-    };
-
-    const slow = adviseUnlessPaused(engine, { apiKey: KEY, model: MODEL, fetchImpl }, pause);
-    pause.fail('HTTP 500');   // parse-request failed meanwhile
-    expect((await adviseUnlessPaused(engine, { apiKey: KEY, model: MODEL, fetchImpl }, pause)).paused?.cause).toBe('HTTP 500');
-    expect(sent).toBe(1);
-
-    release();
-    const answer = await slow;
-    expect(answer.paused).toBeNull();
-    expect(answer.response.source).toBe('gemini');
-    expect(pause.current()).toBeNull();
-  }, T);
-
   it('paused calls take well under 200 ms, each of them, and reach no fetch', async () => {
     const pause = createGeminiPause({ now: () => clock });
     pause.fail('timeout');
@@ -636,11 +591,8 @@ describe('parseWithGeminiUnlessPaused and adviseUnlessPaused', () => {
     for (let i = 0; i < 20; i++) {
       const started = performance.now();
       const parsed = await parseWithGeminiUnlessPaused(SENTENCE, CONTEXT, settings, pause);
-      const advised = await adviseUnlessPaused(NO_MATCH_ENGINE, settings, pause);
       expect(performance.now() - started).toBeLessThan(200);
       expect(parsed).toMatchObject({ ok: false, reason: 'paused' });
-      expect(advised.paused).toStrictEqual({ cause: 'timeout', remainingMs: GEMINI_PAUSE_MS });
-      expect(advised.response).toStrictEqual(adviseOffline(NO_MATCH_ENGINE));
     }
   });
 
@@ -652,12 +604,10 @@ describe('parseWithGeminiUnlessPaused and adviseUnlessPaused', () => {
     for (const apiKey of [null, undefined, '', '  ']) {
       const settings = { apiKey, model: MODEL, fetchImpl };
       expect(await parseWithGeminiUnlessPaused(SENTENCE, CONTEXT, settings, pause)).toMatchObject({ ok: false, reason: 'no_key' });
-      expect(await adviseUnlessPaused(NO_MATCH_ENGINE, settings, pause)).toStrictEqual({ response: adviseOffline(NO_MATCH_ENGINE), paused: null });
       expect(pause.current()).toBeNull();
     }
     pause.fail('timeout');
     expect(await parseWithGeminiUnlessPaused(SENTENCE, CONTEXT, { apiKey: null, model: MODEL, fetchImpl }, pause)).toMatchObject({ reason: 'no_key' });
-    expect((await adviseUnlessPaused(NO_MATCH_ENGINE, { apiKey: null, model: MODEL, fetchImpl }, pause)).paused).toBeNull();
   });
 
   it('a blank model name sends nothing and starts no pause', async () => {
@@ -666,28 +616,6 @@ describe('parseWithGeminiUnlessPaused and adviseUnlessPaused', () => {
       throw new Error('no model: nothing may be sent');
     };
     expect(await parseWithGeminiUnlessPaused(SENTENCE, CONTEXT, { apiKey: KEY, model: ' ', fetchImpl }, pause)).toMatchObject({ reason: 'no_model' });
-    await adviseUnlessPaused(NO_MATCH_ENGINE, { apiKey: KEY, model: ' ', fetchImpl }, pause);
-    expect(pause.current()).toBeNull();
-  });
-
-  it('advise: Gemini presents without trying anything: an unusable answer, so a pause', async () => {
-    const pause = createGeminiPause({ now: () => clock });
-    const fetchImpl: FetchLike = () => Promise.resolve(says([call(PRESENT_OPTIONS, { options: [{ resultId: 'r1', label: 'x', summary: 'y' }] })]));
-    const answer = await adviseUnlessPaused(NO_MATCH_ENGINE, { apiKey: KEY, model: MODEL, fetchImpl }, pause);
-    expect(answer).toStrictEqual({ response: adviseOffline(NO_MATCH_ENGINE), paused: null });
-    expect(pause.current()?.cause).toBe('an unusable answer');
-  });
-
-  it('advise: an engine error is not a Gemini failure: it is thrown on and starts no pause', async () => {
-    const pause = createGeminiPause({ now: () => clock });
-    const fetchImpl: FetchLike = () => Promise.resolve(says([call(TRY_VARIANT, {})]));
-    const broken: AdvisorEngine = {
-      ...NO_MATCH_ENGINE,
-      match: () => {
-        throw new Error('travel data missing');
-      },
-    };
-    await expect(adviseUnlessPaused(broken, { apiKey: KEY, model: MODEL, fetchImpl }, pause)).rejects.toThrow('travel data missing');
     expect(pause.current()).toBeNull();
   });
 });
