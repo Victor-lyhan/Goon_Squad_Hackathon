@@ -1,5 +1,6 @@
 // Pure helpers for the homepage's data source, the NYC run. Plain TS so Node tests can run them.
-// Every number comes from an /api/v2 response; nothing is counted from deliveries in the browser.
+// It carries only what the page shows: the "Watch a package" target, the account IDs for the workspace
+// links and the load state. Nothing is counted in the browser and no number is kept (#843).
 import type { BusinessesResponse, EmployeesResponse, SimulatorResponse } from '../../../shared/v2/api';
 import type { DemoIdentity } from '../demoIdentity';
 import { SIMULATOR_PAGE_PATH, pickAccount, workspaceHrefs } from '../ui/shellModel';
@@ -7,7 +8,7 @@ import {
   getBusinesses, getEmployees, getSimulator, isTravelUnavailable, type RequestOptions,
 } from '../api/v2';
 
-/** The one line shown instead of numbers when /api/v2 answers 503 (same copy as the v2 workspaces, pass 46). */
+/** The one line shown under the workspace entries when /api/v2 answers 503 (same copy as the v2 workspaces, pass 46). */
 export const NYC_UNAVAILABLE_TEXT = 'NYC travel data is not loaded on this server yet.';
 
 export type NycSummary =
@@ -15,7 +16,7 @@ export type NycSummary =
   | { status: 'error' }
   | { status: 'unavailable' }
   | {
-    status: 'ready'; businesses: number; commuters: number; matched: number; requested: number;
+    status: 'ready';
     /** The account IDs, in API order, for the workspace links (never counted or shown). */
     businessIds: string[]; employeeIds: string[];
     /** The package "Watch a package" opens (`watchPackageId`); null when the run has none to show. */
@@ -47,13 +48,15 @@ export function watchPackageHref(summary: NycSummary): string {
   return id ? `${SIMULATOR_PAGE_PATH}?package=${encodeURIComponent(id)}&play=1` : SIMULATOR_PAGE_PATH;
 }
 
-export function nycSummaryFrom(b: BusinessesResponse, e: EmployeesResponse, sim: SimulatorResponse): NycSummary {
+/**
+ * The ready state from the three reads the page still needs: the two account lists (workspace links) and
+ * the simulator's shipments and plans ("Watch a package"). The run's metrics are not read (#843).
+ */
+export function nycSummaryFrom(
+  b: BusinessesResponse, e: EmployeesResponse, sim: Pick<SimulatorResponse, 'shipments' | 'plans'>,
+): NycSummary {
   return {
     status: 'ready',
-    businesses: b.businesses.length,
-    commuters: e.employees.length,
-    matched: sim.snapshot.metrics.matched,
-    requested: sim.snapshot.metrics.requested,
     businessIds: b.businesses.map((x) => x.id),
     employeeIds: e.employees.map((x) => x.id),
     watchPackageId: watchPackageId(sim),
