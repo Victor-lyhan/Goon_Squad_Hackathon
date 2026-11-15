@@ -1,16 +1,22 @@
 // MVP II Business page (#461): puts the merged Business pieces together. Props only, so tests render
-// every screen without the data hook. Local UI state: the table's search, filters and sort, whether the
-// New delivery form is open, and the retry-match status. All data comes from the hook state, and the
-// page changes only `?shipment=` (through onOpenShipment / onCloseShipment).
+// every screen without the data hook. Local UI state: the table's search, filters and sort, what New
+// delivery shows (the request text box, then the form), and the retry-match status. All data comes from the
+// hook state, and the page changes only `?shipment=` (through onOpenShipment / onCloseShipment).
+// New delivery (MVP IV F1, docs/mvp4.md): it opens on one text box; the server reads the sentence and the
+// existing form opens prefilled as the confirmation card (DECISIONS pass 81). Only the form's button sends.
 // The shell has the only <main> (#581, DECISIONS pass 60), so the page's root is a <div>.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ShipmentResponse } from '../../../../../../shared/v2/api';
+import type { ParseRequestResponse } from '../../../../../../shared/v2/parseRequest';
 import type { CreateShipmentRequest } from '../../../../../../shared/v2/schemas';
+import { parseRequest as apiParseRequest } from '../../../../api/v2';
 import { BusinessHeader } from '../activity/BusinessHeader';
 import { NotificationsPanel } from '../activity/NotificationsPanel';
 import { DeliveryDetails } from '../DeliveryDetails';
 import { RECONNECTING_TEXT, RUN_CHANGED_NOTE, type BusinessWorkspaceState } from '../live/businessWorkspaceState';
 import { NewDeliveryForm } from '../NewDeliveryForm';
+import { ParsedRequestNote, RequestTextBox, type ParseRequestCall } from '../RequestTextBox';
+import { parsedRequest, type ParsedRequest } from '../requestTextModel';
 import { ShipmentsTable } from '../ShipmentsTable';
 import { ShipmentsToolbar } from '../ShipmentsToolbar';
 import { NO_FILTERS, nextSort } from '../shipmentsTableModel';
@@ -36,19 +42,40 @@ export type BusinessPageViewProps = {
   onCloseShipment: () => void;
   /** Link to another business's workspace on this same route (for the not-found state). */
   businessHref: (businessId: string) => string;
-  /** Starting UI state, for static renders. */
+  /** Reads a typed request (New delivery's text box). Default: POST /api/v2/parse-request. */
+  parseRequest?: ParseRequestCall;
+  /** Starting UI state, for static renders: New delivery open on the empty form. */
   initialNewOpen?: boolean;
+  /** Starting UI state, for static renders: New delivery open on the request text box. */
+  initialRequestOpen?: boolean;
   initialTable?: TableState;
   /** The open delivery's route map (#549), shown above its details; the page passes it in. */
   deliveryRoute?: ReactNode;
 };
 
+/**
+ * What New delivery shows. `text`: the request text box, holding `text` when it is reopened. `form`: the New
+ * delivery form, prefilled from `parsed` (the confirmation card) or empty ("Fill in the form instead");
+ * `key` is new for every opening, so the form always starts from the draft it is given.
+ */
+type NewView =
+  | { kind: 'closed' }
+  | { kind: 'text'; text: string }
+  | { kind: 'form'; key: number; parsed: ParsedRequest | null };
+
 export function BusinessPageView({
   state, shipmentId, createShipment, matchShipment, refetchNow, dismissRunChanged,
-  onOpenShipment, onCloseShipment, businessHref, initialNewOpen = false, initialTable = INITIAL_TABLE,
-  deliveryRoute = null,
+  onOpenShipment, onCloseShipment, businessHref, parseRequest = apiParseRequest, initialNewOpen = false,
+  initialRequestOpen = false, initialTable = INITIAL_TABLE, deliveryRoute = null,
 }: BusinessPageViewProps) {
-  const [newOpen, setNewOpen] = useState(initialNewOpen);
+  const [newView, setNewView] = useState<NewView>(
+    () => (initialNewOpen ? { kind: 'form', key: 0, parsed: null } : initialRequestOpen ? { kind: 'text', text: '' } : { kind: 'closed' }),
+  );
+  const newOpen = newView.kind !== 'closed';
+  const formKey = useRef(0);
+  /** The New delivery area; set when the text box has just turned into the form, which then gets focus. */
+  const newArea = useRef<HTMLDivElement>(null);
+  const focusForm = useRef(false);
   const [table, setTable] = useState<TableState>(initialTable);
   /** Bumped by "Clear filters" so the toolbar drops its typed search text. */
   const [toolbarKey, setToolbarKey] = useState(0);
@@ -64,6 +91,15 @@ export function BusinessPageView({
     if (newOpener.current?.isConnected) newOpener.current.focus();
     newOpener.current = null;
   }, [newOpen]);
+
+  // The pressed button ("Read my request", "Fill in the form instead") went away with the text box. A
+  // prefilled form takes focus itself, on its first "Check this" field; otherwise its first field gets it.
+  useEffect(() => {
+    if (newView.kind !== 'form' || !focusForm.current) return;
+    focusForm.current = false;
+    const form = newArea.current?.querySelector('form.nd');
+    if (form && !form.contains(document.activeElement)) form.querySelector<HTMLElement>('select, input')?.focus();
+  }, [newView]);
 
   const screen = pageScreen(state, shipmentId);
   const { dashboard, businesses, employees } = state;
@@ -119,9 +155,24 @@ export function BusinessPageView({
     const active = document.activeElement;
     newOpener.current = target instanceof HTMLElement ? target
       : active instanceof HTMLElement && active !== document.body ? active : null;
-    setNewOpen(true);
+    // Only from closed: a press while the box or the form is open never throws away what is typed there.
+    setNewView((v) => (v.kind === 'closed' ? { kind: 'text', text: '' } : v));
   };
-  const closeNew = () => { restoreFocus.current = true; setNewOpen(false); };
+  const closeNew = () => { restoreFocus.current = true; setNewView({ kind: 'closed' }); };
+  const openForm = (parsed: ParsedRequest | null) => {
+    formKey.current += 1;
+    focusForm.current = true;
+    setNewView({ kind: 'form', key: formKey.current, parsed });
+  };
+  const showParsed = (answer: ParseRequestResponse, text: string) =>
+    openForm(parsedRequest(answer, { origin: d.business, businesses }, text));
+  // A matched answer empties the form for the next package, so the lines about the request just sent go
+  // with it. The form itself stays as it is (same key): it shows "Delivery arranged".
+  const sendDelivery = async (req: CreateShipmentRequest) => {
+    const answer = await createShipment(req);
+    if (answer.matched) setNewView((v) => (v.kind === 'form' && v.parsed ? { ...v, parsed: null } : v));
+    return answer;
+  };
   const clearFilters = () => { setTable((t) => ({ ...t, filters: NO_FILTERS })); setToolbarKey((k) => k + 1); };
 
   const retryMatch = async (id: string) => {
@@ -218,14 +269,37 @@ export function BusinessPageView({
           />
           {/* The open form says the same itself, so the line shows only while the form is closed. */}
           {closedText && !newOpen && <p className="bp-notice bp-closed">{closedText}</p>}
-          {newOpen && (
-            <div className="bp-new">
+          {newView.kind === 'text' && (
+            <div className="bp-new" ref={newArea}>
+              <RequestTextBox
+                origin={d.business}
+                businesses={businesses}
+                phase={d.phase}
+                initialText={newView.text}
+                parseRequest={parseRequest}
+                onParsed={showParsed}
+                onFillForm={() => openForm(null)}
+                onCancel={closeNew}
+              />
+            </div>
+          )}
+          {newView.kind === 'form' && (
+            <div className="bp-new" ref={newArea}>
+              {newView.parsed && (
+                <ParsedRequestNote
+                  parsed={newView.parsed}
+                  onEdit={() => setNewView({ kind: 'text', text: newView.parsed?.text ?? '' })}
+                />
+              )}
               <NewDeliveryForm
+                key={newView.key}
                 origin={d.business}
                 businesses={businesses}
                 phase={d.phase}
                 dashboardVersion={d.version}
-                onSubmit={createShipment}
+                initialDraft={newView.parsed?.draft}
+                needsInput={newView.parsed?.needsInput}
+                onSubmit={sendDelivery}
                 onOpenDelivery={onOpenShipment}
                 onCancel={closeNew}
               />

@@ -382,6 +382,7 @@ describe('the form inside the Business page', () => {
       </NewDeliveryServicesContext.Provider>,
     );
     click(button(m.container, 'New delivery'));
+    click(button(m.container, 'Fill in the form instead')); // New delivery opens on the request text box (#786)
     const form = () => m.container.querySelector('form.nd')!;
     select(byLabel(form(), 'Recipient'), 'Bakery Row · Williamsburg');
     typeInto(byLabel(form(), 'Package name'), 'Lab samples');

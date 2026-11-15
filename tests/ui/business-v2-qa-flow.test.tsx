@@ -600,6 +600,7 @@ describe('delivery details: the header with Close is brought on screen (#719)', 
   it('"View delivery" in the New delivery form opens the details and shows their header', async () => {
     const p = setupPage();
     click(button(p.container, 'New delivery'));
+    click(button(p.container, 'Fill in the form instead')); // New delivery opens on the request text box (#786)
     const form = p.container.querySelector('form.nd')!;
     select(byLabel(form, 'Recipient'), 'Bakery Row · Williamsburg');
     typeInto(byLabel(form, 'Package name'), 'Lab samples');

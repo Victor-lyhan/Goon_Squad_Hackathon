@@ -186,6 +186,7 @@ describe('New delivery on the real server', () => {
     const c = m.container;
     for (let i = 0; i < 200 && buttons(c, 'New delivery').length === 0; i++) await flush();
     click(buttons(c, 'New delivery')[0]);
+    click(button(c, 'Fill in the form instead')); // New delivery opens on the request text box (#786)
     const form = () => c.querySelector('form.nd')!;
     // The business and employee lists arrive on their own request.
     const listed = () => [...(byLabel(form(), 'Recipient') as HTMLSelectElement).options].some((o) => o.text.trim() === optionLabel(recipient));

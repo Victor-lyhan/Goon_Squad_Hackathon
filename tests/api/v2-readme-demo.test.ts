@@ -381,6 +381,8 @@ const PAGE_WORDS: [label: string, file: string][] = [
   ['Saved commute', 'client/src/components/employee/v2/CommuteSummary.tsx'],
   ['Detour limit', 'client/src/components/employee/v2/CommuteSummary.tsx'],
   ['New delivery', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
+  // #786 (MVP IV F1): New delivery opens on the request text box; this button of it opens the form.
+  ['Fill in the form instead', 'client/src/components/business/v2/requestTextModel.ts'],
   ['Find a delivery match', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
   ['Delivery arranged', 'client/src/components/business/v2/deliveryDetailsModel.ts'],
   ['View delivery', 'client/src/components/business/v2/NewDeliveryForm.tsx'],
