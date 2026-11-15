@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '../../client/src/api/v2';
 import {
@@ -35,7 +37,7 @@ afterEach(() => {
 });
 
 describe('startNycSummary', () => {
-  it('requests only the three /api/v2 reads (never an MVP 1 path) and reports metrics from the response', async () => {
+  it('requests only the three /api/v2 reads (never an MVP 1 path) and reports the account IDs, no count (#843)', async () => {
     const calls = stubFetch(async (url) => json(BODIES[url]));
     const seen: NycSummary[] = [];
     start((s) => seen.push(s));
@@ -43,10 +45,13 @@ describe('startNycSummary', () => {
     expect(calls.map((c) => c.url).sort()).toEqual(['/api/v2/businesses', '/api/v2/employees', '/api/v2/simulator']);
     for (const c of calls) { expect(c.url.startsWith('/api/v2/')).toBe(true); expect(c.init.method).toBe('GET'); }
     expect(seen).toEqual([{
-      status: 'ready', businesses: 5, commuters: 3, matched: 19, requested: 24,
+      status: 'ready',
       businessIds: businesses.businesses.map((b) => b.id), employeeIds: employees.employees.map((e) => e.id),
       watchPackageId: null, // the sample run has no plans
     }]);
+    // The sample's metrics (19 of 24) and list sizes reach the model nowhere: only IDs and the package.
+    expect(Object.keys(seen[0]).sort()).toEqual(['businessIds', 'employeeIds', 'status', 'watchPackageId']);
+    expect(Object.values(seen[0]).filter((v) => typeof v === 'number')).toEqual([]);
     expect(seen[0].status === 'ready' && seen[0].employeeIds[0]).toBe('emp-7');
     expect(nycWorkspacePaths(seen[0])).toEqual({
       business: `/business/${businesses.businesses[0].id}`, employee: '/employee/emp-7', simulator: '/simulator',
@@ -58,7 +63,7 @@ describe('startNycSummary', () => {
     const seen: NycSummary[] = [];
     start((s) => seen.push(s));
     await until(() => seen.length > 0);
-    expect(seen[0]).toMatchObject({ status: 'ready', watchPackageId: 'shp-3', matched: 19, requested: 24 });
+    expect(seen[0]).toMatchObject({ status: 'ready', watchPackageId: 'shp-3' });
     expect(watchPackageHref(seen[0])).toBe('/simulator?package=shp-3&play=1');
   });
 
@@ -103,6 +108,25 @@ describe('startNycSummary', () => {
     release();
     await settle(); await settle();
     expect(seen).toEqual([]);
+  });
+});
+
+describe('the model carries no count of the run (#843, PR #840 review note)', () => {
+  it('nycSummaryFrom keeps the account IDs and the package only, whatever the metrics say', () => {
+    const ready = nycSummaryFrom(businesses, employees, storySimulator);
+    expect(ready).toEqual({
+      status: 'ready',
+      businessIds: ['biz-a', 'biz-b', 'biz-c', 'biz-d', 'biz-e'], employeeIds: ['emp-7', 'emp-1', 'emp-2'],
+      watchPackageId: 'shp-3',
+    });
+    // An answer without `snapshot` gives the same model: the metrics are not read.
+    const { shipments, plans } = storySimulator;
+    expect(nycSummaryFrom(businesses, employees, { shipments, plans })).toEqual(ready);
+  });
+
+  it('landingModel.ts names no business, commuter or matched count and does not read the metrics', () => {
+    const source = readFileSync(resolve(__dirname, '../../client/src/pages/landingModel.ts'), 'utf8');
+    expect(source).not.toMatch(/matched|commuters|requested:|metrics\.|snapshot|\.length/);
   });
 });
 

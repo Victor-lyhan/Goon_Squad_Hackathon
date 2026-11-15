@@ -11,7 +11,7 @@ import type { NycSummary } from '../../client/src/pages/landingModel';
 import { mount, textOf } from './kitDom';
 
 const ready: NycSummary = {
-  status: 'ready', businesses: 18, commuters: 60, matched: 24, requested: 24,
+  status: 'ready',
   businessIds: ['biz-a', 'biz-b'], employeeIds: ['emp-a', 'emp-b'], watchPackageId: 'shp-3',
 };
 

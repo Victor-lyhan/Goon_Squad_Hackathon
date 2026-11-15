@@ -178,7 +178,7 @@ describe('README demo request on the default NYC run, no key', () => {
     const shipment = sim.shipments.find((s) => s.id === id);
     expect(shipment?.label).toBe(WATCH_PACKAGE_LABEL);
     const href = watchPackageHref({
-      status: 'ready', businesses: 0, commuters: 0, matched: 0, requested: 0, businessIds: [], employeeIds: [], watchPackageId: id,
+      status: 'ready', businessIds: [], employeeIds: [], watchPackageId: id,
     });
     expect(href).toBe(`/simulator?package=${id}&play=1`);
 

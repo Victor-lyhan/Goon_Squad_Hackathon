@@ -36,7 +36,7 @@ const EMPLOYEES = [
   { id: 'emp-03', name: 'Ana Ruiz' },
 ];
 const SUMMARY: NycSummary = {
-  status: 'ready', businesses: 3, commuters: 3, matched: 24, requested: 24,
+  status: 'ready',
   businessIds: BUSINESSES.map((b) => b.id), employeeIds: EMPLOYEES.map((e) => e.id), watchPackageId: 'shp-4',
 };
 const json = (status: number, body: unknown) =>

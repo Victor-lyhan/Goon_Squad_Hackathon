@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The NYC homepage (`Landing dataset="nyc"`) on the REAL /api/v2 summary (#514): createV2Runtime on a copy of
 // fixtures/nyc in a temp folder, no key, no network. The model is built by the real `startNycSummary`
-// through client/src/api/v2.ts, and the page is mounted in a real DOM and loads the same numbers itself.
+// through client/src/api/v2.ts, and the page is mounted in a real DOM and loads the same answers itself.
 // No count is pinned (DECISIONS pass 54): the expectations are the API's own answers.
 // #652: "Watch a package" opens the default run's story package, found by the label the app code names.
 import { MemoryRouter } from 'react-router-dom';
@@ -52,16 +52,12 @@ describe('NYC homepage on the real /api/v2', () => {
     expect(matched).toBeLessThanOrEqual(requested);
   });
 
-  it('startNycSummary builds the model from the API: businesses, commuters, relay points, matched / requested', async () => {
+  it('startNycSummary builds the model from the API: the account IDs and the story package, no count (#843)', async () => {
     const before = api.requests.length;
     const summary = await loadSummary();
     expect(api.requests.slice(before).sort()).toEqual(['GET /api/v2/businesses', 'GET /api/v2/employees', 'GET /api/v2/simulator']);
     expect(summary).toEqual({
       status: 'ready',
-      businesses: b.businesses.length,
-      commuters: e.employees.length,
-      matched: sim.snapshot.metrics.matched,
-      requested: sim.snapshot.metrics.requested,
       businessIds: b.businesses.map((x) => x.id),
       employeeIds: e.employees.map((x) => x.id),
       watchPackageId: storyPackage()[0].id,
