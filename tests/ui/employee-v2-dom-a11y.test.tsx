@@ -570,14 +570,16 @@ describe('#735 focus rings found missing in headless Chrome (CommuteForm.css)', 
     expect(at, `no rule ${selector}`).toBeGreaterThanOrEqual(0);
     return css.slice(at, css.indexOf('}', at));
   };
-  const RING = /outline:\s*2px solid var\(--accent, #1D5075\);\s*outline-offset:\s*2px;/;
+  // Issue 957: the ring is the ink of text on paper, 2 px with a 2 px gap, on every field of the form.
+  const RING = /outline:\s*2px solid var\(--paper-text, #14171F\);\s*outline-offset:\s*2px;/;
 
-  it('a checkbox gets the 2px accent outline: a 1px accent ring cannot be seen around an accent-filled box', () => {
-    const checkbox = rule('.cf-check input:focus-visible');
-    expect(checkbox).toMatch(RING);
-    expect(checkbox).toMatch(/box-shadow:\s*none/);
-    // It comes after the general field rule it overrides (same specificity).
-    expect(css.indexOf('.cf-check input:focus-visible {')).toBeGreaterThan(css.indexOf('.cf input:focus-visible {'));
+  it('a checkbox gets the 2px outline with a gap: a ring right on an ink-filled box cannot be seen', () => {
+    // One rule for every field, the checkbox included: the 1 px ring that needed an exception is gone.
+    const fields = css.slice(css.indexOf('.cf-btn:focus-visible,'), css.indexOf('}', css.indexOf('.cf-btn:focus-visible,')));
+    expect(fields).toContain('.cf input:focus-visible');
+    expect(fields).toMatch(RING);
+    expect(css).not.toContain('.cf-check input:focus-visible');
+    for (const [, shadow] of css.matchAll(/box-shadow:\s*([^;]+);/g)) expect(shadow.trim()).toBe('none');
   });
 
   it("the time field's picker button gets the same outline instead of the system-blue one", () => {

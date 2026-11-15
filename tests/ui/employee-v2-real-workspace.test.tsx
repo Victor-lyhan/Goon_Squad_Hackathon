@@ -60,11 +60,13 @@ describe('Employee workspace on the real NYC run, every employee at five moments
         const commute = elementWith(html, 'aria-labelledby="ew-commute-heading"');
         expect(commute, where).not.toBeNull();
         const c = textOf(commute!);
-        // First block of the page, before the deliveries and the earnings.
+        // Issue 957: the band (earnings, then the assigned list with the next job) is first; the commute
+        // comes after it and before the completed list.
         const first = text.indexOf('Saved commute');
-        expect(first, where).toBeGreaterThanOrEqual(0);
-        expect(first, where).toBeLessThan(text.indexOf('Assigned deliveries'));
-        expect(first, where).toBeLessThan(text.indexOf('Earnings'));
+        expect(first, where).toBeGreaterThan(text.indexOf('Assigned deliveries'));
+        expect(text.indexOf('Earnings'), where).toBeGreaterThanOrEqual(0);
+        expect(text.indexOf('Earnings'), where).toBeLessThan(text.indexOf('Assigned deliveries'));
+        expect(first, where).toBeLessThan(text.indexOf('Completed deliveries'));
 
         expect(c, where).toContain(businessName(real.businesses, d.employee.businessId));
         expect(d.home.neighborhood.trim(), where).not.toBe('');

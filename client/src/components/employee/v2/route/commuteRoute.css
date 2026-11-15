@@ -1,16 +1,15 @@
-/* Commute route preview (#419), MVP III look (docs/mvp3.md P4, #685): hairline borders, the token
-   radius, flat. Tokens are read as var(--name, fallback); every fallback is the value in
-   client/src/styles/tokens.css. The line colours come from map/layers.ts as inline styles, never from
+/* Commute route preview (#419) in the "night-shift transit ops" look (issue 957): a hairline frame on
+   paper, flat. Colours are read as var(--name, fallback); every fallback is the value in client/src/styles/tokens.css. The line colours come from map/layers.ts as inline styles, never from
    this file. The map block has a fixed height: 320px on desktop,
    240px on narrow screens (390 px wide). No rule sets a width wider than the screen. */
 
 .ecr {
   width: 100%;
   max-width: 100%;
-  color: var(--text, #171C24);
+  color: var(--paper-text, #14171F);
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
   font-size: var(--text-sm, 13px);
-  line-height: 1.45;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
@@ -19,9 +18,9 @@
   width: 100%;
   height: 320px;
   overflow: hidden;
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--paper-line, #DCD8CE);
   border-radius: var(--radius, 4px);
-  background: var(--bg, #F7F7F4);
+  background: var(--paper, #F4F2EC);
 }
 
 /* The shared map has its own min-height; inside this block it fills the fixed height. */
@@ -35,7 +34,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--muted, #5B6472);
+  color: var(--paper-muted, #5A5F6B);
 }
 
 .ecr__legend {
@@ -45,7 +44,7 @@
   margin: var(--space-2, 8px) 0 0;
   padding: 0;
   list-style: none;
-  color: var(--muted, #5B6472);
+  color: var(--paper-muted, #5A5F6B);
   font-size: var(--text-xs, 12px);
 }
 .ecr__legend li {
@@ -62,7 +61,7 @@
 
 .ecr__note {
   margin: var(--space-2, 8px) 0 0;
-  color: var(--muted, #5B6472);
+  color: var(--paper-muted, #5A5F6B);
   font-size: var(--text-xs, 12px);
 }
 
@@ -82,14 +81,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--space-4, 16px);
-  color: var(--muted, #5B6472);
+  color: var(--paper-muted, #5A5F6B);
   font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace);
   font-size: var(--text-xs, 12px);
   font-variant-numeric: tabular-nums;
 }
 .ecr__stops {
   padding-top: var(--space-2, 8px);
-  border-top: 1px solid var(--border, #E3E3DE);
+  border-top: 1px solid var(--paper-line, #DCD8CE);
 }
 
 @media (max-width: 600px) {

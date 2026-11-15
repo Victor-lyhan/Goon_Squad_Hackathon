@@ -47,6 +47,11 @@ export type DeliveryRow = {
   pickupPlace: string;
   dropoffTime: string;
   dropoffPlace: string;
+  /**
+   * Which carrier of the plan this job is: 'a' for the first leg, 'b' for the second. The pass draws its
+   * route line in that carrier's colour, as the simulator draws the two legs. Read from `job.legIndex`.
+   */
+  carrier: 'a' | 'b';
   /** The leg's extra minutes in the words of the job view: "+7 min", "+0 min", "3 min shorter" (#633). */
   extraMin: string;
   /** "$8.00". */
@@ -145,6 +150,7 @@ export function deliveryRows(
       pickup: `${pickupTime} · ${pickupPlace}`,
       dropoff: `${dropoffTime} · ${dropoffPlace}`,
       pickupTime, pickupPlace, dropoffTime, dropoffPlace,
+      carrier: job.legIndex === 0 ? 'a' : 'b',
       extraMin: extraTimeText(plan.legs[job.legIndex]?.extraMin),
       reward: formatCents(job.rewardCents),
       legKind: isRelay ? relayLine : 'Direct',

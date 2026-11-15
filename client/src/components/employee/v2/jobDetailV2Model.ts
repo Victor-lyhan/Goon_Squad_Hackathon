@@ -98,6 +98,16 @@ export function momentText(min: number | null | undefined): string {
   return typeof min === 'number' && Number.isFinite(min) ? formatMin(min) : TIME_UNAVAILABLE;
 }
 
+/**
+ * A moment as written by `momentText`, cut where the clock starts, for the next job's boarding pass (issue
+ * 957): the pass sets "Day 1, " small and "5:15 PM" large. The two parts put together are the same text,
+ * so a delivery time still never stands without its day. A text with no day ("Time unavailable") is all clock.
+ */
+export function splitMoment(moment: string): { day: string; clock: string } {
+  const cut = moment.indexOf(', ');
+  return cut < 0 ? { day: '', clock: moment } : { day: moment.slice(0, cut + 2), clock: moment.slice(cut + 2) };
+}
+
 const homeLabel = (neighborhood: string) => (neighborhood.trim() ? `Home · ${neighborhood.trim()}` : 'Home');
 
 /** Name and address of a place: a network business, the employee's home (neighborhood only), else "Unknown place". */

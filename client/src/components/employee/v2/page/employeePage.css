@@ -1,109 +1,142 @@
-/* Employee page (#438): page states, notices and the commute editor block. MVP III look
-   (docs/mvp3.md P4, #685): hairline borders, the token radius, no shadows; every fallback is the value
-   in client/src/styles/tokens.css. Fluid widths only: works at 390 px. */
+/* Employee page (#438): page states, notices and the commute editor block, in the "night-shift transit
+   ops" look (issue 957): paper ground, ink band, no cards. Colours are read as var(--name, fallback);
+   every fallback is the value in client/src/styles/tokens.css. Fluid widths only: works at 390 px. */
 
 .ep {
   max-width: 760px;
-  margin: 0 auto;
-  color: var(--text, #171C24);
+  /* The shell's main area has 16 px of padding above the page; the page takes it back, so the ink band
+     starts right under the app header. The states and notices below bring their own room. */
+  margin: calc(-1 * var(--space-4, 16px)) auto 0;
+  color: var(--paper-text, #14171F);
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
-  font-size: var(--text-sm, 13px);
-  line-height: 1.45;
+  font-size: var(--text-md, 14px);
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .ep *, .ep *::before, .ep *::after { box-sizing: border-box; }
+/* The window is paper to its edges only while an Employee page is in it, the way the Business page does
+   it: the shell's files stay unchanged and the app header keeps its own ink. */
+body:has(.ep) { background: var(--paper, #F4F2EC); }
 
-.ep-state {
-  margin: var(--space-4, 16px);
-  padding: var(--space-6, 24px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-}
+.ep-state { margin: 0; padding: 40px 0 var(--space-6, 24px); }
 /* A loading line is only text (issue 941): no box that looks like content, in the muted colour. */
-p.ep-state { padding: var(--space-2, 8px) 0; border: 0; background: none; color: var(--muted, #5B6472); }
-/* The heading of a not-found or error state is the size of the employee's name it stands in for. */
-.ep-state h1 { font-size: 20px; font-weight: 600; line-height: 1.2; margin: 0 0 var(--space-2, 8px); }
+p.ep-state { color: var(--paper-muted, #5A5F6B); }
+/* The heading of a not-found or error state looks like the employee's name it stands in for. */
+.ep-title {
+  margin: 0 0 var(--space-3, 12px);
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 40px;
+  font-weight: 800;
+  font-stretch: 78%;
+  line-height: 1;
+}
 .ep-state p { max-width: 64ch; margin: 0 0 var(--space-4, 16px); }
 .ep-state > :last-child { margin-bottom: 0; }
-.ep-links { display: flex; flex-wrap: wrap; gap: var(--space-3, 12px); }
-.ep-links a { color: var(--accent, #1D5075); }
+.ep-links { display: flex; flex-wrap: wrap; gap: var(--space-3, 12px) 20px; }
+.ep-links a { color: var(--paper-text, #14171F); }
 
-.ep-notices { padding: 0 var(--space-4, 16px); }
+.ep-notices { padding: var(--space-6, 24px) 0 var(--space-2, 8px); }
 .ep-notices:empty { display: none; }
 .ep-notice {
   margin: var(--space-2, 8px) 0;
-  padding: var(--space-2, 8px) var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-left: 2px solid var(--accent, #1D5075);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border: 1px solid var(--paper-line, #DCD8CE);
+  border-left: 4px solid var(--paper-text, #14171F);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
 }
 .ep-problem { border-left-color: var(--danger, #A4322A); }
 .ep-success { border-left-color: var(--ok, #2F6B4F); }
 
-.ep-editor {
-  margin-bottom: var(--space-6, 24px);
-  padding: var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-}
+/* The editor takes the commute's place: the same route-line divider under its heading. */
+.ep-editor { margin-top: 40px; }
+.ew-locked + .ep-editor { margin-top: var(--space-4, 16px); }
 .ep-editor-head {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2, 8px);
-  margin-bottom: var(--space-4, 16px);
+  min-height: 52px;
+  margin-bottom: var(--space-6, 24px);
+  padding: var(--space-2, 8px) 0;
+  border-bottom: 1px solid var(--paper-line, #DCD8CE);
 }
-.ep-editor-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
-/* In the editor the form and the address search are as wide as the card (#882): on their own they stop
+.ep-editor-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--paper-text, #14171F);
+}
+.ep-editor-head h2 {
+  margin: 0;
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 18px;
+  font-weight: 600;
+  font-stretch: 112%;
+  line-height: 1.2;
+}
+/* In the editor the form and the address search are as wide as the column (#882): on their own they stop
    at 640 and 560 px, which left Close hanging past their right edge. */
 .ep-form .cf, .ep-form .addr-search { max-width: none; }
 /* The page banner says it; the form's own message would repeat it. */
 .ep-form--quiet .cf-message { display: none; }
 
-/* Close and Retry look like Edit commute and Change (#882): one secondary button on the page, in the
-   accent, 600. Before, these two had a grey border and regular weight. */
+/* Close and Retry look like Edit commute and Change (#882): the page's one secondary button, an ink
+   outline at 600. */
 .ep-btn {
   min-height: 36px;
   padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--accent, #1D5075);
+  border: 1px solid var(--paper-text, #14171F);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--accent, #1D5075);
+  background: none;
+  color: var(--paper-text, #14171F);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
-.ep-btn:hover:not(:disabled) { background: var(--bg, #F7F7F4); }
+.ep-btn:hover:not(:disabled) { background: var(--paper-text, #14171F); color: var(--on-ink, #F4F2EC); }
 /* Switched off like Edit commute: muted words and a hairline, not a faded button. */
-.ep-btn:disabled { color: var(--muted, #5B6472); border-color: var(--border, #E3E3DE); cursor: not-allowed; }
-.ep-btn:focus-visible, .ep-links a:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-.ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); font-weight: 400; text-decoration: underline; }
-.ep-btn-link:hover:not(:disabled) { background: none; }
+.ep-btn:disabled { color: var(--paper-muted, #5A5F6B); border-color: var(--paper-line, #DCD8CE); cursor: not-allowed; }
+.ep-btn:focus-visible, .ep-links a:focus-visible { outline: 2px solid var(--paper-text, #14171F); outline-offset: 2px; border-radius: var(--radius, 4px); }
+.ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--paper-text, #14171F); font-weight: 400; text-decoration: underline; }
+.ep-btn-link:hover:not(:disabled) { background: none; color: var(--paper-text, #14171F); }
 
-/* The employee's name above a job screen (#634): the same heading as the workspace's. */
-.ep-name { margin: 0; padding: var(--space-4, 16px) var(--space-4, 16px) 0; font-size: 20px; font-weight: 600; line-height: 1.2; }
-.ep-job { padding: var(--space-4, 16px); }
-/* The list heading that takes focus after a job without a row is closed (#634). */
+/* The employee's name above a job screen (#634): the workspace's ink band, as wide as the window (the
+   negative margin reaches the window's edge, the same padding puts the name back in the column). */
+.ep-name {
+  margin: 0 calc(50% - 50vw);
+  padding: var(--space-8, 32px) calc(50vw - 50%) var(--space-6, 24px);
+  background: var(--ink, #0B0F17);
+  color: var(--on-ink, #F4F2EC);
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 40px;
+  font-weight: 800;
+  font-stretch: 78%;
+  line-height: 1;
+}
+.ep-job { padding: var(--space-8, 32px) 0; }
+/* A heading that takes focus (the editor's when it opens, a job's title, the assigned list's after a job
+   without a row is closed, #634): an ink ring on paper, a paper ring on the ink band. */
 .ep h2[tabindex="-1"]:focus { outline: none; }
-.ep h2[tabindex="-1"]:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-.ep-route { margin: var(--space-6, 24px) 0; min-width: 0; }
-.ep-route-note { margin: var(--space-2, 8px) 0 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.ep h2[tabindex="-1"]:focus-visible { outline: 2px solid var(--paper-text, #14171F); outline-offset: 2px; }
+.ep .ew-next h2[tabindex="-1"]:focus-visible { outline-color: var(--on-ink, #F4F2EC); }
+.ep-route { margin: var(--space-6, 24px) 0 0; min-width: 0; }
+.ep-route-note { margin: var(--space-4, 16px) 0 0; font-size: var(--text-sm, 13px); color: var(--paper-muted, #5A5F6B); }
 .ep-route-note.ep-problem { color: var(--danger, #A4322A); }
 
 /* Phone rules from 480 px down (#882), like the workspace's, so a 412 or 430 px phone gets them. */
 @media (max-width: 480px) {
   /* 44 px touch targets: Close, Retry, the links of the not-found state and the links inside a note. */
   .ep-btn { min-height: 44px; }
-  .ep-links { gap: 0 var(--space-4, 16px); }
+  .ep-links { gap: 0 20px; }
   .ep-links a, .ep-btn-link { display: inline-flex; align-items: center; min-height: 44px; }
-  .ep-state { margin: var(--space-2, 8px); padding: var(--space-4, 16px); }
-  p.ep-state { padding: var(--space-2, 8px) 0; }
-  .ep-notices, .ep-job, .ep-name { padding-left: var(--space-2, 8px); padding-right: var(--space-2, 8px); }
-  .ep-name { font-size: 18px; }
-  .ep-editor { padding: var(--space-2, 8px); }
+  .ep-state { padding-top: var(--space-8, 32px); }
+  .ep-title, .ep-name { font-size: 34px; }
+  .ep-name { padding-top: var(--space-6, 24px); }
   .ep-editor-head { flex-wrap: wrap; }
 }
 

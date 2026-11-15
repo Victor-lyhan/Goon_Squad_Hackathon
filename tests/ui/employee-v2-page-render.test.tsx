@@ -117,10 +117,11 @@ describe('ready', () => {
     expect(text(render(ready()))).not.toContain(RUN_CHANGED_NOTE);
   });
 
-  it('renders the routePreview slot below the commute', () => {
+  it('renders the routePreview slot below the commute, which follows the assigned list (issue 957)', () => {
     const t = text(render(ready(), { routePreview: <p>ROUTE PREVIEW</p> }));
+    expect(t.indexOf('Assigned deliveries')).toBeLessThan(t.indexOf('Saved commute'));
     expect(t.indexOf('Saved commute')).toBeLessThan(t.indexOf('ROUTE PREVIEW'));
-    expect(t.indexOf('ROUTE PREVIEW')).toBeLessThan(t.indexOf('Assigned deliveries'));
+    expect(t.indexOf('ROUTE PREVIEW')).toBeLessThan(t.indexOf('Completed deliveries'));
   });
 });
 

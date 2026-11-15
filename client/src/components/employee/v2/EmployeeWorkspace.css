@@ -1,199 +1,408 @@
-/* Employee workspace, MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius,
-   no shadows, no gradients, no pills. Tokens are read as var(--name, fallback); every fallback is
-   the value in client/src/styles/tokens.css. Times, distances and rewards carry .ew-mono. */
+/* Employee workspace, "night-shift transit ops" (issue 957). An ink band across the window holds the
+   name, the earnings and the next job as a boarding pass: the one bold element of the page. Everything
+   after it is quiet, on paper, with no cards: a section starts at a route-line divider with a station dot.
+   Colours are the "night-shift transit ops" tokens of client/src/styles/tokens.css (issue 955: --ink,
+   --paper, --signal and the others), read as var(--name, fallback); every fallback is the token's value.
+   On paper a word is --paper-text or --paper-muted; on ink it is --on-ink or --on-ink-muted. The signal
+   and the two carrier colours are fills and lines, never the colour of words (2.6:1 to 3:1 on paper).
+   Type: Archivo (--font-display) for headings and the big numbers, as the header and the homepage set
+   it: heavy and condensed when it is large, wide when it is small, with the weight stated in the rule
+   that names the face. Inter for the rest at 400 or 600. IBM Plex Mono (.ew-mono) only for times and prices. */
 
 .ew {
   max-width: 760px;
   margin: 0 auto;
-  padding: var(--space-4, 16px);
-  color: var(--text, #171C24);
+  padding: 0 0 var(--space-8, 32px);
+  color: var(--paper-text, #14171F);
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
-  font-size: var(--text-sm, 13px);
-  line-height: 1.45;
+  font-size: var(--text-md, 14px);
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .ew *, .ew *::before, .ew *::after { box-sizing: border-box; }
 
-.ew h1 { font-size: 20px; font-weight: 600; margin: 0; }
-.ew h2 { font-size: 14px; font-weight: 600; margin: 0; }
-.ew-header { margin-bottom: var(--space-4, 16px); }
-.ew-header p { margin: var(--space-1, 4px) 0 0; }
+/* A section heading is quiet: 600 and wide, the weight every h1 to h6 of the app has outside the homepage. */
+.ew h2 { margin: 0; font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif); font-size: 18px; font-weight: 600; font-stretch: 112%; line-height: 1.2; }
+/* The employee's name: the page's one large heading, heavy and condensed like the homepage's title. */
+.ew-name { margin: 0; font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif); font-size: 40px; font-weight: 800; font-stretch: 78%; line-height: 1; }
 
-.ew-muted { color: var(--muted, #5B6472); }
+.ew-muted { color: var(--paper-muted, #5A5F6B); }
 .ew-strong { font-weight: 600; }
-.ew-mono { font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-xs, 12px); font-variant-numeric: tabular-nums; }
+.ew-mono { font-family: var(--font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; }
 .ew-sr {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap;
 }
 
-.ew-locked {
-  margin: 0 0 var(--space-4, 16px);
-  padding: var(--space-2, 8px) var(--space-4, 16px);
-  border: 1px solid var(--border, #E3E3DE);
-  border-left: 2px solid var(--accent, #1D5075);
-  border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
+/* ---------- The ink band ----------
+   Four blocks in a row carry the ink: the top (name and earnings), the head of the assigned list, and
+   its first row (the pass) or its empty text. Each is as wide as the window: the negative margin takes
+   it from the column's edge to the window's, and the same padding puts its content back in the column.
+   The column is centred, so half the window minus half the column is the room on either side. */
+.ew-top,
+.ew-next > .ew-section-head,
+.ew-next .ew-pass,
+.ew-next > .ew-empty {
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding-left: calc(50vw - 50%);
+  padding-right: calc(50vw - 50%);
+  background: var(--ink, #0B0F17);
+  color: var(--on-ink, #F4F2EC);
 }
 
-/* Spacing sits on 8 px steps (issue 941): 16 px inside a block, 24 px between blocks. */
-.ew-section {
-  margin-bottom: var(--space-6, 24px);
-  background: var(--panel, #FFFFFF);
-  border: 1px solid var(--border, #E3E3DE);
-  border-radius: var(--radius, 4px);
+.ew-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4, 16px) var(--space-8, 32px);
+  padding-top: var(--space-8, 32px);
+  padding-bottom: var(--space-6, 24px);
 }
+.ew-header { min-width: 0; }
+.ew-header p { margin: var(--space-1, 4px) 0 0; }
+.ew-top .ew-muted { color: var(--on-ink-muted, #A3A9B5); }
+
+/* Earned and projected: two of the page's big numbers, so Archivo, not mono. */
+.ew-earnings { display: flex; gap: var(--space-8, 32px); margin: 0; }
+.ew-earnings dt { font-size: var(--text-xs, 12px); color: var(--on-ink-muted, #A3A9B5); }
+.ew-earnings dd {
+  margin: 0;
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 30px;
+  font-weight: 800;
+  font-stretch: 78%;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Sections ---------- */
+.ew-section { margin-top: 40px; }
+.ew-next { margin-top: 0; }
+/* A route-line divider: the hairline under the heading is the line, the dot at its start the station. */
 .ew-section-head {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2, 8px);
-  /* As tall with a button as without one, so the four block heads line up. */
-  min-height: 56px;
-  padding: var(--space-2, 8px) var(--space-4, 16px);
-  border-bottom: 1px solid var(--border, #E3E3DE);
+  min-height: 52px;
+  padding: var(--space-2, 8px) 0;
+  border-bottom: 1px solid var(--paper-line, #DCD8CE);
 }
-.ew-count { color: var(--muted, #5B6472); }
-.ew-empty { margin: 0; max-width: 64ch; padding: var(--space-4, 16px); color: var(--muted, #5B6472); }
-/* What is missing, in ink on its own line; the reason under it stays muted (#882). */
-.ew-empty-title { display: block; margin-bottom: var(--space-1, 4px); color: var(--text, #171C24); font-weight: 600; }
+.ew-section-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--paper-text, #14171F);
+}
+/* In the band the heading stands right above the pass: a line there would run from one window edge to
+   the other, so it has none. */
+.ew-next > .ew-section-head { min-height: 0; padding-top: 0; padding-bottom: 0; border-bottom: 0; }
+.ew-next > .ew-section-head::after { content: none; }
+.ew-count { color: var(--paper-muted, #5A5F6B); font-variant-numeric: tabular-nums; }
+.ew-next .ew-count { color: var(--on-ink-muted, #A3A9B5); }
 
-/* ---------- Commute ---------- */
-.ew-workplace { margin: 0; padding: var(--space-4, 16px) var(--space-4, 16px) 0; }
-.ew-address { display: block; font-size: var(--text-xs, 12px); }
-.ew-trips { list-style: none; margin: 0; padding: var(--space-2, 8px) var(--space-4, 16px); }
+.ew-empty { margin: 0; max-width: 64ch; padding: var(--space-4, 16px) 0 0; color: var(--paper-muted, #5A5F6B); }
+/* What is missing, in ink on its own line; the reason under it stays muted (#882). */
+.ew-empty-title { display: block; margin-bottom: var(--space-1, 4px); color: var(--paper-text, #14171F); font-weight: 600; }
+/* No assigned job: the band ends with the two sentences, in the band's own colours and as wide as it. */
+.ew-next > .ew-empty { max-width: none; padding-top: var(--space-6, 24px); padding-bottom: var(--space-8, 32px); color: var(--on-ink-muted, #A3A9B5); }
+.ew-next > .ew-empty .ew-empty-title { color: var(--on-ink, #F4F2EC); font-size: var(--text-lg, 18px); }
+
+.ew-locked {
+  margin: 40px 0 0;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border: 1px solid var(--paper-line, #DCD8CE);
+  border-left: 4px solid var(--paper-text, #14171F);
+  border-radius: var(--radius, 4px);
+}
+.ew-locked + .ew-section { margin-top: var(--space-4, 16px); }
+
+/* ---------- Commute: one route strip per trip ---------- */
+.ew-trips {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8, 32px) 48px;
+  margin: 0;
+  padding: var(--space-6, 24px) 0 0;
+}
 .ew-trip {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: var(--space-1, 4px) var(--space-2, 8px);
-  padding: var(--space-2, 8px) 0;
-  border-bottom: 1px solid var(--border, #E3E3DE);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-3, 12px) var(--space-4, 16px);
 }
-.ew-trip:last-child { border-bottom: 0; }
-.ew-trip-label { font-weight: 600; }
-.ew-trip-data { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--space-1, 4px) var(--space-4, 16px); }
-.ew-trip.is-off .ew-trip-route { color: var(--muted, #5B6472); }
-.ew-detour {
-  margin: 0;
-  padding: var(--space-2, 8px) var(--space-4, 16px);
-  border-top: 1px solid var(--border, #E3E3DE);
+.ew-trip-label { font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif); font-size: 16px; font-weight: 600; font-stretch: 112%; }
+.ew-trip-data { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 var(--space-3, 12px); font-size: var(--text-sm, 13px); }
+.ew-trip-distance { font-variant-numeric: tabular-nums; }
+/* The strip: each station name hangs under its half of the line, the dot at the line's end. The
+   workplace is the filled station, home the open one. */
+.ew-trip-route { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.ew-station {
+  position: relative;
+  padding-top: var(--space-3, 12px);
+  border-top: 2px solid var(--paper-text, #14171F);
+  font-weight: 600;
 }
+.ew-station:last-child { padding-left: var(--space-2, 8px); text-align: right; }
+.ew-station::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--paper-text, #14171F);
+  border-radius: 50%;
+  background: var(--paper, #F4F2EC);
+}
+.ew-station:last-child::before { left: auto; right: 0; }
+.ew-station.is-work::before { background: var(--paper-text, #14171F); }
+/* A trip that is switched off: a dashed line, and the same words in the muted colour. */
+.ew-trip.is-off .ew-station { border-top-style: dashed; border-top-color: var(--paper-muted, #5A5F6B); color: var(--paper-muted, #5A5F6B); }
+.ew-trip.is-off .ew-station::before { border-color: var(--paper-muted, #5A5F6B); }
+.ew-trip.is-off .ew-station.is-work::before { background: var(--paper-muted, #5A5F6B); }
 
-/* ---------- Delivery rows ---------- */
+/* Under the strips: where work is and how far out of the way a delivery may take you, each under its label. */
+.ew-commute-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4, 16px) 48px; margin-top: var(--space-6, 24px); }
+.ew-workplace, .ew-detour { margin: 0; }
+.ew-fact-label { display: block; font-size: var(--text-xs, 12px); color: var(--paper-muted, #5A5F6B); }
+.ew-address { display: block; font-size: var(--text-sm, 13px); }
+
+/* ---------- Delivery rows: a quiet list ---------- */
 .ew-rows { list-style: none; margin: 0; padding: 0; }
-.ew-row {
-  padding: var(--space-4, 16px);
-  border-bottom: 1px solid var(--border, #E3E3DE);
-}
-.ew-row:last-child { border-bottom: 0; }
-.ew-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px); }
-/* The package is the row's title: one step above the 13 px text around it. */
-.ew-row-head .ew-strong { font-size: var(--text-md, 14px); }
-.ew-status { margin-left: auto; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.ew-status.is-in_progress { color: var(--accent, #1D5075); font-weight: 600; }
+.ew-row { padding: 20px 0; border-bottom: 1px solid var(--paper-line, #DCD8CE); }
+.ew-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.ew-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1, 4px) var(--space-2, 8px); }
+.ew-row-head .ew-strong { font-size: 16px; }
+.ew-status { margin-left: auto; font-size: var(--text-sm, 13px); color: var(--paper-muted, #5A5F6B); }
+.ew-status.is-in_progress { color: var(--paper-text, #14171F); font-weight: 600; }
+/* A new package: the signal colour, with ink words (paper words on it would be 2.9:1). */
 .ew-new {
-  padding: 0 var(--space-1, 4px);
-  border: 1px solid var(--accent, #1D5075);
+  padding: 0 6px;
   border-radius: var(--radius, 4px);
-  color: var(--accent, #1D5075);
+  background: var(--signal, #FF6A1A);
+  color: var(--ink, #0B0F17);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
 }
-.ew-row-meta { margin-top: var(--space-1, 4px); font-size: var(--text-xs, 12px); }
-.ew-stops, .ew-earnings {
+.ew-row-meta { margin-top: 2px; font-size: var(--text-sm, 13px); }
+.ew-stops {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2, 8px) var(--space-4, 16px);
-  margin: var(--space-4, 16px) 0 0;
+  gap: var(--space-3, 12px) var(--space-6, 24px);
+  margin: var(--space-3, 12px) 0 0;
 }
-.ew-stops dt, .ew-earnings dt { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
-.ew-stops dd, .ew-earnings dd { margin: 0; }
-.ew-earnings { margin: 0; padding: var(--space-4, 16px); }
-.ew-earnings dd { font-size: 16px; }
-.ew-row-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-4, 16px); margin-top: var(--space-4, 16px); }
+.ew-stops dt { font-size: var(--text-xs, 12px); color: var(--paper-muted, #5A5F6B); }
+.ew-stops dd { margin: 0; }
+.ew-place { display: block; }
+.ew-row-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) 20px; margin-top: var(--space-3, 12px); }
 
-/* ---------- The next job (issue 941) ----------
-   The first row of the assigned list is the one loud thing on the page: an accent bar down its left
-   side, the package in the large size, the stop times one step up, and "View job" as the page's only
-   filled button. Every other row and block stays quiet. The order of the list is the server's. */
-.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child {
-  /* 12 px on the left: with the 4 px bar the words start on the same line as the other rows'. */
-  padding: var(--space-6, 24px) var(--space-4, 16px) var(--space-6, 24px) var(--space-3, 12px);
-  border-left: 4px solid var(--accent, #1D5075);
-  background: var(--accent-soft, #E8EEF1);
+/* ---------- The next job: a boarding pass (the one bold element) ----------
+   A paper ticket on the ink band. Left: the package, then pickup and drop-off as the two stations of one
+   route line, each clock large in Archivo. Right, past the perforation: the stub with the reward and the
+   page's only orange action. The line is the job's carrier colour (first leg blue, second leg green, as
+   in the simulator); the orange is the package: it fills the pickup station while the job is assigned and
+   is a square on the line once the job is in progress. */
+.ew-next .ew-pass { padding-top: var(--space-4, 16px); padding-bottom: var(--space-8, 32px); border-bottom: 0; }
+.ew-pass-ticket {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 216px;
+  border-radius: var(--radius-lg, 6px);
+  background: var(--paper, #F4F2EC);
+  color: var(--paper-text, #14171F);
 }
-.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-head .ew-strong {
-  font-size: var(--text-lg, 18px);
-  line-height: 1.25;
+.ew-pass-main { min-width: 0; padding: var(--space-6, 24px); }
+.ew-pass .ew-row-head .ew-strong {
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 30px;
+  font-weight: 800;
+  font-stretch: 78%;
+  line-height: 1.1;
 }
-.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-stops dd { font-size: var(--text-md, 14px); }
-.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-stops dd .ew-mono,
-.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-stops dd.ew-mono { font-size: var(--text-md, 14px); font-weight: 500; }
-.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-links a:first-child {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--accent, #1D5075);
-  border-radius: var(--radius, 4px);
-  background: var(--accent, #1D5075);
-  color: var(--panel, #FFFFFF);
+
+.ew-pass-route { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin: 20px 0 0; }
+.ew-pass-stop { min-width: 0; }
+.ew-pass-stop:last-child { text-align: right; }
+.ew-pass-stop dt { font-size: var(--text-xs, 12px); font-weight: 600; }
+.ew-pass-stop dd { margin: 0; }
+/* "Day 1, 5:15 PM" is one text: the day small in the body font, the clock large in Archivo. */
+.ew-pass-day {
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: var(--text-sm, 13px);
+  font-weight: 400;
+  font-stretch: 100%;
+  letter-spacing: 0;
+  color: var(--paper-muted, #5A5F6B);
+}
+.ew-pass-time {
+  display: block;
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 52px;
+  font-weight: 800;
+  font-stretch: 78%;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The station name hangs under its half of the route line; the two halves meet in the middle. */
+.ew-pass-place {
+  position: relative;
+  display: block;
+  margin-top: var(--space-4, 16px);
+  padding-top: var(--space-3, 12px);
+  border-top: 4px solid var(--carrier-a, #3D8BFF);
   font-weight: 600;
+}
+.ew-pass[data-carrier="b"] .ew-pass-place { border-top-color: var(--carrier-b, #22C08A); }
+.ew-pass-stop:first-child .ew-pass-place { padding-right: var(--space-2, 8px); }
+.ew-pass-stop:last-child .ew-pass-place { padding-left: var(--space-2, 8px); }
+.ew-pass-place::before {
+  content: "";
+  position: absolute;
+  top: -11px;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--paper-text, #14171F);
+  border-radius: 50%;
+  background: var(--paper, #F4F2EC);
+}
+.ew-pass-stop:last-child .ew-pass-place::before { left: auto; right: 0; }
+/* The package: at the pickup station, then on the line, then at the drop-off station. */
+.ew-pass[data-status="assigned"] .ew-pass-stop:first-child .ew-pass-place::before,
+.ew-pass[data-status="completed"] .ew-pass-stop:last-child .ew-pass-place::before { background: var(--signal, #FF6A1A); }
+.ew-pass-parcel { display: none; }
+.ew-pass[data-status="in_progress"] .ew-pass-parcel {
+  display: block;
+  position: absolute;
+  /* Above both halves of the line: it sits where they meet, and the second half is drawn after it. */
+  z-index: 1;
+  top: -10px;
+  left: calc(100% - 8px);
+  width: 16px;
+  height: 16px;
+  border: 3px solid var(--paper-text, #14171F);
+  background: var(--signal, #FF6A1A);
+}
+
+/* The stub. The perforation is a dashed line with a notch at each end: two ink discs that sit half on
+   the ticket and half on the band behind it. */
+.ew-pass-stub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-4, 16px);
+  padding: var(--space-6, 24px);
+  border-left: 1px dashed var(--paper-muted, #5A5F6B);
+}
+.ew-pass-stub::before,
+.ew-pass-stub::after {
+  content: "";
+  position: absolute;
+  left: -9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink, #0B0F17);
+}
+.ew-pass-stub::before { top: -8px; }
+.ew-pass-stub::after { bottom: -8px; }
+.ew-pass-terms { display: grid; gap: var(--space-2, 8px); margin: 0; }
+.ew-pass-terms dt { font-size: var(--text-xs, 12px); color: var(--paper-muted, #5A5F6B); }
+.ew-pass-terms dd { margin: 0; }
+.ew-pass-terms > div:last-child { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2, 8px); }
+.ew-pass-reward {
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 44px;
+  font-weight: 800;
+  font-stretch: 78%;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ew-pass .ew-row-links { flex-direction: column; align-items: stretch; gap: var(--space-1, 4px); margin-top: 0; text-align: center; }
+/* The page's one orange action, set like the Business page's main action. Ink words on it are 6.7:1. */
+.ew-pass .ew-row-links a:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-4, 16px);
+  border-radius: var(--radius, 4px);
+  background: var(--signal, #FF6A1A);
+  color: var(--ink, #0B0F17);
+  font-family: var(--font-display, 'Archivo Variable', 'Inter', system-ui, sans-serif);
+  font-size: 16px;
+  font-weight: 700;
+  font-stretch: 112%;
   text-decoration: none;
 }
-.ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-links a:first-child:hover {
-  border-color: var(--accent-dark, #173E5B);
-  background: var(--accent-dark, #173E5B);
-}
+.ew-pass .ew-row-links a:first-child:hover { background: var(--signal-hover, #FF8748); }
+.ew-pass .ew-row-links a:last-child { display: flex; align-items: center; justify-content: center; min-height: 36px; }
 
 /* ---------- Actions ---------- */
-.ew a { color: var(--accent, #1D5075); }
+.ew a { color: var(--paper-text, #14171F); }
 /* 36 px like the editor's Close, which takes this button's place (#882). */
 .ew-btn {
   min-height: 36px;
   padding: 0 var(--space-4, 16px);
-  border: 1px solid var(--accent, #1D5075);
+  border: 1px solid var(--paper-text, #14171F);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--accent, #1D5075);
+  background: none;
+  color: var(--paper-text, #14171F);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
-.ew-btn:hover:not(:disabled) { background: var(--bg, #F7F7F4); }
-.ew-btn:disabled { color: var(--muted, #5B6472); border-color: var(--border, #E3E3DE); cursor: not-allowed; }
+.ew-btn:hover:not(:disabled) { background: var(--paper-text, #14171F); color: var(--on-ink, #F4F2EC); }
+.ew-btn:disabled { color: var(--paper-muted, #5A5F6B); border-color: var(--paper-line, #DCD8CE); cursor: not-allowed; }
+/* Every control of the workspace sits on paper (the pass is paper too), so the ring is ink. */
 .ew a:focus-visible,
 .ew button:focus-visible {
-  outline: 2px solid var(--accent, #1D5075);
+  outline: 2px solid var(--paper-text, #14171F);
   outline-offset: 2px;
   border-radius: var(--radius, 4px);
-  box-shadow: 0 0 0 1px var(--panel, #FFFFFF);
 }
 
+/* The two trips side by side, and a row's four facts on one line. */
+@media (min-width: 640px) {
+  .ew-trips, .ew-commute-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ew-stops { grid-template-columns: minmax(0, 3fr) minmax(0, 3fr) minmax(0, 2fr) minmax(0, 1fr); }
+}
+
+/* ---------- Narrow: the stub goes under the ticket, the perforation runs across ---------- */
+@media (max-width: 600px) {
+  .ew-pass-ticket { grid-template-columns: minmax(0, 1fr); }
+  .ew-pass-main { padding: 20px var(--space-4, 16px); }
+  /* The day on its own line: two clocks with their days do not fit side by side on a phone. */
+  .ew-pass-time { font-size: 38px; }
+  .ew-pass-day { display: block; line-height: 1.4; }
+  .ew-pass-stub { padding: var(--space-4, 16px); border-left: 0; border-top: 1px dashed var(--paper-muted, #5A5F6B); }
+  .ew-pass-stub::before { top: -9px; left: -8px; }
+  .ew-pass-stub::after { top: -9px; bottom: auto; left: auto; right: -8px; }
+  .ew-pass-terms { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+  .ew-pass-terms > div:last-child { display: block; text-align: right; }
+}
 /* ---------- 390 px ---------- */
 @media (max-width: 480px) {
-  .ew { padding: var(--space-4, 16px) var(--space-2, 8px); max-width: 100%; }
-  .ew-trip { grid-template-columns: minmax(0, 1fr); }
-  .ew-trip-data { grid-column: 1; }
-  .ew-stops { grid-template-columns: minmax(0, 1fr); }
-  /* 44 px touch targets (#882): the button, and the two links of a row, which were 19 px text links. */
+  .ew-name { font-size: 34px; }
+  .ew-top { padding-top: var(--space-6, 24px); }
+  /* 44 px touch targets (#882): the button, and the two links of a row. */
   .ew-btn { min-height: 44px; }
-  .ew-row { padding-bottom: var(--space-1, 4px); }
-  .ew-row-links { gap: 0 var(--space-4, 16px); margin-top: var(--space-1, 4px); }
+  .ew-row { padding: var(--space-4, 16px) 0 var(--space-1, 4px); }
+  .ew-row-links { gap: 0 20px; margin-top: var(--space-1, 4px); }
   .ew-row-links a { display: inline-flex; align-items: center; min-height: 44px; }
-  /* The next job keeps room under its filled button, which is 44 px tall here like every target. */
-  .ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child { padding: var(--space-4, 16px) var(--space-4, 16px) var(--space-4, 16px) var(--space-3, 12px); }
-  .ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-links { gap: var(--space-2, 8px) var(--space-4, 16px); margin-top: var(--space-4, 16px); }
-  .ew-section[aria-labelledby="ew-assigned-heading"] .ew-row:first-child .ew-row-links a:first-child { min-height: 44px; }
-}
-/* The commute at a glance on a wide screen: one line per trip, the numbers in a column on the right. */
-@media (min-width: 640px) {
-  .ew-trip { grid-template-columns: 72px minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-4, 16px); }
-  .ew-trip-data { grid-column: 3; justify-content: flex-end; }
-}
-@media (max-width: 390px) {
-  .ew h1 { font-size: 18px; }
-  .ew-earnings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ew-pass .ew-row-links { gap: var(--space-1, 4px); }
+  .ew-pass .ew-row-links a:last-child { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

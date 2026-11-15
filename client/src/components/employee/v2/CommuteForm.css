@@ -1,16 +1,17 @@
-/* Commute form, MVP III look (docs/mvp3.md P4, #685): hairline borders, the token radius, no shadow
-   except a 1px focus ring. Tokens read as var(--name, fallback); every fallback is the value in
-   client/src/styles/tokens.css. The departure times and the detour minutes are set in mono. */
+/* Commute form in the "night-shift transit ops" look (issue 957): white fields on paper with a border
+   dark enough to see (6:1), ink for the one filled button, no shadow. Colours are read as
+   var(--name, fallback); every fallback is the value in client/src/styles/tokens.css. The departure times and
+   the detour minutes are set in mono. */
 
 .cf {
   display: flex;
   flex-direction: column;
   gap: 16px;
   max-width: 640px;
-  color: var(--text, #171C24);
+  color: var(--paper-text, #14171F);
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
-  font-size: var(--text-sm, 13px);
-  line-height: 1.45;
+  font-size: var(--text-md, 14px);
+  line-height: 1.5;
 }
 
 .cf-row {
@@ -34,7 +35,7 @@
   margin: 0;
   padding: 0;
   font-weight: 600;
-  color: var(--text, #171C24);
+  color: var(--paper-text, #14171F);
 }
 
 .cf-home-name {
@@ -58,7 +59,7 @@
 
 .cf-hint {
   margin: 0;
-  color: var(--muted, #5B6472);
+  color: var(--paper-muted, #5A5F6B);
 }
 
 .cf select,
@@ -66,7 +67,7 @@
 .cf input[type='number'] {
   min-height: 40px;
   padding: 0 10px;
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--paper-muted, #5A5F6B);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
   color: inherit;
@@ -102,7 +103,7 @@
   flex: 1 1 auto;
   min-height: 40px;
   margin: 0;
-  accent-color: var(--accent, #1D5075);
+  accent-color: var(--ink, #0B0F17);
 }
 
 .cf-avail {
@@ -121,7 +122,7 @@
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: var(--accent, #1D5075);
+  accent-color: var(--ink, #0B0F17);
 }
 
 .cf-error {
@@ -139,27 +140,29 @@
 .cf-btn {
   min-height: 40px;
   padding: 0 16px;
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--paper-text, #14171F);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
-  color: var(--text, #171C24);
+  background: none;
+  color: var(--paper-text, #14171F);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
+/* Save commute is filled with ink: the orange is kept for the package's own actions. */
 .cf-btn-primary {
-  border-color: var(--accent, #1D5075);
-  background: var(--accent, #1D5075);
-  color: var(--panel, #FFFFFF);
+  background: var(--ink, #0B0F17);
+  color: var(--on-ink, #F4F2EC);
 }
 
 .cf-btn:hover:not(:disabled):not([aria-disabled='true']) {
-  border-color: var(--accent-dark, #173E5B);
+  background: var(--paper-text, #14171F);
+  color: var(--on-ink, #F4F2EC);
 }
 
 .cf-btn-primary:hover:not(:disabled):not([aria-disabled='true']) {
-  background: var(--accent-dark, #173E5B);
+  background: none;
+  color: var(--paper-text, #14171F);
 }
 
 /* Save is aria-disabled while a save is pending (#735: it keeps focus), and looks disabled. */
@@ -174,24 +177,15 @@
 .cf-btn:focus-visible,
 .cf select:focus-visible,
 .cf input:focus-visible {
-  outline: none;
-  border-color: var(--accent, #1D5075);
-  box-shadow: 0 0 0 1px var(--accent, #1D5075);
-}
-
-/* A checkbox is filled with the accent, so a 1px accent ring around it cannot be seen (#735): it gets
-   the outline of the page's buttons and links instead. */
-.cf-check input:focus-visible {
-  outline: 2px solid var(--accent, #1D5075);
+  outline: 2px solid var(--paper-text, #14171F);
   outline-offset: 2px;
-  box-shadow: none;
 }
 
 /* The time field's picker button is a tab stop of its own in Chrome, with a ring in the system blue
    (#735). A page cannot select "the picker button has focus"; it is the one state in which the field
    holds the focus without having it itself, so that is what gives the button the page's ring. */
 .cf input[type='time']:focus-within:not(:focus)::-webkit-calendar-picker-indicator {
-  outline: 2px solid var(--accent, #1D5075);
+  outline: 2px solid var(--paper-text, #14171F);
   outline-offset: 2px;
   border-radius: var(--radius, 4px);
 }
@@ -202,13 +196,13 @@
 
 .cf-message {
   padding: 10px 12px;
-  border: 1px solid var(--border, #E3E3DE);
+  border: 1px solid var(--paper-line, #DCD8CE);
+  border-left: 4px solid var(--paper-text, #14171F);
   border-radius: var(--radius, 4px);
-  background: var(--panel, #FFFFFF);
 }
 
 .cf-message-alert {
-  border-color: var(--danger, #A4322A);
+  border-left-color: var(--danger, #A4322A);
   color: var(--danger, #A4322A);
 }
 
