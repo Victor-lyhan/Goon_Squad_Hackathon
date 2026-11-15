@@ -19,6 +19,7 @@ import { adviseDraft, type AdviseCall, type AdviseDraft } from '../adviceModel';
 import { AdviceOptions } from '../AdviceOptions';
 import { NotificationsPanel } from '../activity/NotificationsPanel';
 import { DeliveryDetails } from '../DeliveryDetails';
+import { useHiddenDeliveries } from '../hiddenDeliveries';
 import { RECONNECTING_TEXT, RUN_CHANGED_NOTE, type BusinessWorkspaceState } from '../live/businessWorkspaceState';
 import { NewDeliveryForm, isEchoPress, pressOf, type Press } from '../NewDeliveryForm';
 import { sameTimes, type DraftTimes, type NewDeliveryDraft } from '../newDeliveryModel';
@@ -166,10 +167,12 @@ export function BusinessPageView({
   const stacked = useStacked();
   const screen = pageScreen(state, shipmentId);
   const { dashboard, businesses, employees } = state;
+  // Deliveries this business removed from its list (#949): hidden in this browser only, nothing is cancelled.
+  const hidden = useHiddenDeliveries(dashboard?.business.id ?? null, state.runId);
   // Recomputed only when the hook hands over a new dashboard (a same-version poll keeps the object).
   const model = useMemo(
-    () => (dashboard ? tableModel(dashboard, businesses, table) : null),
-    [dashboard, businesses, table],
+    () => (dashboard ? tableModel(dashboard, businesses, table, hidden.ids) : null),
+    [dashboard, businesses, table, hidden.ids],
   );
 
   if (screen.kind === 'loading') {
@@ -395,6 +398,9 @@ export function BusinessPageView({
             onNewDelivery={openNew}
             newDeliveryDisabled={closedText !== null}
             onClearFilters={clearFilters}
+            onRemove={hidden.hide}
+            removedCount={m.removed}
+            onShowAll={hidden.showAll}
           />
         </section>
         {/* In one column the aside holds the notifications only, and their own heading names them. */}

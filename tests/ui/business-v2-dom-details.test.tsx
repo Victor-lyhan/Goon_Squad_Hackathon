@@ -58,7 +58,7 @@ describe('shipments table cells in a real DOM (#609)', () => {
     expect(p.rows()).toHaveLength(DASHBOARD.outgoing.length + DASHBOARD.incoming.length);
     for (const row of p.rows()) {
       const cells = [...row.querySelectorAll('td')];
-      expect(cells).toHaveLength(10);
+      expect(cells).toHaveLength(11); // the ten columns and the Remove button's cell (#949)
       for (const td of cells) {
         expect(td.childNodes.length, `${td.dataset.label} of ${textOf(row)}`).toBe(1);
       }

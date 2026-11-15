@@ -124,15 +124,31 @@ export type TableState = { filters: RowFilters; sort: { key: SortKey; dir: SortD
 export const INITIAL_TABLE: TableState = { filters: NO_FILTERS, sort: { key: 'ready', dir: 'asc' } };
 
 export type TableModel = {
+  /** Every delivery in the list: the dashboard's, without the ones this business removed from its list. */
   all: ShipmentRow[];
   rows: ShipmentRow[];
   counts: StatusCount[];
+  /** How many of the dashboard's deliveries are hidden from the list ("2 removed · Show all", #949). */
+  removed: number;
 };
 
-/** Rows from the dashboard, filtered and sorted by the user's local table state. */
-export function tableModel(dashboard: BusinessDashboard, businesses: NetworkBusiness[], t: TableState): TableModel {
-  const all = buildRows(dashboard, businesses);
-  return { all, rows: sortRows(filterRows(all, t.filters), t.sort.key, t.sort.dir), counts: statusCounts(all) };
+const NONE_HIDDEN: ReadonlySet<string> = new Set();
+
+/**
+ * Rows from the dashboard, filtered and sorted by the user's local table state. `hidden` holds the IDs the
+ * business removed from its list (#949): those rows are left out of the list and its counts, nothing else.
+ */
+export function tableModel(
+  dashboard: BusinessDashboard, businesses: NetworkBusiness[], t: TableState, hidden: ReadonlySet<string> = NONE_HIDDEN,
+): TableModel {
+  const built = buildRows(dashboard, businesses);
+  const all = hidden.size === 0 ? built : built.filter((r) => !hidden.has(r.id));
+  return {
+    all,
+    rows: sortRows(filterRows(all, t.filters), t.sort.key, t.sort.dir),
+    counts: statusCounts(all),
+    removed: built.length - all.length,
+  };
 }
 
 /** Text of a refused "Try matching again": the server's message when it sent one. */
