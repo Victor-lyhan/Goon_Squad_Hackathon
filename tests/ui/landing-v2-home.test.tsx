@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import Landing, {
-  HOW_STEPS, HOW_TITLE, HowItWorks, LANDING_TITLE, LoadNote, STUDY_HREF, STUDY_LABEL, WORKSPACES,
+  HOW_STEPS, HOW_TITLE, HowItWorks, LANDING_TITLE, LandingTitle, LoadNote, STUDY_HREF, STUDY_LABEL, WORKSPACES,
 } from '../../client/src/pages/Landing';
 import { HERO_LEGEND } from '../../client/src/pages/LandingHeroMap';
 import type { NycSummary } from '../../client/src/pages/landingModel';
@@ -16,6 +16,8 @@ const workspaceLinks = (html: string) =>
     .filter((x) => /class="workspace-entry"/.test(x[1]))
     .map((x) => ({ href: /href="([^"]*)"/.exec(x[1])?.[1], body: x[2] }));
 const text = (html: string) => html.replace(/<[^>]+>/g, '');
+/** The title alone. React puts a preload hint for the logo in front of a fragment's markup; it is not part of the h1. */
+const titleMarkup = () => renderToStaticMarkup(<LandingTitle />).replace(/^<link rel="preload" as="image" [^>]*>/, '');
 
 describe('homepage content (#833)', () => {
   const summary: NycSummary = {
@@ -25,17 +27,28 @@ describe('homepage content (#833)', () => {
   const html = page({ initialSummary: summary });
   const copy = /<div class="landing-hero-copy">([\s\S]*?)<\/div>/.exec(html)![1];
 
-  it('has the title as its only h1, with the logo above it', () => {
+  it('has the title as its only h1, first in the text column, with no logo of its own next to it (#853)', () => {
     expect(LANDING_TITLE).toBe('Relay: packages ride the commute, cheaper and greener');
-    // The logo comes first (#784): decorative (empty alt), a file of this app.
-    const logo = '<img class="landing-logo" src="/brand/relay-logo.png" alt="" width="72" height="72"/>';
-    expect(copy.startsWith(`${logo}<h1 id="landing-title">${LANDING_TITLE}</h1>`)).toBe(true);
+    expect(copy.startsWith(titleMarkup())).toBe(true);
+    expect(copy.startsWith('<h1 id="landing-title" ')).toBe(true);
+    // The only picture of the page is the one inside the title: the separate logo above it is gone.
     expect(html.match(/<img /g)).toHaveLength(1);
+    expect(/<h1[\s\S]*?<\/h1>/.exec(html)![0]).toContain('<img ');
+    expect(html).not.toContain('class="landing-logo"');
     expect(html.match(/<h1[ >]/g)).toHaveLength(1);
     expect(html).toContain('<section class="landing-hero" aria-labelledby="landing-title">');
     // nothing else next to the title but the button and the two entries: no paragraph, no environment line
     expect(copy).not.toMatch(/<p[ >]/);
     expect(text(copy)).toBe(`${LANDING_TITLE}Watch a package${WORKSPACES.map((w) => `${w.title}${w.text}→`).join('')}`);
+  });
+
+  it('the hero is one centered column that holds the text and the map, and nothing else (#853)', () => {
+    const hero = /<section class="landing-hero"[^>]*>([\s\S]*?)<\/section>/.exec(html)![1];
+    expect(hero.startsWith('<div class="landing-hero-inner"><div class="landing-hero-copy">')).toBe(true);
+    expect(hero.endsWith('</ul></div></div>')).toBe(true); // the map's key, the map, the column
+    expect(hero.match(/class="landing-hero-(inner|copy|map)"/g)).toEqual([
+      'class="landing-hero-inner"', 'class="landing-hero-copy"', 'class="landing-hero-map"',
+    ]);
   });
 
   it('has the parts in order: the title, the button, Business and Employee, the map, How it works, See the numbers', () => {
@@ -80,6 +93,39 @@ describe('homepage content (#833)', () => {
     expect(src).not.toMatch(/helpPath|HELP_PATH|Guided demo/);
     // @ts-expect-error the prop is gone
     page({ helpPath: '/somewhere' });
+  });
+});
+
+describe('the title with the logo as its R (#853)', () => {
+  const h1 = titleMarkup();
+
+  it('draws the logo in place of the R, directly before "elay:", inside one word', () => {
+    expect(h1).toBe(
+      `<h1 id="landing-title" aria-label="${LANDING_TITLE}">`
+      + '<span class="landing-title-word">'
+      + '<img class="landing-title-logo" src="/brand/relay-logo.png" alt="" width="40" height="40"/>'
+      + '<span class="ui-sr-only">R</span>elay:</span>'
+      + ' packages ride the commute, cheaper and greener</h1>',
+    );
+  });
+
+  it('a screen reader hears "Relay": the logo is decorative, the R is in the text, and the label is the whole title', () => {
+    expect(/<img [^>]*>/.exec(h1)![0]).toContain(' alt=""');
+    expect(h1).not.toMatch(/aria-hidden|role=/); // nothing of the title is taken away from a screen reader
+    expect(text(h1)).toBe(LANDING_TITLE); // the text of the heading is still the title, letter for letter
+    expect(/aria-label="([^"]*)"/.exec(h1)![1]).toBe(LANDING_TITLE);
+    // The hidden letter is the kit's visually hidden class: in the page, not shown, and not display: none.
+    const sr = /\.ui-sr-only\{([^}]*)\}/.exec(readFileSync('client/src/ui/ui.css', 'utf8'))![1];
+    expect(sr).toMatch(/position:absolute/);
+    expect(sr).toMatch(/width:1px;height:1px/);
+    expect(sr).toMatch(/clip:rect\(0 0 0 0\)/);
+    expect(sr).not.toMatch(/display:\s*none|visibility/);
+    expect(readFileSync('client/src/pages/Landing.tsx', 'utf8')).toMatch(/import '\.\.\/ui\/ui\.css'/);
+  });
+
+  it('shows no letter R next to the logo: the title would read "RRelay"', () => {
+    const shown = h1.replace(/<span class="ui-sr-only">[^<]*<\/span>/, '');
+    expect(text(shown)).toBe(LANDING_TITLE.slice(1));
   });
 });
 

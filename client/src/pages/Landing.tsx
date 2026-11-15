@@ -8,10 +8,32 @@ import { ACCOUNTS_ERROR_TEXT } from '../ui/shellModel';
 import {
   NYC_UNAVAILABLE_TEXT, nycWorkspacePaths, startNycSummary, watchPackageHref, type NycSummary,
 } from './landingModel';
+import '../ui/ui.css'; // .ui-sr-only, for the title's hidden R
 import '../styles/landing.css';
 
 /** The title of the homepage (#833), its only h1. */
 export const LANDING_TITLE = 'Relay: packages ride the commute, cheaper and greener';
+/** The title's first word with its colon ("Relay:"): the logo is drawn in place of its first letter (#853). */
+const TITLE_WORD = LANDING_TITLE.slice(0, LANDING_TITLE.indexOf(' '));
+
+/**
+ * The title with the Relay logo as the R of "Relay" (#853). The logo is decorative (empty alt) and the letter
+ * it stands for is kept in the text, hidden from sight, so the text of the heading is still the whole title.
+ * The heading's label says the title in one piece, so a screen reader does not spell the word in two parts.
+ * The word and its colon are one box (landing.css), so a line never breaks between the logo and "elay:".
+ */
+export function LandingTitle() {
+  return (
+    <h1 id="landing-title" aria-label={LANDING_TITLE}>
+      <span className="landing-title-word">
+        <img className="landing-title-logo" src={LOGO_SRC} alt="" width={40} height={40} />
+        <span className="ui-sr-only">{TITLE_WORD[0]}</span>
+        {TITLE_WORD.slice(1)}
+      </span>
+      {LANDING_TITLE.slice(TITLE_WORD.length)}
+    </h1>
+  );
+}
 export const WATCH_LABEL = 'Watch a package';
 
 type WorkspaceKey = 'business' | 'employee';
@@ -127,11 +149,12 @@ function useNycSummary(initial?: NycSummary): NycSummary {
 }
 
 /**
- * The homepage (#833): a dark hero with the logo, the title, the large "Watch a package" button (it opens the
- * simulator on the story package and plays it), Business and Employee as two smaller entries, and a stylized
- * NYC map on which a package is relayed in a loop; under it "How it works" in three lines with the
- * "See the numbers" button to the study page. No stats line and no footer. The header shows no environment
- * line on this page (App.tsx).
+ * The homepage (#833): a dark hero with the title (the logo is its R, #853), the large "Watch a package"
+ * button (it opens the simulator on the story package and plays it), Business and Employee as two smaller
+ * entries, and a stylized NYC map on which a package is relayed in a loop; under it "How it works" in three
+ * lines with the "See the numbers" button to the study page. The hero's text and map sit in one centered
+ * column, and "How it works" has the same width (#853). No stats line and no footer. The header shows no
+ * environment line on this page (App.tsx).
  */
 export default function Landing({ initialSummary }: {
   /**
@@ -146,15 +169,16 @@ export default function Landing({ initialSummary }: {
   return (
     <div className="landing landing-nyc">
       <section className="landing-hero" aria-labelledby="landing-title">
-        <div className="landing-hero-copy">
-          {/* Decorative: the title next to it starts with the name (#784). */}
-          <img className="landing-logo" src={LOGO_SRC} alt="" width={72} height={72} />
-          <h1 id="landing-title">{LANDING_TITLE}</h1>
-          <WatchButton to={watchPackageHref(summary)} />
-          <WorkspaceEntries paths={nycWorkspacePaths(summary, readIdentity())} />
-          <LoadNote status={summary.status} />
+        {/* The dark ground runs edge to edge; the text and the map are in a centered column on it (#853). */}
+        <div className="landing-hero-inner">
+          <div className="landing-hero-copy">
+            <LandingTitle />
+            <WatchButton to={watchPackageHref(summary)} />
+            <WorkspaceEntries paths={nycWorkspacePaths(summary, readIdentity())} />
+            <LoadNote status={summary.status} />
+          </div>
+          <LandingHeroMap />
         </div>
-        <LandingHeroMap />
       </section>
       <HowItWorks />
     </div>
