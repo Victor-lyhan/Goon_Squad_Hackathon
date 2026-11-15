@@ -153,7 +153,8 @@ fieldset:disabled .addr-search__input {
   cursor: not-allowed;
 }
 
-@media (max-width: 390px) {
+/* From 480 px down (#882), like the form around it. */
+@media (max-width: 480px) {
   .addr-search {
     max-width: none;
     width: 100%;

@@ -13,7 +13,7 @@ import type { Draft } from '../commuteFormModel';
 import { CommuteSummary } from '../CommuteSummary';
 import { EmployeeWorkspace, NewJobAnnouncer } from '../EmployeeWorkspace';
 import { commuteSummary } from '../employeeWorkspaceModel';
-import { JobDetailV2, JobV2Missing, JobV2Other } from '../JobDetailV2';
+import { JobDetailV2, JobV2Failed, JobV2Missing, JobV2Other } from '../JobDetailV2';
 import { RECONNECTING_TEXT, RUN_CHANGED_NOTE, type EmployeeWorkspaceState } from '../live/employeeWorkspaceState';
 import {
   ERROR_TITLE, JOB_LOADING_TEXT, LOADING_TEXT, NOT_FOUND_TEXT, NOT_FOUND_TITLE, NO_EMPLOYEES_TEXT,
@@ -299,6 +299,9 @@ export function EmployeePageView({
       break;
     case 'job_missing':
       body = <div className="ep-job"><JobV2Missing onBack={onCloseJob} /></div>;
+      break;
+    case 'job_failed':
+      body = <div className="ep-job"><JobV2Failed onBack={onCloseJob} /></div>;
       break;
     case 'job_other':
       body = <div className="ep-job"><JobV2Other href={jobHref(screen.employeeId, jobId!)} onBack={onCloseJob} /></div>;

@@ -105,7 +105,7 @@ describe('POST /api/v2/planning/reset', () => {
 
     expect(status).toBe(503);
     expect(body).toEqual({
-      error: `No travel time is cached for ${PRINT} to ${CAFE}. Run npm run fetch:routes and commit fixtures/nyc/.`,
+      error: `A travel time is missing on this server. Run npm run fetch:routes and commit fixtures/nyc/ (${PRINT} to ${CAFE}).`,
       code: 'travel_data_missing',
     });
     await expectUntouched(api, before.run, before.saved, before.simulator);
@@ -203,7 +203,7 @@ describe('POST /api/v2/matches/recompute', () => {
 
     expect(status).toBe(409);
     expect(body).toEqual({ error: RECOMPUTE_LOCKED });
-    expect(body.error).toBe('The simulation is playing. Press Back to start in the simulator to recompute.');
+    expect(body.error).toBe('Playback has started, so press Back to start in the simulator to match again.');
     await expectUntouched(api, before.run, before.saved, before.simulator);
   }, T);
 

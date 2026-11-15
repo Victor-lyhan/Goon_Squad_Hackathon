@@ -136,7 +136,7 @@ describe('applyCommute', () => {
     const run = sampleRun();
     const before = structuredClone(run);
     const travel = tableTravel(tableWithNewHome());
-    expect(() => applyCommute(run, { ...employeeOf(run, 'emp-1'), id: 'emp-99' }, run.scenario.homes[0], travel)).toThrow('Employee not found');
+    expect(() => applyCommute(run, { ...employeeOf(run, 'emp-1'), id: 'emp-99' }, run.scenario.homes[0], travel)).toThrow('The employee is not in the run');
     expect(() => applyCommute(run, employeeOf(run, 'emp-1'), NEW_HOME, travel)).toThrow();
     expect(run).toEqual(before);
   });

@@ -75,7 +75,7 @@ describe('the homepage links to the study page with "See the numbers" (#796, #83
     expect(a.parentElement!.lastElementChild).toBe(a);
     expect(a.closest('.landing-hero')).toBeNull();
     expect(tabOrder(container).map(textOf)).toEqual([
-      WATCH_LABEL, 'BusinessSend a package and track it→', 'EmployeeSet a commute and see your deliveries→', 'See the numbers',
+      WATCH_LABEL, 'BusinessSend a package and track it', 'EmployeeSet a commute and see your deliveries', 'See the numbers',
     ]);
   });
 });

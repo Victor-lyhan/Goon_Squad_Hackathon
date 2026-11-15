@@ -39,7 +39,7 @@ describe('homepage content (#833)', () => {
     expect(html).toContain('<section class="landing-hero" aria-labelledby="landing-title">');
     // nothing else next to the title but the button and the two entries: no paragraph, no environment line
     expect(copy).not.toMatch(/<p[ >]/);
-    expect(text(copy)).toBe(`${LANDING_TITLE}Watch a package${WORKSPACES.map((w) => `${w.title}${w.text}→`).join('')}`);
+    expect(text(copy)).toBe(`${LANDING_TITLE}Watch a package${WORKSPACES.map((w) => `${w.title}${w.text}`).join('')}`);
   });
 
   it('the hero holds the centered column with the text, then the map outside it, and nothing else (#853, #869)', () => {
@@ -80,7 +80,7 @@ describe('homepage content (#833)', () => {
     expect(links[1].href).toBe('/employee/emp-a');
     ['Business', 'Employee'].forEach((t, i) => {
       expect(links[i].body).toContain(`<span class="workspace-title">${t}</span>`);
-      expect(text(links[i].body)).toBe(`${t}${WORKSPACES[i].text}→`);
+      expect(text(links[i].body)).toBe(`${t}${WORKSPACES[i].text}`); // no arrow after it (#879)
       expect(WORKSPACES[i].text.length).toBeLessThanOrEqual(40);
     });
     expect(html.match(/<a /g)).toHaveLength(4); // the button, the two entries and "See the numbers", nothing else
@@ -207,15 +207,19 @@ describe('landing.css rules', () => {
     const entries = /\.workspaces \{([^}]*)\}/.exec(css)![1];
     expect(entries).toMatch(/grid-template-columns: minmax\(0, 1fr\);/);
     expect(entries).toMatch(/max-width: 320px;/);
-    expect(css).toMatch(/\.watch-button \{ min-width: 320px;/); // the button's width from 600 px up
+    // The button is as wide as the entries wherever 320 px fit, at every width (#879), not only from 600 px up.
+    expect(/\.watch-button \{([^}]*)\}/.exec(css)![1]).toMatch(/min-width: min\(320px, 100%\);/);
+    expect(css).not.toMatch(/@media \(min-width/);
     expect(css.match(/\.workspaces \{[^}]*grid-template-columns/g)).toHaveLength(1);
     expect(narrow).toMatch(/\.workspaces \{ max-width: none; \}/);
-    expect(narrow).toMatch(/\.watch-button \{ display: flex; \}/);
+    expect(narrow).toMatch(/\.watch-button \{ display: flex; [^}]*\}/);
     expect(narrow).toMatch(/\.numbers-button \{ display: flex; \}/);
   });
   it('the button is large, light on the dark hero, and has a visible focus ring of its own', () => {
-    expect(css).toMatch(/\.watch-button \{[^}]*min-height: 56px/);
-    expect(css).toMatch(/\.watch-button \{[^}]*font-size: var\(--text-lg, 18px\)/);
+    // 72 px high with a 20 px label; 64 px and --text-lg on a phone (#879).
+    expect(css).toMatch(/\.watch-button \{[^}]*min-height: 72px/);
+    expect(css).toMatch(/\.watch-button \{[^}]*font-size: 20px/);
+    expect(narrow).toMatch(/\.watch-button \{ display: flex; min-height: 64px; font-size: var\(--text-lg, 18px\); \}/);
     expect(css).toMatch(/\.watch-button \{[^}]*background: var\(--panel, #FFFFFF\)/);
     expect(css).toMatch(/\.watch-button \{[^}]*\bcolor: var\(--text, #171C24\)/);
     const ring = /\.watch-button:focus-visible \{([^}]*)\}/.exec(css)![1];

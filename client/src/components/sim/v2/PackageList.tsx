@@ -28,10 +28,13 @@ export function PackageList(props: PackageListProps) {
   return <PackageListView {...props} detailsOpen={open} onToggleDetails={() => setOpen((o) => !o)} listId={listId} />;
 }
 
+/** The empty list (#883): what is missing, and where a package comes from. */
+export const NO_PACKAGES_TEXT = 'No packages in this run yet. Send one from the Business page.';
+
 /** The stateless render: tests call it as a function. */
 export function PackageListView({ items, selectedId, onSelect, detailsOpen: open, onToggleDetails, listId = 'sw-pkgs' }: PackageListViewProps) {
   if (items.length === 0) {
-    return <p className="sw-empty">No packages in this run yet.</p>;
+    return <p className="sw-empty">{NO_PACKAGES_TEXT}</p>;
   }
   return (
     <>
@@ -49,7 +52,7 @@ export function PackageListView({ items, selectedId, onSelect, detailsOpen: open
               >
                 <span className="sw-pkg-top">
                   <span className="sw-pkg-label" title={p.label}>{p.label}</span>
-                  <span className="sw-pkg-status sw-mono">{p.statusLabel}</span>
+                  <span className="sw-pkg-status">{p.statusLabel}</span>
                 </span>
                 <span className="sw-pkg-route" data-details-body="" hidden={!open}>{p.routeLabel}</span>
               </button>

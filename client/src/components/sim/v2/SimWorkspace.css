@@ -3,9 +3,11 @@
    as var(--name, fallback) with the token's own value as the fallback. Hairline borders, radius 4px,
    no shadows, no gradients. Inter for text; IBM Plex Mono (.sw-mono) for the numbers. */
 
+/* The header's height comes from client/src/ui/shell.css (64px since #868, PR #875). The fallback is that
+   same 64px: the old 48px one was stale and would have tucked the panels 16px under the header (#883). */
 .sim-v2 {
   position: fixed;
-  top: var(--app-header-h, 48px);
+  top: var(--app-header-h, 64px);
   left: 0;
   right: 0;
   bottom: 0;
@@ -77,10 +79,8 @@
   background: transparent;
   color: var(--muted, #5B6472);
   font: inherit;
-  font-size: var(--text-xs, 12px);
+  font-size: var(--text-sm, 13px);
   font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
   text-align: left;
   cursor: pointer;
 }
@@ -106,13 +106,15 @@
 /* ---------- Panel sections ---------- */
 .sw-section { padding: var(--space-3, 12px) 0; border-top: 1px solid var(--border, #E3E3DE); }
 .sw-section:first-child { border-top: 0; }
+/* One heading look for every panel (#883): section headings here, the inspector's and the journey's
+   titles and section headings use the same size, weight and colour. Sentence case: an all-caps label
+   was read out as "RUN SUMMARY" by Chrome's accessibility tree. */
 .sw-section-title {
   margin: 0 0 var(--space-2, 8px);
-  font-size: var(--text-xs, 12px);
+  font-size: var(--text-md, 14px);
   font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--muted, #5B6472);
+  line-height: 1.3;
+  color: var(--text, #171C24);
 }
 
 /* ---------- Journey frame ---------- */
@@ -128,10 +130,8 @@
 .sw-eyebrow {
   font-size: var(--text-xs, 12px);
   color: var(--accent, #1D5075);
-  text-transform: uppercase;
-  letter-spacing: .06em;
 }
-.sw-journey-title { font-size: 15px; font-weight: 600; color: var(--text, #171C24); }
+.sw-journey-title { font-size: var(--text-md, 14px); font-weight: 600; line-height: 1.3; color: var(--text, #171C24); }
 
 /* ---------- Buttons and fields ---------- */
 .sw-btn {
@@ -182,7 +182,7 @@
 .sw-pkg {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 2px;
+  gap: var(--space-1, 4px);
   width: 100%;
   padding: var(--space-2, 8px);
   border: 0;
@@ -201,6 +201,7 @@
    320 px panel "Navy Yard grinder burrs" fits beside it (#718); the ellipsis is left for a longer name. */
 .sw-pkg-top { display: flex; flex-wrap: nowrap; align-items: baseline; justify-content: space-between; gap: var(--space-2, 8px); }
 .sw-pkg-label { flex: 1 1 auto; max-width: 100%; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The status is a word ("At relay point"), not a number, so it stays in Inter (#883; it was mono). */
 .sw-pkg-status { flex: 0 0 auto; font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); white-space: nowrap; }
 .sw-pkg-route { font-size: var(--text-xs, 12px); color: var(--muted, #5B6472); }
 .sw-empty { margin: 0; padding: var(--space-3, 12px) 0; color: var(--muted, #5B6472); }
@@ -217,12 +218,17 @@
   border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .sw-summary-row dt { color: var(--muted, #5B6472); }
-.sw-summary-row dd { margin: 0; font-size: 15px; color: var(--text, #171C24); }
-/* Numbers and the package row's status column: IBM Plex Mono, digits of one width. */
+.sw-summary-row dd { margin: 0; font-size: var(--text-md, 14px); color: var(--text, #171C24); }
+/* With no package picked the Inspector says what to do next (#883). */
+.sw-summary-hint { margin: var(--space-3, 12px) 0 0; color: var(--muted, #5B6472); }
+/* The run summary's numbers: IBM Plex Mono, digits of one width. */
 .sw-mono { font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace); font-variant-numeric: tabular-nums; }
 
 /* ---------- The "Details" toggle of both panels (#832) ----------
-   One line per item; the secondary detail is under a real button, closed by default (Details.tsx). */
+   One line per item; the secondary detail is under a real button, closed by default (Details.tsx).
+   Its box is the panels' one chip look (#883), shared by the status filters (.pk-chip) and the
+   inspector's tags (.insp-tag, .insp-row-role): 24px tall, 12px text, 0 8px padding, a 1px hairline,
+   radius 4px. */
 .sw-details { display: grid; gap: var(--space-1, 4px); min-width: 0; }
 .sw-details-toggle {
   justify-self: start;

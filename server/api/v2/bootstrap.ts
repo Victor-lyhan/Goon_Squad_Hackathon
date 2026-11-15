@@ -18,6 +18,7 @@
 import type express from 'express';
 import type { Run as RunV2, Snapshot } from '../../../shared/v2/types';
 import { DEFAULT_GEMINI_MODEL } from '../../ai/env';
+import type { GeminiPause } from '../../ai/geminiPause';
 import { snapshotAt } from '../../domain/v2/simulation';
 import { buildTimeline } from '../../domain/v2/timeline';
 import type { FetchLike } from '../../geo/googleClient';
@@ -60,6 +61,12 @@ export type V2RuntimeOptions = {
     fetch?: FetchLike;
     log?: (line: string) => void;
     info?: (line: string) => void;
+    /**
+     * The one pause both POST /parse-request and POST /advise share (#884, server/ai/geminiPause.ts): after one
+     * failed Gemini call neither asks Gemini for 2 minutes, and `log` gets a line saying so. The app gives one
+     * (server/index.ts). Left out: no pause, every request with a key asks Gemini.
+     */
+    pause?: GeminiPause;
   };
 };
 
@@ -153,6 +160,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     // Reads the run's businesses and clock; it never changes the run (docs/mvp4.md F1).
     // Gemini first when a key was given, else (and on any failure) the offline parser.
     const { gemini } = options;
+    const geminiLog = gemini?.log ?? ((line: string) => console.warn(line));
     registerParseRequestRoutes(router, {
       store,
       gemini: gemini && {
@@ -161,12 +169,16 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         timeoutMs: gemini.timeoutMs,
         fetchImpl: gemini.fetch ?? options.fetch,
       },
-      log: gemini?.log ?? ((line) => console.warn(line)),
+      pause: gemini?.pause,
+      log: geminiLog,
       info: gemini?.info,
     });
     // The AI advisor (#862): reads the run and asks the engine about what-if variants; never changes the run.
-    // Same key and model as parse-request; its own 10 s budget for the whole Gemini conversation. Logs nothing.
+    // Same key and model as parse-request; its own 10 s budget for the whole Gemini conversation. It shares the
+    // pause with parse-request (#884) and logs one line only when its options are offline because of that pause.
     registerAdviseRoutes(router, {
+      pause: gemini?.pause,
+      log: geminiLog,
       store,
       travel,
       gemini: gemini && {

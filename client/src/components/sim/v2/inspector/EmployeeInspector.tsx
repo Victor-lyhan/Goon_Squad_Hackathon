@@ -51,7 +51,7 @@ export type EmployeeInspectorProps = LegHandlers & {
   onClear: () => void;
 };
 
-/** Right panel for a selected employee: each leg they carry, its stops, ETA, extra minutes and reward. */
+/** Right panel for a selected employee: each delivery leg they carry, its stops, ETA, extra minutes and reward. */
 export function EmployeeInspector({ model, onFocus, onClear, ...h }: EmployeeInspectorProps) {
   if (!model) return <NotInCity kind="employee" onClear={onClear} />;
   return (
@@ -65,9 +65,7 @@ export function EmployeeInspector({ model, onFocus, onClear, ...h }: EmployeeIns
           { key: 'reward', label: 'Total reward', value: <span className="insp-mono">{model.totalRewardLabel}</span> },
         ]}
       />
-      <Details about={model.name}>
-        <DefRows rows={[{ key: 'ident', label: 'ID', value: <span className="insp-mono">{model.ident}</span> }]} />
-      </Details>
+      {/* #883: no "ID EMP-7" line under Details any more; the panels never show a raw ID. */}
       <div className="insp-actions">
         <button type="button" className="insp-btn" aria-label={`Focus on this employee: ${model.name}`} onClick={() => onFocus(model.id)}>
           Focus on this employee

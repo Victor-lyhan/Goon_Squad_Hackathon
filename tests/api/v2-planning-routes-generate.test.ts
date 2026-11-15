@@ -114,7 +114,7 @@ describe('POST /api/v2/scenario/generate', () => {
 
     expect(status).toBe(400);
     expect(body).toStrictEqual({ error: INVALID_GENERATE, fieldErrors });
-    expect(body.error).toBe('Invalid scenario request');
+    expect(body.error).toBe('Fix the missing or wrong scenario options, then try again.');
     await expectUntouched(api, before.run, before.saved, before.simulator);
   }, T);
 
@@ -133,8 +133,8 @@ describe('POST /api/v2/scenario/generate', () => {
 
     expect(status).toBe(503);
     expect(body).toStrictEqual({
-      error: `No travel time is cached for ${featured.businessId} to ${featured.home.id}. `
-        + 'Run npm run fetch:routes and commit fixtures/nyc/.',
+      error: 'A travel time is missing on this server. Run npm run fetch:routes and commit fixtures/nyc/ '
+        + `(${featured.businessId} to ${featured.home.id}).`,
       code: 'travel_data_missing',
     });
     await expectUntouched(api, before.run, before.saved, before.simulator);
@@ -157,7 +157,7 @@ describe('POST /api/v2/scenario/generate', () => {
 
     expect(status).toBe(503);
     expect(body).toStrictEqual({
-      error: '1 of 18 businesses has no geocoded location. Run npm run fetch:routes and commit fixtures/nyc/.',
+      error: '1 of 18 businesses has no map location yet. Run npm run fetch:routes and commit fixtures/nyc/.',
       code: 'travel_data_missing',
     });
     await expectUntouched(api, before.run, before.saved, before.simulator);

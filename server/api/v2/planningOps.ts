@@ -15,13 +15,15 @@ import type {
 } from '../../../shared/v2/types';
 import { buildNycScenario } from '../../domain/v2/generator';
 
+// Copy (#888): one plain sentence each. A refused file always ends with "so it was not loaded": the run
+// on screen is unchanged. No text holds an ID, a status number or a contract name.
 export const RECOMPUTE_LOCKED =
-  'The simulation is playing. Press Back to start in the simulator to recompute.';
-export const INVALID_GENERATE = 'Invalid scenario request';
+  'Playback has started, so press Back to start in the simulator to match again.';
+export const INVALID_GENERATE = 'Fix the missing or wrong scenario options, then try again.';
 export const NOT_A_RELAY_FILE = 'This file is not a Relay scenario export, so it was not loaded.';
-export const MVP1_FILE =
-  'This file is from the synthetic-city version of Relay and cannot be loaded into the NYC version.';
-export const UNKNOWN_FILE_VERSION = 'This file has an unknown scenario version, so it was not loaded.';
+export const MVP1_FILE = 'This file is from an older version of Relay, so it was not loaded.';
+export const UNKNOWN_FILE_VERSION = 'This file is from another version of Relay, so it was not loaded.';
+export const INCOMPLETE_FILE = 'This file is not a complete Relay scenario export, so it was not loaded.';
 
 /** Travel data is missing, so nothing was built or loaded. The route answers 503 with `error` as the body. */
 export type PlanningUnavailable = {
@@ -114,7 +116,7 @@ export type GeneratePlan =
 
 // Zod's default texts name JavaScript types, so each field has one sentence of its own.
 const GENERATE_COPY: Record<string, string> = {
-  body: 'Send the scenario options as a JSON object',
+  body: 'The scenario options did not arrive, so choose them and try again',
   preset: 'Choose demo or random',
   seed: 'Seed must be a whole number',
   employees: 'Employees must be a whole number from 10 to 120',
@@ -151,7 +153,7 @@ export function planGenerate(body: unknown, inputs: GenerateInputs): GeneratePla
   if (missing > 0) {
     return unavailable(
       missing,
-      `${missing} of ${businesses.length} businesses ${missing === 1 ? 'has' : 'have'} no geocoded location. `
+      `${missing} of ${businesses.length} businesses ${missing === 1 ? 'has' : 'have'} no map location yet. `
         + 'Run npm run fetch:routes and commit fixtures/nyc/.',
     );
   }
@@ -281,7 +283,7 @@ function referenceProblem(run: Run): Problem | null {
     ['scenario.homes', 'home', scenario.homes],
     ['scenario.employees', 'employee', scenario.employees],
     ['scenario.shipments', 'delivery', scenario.shipments],
-    ['assignments.plans', 'delivery plan', plans],
+    ['assignments.plans', 'plan', plans],
     ['jobs', 'job', run.jobs],
   ];
   for (const [path, noun, items] of lists) {
@@ -289,8 +291,8 @@ function referenceProblem(run: Run): Problem | null {
     for (const [index, item] of items.entries()) {
       if (seen.has(item.id)) {
         return {
-          sentence: `This file lists the same ${noun} ID twice, so it was not loaded.`,
-          path: `${path}.${index}.id`, label: 'Duplicate ID',
+          sentence: `This file lists the same ${noun} twice, so it was not loaded.`,
+          path: `${path}.${index}.id`, label: 'Listed twice',
         };
       }
       seen.add(item.id);
@@ -307,55 +309,56 @@ function referenceProblem(run: Run): Problem | null {
   // A place is a business or a home of this file: the only IDs the travel cache and the matcher know.
   const places = new Set([...businesses, ...homes]);
 
-  // [path, owner (with article), target (with article), the referenced ID, the set it must be in]
-  type Ref = [string, string, string, string | undefined, Set<string>];
+  // [path, target (with article), the referenced ID, the set it must be in]. The path says which entry
+  // of the file names the target, so the sentence stays short.
+  type Ref = [string, string, string | undefined, Set<string>];
   const refs: Ref[] = [
     ...scenario.employees.flatMap((e, i): Ref[] => [
-      [`scenario.employees.${i}.businessId`, 'An employee', 'a business', e.businessId, businesses],
-      [`scenario.employees.${i}.homeId`, 'An employee', 'a home', e.homeId, homes],
+      [`scenario.employees.${i}.businessId`, 'a business', e.businessId, businesses],
+      [`scenario.employees.${i}.homeId`, 'a home', e.homeId, homes],
     ]),
     ...scenario.shipments.flatMap((s, i): Ref[] => [
-      [`scenario.shipments.${i}.originBusinessId`, 'A delivery', 'a business', s.originBusinessId, businesses],
-      [`scenario.shipments.${i}.destinationBusinessId`, 'A delivery', 'a business', s.destinationBusinessId, businesses],
+      [`scenario.shipments.${i}.originBusinessId`, 'a business', s.originBusinessId, businesses],
+      [`scenario.shipments.${i}.destinationBusinessId`, 'a business', s.destinationBusinessId, businesses],
     ]),
     ...run.trips.flatMap((t, i): Ref[] => [
-      [`trips.${i}.employeeId`, 'A commute trip', 'an employee', t.employeeId, employees],
-      [`trips.${i}.originPlaceId`, 'A commute trip', 'a place', t.originPlaceId, places],
-      [`trips.${i}.destinationPlaceId`, 'A commute trip', 'a place', t.destinationPlaceId, places],
+      [`trips.${i}.employeeId`, 'an employee', t.employeeId, employees],
+      [`trips.${i}.originPlaceId`, 'a place', t.originPlaceId, places],
+      [`trips.${i}.destinationPlaceId`, 'a place', t.destinationPlaceId, places],
     ]),
     ...plans.flatMap((p, i): Ref[] => [
-      [`assignments.plans.${i}.shipmentId`, 'A delivery plan', 'a delivery', p.shipmentId, shipments],
-      [`assignments.plans.${i}.relayBusinessId`, 'A delivery plan', 'a business', p.relayBusinessId, businesses],
+      [`assignments.plans.${i}.shipmentId`, 'a delivery', p.shipmentId, shipments],
+      [`assignments.plans.${i}.relayBusinessId`, 'a business', p.relayBusinessId, businesses],
       ...p.legs.flatMap((leg, j): Ref[] => [
-        [`assignments.plans.${i}.legs.${j}.employeeId`, 'A delivery plan', 'an employee', leg.employeeId, employees],
+        [`assignments.plans.${i}.legs.${j}.employeeId`, 'an employee', leg.employeeId, employees],
         ...leg.placeIds.map((placeId, k): Ref => [
-          `assignments.plans.${i}.legs.${j}.placeIds.${k}`, 'A delivery plan', 'a place', placeId, places,
+          `assignments.plans.${i}.legs.${j}.placeIds.${k}`, 'a place', placeId, places,
         ]),
         ...leg.stops.map((stop, k): Ref => [
-          `assignments.plans.${i}.legs.${j}.stops.${k}.placeId`, 'A delivery plan', 'a place', stop.placeId, places,
+          `assignments.plans.${i}.legs.${j}.stops.${k}.placeId`, 'a place', stop.placeId, places,
         ]),
       ]),
     ]),
     ...run.assignments.unmatched.map((u, i): Ref => [
-      `assignments.unmatched.${i}.shipmentId`, 'An unmatched delivery', 'a delivery', u.shipmentId, shipments,
+      `assignments.unmatched.${i}.shipmentId`, 'a delivery', u.shipmentId, shipments,
     ]),
     ...run.jobs.flatMap((job, i): Ref[] => [
-      [`jobs.${i}.planId`, 'A job', 'a delivery plan', job.planId, planIds],
-      [`jobs.${i}.shipmentId`, 'A job', 'a delivery', job.shipmentId, shipments],
-      [`jobs.${i}.employeeId`, 'A job', 'an employee', job.employeeId, employees],
-      [`jobs.${i}.pickup.placeId`, 'A job', 'a place', job.pickup.placeId, places],
-      [`jobs.${i}.dropoff.placeId`, 'A job', 'a place', job.dropoff.placeId, places],
+      [`jobs.${i}.planId`, 'a plan', job.planId, planIds],
+      [`jobs.${i}.shipmentId`, 'a delivery', job.shipmentId, shipments],
+      [`jobs.${i}.employeeId`, 'an employee', job.employeeId, employees],
+      [`jobs.${i}.pickup.placeId`, 'a place', job.pickup.placeId, places],
+      [`jobs.${i}.dropoff.placeId`, 'a place', job.dropoff.placeId, places],
     ]),
     ...run.events.flatMap((event, i): Ref[] => [
-      [`events.${i}.jobId`, 'A timeline event', 'a job', event.jobId, jobIds],
-      [`events.${i}.relayBusinessId`, 'A timeline event', 'a business', event.relayBusinessId, businesses],
+      [`events.${i}.jobId`, 'a job', event.jobId, jobIds],
+      [`events.${i}.relayBusinessId`, 'a business', event.relayBusinessId, businesses],
     ]),
   ];
-  for (const [path, owner, target, ref, known] of refs) {
+  for (const [path, target, ref, known] of refs) {
     if (ref !== undefined && !known.has(ref)) {
       return {
-        sentence: `${owner} in this file refers to ${target} that is not in the file, so it was not loaded.`,
-        path, label: `Unknown ${target.replace(/^an? /, '')}`,
+        sentence: `This file names ${target} it does not list, so it was not loaded.`,
+        path, label: 'Not in this file',
       };
     }
   }
@@ -401,7 +404,7 @@ function travelProblem(run: Run, travel: TravelPairs): Problem | null {
     const missing = pairs.find(([a, b]) => a !== b && !travel.has(a, b));
     if (missing) {
       return {
-        sentence: 'A commute trip in this file drives between places this server has no travel time for, so it was not loaded.',
+        sentence: 'A commute in this file has no travel time, so it was not loaded.',
         path: `trips.${i}.${missing[2]}`, label: NO_TRAVEL_TIME,
       };
     }
@@ -411,7 +414,7 @@ function travelProblem(run: Run, travel: TravelPairs): Problem | null {
       for (let k = 1; k < leg.placeIds.length; k++) {
         if (leg.placeIds[k - 1] !== leg.placeIds[k] && !travel.has(leg.placeIds[k - 1], leg.placeIds[k])) {
           return {
-            sentence: 'A delivery plan in this file drives between places this server has no travel time for, so it was not loaded.',
+            sentence: 'A delivery in this file has no travel time, so it was not loaded.',
             path: `assignments.plans.${i}.legs.${j}.placeIds.${k}`, label: NO_TRAVEL_TIME,
           };
         }
@@ -441,10 +444,7 @@ export function parseImportedRun(body: unknown, travel: TravelPairs): ImportPlan
 
   const parsed = RunSchema.safeParse(body);
   if (!parsed.success) {
-    return invalid(
-      'This file is not a complete Relay scenario export, so it was not loaded.',
-      shapeProblems(body, parsed.error.issues),
-    );
+    return invalid(INCOMPLETE_FILE, shapeProblems(body, parsed.error.issues));
   }
   // The file itself, not Zod's output, so nothing the file holds is dropped.
   const run = structuredClone(body) as Run;
@@ -456,8 +456,7 @@ export function parseImportedRun(body: unknown, travel: TravelPairs): ImportPlan
   if (missing > 0) {
     return unavailable(
       missing,
-      `Travel times are not cached on this server for ${missing} ${missing === 1 ? 'place' : 'places'} in this file, `
-        + 'so it was not loaded.',
+      `This file has ${missing} ${missing === 1 ? 'place' : 'places'} without travel times, so it was not loaded.`,
     );
   }
 

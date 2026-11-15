@@ -154,12 +154,12 @@ describe('POST /api/v2/scenario/import: refused files', () => {
         run.scenario.homes.push({ id: 'home-099', neighborhood: 'Elsewhere', lat: 40.6, lng: -73.9 });
         run.scenario.employees[0].homeId = 'home-099';
       }),
-      { error: 'Travel times are not cached on this server for 1 place in this file, so it was not loaded.' }],
+      { error: 'This file has 1 place without travel times, so it was not loaded.' }],
     ['a run that refers to a place that is not in the file',
       () => edited((run) => { run.scenario.employees[0].homeId = 'home-404'; }),
       {
-        error: 'An employee in this file refers to a home that is not in the file, so it was not loaded.',
-        fieldErrors: { 'scenario.employees.0.homeId': 'Unknown home' },
+        error: 'This file names a home it does not list, so it was not loaded.',
+        fieldErrors: { 'scenario.employees.0.homeId': 'Not in this file' },
       }],
     ['a run with a part missing', () => edited((run) => { delete run.trips; }),
       { error: NOT_COMPLETE, fieldErrors: { trips: 'Missing' } }],
@@ -178,8 +178,8 @@ describe('POST /api/v2/scenario/import: refused files', () => {
 
   it('the messages are the ones the simulator shows', () => {
     expect(NOT_A_RELAY_FILE).toBe('This file is not a Relay scenario export, so it was not loaded.');
-    expect(MVP1_FILE).toBe('This file is from the synthetic-city version of Relay and cannot be loaded into the NYC version.');
-    expect(UNKNOWN_FILE_VERSION).toBe('This file has an unknown scenario version, so it was not loaded.');
+    expect(MVP1_FILE).toBe('This file is from an older version of Relay, so it was not loaded.');
+    expect(UNKNOWN_FILE_VERSION).toBe('This file is from another version of Relay, so it was not loaded.');
   });
 
   it('the MVP 1 file is a real one: schemaVersion 1 with the grid and the hubs', () => {

@@ -209,7 +209,8 @@ describe('no MVP 1 run', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'server/index.ts'), 'utf8');
     const imported = [...source.matchAll(/from '(\.\/[^']+)'/g)].map((m) => m[1]).sort();
     // './ai/env' (#785): the Gemini key and model names for POST /api/v2/parse-request, read like './geo/env'.
-    expect(imported).toStrictEqual(['./ai/env', './api/v2/bootRun', './api/v2/bootstrap', './api/v2/router', './geo/env', './geo/googleClient']);
+    // './ai/geminiPause' (#884): the one pause parse-request and advise share, made once per server.
+    expect(imported).toStrictEqual(['./ai/env', './ai/geminiPause', './api/v2/bootRun', './api/v2/bootstrap', './api/v2/router', './geo/env', './geo/googleClient']);
     expect(source).not.toMatch(/createStore|startClockTicker|createInitialRun/);
 
     for (const gone of ['businesses', 'commute', 'employees', 'map', 'planning', 'portals', 'scenario', 'shipments', 'simulator', 'ticker']) {

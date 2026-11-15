@@ -27,6 +27,7 @@ const NUMBER_FILES: Record<string, string> = {
   'units.ts': 'unit definitions and output rounding',
   'cli.ts': 'exit codes, text formatting and how often progress is printed',
   'csv.ts': 'none: the column names of runs.csv; it copies run totals',
+  'fonts.ts': 'the weights of the fonts the study page embeds (#887); it reads font files, no result',
   'page.ts': 'chart geometry, CSS sizes and number formatting of the study page; it reads totals, it computes no comparison',
   'parallel.ts': 'the number of worker threads (CPU cores less one)',
   'summary.ts': 'which percentiles of the runs are reported (pinned below); it reads run totals and converts them with baseline.ts and units.ts',

@@ -129,7 +129,7 @@ describe('POST /api/v2/simulator/control: bad requests', () => {
 
     expect(status).toBe(400);
     expect(Object.keys(body).sort()).toEqual(['error', 'fieldErrors']);
-    expect(body.error).toBe('Invalid simulator control');
+    expect(body.error).toBe('The simulator did not understand that control, so reload the page and try again.');
     expect(Object.keys(body.fieldErrors)).toEqual([field]);
     await server.store.flush();
     expect(server.store.get()).toBe(before); // same object: no mutation happened
@@ -142,7 +142,7 @@ describe('POST /api/v2/simulator/control: bad requests', () => {
   it('the seek message names the run\'s bounds', async () => {
     server = await startControlServer(runWith());
     const { body } = await server.control({ action: 'seek', timeMin: 2161 });
-    expect(body.fieldErrors).toEqual({ timeMin: 'Must be between 930 and 2160' });
+    expect(body.fieldErrors).toEqual({ timeMin: 'Choose a time inside the simulation hours' });
   }, T);
 
   it('malformed JSON -> the app\'s JSON 400, version unchanged', async () => {

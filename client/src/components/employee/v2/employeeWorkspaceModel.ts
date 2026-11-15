@@ -57,6 +57,9 @@ export type DeliveryRow = {
   commute: string;
   jobHref: string;
   simulatorHref: string;
+  /** Names of the row's two links for a screen reader, so two rows do not both read "View job" (#882). */
+  jobLinkLabel: string;
+  simulatorLinkLabel: string;
 };
 
 export type EarningsModel = { earned: string; projected: string };
@@ -146,6 +149,9 @@ export function deliveryRows(
       commute: morning ? `Morning commute from ${nbh}` : `Evening commute to ${nbh}`,
       jobHref: `/employee/${encodeURIComponent(job.employeeId)}?job=${encodeURIComponent(job.id)}`,
       simulatorHref: simulatorHref(job.shipmentId),
+      // The visible words come first, so voice control still finds the link by what is on screen.
+      jobLinkLabel: `View job: ${shipment.label}`,
+      simulatorLinkLabel: `Watch in simulator: ${shipment.label}`,
     };
   });
 }
@@ -177,4 +183,29 @@ export function earnings(dashboard: EmployeeDashboard): EarningsModel {
 
 /** "Back to start" is the simulator's control that returns a locked run to planning (#734, DECISIONS pass 74). */
 export const LOCKED_TEXT = 'The run is playing, so commute edits are closed until you press Back to start in the simulator.';
-export const EMPTY_TEXT = 'No deliveries assigned yet. Packages that fit your commute appear here automatically.';
+
+// ---------- Empty lists (#882): what is missing, then why, then what brings one ----------
+
+/** An empty list: a short title and one sentence of why. Rendered as one paragraph, title first. */
+export type EmptyState = { title: string; why: string };
+
+export const EMPTY_TITLE = 'No deliveries for you yet.';
+export const EMPTY_WHY = 'A package shows up here when a business sends one that fits your commute and your detour limit.';
+/** Both commutes are switched off in the saved commute: nothing can be matched until one is on. */
+export const EMPTY_WHY_UNAVAILABLE = 'You are not available on either commute, so no package can be given to you. Turn one on in Edit commute.';
+/** The assigned list's whole empty text, as one string. */
+export const EMPTY_TEXT = `${EMPTY_TITLE} ${EMPTY_WHY}`;
+
+export const COMPLETED_EMPTY: EmptyState = {
+  title: 'No completed deliveries yet.',
+  why: 'A delivery moves here once you have dropped the package off.',
+};
+
+/**
+ * The assigned list's empty state. The reason is read from the saved commute (both trips off), never
+ * worked out from a match: the page does not know why the matcher passed a carrier over.
+ */
+export function assignedEmpty(summary: Pick<CommuteSummaryModel, 'trips'>): EmptyState {
+  const off = summary.trips.length > 0 && summary.trips.every((t) => !t.available);
+  return { title: EMPTY_TITLE, why: off ? EMPTY_WHY_UNAVAILABLE : EMPTY_WHY };
+}

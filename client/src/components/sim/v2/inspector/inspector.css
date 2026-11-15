@@ -16,7 +16,6 @@
 }
 
 .insp-mono,
-.insp-ident,
 .insp-count,
 .insp-stop-time,
 .insp-leg-nums dd {
@@ -33,16 +32,17 @@
   border-bottom: 1px solid var(--border, #E3E3DE);
 }
 .insp-head-text { flex: 1 1 auto; min-width: 0; }
+/* "Café · Brooklyn" or "Employee": words, so Inter in sentence case (#883; it was mono capitals). */
 .insp-ident {
   font-size: var(--text-xs, 12px);
-  letter-spacing: .06em;
-  text-transform: uppercase;
   color: var(--accent, #1D5075);
 }
+/* The panels' one heading look (#883, .sw-section-title in SimWorkspace.css). */
 .insp-title {
   margin: var(--space-1, 4px) 0 0;
-  font-size: 15px;
+  font-size: var(--text-md, 14px);
   font-weight: 600;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
@@ -65,14 +65,14 @@
 .insp-section-title {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   margin: 0 0 var(--space-2, 8px);
-  font-size: var(--text-xs, 12px);
+  font-size: var(--text-md, 14px);
   font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--muted, #5B6472);
+  line-height: 1.3;
+  color: var(--text, #171C24);
 }
-.insp-count { font-weight: 400; }
+.insp-count { font-size: var(--text-xs, 12px); font-weight: 400; color: var(--muted, #5B6472); }
 .insp-empty { margin: 0; color: var(--muted, #5B6472); }
 
 .insp-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2, 8px); }
@@ -89,7 +89,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 2px var(--space-2, 8px);
+  gap: var(--space-1, 4px) var(--space-2, 8px);
   width: 100%;
   margin: 0;
   padding: var(--space-2, 8px);
@@ -121,10 +121,15 @@
   padding: 0 var(--space-2, 8px) var(--space-1, 4px);
   font-size: var(--text-xs, 12px);
 }
-.insp-row-role {
-  padding: 0 var(--space-1, 4px);
+/* The panels' one chip look (#883, .sw-details-toggle): 24px tall, 0 8px, 12px text, 1px hairline. */
+.insp-row-role,
+.insp-tag {
+  display: inline-block;
+  padding: 0 var(--space-2, 8px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
+  font-size: var(--text-xs, 12px);
+  line-height: 22px;
   color: var(--text, #171C24);
 }
 .insp-fig { white-space: nowrap; }
@@ -163,15 +168,8 @@
 .insp-stop-time { color: var(--text, #171C24); }
 .insp-stop-sep,
 .insp-stop-kind { color: var(--muted, #5B6472); }
-.insp-tag {
-  padding: 0 var(--space-1, 4px);
-  border: 1px solid var(--accent, #1D5075);
-  border-radius: var(--radius, 4px);
-  color: var(--accent, #1D5075);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
+/* "Relay point" on a stop: the chip in the accent colour; the words say it, not the colour. */
+.insp-tag { border-color: var(--accent, #1D5075); color: var(--accent, #1D5075); }
 
 .insp-leg-nums {
   display: grid;

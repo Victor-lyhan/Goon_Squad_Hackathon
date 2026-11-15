@@ -157,7 +157,7 @@ describe('CommuteForm.css', () => {
   const css = readFileSync('client/src/components/employee/v2/CommuteForm.css', 'utf8');
 
   it('has a 390 px rule and focus-visible styles', () => {
-    expect(css).toMatch(/@media \(max-width: 390px\)/);
+    expect(css).toMatch(/@media \(max-width: 480px\)/); // #882: phone rules from 480 px down, so 390 px has them
     expect(css).toContain(':focus-visible');
     expect(css).toMatch(/min-height: 40px/);
   });

@@ -266,18 +266,18 @@ describe('POST /api/v2/shipments: two different deliveries in parallel', () => {
 
 describe('POST /api/v2/shipments: refusals leave the run as it was', () => {
   const REQUIRED = {
-    clientRequestId: 'A request ID is required', originBusinessId: 'Choose a sender',
+    clientRequestId: 'The delivery details did not arrive, so reload the page and send again', originBusinessId: 'Choose a sender',
     destinationBusinessId: 'Choose a recipient', label: 'Package name is required',
     category: 'Choose a package type', description: 'Describe the contents', weightKg: 'Enter the weight in kg',
     readyMin: 'Choose a ready time', deadlineMin: 'Choose a deliver-by time',
   };
 
   it.each<[string, unknown, Record<string, string>]>([
-    ['no body', undefined, { body: 'Send the delivery details as a JSON object' }],
-    ['a body that is not an object', [deliveryBody()], { body: 'Send the delivery details as a JSON object' }],
+    ['no body', undefined, { body: 'The delivery details did not arrive, so reload the page and send again' }],
+    ['a body that is not an object', [deliveryBody()], { body: 'The delivery details did not arrive, so reload the page and send again' }],
     ['missing fields', {}, REQUIRED],
     ['package fields', deliveryBody({ clientRequestId: '', label: '  ', category: 'crate', description: 5, weightKg: 3 }), {
-      clientRequestId: 'A request ID is required', label: 'Package name is required',
+      clientRequestId: 'The delivery details did not arrive, so reload the page and send again', label: 'Package name is required',
       category: 'Choose envelope or small box', description: 'The description must be text', weightKg: 'Max 2 kg',
     }],
     ['unknown businesses', deliveryBody({ originBusinessId: 'biz-nowhere', destinationBusinessId: 'biz-nobody' }), {
