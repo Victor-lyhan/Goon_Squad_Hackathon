@@ -90,10 +90,17 @@ describe('buildJourney: places, carriers and movers', () => {
     expect(new Set(direct.routes.filter((r) => r.kind === 'leg').map((r) => r.tone))).toEqual(new Set(['leg1']));
     expect(new Set(relayAt(T.overnight).routes.filter((r) => r.kind === 'leg').map((r) => r.tone))).toEqual(new Set(['leg1', 'leg2']));
   });
-  it('movers: the package and its carriers only, from the snapshot', () => {
-    const j = relayAt(T.overnight);
-    expect(j.movers.map((m) => [m.id, m.kind]).sort()).toEqual([['emp-2', 'vehicle'], ['emp-3', 'vehicle'], ['shp-2', 'package']]);
-    expect(j.movers.find((m) => m.id === 'shp-2')).toMatchObject({ lat: 40.7041, lng: -73.9867 });
+  // #851: the sample's snapshot places emp-3, emp-2 and emp-9 at every minute; a carrier is on the journey
+  // map only during the commute in which it handles the package (the sample has no `trips`, so that is the
+  // part around the package: emp-3 1039 to 1062, emp-2 1949 to 1977).
+  it('movers: the package, and a carrier only while it handles the package, from the snapshot', () => {
+    const ids = (t: number) => relayAt(t).movers.map((m) => [m.id, m.kind]).sort();
+    expect(ids(T.beforePickup)).toEqual([['shp-2', 'package']]);
+    expect(ids(T.onLeg1)).toEqual([['emp-3', 'vehicle'], ['shp-2', 'package']]);
+    expect(ids(T.overnight)).toEqual([['shp-2', 'package']]);
+    expect(ids(T.onLeg2)).toEqual([['emp-2', 'vehicle'], ['shp-2', 'package']]);
+    expect(ids(T.afterDelivery)).toEqual([['shp-2', 'package']]);
+    expect(relayAt(T.overnight).movers.find((m) => m.id === 'shp-2')).toMatchObject({ lat: 40.7041, lng: -73.9867 });
   });
 });
 
@@ -282,16 +289,16 @@ describe('the journey on the map: colors, widths, symbols, labels, badges and dr
   });
 
   it('carrier vehicles carry their letter, in their colour; a direct journey has only A', () => {
-    const specs = specsOf(relayAt(T.onLeg1));
-    const vehicles = spec<ScatterSpec>(specs, 'movers-vehicle')!.data;
-    expect(vehicles.map((d) => [d.id, hex(d.fillColor), d.radius])).toEqual([
-      ['emp-3', '#1D5075', L.BADGED_VEHICLE_RADIUS],
-      ['emp-2', '#0F8A5F', L.BADGED_VEHICLE_RADIUS],
-    ]);
-    const badges = spec<TextSpec>(specs, 'movers-vehicle-badge')!;
-    expect(badges.data.map((d) => [d.id, d.text, d.position])).toEqual(vehicles.map((v, i) => [v.id, ['A', 'B'][i], v.position]));
-    expect(badges.props.pickable).toBe(false);
-    expect(specs.map((x) => x.id).indexOf('movers-vehicle-badge')).toBe(specs.map((x) => x.id).indexOf('movers-vehicle') + 1);
+    // #851: one carrier at a time: A on its evening commute, B on its morning commute.
+    for (const [t, id, color, letter] of [[T.onLeg1, 'emp-3', '#1D5075', 'A'], [T.onLeg2, 'emp-2', '#0F8A5F', 'B']] as const) {
+      const specs = specsOf(relayAt(t));
+      const vehicles = spec<ScatterSpec>(specs, 'movers-vehicle')!.data;
+      expect(vehicles.map((d) => [d.id, hex(d.fillColor), d.radius])).toEqual([[id, color, L.BADGED_VEHICLE_RADIUS]]);
+      const badges = spec<TextSpec>(specs, 'movers-vehicle-badge')!;
+      expect(badges.data.map((d) => [d.id, d.text, d.position])).toEqual(vehicles.map((v) => [v.id, letter, v.position]));
+      expect(badges.props.pickable).toBe(false);
+      expect(specs.map((x) => x.id).indexOf('movers-vehicle-badge')).toBe(specs.map((x) => x.id).indexOf('movers-vehicle') + 1);
+    }
     const sim = simAt(T.onLeg1);
     const withAna = { ...sim, snapshot: { ...sim.snapshot, markers: [...sim.snapshot.markers, { employeeId: 'emp-1', lat: 40.7, lng: -73.99, servicing: false }] } };
     const direct = journeyOf(buildJourney({ shipmentId: 'shp-1', sim: withAna, map }));
