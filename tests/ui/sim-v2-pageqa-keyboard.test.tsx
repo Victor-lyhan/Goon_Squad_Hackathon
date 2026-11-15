@@ -209,9 +209,12 @@ describe('the one Play/Pause button: announced in a live region, Pause reachable
     expect(checkControls(playing).bad).toEqual([]);
   });
 
-  it('the journey header status is a polite live region too', () => {
+  // #725: one polite region announces a step (the step line under Play/Pause); the header status changes
+  // with the same step, so as a second live region it made a screen reader read every step twice.
+  it('the journey header status shows the status but is not a second live region', () => {
     const journeyStatus = one(playing, (n) => hasClass(n, 'jt__status'), 'journey status');
-    expect(journeyStatus.attrs['aria-live']).toBe('polite');
+    expect(journeyStatus.attrs['aria-live']).toBeUndefined();
+    expect(journeyStatus.attrs.role).toBeUndefined();
     expect(readText(journeyStatus)).toBe(`Status ${relayJourney.statusLabel}`);
   });
 });

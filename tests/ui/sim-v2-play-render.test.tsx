@@ -107,9 +107,11 @@ describe('the step line', () => {
 });
 
 describe('OvernightCard', () => {
-  it('is a status with a moon icon hidden from screen readers and the text it is given', () => {
+  it('is a card with a moon icon hidden from screen readers and the text it is given', () => {
     const html = renderToStaticMarkup(<OvernightCard text="Overnight at Brooklyn Roasting" />);
-    expect(html).toMatch(/^<p class="spc-overnight" role="status">/);
+    // #725: not a live region itself; the page puts it into the map's always-mounted role="status".
+    expect(html).toMatch(/^<p class="spc-overnight">/);
+    expect(html).not.toContain('role=');
     expect(html).toMatch(/<svg[^>]*aria-hidden="true"[^>]*>/);
     expect(text(html)).toBe('Overnight at Brooklyn Roasting');
     expect(html).not.toMatch(/<button|<a\b/);
@@ -194,7 +196,7 @@ describe('the one Play/Pause button in the page', () => {
     const { html, tree } = layout(journeyHook(), pkg('shp-2'), { ...running, overnight: true });
     expect(tree.filter((e) => e.type === OvernightCard).map((e) => e.props.text)).toEqual(['Overnight at Brooklyn Roasting']);
     const mapSlot = html.slice(html.indexOf('class="spc-map"'), html.indexOf('id="sim-v2-right-body"'));
-    expect(mapSlot).toMatch(/<p class="spc-overnight" role="status">.*Overnight at Brooklyn Roasting<\/span><\/p>/);
+    expect(mapSlot).toMatch(/<div class="spc-announce" role="status"><p class="spc-overnight">.*Overnight at Brooklyn Roasting<\/span><\/p><\/div>/);
     expect(playPauseIn(html).name).toBe('Pause');
     expect(html).not.toMatch(/Overnight at biz-/); // the name, never the ID
   });
@@ -224,7 +226,7 @@ describe('the one Play/Pause button in the page', () => {
     const { html } = layout(journeyHook(), pkg('shp-3'));
     const b = playPauseIn(html);
     expect(b.name).toBe('Play');
-    expect(b.attrs).toMatch(/disabled=""/);
+    expect(b.attrs).toMatch(/aria-disabled="true"/);
     expect(b.attrs).toContain(`aria-describedby="${PLAY_NOTE_ID}"`);
     expect(html).toContain(`id="${PLAY_NOTE_ID}">${NO_JOURNEY_TEXT}</p>`);
   });
@@ -233,7 +235,7 @@ describe('the one Play/Pause button in the page', () => {
     for (const { html } of [layout(journeyHook(), pkg('shp-404')), layout(journeyHook({ map: null }), pkg('shp-2'))]) {
       const b = playPauseIn(html);
       expect(b.name).toBe('Play');
-      expect(b.attrs).toMatch(/disabled=""/);
+      expect(b.attrs).toMatch(/aria-disabled="true"/);
     }
   });
 
@@ -242,13 +244,13 @@ describe('the one Play/Pause button in the page', () => {
     expect(playPauseIn(layout(clockHook({ playing: true }), null).html).name).toBe('Pause');
 
     const finished = layout(clockHook({ timeMin: 2160 }), null).html;
-    expect(playPauseIn(finished).attrs).toMatch(/disabled=""/);
+    expect(playPauseIn(finished).attrs).toMatch(/aria-disabled="true"/);
     expect(text(leftOf(finished))).toContain(FINISHED_REASON);
     expect(buttonsIn(leftOf(finished)).find((b) => b.name === 'Back to start')!.attrs).not.toMatch(/disabled/);
 
     const busy = layout(journeyHook({ busy: true }), null).html;
-    expect(playPauseIn(busy).attrs).toMatch(/disabled=""/);
-    expect(buttonsIn(leftOf(busy)).find((b) => b.name === 'Back to start')!.attrs).toMatch(/disabled=""/);
+    expect(playPauseIn(busy).attrs).toMatch(/aria-disabled="true"/);
+    expect(buttonsIn(leftOf(busy)).find((b) => b.name === 'Back to start')!.attrs).toMatch(/aria-disabled="true"/);
     expect(leftOf(busy).split(BUSY_REASON)).toHaveLength(2); // the reason once
   });
 

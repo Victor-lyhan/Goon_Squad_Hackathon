@@ -19,6 +19,12 @@ import {
   playStatus, readyState, rightBody, runAt, settle, stubMatchMedia,
 } from './sim-v2-dom-helpers';
 
+/** #725: Play/Pause and Back to start are `aria-disabled` (never `disabled`, which would drop focus to <body>). */
+function isOff(b: HTMLButtonElement): boolean {
+  expect(b.disabled).toBe(false);
+  return b.getAttribute('aria-disabled') === 'true';
+}
+
 const google = vi.hoisted(() => ({ loads: 0 }));
 vi.mock('@googlemaps/js-api-loader', () => ({
   setOptions: () => { google.loads += 1; },
@@ -161,7 +167,7 @@ describe('one Play/Pause button: a picked package plays its journey', () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountBody(server, { kind: 'package', id: 'shp-3' });
     expect(label(c)).toBe('Play');
-    expect(playPause(c).disabled).toBe(true);
+    expect(isOff(playPause(c))).toBe(true);
     const note = document.getElementById(playPause(c).getAttribute('aria-describedby')!)!;
     expect(textOf(note)).toBe('No journey to play: this package has no match yet.');
     await advance(5 * STEP_MS);
@@ -317,7 +323,10 @@ describe('the overnight card (#648)', () => {
     await advance(STEP_MS);
     const card = overnightCard(c)!;
     expect(textOf(card)).toBe('Overnight at Brooklyn Roasting'); // the relay business by name, never an ID
-    expect(card.getAttribute('role')).toBe('status');
+    // #725: the card sits in the map's always-mounted live region, so it is announced when it appears.
+    expect(card.getAttribute('role')).toBeNull();
+    expect(card.parentElement!.getAttribute('role')).toBe('status');
+    expect(card.parentElement!.classList.contains('spc-announce')).toBe(true);
     const moon = card.querySelector('svg')!;
     expect(moon.getAttribute('aria-hidden')).toBe('true');
     expect(card.closest('.spc-map')).not.toBeNull(); // over the map
@@ -434,12 +443,12 @@ describe('one Play/Pause button: no package picked plays the server clock (#648)
   it('at the end of the run Play is disabled and names Back to start, which sends the reset', async () => {
     const server = new FakeSimServer(readyState(2160));
     const { container: c } = mountBody(server, null);
-    expect(playPause(c).disabled).toBe(true);
+    expect(isOff(playPause(c))).toBe(true);
     expect(textOf(leftBody(c))).toContain('Run finished. Use Back to start to watch again.');
     click(button(leftBody(c), 'Back to start'));
     await settle();
     expect(server.controls()).toEqual([{ action: 'reset_playback' }]);
-    expect(playPause(c).disabled).toBe(false);
+    expect(isOff(playPause(c))).toBe(false);
   }, T);
 
   it('on the page, Space plays and pauses the clock, and "." does nothing', async () => {
@@ -498,7 +507,7 @@ describe('/simulator?package=<id>&play=1 (#648)', () => {
     await advance(3 * STEP_MS);
     expect(server.calls).toEqual([]);
     expect(currentSearch(server)).toBe('?package=shp-2&play=1');
-    expect(playPause(c).disabled).toBe(true);
+    expect(isOff(playPause(c))).toBe(true);
 
     server.poll(readyState(1000));
     await settle();
@@ -525,7 +534,7 @@ describe('/simulator?package=<id>&play=1 (#648)', () => {
     const { container: c } = mountPage(server, '?package=shp-3&play=1');
     await advance(5 * STEP_MS);
     expect(server.calls).toEqual([]);
-    expect(playPause(c).disabled).toBe(true);
+    expect(isOff(playPause(c))).toBe(true);
     expect(textOf(rightBody(c))).toContain('No commuter passes both businesses within their detour limit.');
     expect(currentSearch(server)).toBe('?package=shp-3');
   }, T);
@@ -636,8 +645,8 @@ describe('a playing journey keeps the left panel still (#594)', () => {
       await advance(100);
       expect(server.state.busy).toBe(false);
       expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
-      expect(playPause(c).disabled).toBe(false);
-      expect(backToStart(c).disabled).toBe(false);
+      expect(isOff(playPause(c))).toBe(false);
+      expect(isOff(backToStart(c))).toBe(false);
       checks += 1;
     }
     expect(checks).toBeGreaterThan(30);
@@ -651,17 +660,17 @@ describe('a playing journey keeps the left panel still (#594)', () => {
     clickPlayPause(c, 'Play');
     await settle();
     expect(textOf(leftBody(c))).toContain(BUSY_REASON);
-    expect(backToStart(c).disabled).toBe(true);
+    expect(isOff(backToStart(c))).toBe(true);
     await advance(DELAY_MS);
     expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
 
     clickPlayPause(c, 'Pause');
     await settle();
     expect(textOf(leftBody(c))).toContain(BUSY_REASON);
-    expect(playPause(c).disabled).toBe(true);
+    expect(isOff(playPause(c))).toBe(true);
     await advance(DELAY_MS);
     expect(textOf(leftBody(c))).not.toContain(BUSY_REASON);
-    expect(backToStart(c).disabled).toBe(false);
+    expect(isOff(backToStart(c))).toBe(false);
     expect(label(c)).toBe('Play');
   }, T);
 });

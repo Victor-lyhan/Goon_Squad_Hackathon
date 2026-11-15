@@ -31,11 +31,14 @@ export function PlaybackControls({ button, status = '', error = null, resetDisab
   return (
     <div className="ctl-block ctl-playback" data-play-action={button.action ?? 'none'}>
       <div className="ctl-row">
-        <button type="button" className="ctl-btn ctl-primary" disabled={disabled}
+        {/* #725: `aria-disabled`, not `disabled`. A press of either button makes the run busy for a moment,
+            and a focused button that turns `disabled` drops keyboard focus to <body>. These stay in the Tab
+            order (their note says why they do nothing) and have no click handler while disabled. */}
+        <button type="button" className="ctl-btn ctl-primary" aria-disabled={disabled || undefined}
           aria-describedby={button.note ? noteId : undefined} onClick={disabled ? undefined : onToggle}>
           {button.label}
         </button>
-        <button type="button" className="ctl-btn" disabled={!!resetDisabled}
+        <button type="button" className="ctl-btn" aria-disabled={!!resetDisabled || undefined}
           aria-describedby={resetDisabled ? (resetNote ? resetNoteId : noteId) : undefined} onClick={resetDisabled ? undefined : onReset}>
           {RESET_LABEL}
         </button>
