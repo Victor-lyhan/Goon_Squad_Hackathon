@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 // #529: a page that throws while rendering shows a fallback under a working header (DECISIONS pass 57),
 // and the fallback is cleared when the path changes. Real AppShell and header; the pages are stand-ins.
-// Main paths since the cutover (#548).
+// Main paths since the cutover (#548). Since #886 the fallback names the page and has one action, Reload.
 import { readFileSync } from 'node:fs';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ErrorBoundary, ERROR_FALLBACK_TEXT, ERROR_FALLBACK_TITLE } from '../../client/src/ui';
+import { ErrorBoundary, ERROR_FALLBACK_TITLE, errorFallbackText } from '../../client/src/ui';
 import { CRASH_TEXT, crashing } from './kit-dom-shell-pages';
 import { fakeApi, renderShell } from './kit-dom-shell-helper';
 import { button, buttons, click, link, mount, select, textOf } from './kitDom';
@@ -43,9 +43,11 @@ describe('a page that throws on a main path', () => {
     expect(fb).not.toBeNull();
     expect(s.main().contains(fb)).toBe(true);
     expect(textOf(fb.querySelector('h1')!)).toBe(ERROR_FALLBACK_TITLE);
-    expect(textOf(fb.querySelector('p')!)).toBe(ERROR_FALLBACK_TEXT);
+    expect(textOf(fb.querySelector('p')!)).toBe(errorFallbackText('/employee/emp-01'));
+    expect(textOf(fb.querySelector('p')!)).toBe('Relay could not show the Employee page.');
     expect(button(fb, 'Reload page').type).toBe('button');
-    expect(link(fb, 'Go to the homepage').getAttribute('href')).toBe('/');
+    // One action: no second link or button in the fallback (the header has the way out).
+    expect(fb.querySelectorAll('a, button')).toHaveLength(1);
     expect(textOf(s.container)).not.toContain(CRASH_TEXT);
     expect(s.container.innerHTML).not.toContain(CRASH_TEXT);
     // Header still there, with its links and the selector.
@@ -75,13 +77,16 @@ describe('a page that throws on a main path', () => {
     expect(textOf(s.main())).toBe('BusinessV2 at /business/biz-02');
   }, T);
 
-  it('the homepage link goes to / and clears the fallback', async () => {
+  it('the sentence names the page that crashed, by the word of its header link', async () => {
     crashing.add('SimulatorV2');
-    const s = await renderShell('/simulator');
-    click(link(fallback(s.main())!, 'Go to the homepage'));
-    expect(s.where.path).toBe('/');
-    expect(fallback(s.main())).toBeNull();
-    expect(textOf(s.main())).toBe('Landing at /');
+    crashing.add('BusinessV2');
+    crashing.add('Landing');
+    const sim = await renderShell('/simulator?package=shp-1');
+    expect(textOf(fallback(sim.main())!.querySelector('p')!)).toBe('Relay could not show the Simulator page.');
+    click(link(sim.header(), 'Business'));
+    expect(textOf(fallback(sim.main())!.querySelector('p')!)).toBe('Relay could not show the Business page.');
+    click(link(sim.header(), 'Relay'));
+    expect(textOf(fallback(sim.main())!.querySelector('p')!)).toBe('Relay could not show the homepage.');
   }, T);
 
   it('a page that still throws after navigation shows the fallback again', async () => {
@@ -97,8 +102,7 @@ describe('the homepage', () => {
   it('the brand link from a crashed page shows the homepage', async () => {
     crashing.add('SimulatorV2');
     const s = await renderShell('/simulator');
-    const fb = fallback(s.main())!;
-    expect(link(fb, 'Go to the homepage').getAttribute('href')).toBe('/');
+    expect(fallback(s.main())).not.toBeNull();
     click(link(s.header(), 'Relay'));
     expect(s.where.path).toBe('/');
     expect(fallback(s.main())).toBeNull();
@@ -146,14 +150,15 @@ describe('ErrorBoundary on its own', () => {
 });
 
 describe('fallback styles', () => {
-  const css = readFileSync('client/src/ui/shell.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  const rules = [...css.matchAll(/(\.error-fallback[^{]*)\{([^}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
+  // Since #886 the fallback is drawn by the kit's page-state rules (ui.css), not by shell.css.
+  const css = readFileSync('client/src/ui/ui.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/(\.ui-state[^{]*)\{([^}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
 
-  it('has rules for every class the component uses', () => {
+  it('has rules for every kit class the component uses', () => {
     const src = readFileSync('client/src/ui/ErrorBoundary.tsx', 'utf8');
-    const used = [...src.matchAll(/className="([^"]+)"/g)].map((m) => m[1]).filter((c) => c.startsWith('error-fallback'));
-    expect(used.length).toBeGreaterThanOrEqual(4);
-    for (const c of used) expect(rules.some((r) => r.sel.split(/[\s,:]/).includes(`.${c}`))).toBe(true);
+    const used = [...src.matchAll(/className="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)).filter((c) => c.startsWith('ui-state'));
+    expect(used.sort()).toEqual(['ui-state', 'ui-state--problem', 'ui-state__text', 'ui-state__title']);
+    for (const c of used) expect(rules.some((r) => r.sel.split(/[\s,:]/).some((part) => part.split('.').includes(c))), c).toBe(true);
   });
 
   it('uses design tokens only: no literal colours, no shadows, no rounded cards, no fallbacks', () => {
@@ -166,7 +171,7 @@ describe('fallback styles', () => {
       if (radius) expect(radius[1].trim(), sel).toBe('var(--radius)');
       for (const d of body.split(';').map((x) => x.trim()).filter(Boolean)) {
         const [prop, value] = d.split(/:(.*)/s).map((x) => x.trim());
-        if (/^(padding|margin|gap)/.test(prop)) expect(value, `${sel} ${prop}`).toMatch(/^(0|var\(--space-\d\)|\s)+$/);
+        if (/^(padding|margin|gap)/.test(prop)) expect(value, `${sel} ${prop}`).toMatch(/^(0|auto|var\(--space-\d\)|\s)+$/);
         if (prop === 'font-size') expect(value, sel).toMatch(/^var\(--text-(xs|sm|md|lg|xl)\)$/);
       }
     }

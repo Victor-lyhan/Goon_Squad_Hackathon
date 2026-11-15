@@ -1,10 +1,14 @@
 import './ui.css';
 
 export type SpinnerProps = {
-  /** Accessible text announced to screen readers (default "Loading"). */
+  /** What is loading, for screen readers (default "Loading"). The ring itself is hidden from them. */
   label?: string;
 };
 
+/**
+ * A turning ring with a text name. role="status" makes the name a polite announcement; the ring stops
+ * turning under prefers-reduced-motion (ui.css) and is then drawn dotted, so it still reads as "busy".
+ */
 export function Spinner({ label = 'Loading' }: SpinnerProps) {
   return (
     <span role="status">

@@ -291,9 +291,10 @@ describe('the Help page is deleted', () => {
       expect(s.container.querySelector('a[href="/help"]'), p).toBeNull();
       expect(textOf(s.container), p).not.toMatch(/Guided demo|\bHelp\b/);
       expect(s.header().querySelectorAll('[aria-current="page"]'), p).toHaveLength(0);
-      // The 404 page still offers the four places that exist.
-      expect([...s.main().querySelectorAll('a')].map((a) => a.getAttribute('href')), p)
-        .toEqual(['/', '/business/biz-01', '/employee/emp-01', '/simulator']);
+      // Since #886 the 404 page has one action, to the homepage; the header has the other places.
+      expect([...s.main().querySelectorAll('a, button')].map((a) => a.getAttribute('href')), p).toEqual(['/']);
+      expect(['Business', 'Employee', 'Simulator'].map((name) => link(s.header(), name).getAttribute('href')), p)
+        .toEqual(['/business/biz-01', '/employee/emp-01', '/simulator']);
       s.unmount();
     }
   }, T);
