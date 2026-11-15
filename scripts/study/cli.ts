@@ -1,5 +1,5 @@
-// `npm run study`: reads the committed NYC cache and fixtures, runs the study, writes the results file and
-// prints the five summary lines. Only the cache is read: no key, no network, no Google provider.
+// `npm run study`: reads the committed NYC cache and fixtures, runs the study, writes the results file and the
+// study page (client/public/study.html, scripts/study/page.ts) and prints the five summary lines. Only the cache is read: no key, no network, no Google provider.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +7,7 @@ import { NYC_FIXTURES_DIR, readNycFixtures } from '../../server/api/v2/bootRun';
 import { readTravelFiles } from '../../server/geo/cache';
 import { createCachedProvider } from '../../server/geo/providers';
 import type { GridSpec } from './grid';
+import { renderStudyPage } from './page';
 import { runStudy } from './runner';
 import type { Assumption, StudyResults } from './types';
 import { dollars, percent } from './units';
@@ -16,12 +17,19 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 /** `data/study/results.json` at the repo root. The root `data/` folder is gitignored. */
 export const DEFAULT_STUDY_OUT = path.join(repoRoot, 'data', 'study', 'results.json');
 
-const USAGE = `Usage: npm run study [-- --out <file>]
+/**
+ * `client/public/study.html`: the committed, self-contained page of the results. Vite copies its public
+ * folder into the build, so the app serves it at /study.html.
+ */
+export const DEFAULT_STUDY_PAGE = path.join(repoRoot, 'client', 'public', 'study.html');
+
+const USAGE = `Usage: npm run study [-- --out <file>] [--page <file>]
 
 Runs the Relay vs next-day courier study on the committed NYC travel cache (fixtures/nyc) and writes
-data/study/results.json. Needs no key and no network.
+data/study/results.json and the page client/public/study.html. Needs no key and no network.
 
-  --out <file>   write the results somewhere else
+  --out <file>   write the results somewhere else; the committed page is then left as it is
+  --page <file>  write the page somewhere else (with --out: also write the page, to this file)
   --help         show this text`;
 
 export type StudyCliOptions = {
@@ -58,8 +66,8 @@ export function summaryLines(results: StudyResults): string[] {
   ];
 }
 
-/** Through a temp file and a rename, so a crash never leaves half a results file. Creates the folder. */
-function writeResults(file: string, text: string): void {
+/** Through a temp file and a rename, so a crash never leaves half a file. Creates the folder. */
+function writeFileWhole(file: string, text: string): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
   try {
@@ -77,7 +85,8 @@ export function runStudyCli(options: StudyCliOptions = {}): number {
   const out = options.stdout ?? ((line: string) => console.log(line));
   const err = options.stderr ?? ((line: string) => console.error(line));
 
-  let outFile = DEFAULT_STUDY_OUT;
+  let outFile: string | null = null;
+  let pageFile: string | null = null;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') {
@@ -85,11 +94,12 @@ export function runStudyCli(options: StudyCliOptions = {}): number {
       return 0;
     }
     const value = argv[index + 1];
-    if (arg === '--out' && value !== undefined && value !== '') {
-      outFile = path.resolve(value);
+    if ((arg === '--out' || arg === '--page') && value !== undefined && value !== '') {
+      if (arg === '--out') outFile = path.resolve(value);
+      else pageFile = path.resolve(value);
       index += 1;
     } else {
-      err(arg === '--out' ? '--out needs a file path.' : `Unknown argument: ${arg}`);
+      err(arg === '--out' || arg === '--page' ? `${arg} needs a file path.` : `Unknown argument: ${arg}`);
       err(USAGE);
       return 2;
     }
@@ -109,10 +119,22 @@ export function runStudyCli(options: StudyCliOptions = {}): number {
       grid: options.grid,
       assumptions: options.assumptions,
     });
-    writeResults(outFile, serializeStudy(results));
+    // The page goes to its committed place only on a plain `npm run study`. A run that sends the results
+    // elsewhere (a trial, a test with a small grid) must not replace the committed page unless it names one.
+    const pageTarget = pageFile ?? (outFile === null ? DEFAULT_STUDY_PAGE : null);
+    const written: string[] = [];
+    const write = (file: string, text: string) => {
+      writeFileWhole(file, text);
+      written.push(file);
+    };
+    const page = pageTarget === null ? null : renderStudyPage(results); // before any write: both files or neither
+    write(outFile ?? DEFAULT_STUDY_OUT, serializeStudy(results));
+    if (pageTarget !== null && page !== null) write(pageTarget, page);
     for (const line of summaryLines(results)) out(line);
-    const relative = path.relative(process.cwd(), outFile);
-    err(`Wrote ${relative !== '' && !relative.startsWith('..') ? relative : outFile}`);
+    for (const file of written) {
+      const relative = path.relative(process.cwd(), file);
+      err(`Wrote ${relative !== '' && !relative.startsWith('..') ? relative : file}`);
+    }
     return 0;
   } catch (error) {
     err(`Study failed: ${error instanceof Error ? error.message : String(error)}`);

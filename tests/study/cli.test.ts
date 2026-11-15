@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { DEFAULT_STUDY_OUT, runStudyCli, serializeStudy, summaryLines } from '../../scripts/study/cli';
+import { DEFAULT_STUDY_OUT, DEFAULT_STUDY_PAGE, runStudyCli, serializeStudy, summaryLines } from '../../scripts/study/cli';
+import { renderStudyPage } from '../../scripts/study/page';
 import { runStudy } from '../../scripts/study/runner';
 import { TWO_RUN_GRID, studyInput } from './study-helper';
 
@@ -79,6 +80,44 @@ describe('npm run study', () => {
     const missing = run(['--out']);
     expect(missing.code).toBe(2);
     expect(missing.stderr[0]).toBe('--out needs a file path.');
+  });
+
+  it('writes the page after the results when --page names a file, the same bytes every time', () => {
+    const out = path.join(tmp, 'page-run', 'results.json');
+    const page = path.join(tmp, 'page-run', 'site', 'study.html');
+    const { code, stdout, stderr } = run(['--out', out, '--page', page]);
+    expect(code).toBe(0);
+    expect(stderr).toHaveLength(2);
+    expect(stderr[0]).toMatch(/^Wrote .*results\.json$/);
+    expect(stderr[1]).toMatch(/^Wrote .*study\.html$/);
+
+    const expected = runStudy(studyInput({ grid: TWO_RUN_GRID }));
+    expect(fs.readFileSync(out, 'utf8')).toBe(serializeStudy(expected));
+    expect(fs.readFileSync(page, 'utf8')).toBe(renderStudyPage(expected));
+    expect(stdout).toEqual(summaryLines(expected));
+    expect(fs.readdirSync(path.dirname(page))).toEqual(['study.html']); // no temp file left behind
+
+    const again = path.join(tmp, 'page-run', 'again.html');
+    expect(run(['--out', out, '--page', again]).code).toBe(0);
+    expect(fs.readFileSync(again).equals(fs.readFileSync(page))).toBe(true);
+  });
+
+  it('a plain run writes the page to client/public/study.html; --out alone leaves that file alone', () => {
+    expect(path.relative(repoRoot, DEFAULT_STUDY_PAGE)).toBe(path.join('client', 'public', 'study.html'));
+    // client/public is Vite's public folder (root: client), so the build copies the page to client/dist.
+    expect(fs.readFileSync(path.join(repoRoot, 'vite.config.ts'), 'utf8')).toMatch(/root: 'client'/);
+
+    const before = fs.readFileSync(DEFAULT_STUDY_PAGE);
+    const { code, stderr } = run(['--out', path.join(tmp, 'only-results.json')]); // a two-run grid
+    expect(code).toBe(0);
+    expect(stderr).toHaveLength(1);
+    expect(fs.readFileSync(DEFAULT_STUDY_PAGE).equals(before)).toBe(true);
+  });
+
+  it('rejects --page without a file', () => {
+    const missing = run(['--page']);
+    expect(missing.code).toBe(2);
+    expect(missing.stderr[0]).toBe('--page needs a file path.');
   });
 
   it('prints help without running', () => {
