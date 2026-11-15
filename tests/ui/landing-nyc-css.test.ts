@@ -10,6 +10,9 @@ const rule = (selector: string) =>
 /** The rules for a narrow or upright window: the map lies under the text (#869). */
 const STACKED = /@media \(max-width: 820px\), \(max-aspect-ratio: 6\/5\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
 
+/** The rules of the block for windows up to `px` wide. */
+const narrow = (px: number) => new RegExp(`@media \\(max-width: ${px}px\\) \\{([\\s\\S]*?)\\n\\}`).exec(css)![1];
+
 describe('landing.css at 390 px', () => {
   it('has no fixed width or min-width above 390 px', () => {
     for (const [, prop, value] of css.matchAll(/(?:^|[;{\s])((?:min-)?width):\s*([^;]+);/g)) {
@@ -19,7 +22,6 @@ describe('landing.css at 390 px', () => {
   });
 
   it('on a phone the text comes first and the map lies under it, about half the window tall, from edge to edge (#869)', () => {
-    const narrow = (px: number) => new RegExp(`@media \\(max-width: ${px}px\\) \\{([\\s\\S]*?)\\n\\}`).exec(css)![1];
     expect(STACKED).toMatch(/\.landing-hero \{ grid-template-columns: minmax\(0, 1fr\); grid-template-rows: auto minmax\(max\(50vh, 320px\), 1fr\); \}/);
     expect(STACKED).toMatch(/\.landing-hero-inner \{ grid-template-columns: minmax\(0, 1fr\); \}/);
     // The second row of the hero itself, not of the padded column: the map still reaches both sides and the
@@ -76,17 +78,20 @@ describe('landing.css at 390 px', () => {
 
   it('puts the hero text in the left half of a centered column of 1200 px with 48 px at each side (#853, #869)', () => {
     expect(rule('.landing')).toMatch(/--landing-max: 1200px;/);
-    // 48 px on a desktop, less on a phone: 6vw of 390 px is 23 px.
-    expect(rule('.landing')).toMatch(/--landing-pad: clamp\(16px, 6vw, 48px\);/);
+    // 48 px (twice --space-6) on a desktop and --space-6 on a phone: steps of the spacing scale, so the
+    // text's left edge is on a whole pixel at every width (#879; 6vw of 390 px was 23.4 px).
+    expect(rule('.landing')).toMatch(/--landing-pad: calc\(2 \* var\(--space-6, 24px\)\);/);
+    expect(narrow(480)).toMatch(/\.landing \{ --landing-pad: var\(--space-6, 24px\); \}/);
+    expect(css.match(/--landing-pad:/g)).toHaveLength(2);
     const inner = rule('.landing-hero-inner');
     expect(inner).toMatch(/max-width: var\(--landing-max, 1200px\)/);
     expect(inner).toMatch(/margin: 0 auto;/); // centered
     expect(inner).toMatch(/padding: var\(--space-8, 32px\) var\(--landing-pad, 48px\);/);
-    // Two equal halves with a gap of 24 to 48 px: the text is the only child, so it is in the first half and
-    // ends before the column's middle, which is the hero's middle. It is centered in the hero's height.
+    // Two equal halves with a gap of 48 px (twice --space-6): the text is the only child, so it is in the first
+    // half and ends 24 px before the column's middle, which is the hero's middle. It is centered in the hero's height.
     expect(inner).toMatch(/display: grid;/);
     expect(inner).toMatch(/grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\);/);
-    expect(inner).toMatch(/gap: var\(--space-6, 24px\) clamp\(24px, 4vw, 48px\);/);
+    expect(inner).toMatch(/gap: var\(--space-6, 24px\) calc\(2 \* var\(--space-6, 24px\)\);/);
     expect(inner).toMatch(/align-items: center;/);
     expect(rule('.landing-hero-copy')).not.toMatch(/(^|[\s;])(grid-column|width|max-width|margin[a-z-]*):/);
     // The column lies over both halves of the hero and takes its height. A grid item with auto margins is
@@ -106,7 +111,7 @@ describe('landing.css at 390 px', () => {
     const how = rule('.landing-how');
     expect(how).toMatch(/max-width: var\(--landing-max, 1200px\)/);
     expect(how).toMatch(/margin: 0 auto;/);
-    expect(how).toMatch(/padding: [^;]* var\(--landing-pad, 48px\) [^;]*;/);
+    expect(how).toMatch(/padding: calc\(2 \* var\(--space-6, 24px\)\) var\(--landing-pad, 48px\);/);
     expect(css).not.toContain('1080px');
     // Border-box sizing (global.css) makes both limits include the padding, so the two left edges line up.
     expect(readFileSync('client/src/styles/global.css', 'utf8')).toMatch(/\* \{ box-sizing: border-box; \}/);
@@ -169,9 +174,10 @@ describe('landing.css at 390 px', () => {
     // The window's height less the header's. dvh is the height a phone really shows; the vh line before it
     // is for a browser that does not know dvh.
     const heights = [...hero.matchAll(/min-height: ([^;]+);/g)].map((m) => m[1]);
-    expect(heights).toEqual(['calc(100vh - var(--app-header-h, 48px))', 'calc(100dvh - var(--app-header-h, 48px))']);
-    // 48 px is the header's height on one row (ui/shell.css). On two rows the hero ends below the fold, never above.
-    expect(readFileSync('client/src/ui/shell.css', 'utf8')).toMatch(/\.shell-header \{[^}]*min-height: 48px;/);
+    expect(heights).toEqual(['calc(100vh - var(--app-header-h, 64px))', 'calc(100dvh - var(--app-header-h, 64px))']);
+    // 64 px is the header's height on one row (ui/shell.css, #868), and the fallback says the same (#879).
+    // On two rows the hero ends below the fold, never above.
+    expect(readFileSync('client/src/ui/shell.css', 'utf8')).toMatch(/:root \{ --app-header-h: 64px; \}/);
     // No narrower rule makes the hero shorter, and nothing of "How it works" is pulled up into it.
     expect(css.match(/min-height: calc\(100dvh/g)).toHaveLength(1);
     expect(css.replace(hero, '')).not.toMatch(/\.landing-hero \{[^}]*(min-)?height/);

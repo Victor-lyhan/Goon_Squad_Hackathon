@@ -55,15 +55,13 @@ export function WatchButton({ to }: { to: string }) {
   );
 }
 
+/** An entry's two lines. No arrow after them (#879): the outlined box is the link, and it says where it goes. */
 function EntryBody({ title, text }: { title: string; text: string }) {
   return (
-    <>
-      <span className="workspace-body">
-        <span className="workspace-title">{title}</span>
-        <span className="workspace-text">{text}</span>
-      </span>
-      <span className="workspace-arrow" aria-hidden="true">→</span>
-    </>
+    <span className="workspace-body">
+      <span className="workspace-title">{title}</span>
+      <span className="workspace-text">{text}</span>
+    </span>
   );
 }
 
