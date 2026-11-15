@@ -4,7 +4,7 @@
 // POST /api/v2/parse-request on a fresh default NYC run (built client, headless Chrome, 1440 and 390 px);
 // `parseRequest` is a stub that gives them back, so this file needs no server, network or key.
 // Part 1: what each card shows. Part 2: one test per page fault that the browser run found and #807 fixed:
-//   A. at 390 px the top of the card ("Parsed offline", the sentence, the notes) was scrolled off screen;
+//   A. at 390 px the top of the card ("Read by Relay’s rules", the sentence, the notes) was scrolled off screen;
 //   B. after "Find a delivery match" the focus was on the page body;
 //   C. the second press of a double press on "Read my request" landed on the card.
 import { readFileSync } from 'node:fs';
@@ -243,7 +243,7 @@ describe('the eight sentences, read offline as Brooklyn Roasting Company (#807)'
     expect(card(7).text).toHaveLength(500);
   });
 
-  it.each(CARDS)('($n) $what: the card opens with "Parsed offline", the missing fields marked, nothing sent', async (c) => {
+  it.each(CARDS)('($n) $what: the card opens with "Read by Relay’s rules", the missing fields marked, nothing sent', async (c) => {
     const p = setup();
     await p.read(c.text);
     expect(p.parseRequest).toHaveBeenCalledTimes(1);
@@ -252,7 +252,7 @@ describe('the eight sentences, read offline as Brooklyn Roasting Company (#807)'
     expect(p.box()).toBeNull();
     const note = p.note()!;
     expect(note.nextElementSibling).toBe(p.form());
-    expect(textOf(note.querySelector('.nd-parsed__source')!)).toBe('Parsed offline');
+    expect(textOf(note.querySelector('.nd-parsed__source')!)).toBe('Read by Relay’s rules');
     expect(textOf(note)).not.toContain('Gemini');
     expect(textOf(note.querySelector('.nd-parsed__text')!)).toBe(`“${c.text}”`);
     expect(p.notes()).toEqual(c.notes);
@@ -299,7 +299,7 @@ describe('the eight sentences, read offline as Brooklyn Roasting Company (#807)'
     click(p.sendButton());
     await flush();
     expect(p.result()).toContain(RESULT_COPY.unmatched);
-    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Parsed offline');
+    expect(textOf(p.note()!.querySelector('.nd-parsed__source')!)).toBe('Read by Relay’s rules');
     expect(p.fields()[1]).toBe('Envelope');
   }, T);
 
@@ -361,7 +361,7 @@ describe('the eight sentences, read offline as Brooklyn Roasting Company (#807)'
 
 describe('fault A: the top of the card stays on screen when it opens (#807)', () => {
   // Chrome, 390 x 844, sentence (1): the first "Check this" field (Weight) took the focus and was scrolled to
-  // the middle of the screen, so "Parsed offline", the sentence and the notes ended 2 px above the screen.
+  // the middle of the screen, so "Read by Relay’s rules", the sentence and the notes ended 2 px above the screen.
   it('the first "Check this" field gets the focus without scrolling the page', async () => {
     const focus = vi.spyOn(HTMLElement.prototype, 'focus');
     const p = setup();

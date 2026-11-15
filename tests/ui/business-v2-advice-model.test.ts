@@ -78,7 +78,7 @@ describe('draftTimes: minutes as the form holds them', () => {
 describe('adviceCard: the rows of the Options card', () => {
   it('formats every number of the answer and computes none', () => {
     const c = card(answer([option(), EARLIER, LATER]))!;
-    expect(c.sourceLabel).toBe('Planned by Gemini, checked by the engine');
+    expect(c.sourceLabel).toBe('Planned by Gemini, priced by Relay');
     expect(c.note).toBeNull();
     expect(c.rows).toEqual([
       {
@@ -101,10 +101,10 @@ describe('adviceCard: the rows of the Options card', () => {
 
   it('the source label never claims Gemini unless the server says so', () => {
     expect(adviceSourceLabel('gemini')).toBe(ADVICE_COPY.byModel);
-    expect(adviceSourceLabel('offline')).toBe('Options computed offline');
+    expect(adviceSourceLabel('offline')).toBe('Priced by Relay, no AI model');
     expect(adviceSourceLabel(undefined)).toBe(ADVICE_COPY.offline);
-    expect(card(answer([option()], { source: 'offline' }))!.sourceLabel).toBe('Options computed offline');
-    expect(card({ options: [option()] })!.sourceLabel).toBe('Options computed offline');
+    expect(card(answer([option()], { source: 'offline' }))!.sourceLabel).toBe('Priced by Relay, no AI model');
+    expect(card({ options: [option()] })!.sourceLabel).toBe('Priced by Relay, no AI model');
   });
 
   it('marks the lowest price, every row that has it, and none when all cost the same or there is one row', () => {

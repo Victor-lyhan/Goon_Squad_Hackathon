@@ -426,10 +426,14 @@ export const RESULT_COPY = {
   unmatched: 'No matching commute yet.',
   /** "Back to start" is the simulator's control that returns the run to planning (DECISIONS pass 74). */
   locked: 'The simulation has started, so new requests are closed. Press Back to start in the simulator to reopen them.',
-  unavailable: 'Travel data is not available on the server, so this request could not be matched. Nothing was saved.',
-  unavailableRetry: 'Travel data is not available on the server, so matching could not run. Your request is still saved.',
+  /**
+   * Relay has no travel times to match with (a 503 of the three `UnavailableCode`s). What happened, whether
+   * the request was saved, and what to do; the cause is not the user's to fix, so the line does not name it (#919).
+   */
+  unavailable: 'Travel times are not available right now, so this request could not be matched. Nothing was saved. Try again later.',
+  unavailableRetry: 'Travel times are not available right now, so matching could not run. Your request is still saved. Try again later.',
   /** The typed draft stays, and the request ID is kept, so sending again never stores the delivery twice. */
-  noAnswer: 'The server did not answer. Your request is still in the form. Try again.',
+  noAnswer: 'Relay did not answer. Your request is still in the form. Try again.',
 } as const;
 
 /** After a matched result the form starts a fresh package (recipient kept); otherwise the typed draft stays. */
