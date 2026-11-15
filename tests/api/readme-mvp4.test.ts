@@ -9,7 +9,7 @@ import { DEFAULT_STUDY_OUT, DEFAULT_STUDY_PAGE } from '../../scripts/study/cli';
 import { DEFAULT_GEMINI_MODEL, GEMINI_KEY_NAME, GEMINI_MODEL_NAME, geminiKey } from '../../server/ai/env';
 import { DEFAULT_GEMINI_TIMEOUT_MS, GeminiUnavailable } from '../../server/ai/gemini';
 import { INVALID_ANSWER_MESSAGE } from '../../server/ai/geminiParser';
-import { fallbackLogLine } from '../../server/api/v2/parseRequestRoutes';
+import { fallbackLogLine, geminiLogLine, NO_KEY_LOG_LINE } from '../../server/api/v2/parseRequestRoutes';
 import { ParseRequestBody } from '../../shared/v2/parseRequest';
 
 const root = path.resolve(__dirname, '../..');
@@ -101,7 +101,9 @@ describe('README: Requests in plain English (Gemini)', () => {
     }
     expect(section).toContain(`"${fallbackLogLine(INVALID_ANSWER_MESSAGE)}"`);
     expect(section).toMatch(/never holds the key, the sentence or Gemini's answer/);
-    expect(section).toMatch(/Without a key no line is printed/);
+    // The two lines of the requests that did not fall back (#811), as the server prints them.
+    expect(section).toContain(`\n${geminiLogLine(DEFAULT_GEMINI_MODEL, 1840)}\n`);
+    expect(section).toContain(`\n${NO_KEY_LOG_LINE}\n`);
   });
 
   it('the curl example sends a body the route accepts, and names both values of source', () => {
