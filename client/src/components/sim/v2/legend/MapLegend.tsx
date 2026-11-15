@@ -36,6 +36,12 @@ function Swatch({ row }: { row: LegendRow }) {
   );
 }
 
+/** The toggle's name (issue 889). Shown in capitals by legend.css, so it is also its aria-label: Chrome reads
+ *  `text-transform: uppercase` into the accessible name ("LEGEND"), which a screen reader may spell out. */
+export const LEGEND_LABEL = 'Legend';
+/** The name of the legend's region. */
+export const LEGEND_REGION_LABEL = 'Map legend';
+
 export function MapLegend({ mode, hasSelection = false, focus, open, onOpenChange }: MapLegendProps) {
   const [localOpen, setLocalOpen] = useState(true);
   const isOpen = open ?? localOpen;
@@ -51,9 +57,9 @@ export function MapLegend({ mode, hasSelection = false, focus, open, onOpenChang
   if (rows.length === 0) return null;
 
   return (
-    <section className="ml" aria-label="Map legend">
-      <button type="button" className="ml__toggle" aria-expanded={isOpen} aria-controls={bodyId} onClick={toggle}>
-        <span>Legend</span>
+    <section className="ml" aria-label={LEGEND_REGION_LABEL}>
+      <button type="button" className="ml__toggle" aria-label={LEGEND_LABEL} aria-expanded={isOpen} aria-controls={bodyId} onClick={toggle}>
+        <span>{LEGEND_LABEL}</span>
         {/* The + / − takes the toggle's white; it needs no rule, so it has no class (issue 874). */}
         <span aria-hidden="true">{isOpen ? '−' : '+'}</span>
       </button>
