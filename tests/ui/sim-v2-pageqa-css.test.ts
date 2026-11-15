@@ -7,8 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import { NARROW_QUERY } from '../../client/src/components/sim/v2/page/simPageState';
 import {
-  ALLOWED_COLORS, COLOR_PROPS, FOCUS_SELECTORS, LOCAL_VARS, NAMED_COLORS, TOKENS,
-  colorLiterals, key, parseCss, read, resolveVars, splitTop, where, type Rule,
+  ALLOWED_COLORS, COLOR_PROPS, FOCUS_SELECTORS, LOCAL_VARS, NAMED_COLORS, PILL_BLUR, PILL_RADII, TOKENS,
+  colorLiterals, isPillRule, key, parseCss, read, resolveVars, splitTop, where, type Rule,
 } from './sim-v2-qa-css-rules';
 
 const COMPOSE = 'client/src/components/sim/v2/compose/compose.css';
@@ -23,29 +23,38 @@ describe('compose.css + page.css: the redesign rules', () => {
     expect(TOKENS.get('--radius')).toBeDefined();
   });
 
-  it('every border-radius is 2 to 4px (square corners, never 0 or round)', () => {
+  it('every border-radius is 2 to 4px (square corners, never 0 or round), except the floating map pill (#852)', () => {
     const bad: string[] = [];
     let seen = 0;
+    let pill = 0;
     for (const r of RULES) {
       for (const [prop, value] of r.decls) {
         if (!prop.includes('radius')) continue;
         seen += 1;
+        // #852: the Play/Pause pill, half of a 44 px button plus its 4 px padding.
+        if (isPillRule(r) && prop === 'border-radius' && value === PILL_RADII[r.selectors[0]]) { pill += 1; continue; }
         for (const part of resolveVars(value).split(/[\s/]+/).filter(Boolean)) {
           const px = Number(/^(\d*\.?\d+)px$/.exec(part)?.[1] ?? NaN);
           if (!(px >= 2 && px <= 4)) bad.push(`${where(r)}: ${value}`);
         }
       }
     }
-    expect(seen).toBeGreaterThan(0);
+    expect(seen).toBeGreaterThan(1);
+    expect(pill).toBe(1);
     expect(bad).toEqual([]);
   });
 
-  it('no gradients, no filters or backdrops', () => {
+  it('no gradients, no filters; the one backdrop is the blur behind the floating map pill (#852)', () => {
     for (const f of FILES) {
       const css = read(f).replace(/\/\*[\s\S]*?\*\//g, '');
       expect(css, f).not.toMatch(/gradient\(/i);
-      expect(css, f).not.toMatch(/(^|[\s;{])(filter|backdrop-filter)\s*:/);
+      expect(css, f).not.toMatch(/(^|[\s;{])filter\s*:/);
     }
+    const backdrops = RULES.flatMap((r) => r.decls.filter(([p]) => p.endsWith('backdrop-filter')).map(([p, v]) => `${where(r)}: ${p}: ${v}`));
+    expect(backdrops).toEqual([
+      `${COMPOSE} .spc-playbar: -webkit-backdrop-filter: ${PILL_BLUR}`,
+      `${COMPOSE} .spc-playbar: backdrop-filter: ${PILL_BLUR}`,
+    ]);
   });
 
   it('no shadows except a focus ring on :focus-visible', () => {
@@ -77,14 +86,19 @@ describe('compose.css + page.css: the redesign rules', () => {
 
   it('every colour property reads a token through var(), never a bare literal', () => {
     const bad: string[] = [];
+    // A token, or a token at an opacity (#852: the translucent map pill is the --text ink at 72%).
+    const token = /^var\(--[\w-]+(, #[0-9A-Fa-f]{6})?\)$/;
+    const translucent = /^color-mix\(in srgb, var\(--[\w-]+(, #[0-9A-Fa-f]{6})?\) \d+%, transparent\)$/;
     for (const r of RULES) {
       for (const [prop, value] of r.decls) {
         if (!/^(color|background(-color)?|border(-\w+)?-color|outline-color)$/.test(prop)) continue;
         if (/^(transparent|inherit|currentcolor)$/i.test(value)) continue;
-        if (!/^var\(--[\w-]+/.test(value)) bad.push(`${where(r)}: ${prop}: ${value}`);
+        if (!token.test(value) && !translucent.test(value)) bad.push(`${where(r)}: ${prop}: ${value}`);
       }
     }
     expect(bad).toEqual([]);
+    expect(RULES.find((r) => r.selectors.includes('.spc-playbar'))!.decls)
+      .toContainEqual(['background', 'color-mix(in srgb, var(--text, #171C24) 72%, transparent)']);
   });
 
   // Since #701 a fallback is the MVP III token value; no MVP II value is accepted in these two files.

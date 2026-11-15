@@ -240,7 +240,7 @@ export const packageLabels = (c: ParentNode) =>
 /** The numbered step buttons of the journey timeline. */
 export const journeySteps = (c: ParentNode) => [...c.querySelectorAll<HTMLButtonElement>('.jt__steps .jt-step__button')];
 
-/** The floating playback group at the bottom center of the map (#831): Play/Pause, "Back to start", the step line. */
+/** The floating playback group at the bottom center of the map (#831): Play/Pause and "Back to start" (#852: nothing else shown). */
 export function playbar(c: ParentNode): HTMLElement {
   const all = [...c.querySelectorAll<HTMLElement>('.sw-map .spc-playbar')];
   if (all.length !== 1) throw new Error(`playbar(): ${all.length} playback groups on the map`);
@@ -255,7 +255,7 @@ export function playPause(c: ParentNode): HTMLButtonElement {
   return all[0];
 }
 
-/** The step line under the Play/Pause button (its live region). */
+/** The step announcement of the Play/Pause button: its live region, visually hidden since #852. */
 export const playStatus = (c: ParentNode) => c.querySelector<HTMLElement>('.ctl-playback [role="status"]');
 
 /** The "Overnight at <relay point>" card over the map, or null while it is not shown. */
