@@ -150,6 +150,72 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
 }
 .nd-btn:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 
+/* The request text box (MVP IV F1): what New delivery opens on. The same panel as the form it turns into.
+   It and the note below are only ever drawn inside the Business page (.bp), whose Inter they inherit. */
+.nd-request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
+  max-width: 640px;
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-radius: var(--radius, 4px);
+  background: var(--panel, #FFFFFF);
+  color: var(--text, #171C24);
+  font-size: var(--text-sm, 13px);
+}
+/* One large box: the sentence is the main thing on this view, so it is set larger than a form field. */
+.nd-request__text {
+  height: auto;
+  min-height: 120px;
+  padding: var(--space-3, 12px);
+  font-size: var(--text-md, 14px);
+  line-height: 1.5;
+  resize: vertical;
+}
+.nd-request__meta { display: flex; justify-content: space-between; gap: var(--space-3, 12px); }
+.nd-request__count { flex: none; white-space: nowrap; }
+.nd-request__actions { flex-wrap: wrap; }
+.nd-request__read { display: inline-flex; align-items: center; gap: var(--space-2, 8px); }
+
+/* The lines above the prefilled form. With the form right below they read as one card: the note is its top. */
+.nd-parsed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  max-width: 640px;
+  box-sizing: border-box;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-bottom: 0;
+  border-radius: var(--radius, 4px) var(--radius, 4px) 0 0;
+  background: var(--bg, #F7F7F4);
+  color: var(--text, #171C24);
+  font-size: var(--text-sm, 13px);
+}
+.nd-parsed + .nd { border-radius: 0 0 var(--radius, 4px) var(--radius, 4px); }
+.nd-parsed__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2, 8px); }
+/* "Parsed by Gemini" / "Parsed offline": a small label, not a pill. */
+.nd-parsed__source {
+  margin: 0;
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  color: var(--muted, #5B6472);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.nd-parsed__text { margin: 0; font-size: var(--text-md, 14px); overflow-wrap: anywhere; }
+.nd-parsed__notes { display: flex; flex-direction: column; gap: var(--space-2, 8px); }
+.nd-parsed__note {
+  margin: 0;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 1px solid var(--border, #E3E3DE);
+  border-left: 3px solid var(--accent, #1D5075);
+  border-radius: var(--radius, 4px);
+  background: var(--panel, #FFFFFF);
+}
+.nd-parsed__note--warn { border-left-color: var(--warn, #8A5A00); }
+
 /* 390 px: one column, controls at least 40 px high, full-width actions. */
 @media (max-width: 480px) {
   /* The form sits inside the page's padding, so it keeps all four borders (#714). */
@@ -161,6 +227,11 @@ a.nd-btn, a.nd-btn:hover { display: inline-flex; align-items: center; box-sizing
   .nd-actions .nd-btn { width: 100%; }
   .nd-result__actions { flex-direction: column; }
   .nd-result__actions .nd-btn { width: 100%; justify-content: center; }
+  .nd-request { padding: var(--space-3, 12px); max-width: none; }
+  .nd-request__text { height: auto; min-height: 132px; }
+  .nd-request__meta { flex-direction: column; gap: var(--space-1, 4px); }
+  .nd-request__read { justify-content: center; }
+  .nd-parsed { padding: var(--space-3, 12px); max-width: none; }
 }
 
 /* Reduced motion (#497): nothing in this file animates or transitions, now or later. */

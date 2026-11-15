@@ -266,6 +266,7 @@ describe('New delivery while the run is locked', () => {
     expect(textOf(reason)).not.toMatch(/planning cycle/i);
     click(btn());
     expect(p.container.querySelector('form.nd')).toBeNull();
+    expect(p.container.querySelector('form.nd-request')).toBeNull();
     // The rest of the page still works: a delivery opens.
     click(p.container.querySelector('tr.bw-row')!);
     expect(p.details()).not.toBeNull();
@@ -275,6 +276,9 @@ describe('New delivery while the run is locked', () => {
     await p.until(() => !btn().disabled, 'New delivery to open again');
     expect(p.container.querySelector('.bp-closed')).toBeNull();
     click(btn());
+    // New delivery opens on the request text box (#786); the form is one more press away.
+    expect(p.container.querySelector('form.nd-request')).not.toBeNull();
+    click(button(p.container, 'Fill in the form instead'));
     expect(p.container.querySelector('form.nd')).not.toBeNull();
 
     // Locked again with the form open: the form says why itself, so the line is not shown twice.

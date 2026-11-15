@@ -132,6 +132,11 @@ const formSubmit = (c: ParentNode) => openForm(c).querySelector<HTMLButtonElemen
 const formAlert = (c: ParentNode) => textOf(openForm(c).querySelector('[role="alert"]')!);
 /** The page's New delivery buttons (the toolbar's, and the empty table's when it has no row). */
 const newDeliveryButtons = (c: ParentNode) => buttons(c, 'New delivery');
+/** New delivery opens on the request text box (MVP IV F1, #786); the form is one more press away. */
+const openNewDeliveryForm = (c: ParentNode) => {
+  click(newDeliveryButtons(c)[0]);
+  click(button(c, 'Fill in the form instead'));
+};
 /** The header's phase word, whatever it reads. */
 const phaseLabel = (c: ParentNode) => textOf(c.querySelector('.ba-header__phase-label')!);
 /** The deliveries table: each row's shipment ID and the status it shows. */
@@ -284,7 +289,7 @@ describe('the demo can be rehearsed twice on a real server (#740)', () => {
 
       // ----- Planning: both pages are open for changes. The presenter has the form and the editor open. -----
       await onePoll(at('before Play'));
-      if (!form(biz)) click(newDeliveryButtons(biz)[0]);
+      if (!form(biz)) openNewDeliveryForm(biz);
       click(button(emp, 'Edit commute'));
       await settle(api);
       expectBusinessOpen(biz, at('before Play'));
@@ -452,7 +457,7 @@ describe('a write the lock refused with 409, then Back to start (#740)', () => {
     const biz = mountPage(`/business/${enc(sender.id)}`);
     const emp = mountPage(`/employee/${enc(employee.id)}`);
     await settle(api);
-    click(newDeliveryButtons(biz)[0]);
+    openNewDeliveryForm(biz);
     click(button(emp, 'Edit commute'));
     await settle(api);
     typeDemoRequest(biz);
@@ -506,7 +511,7 @@ describe('a write the lock refused with 409, then Back to start (#740)', () => {
 
     // The way out that works today: close the form and open it again. What was typed is lost.
     click(button(openForm(biz), 'Cancel'));
-    click(newDeliveryButtons(biz)[0]);
+    openNewDeliveryForm(biz);
     click(button(emp.querySelector('.ep-editor')!, 'Close'));
     click(button(emp, 'Edit commute'));
     await settle(api);

@@ -68,6 +68,8 @@ describe('a double press on "Find a delivery match" on the real server (#719)', 
       expect(rowsBefore).toBeGreaterThan(0); // the list is drawn before the press, so the count below means something
 
       act(() => { buttons(c, 'New delivery')[0].click(); });
+      // New delivery opens on the request text box (#786); the form is one more press away.
+      act(() => { buttons(c, 'Fill in the form instead')[0].click(); });
       const form = () => c.querySelector('form.nd')!;
       const send = () => form().querySelector<HTMLButtonElement>('.nd-actions button[type="submit"]')!;
       const listed = () => [...(byLabel(form(), 'Recipient') as HTMLSelectElement).options].some((o) => o.text.trim() === optionLabel(recipient));

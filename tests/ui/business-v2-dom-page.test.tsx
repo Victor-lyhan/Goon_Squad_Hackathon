@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 // The MVP II Business page in a real DOM (#505): open New delivery, send it, see the server's answer,
 // and close it again with focus back on the button that opened it.
+// Since #786 (MVP IV F1) New delivery opens on the request text box; "Fill in the form instead" opens the
+// form these tests are about. The text box itself: business-v2-request-text-dom.test.tsx.
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ShipmentResponse } from '../../shared/v2/api';
@@ -39,6 +41,8 @@ function setup(state: BusinessWorkspaceState = ready()) {
     poll: (s: BusinessWorkspaceState) => m.rerender(el(s)),
     form: () => c.querySelector('form.nd'),
     opener: () => button(c, 'New delivery'),
+    /** The text box's way to the empty form. */
+    fillForm: () => click(button(c, 'Fill in the form instead')),
   };
 }
 
@@ -47,6 +51,8 @@ describe('Business page New delivery in a real DOM', () => {
     const p = setup();
     expect(p.form()).toBeNull();
     click(p.opener());
+    expect(p.form()).toBeNull(); // the text box comes first
+    p.fillForm();
     const form = p.form()!;
     expect(form).not.toBeNull();
     expect(textOf(form)).toContain(`From ${ACME.name}`);
@@ -75,6 +81,7 @@ describe('Business page New delivery in a real DOM', () => {
     const p = setup();
     const opener = p.opener();
     click(opener);
+    p.fillForm();
     typeInto(byLabel(p.form()!, 'Package name'), 'Lab samples');
     click(button(p.form()!, 'Cancel'));
     expect(p.form()).toBeNull();
@@ -85,6 +92,7 @@ describe('Business page New delivery in a real DOM', () => {
     const p = setup();
     const opener = p.opener();
     click(opener);
+    p.fillForm();
     typeInto(byLabel(p.form()!, 'Package name'), 'Lab samples');
     press('Escape');
     expect(p.form()).toBeNull();
@@ -92,6 +100,7 @@ describe('Business page New delivery in a real DOM', () => {
     // Esc with the form closed does nothing, and it opens again with a fresh draft.
     press('Escape');
     click(p.opener());
+    p.fillForm();
     expect((byLabel(p.form()!, 'Package name') as HTMLInputElement).value).toBe('');
   }, T);
 
@@ -99,7 +108,10 @@ describe('Business page New delivery in a real DOM', () => {
     const p = setup();
     const opener = p.opener();
     act(() => { opener.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); });
-    expect(document.activeElement).toBe(document.body);
+    // The click did not focus the button; the text box that opened took the focus for typing.
+    expect(document.activeElement).not.toBe(opener);
+    expect(document.activeElement).toBe(byLabel(p.container, 'Describe the delivery'));
+    p.fillForm();
     click(button(p.form()!, 'Cancel'));
     expect(p.form()).toBeNull();
     expect(document.activeElement).toBe(opener);
@@ -111,6 +123,7 @@ describe('Business page New delivery in a real DOM', () => {
     expect(all.length).toBe(2);
     const fromTable = all[1];
     click(fromTable);
+    p.fillForm();
     press('Escape', byLabel(p.form()!, 'Recipient'));
     expect(p.form()).toBeNull();
     expect(document.activeElement).toBe(fromTable);
