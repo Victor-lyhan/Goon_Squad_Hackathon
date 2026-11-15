@@ -66,10 +66,14 @@ describe('doc §1: "No cards or metrics above the map. The simulator spans the w
   it.each(STATES)('$name: the map region holds the map first, then its legend and banners only', (s) => {
     const slot = one(s.mapRegion, (n) => hasClass(n, 'spc-map'), 'map slot');
     expect(elements(s.mapRegion)).toEqual([slot]);
-    const [map, legend, ...banners] = elements(slot);
+    const [map, legend, ...rest] = elements(slot);
     expect(hasClass(map, 'map-v2')).toBe(true);
     expect(hasClass(legend, 'spc-legend')).toBe(true);
-    for (const b of banners) expect(hasClass(b, 'spc-banner')).toBe(true);
+    // #725: last, the always-mounted live region the Overnight card is put into (empty here).
+    const announce = rest.pop()!;
+    expect(hasClass(announce, 'spc-announce')).toBe(true);
+    expect(announce.attrs.role).toBe('status');
+    for (const b of rest) expect(hasClass(b, 'spc-banner')).toBe(true);
   });
 });
 

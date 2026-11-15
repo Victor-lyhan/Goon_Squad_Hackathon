@@ -43,6 +43,12 @@
   line-height: 1.5;
 }
 
+/* The panel's lead line ("Google Maps key missing."): 600, the heaviest Inter weight fonts.css loads, so
+   the browser never fakes a bold (#725). */
+.map-v2__panel strong {
+  font-weight: 600;
+}
+
 .map-v2__panel p {
   margin: 8px 0 12px;
   color: var(--muted, #5B6472);

@@ -9,7 +9,12 @@ import { BUSY_REASON, FINISHED_REASON, type PlayButtonView } from '../../client/
 
 const attr = (tag: string, name: string) => tag.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1];
 const buttons = (h: string) => [...h.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map((m) => ({ attrs: m[1], text: m[2] }));
-const isDisabled = (b: { attrs: string }) => /\sdisabled=""/.test(b.attrs);
+// #725: the two buttons are `aria-disabled`, never `disabled`, so a press that makes the run busy does not
+// drop keyboard focus to <body>; the check fails if the `disabled` attribute comes back.
+const isDisabled = (b: { attrs: string }) => {
+  expect(b.attrs).not.toMatch(/\sdisabled=""/);
+  return /\saria-disabled="true"/.test(b.attrs);
+};
 
 const PLAY: PlayButtonView = { label: 'Play', action: 'play_clock', note: null };
 const PAUSE: PlayButtonView = { label: 'Pause', action: 'pause_journey', note: null };

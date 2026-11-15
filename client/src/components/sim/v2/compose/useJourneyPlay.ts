@@ -19,6 +19,11 @@ export type JourneyPlay = {
   pause: () => boolean;
   /** Back to idle (Back to start). */
   reset: () => void;
+  /**
+   * #725: Play from the start was pressed and its first step has not landed yet, so the timeline still
+   * shows the moment before (a delivered package reads "Journey complete"). The step line waits for it.
+   */
+  settling: boolean;
 };
 
 export type JourneyPlayInput = {
@@ -35,6 +40,10 @@ export type JourneyPlayInput = {
 
 export function useJourneyPlay({ control, runId, clockPlaying, clockMin, shipmentId, journey }: JourneyPlayInput): JourneyPlay {
   const [stored, setStored] = useState<PlayState>(PLAY_IDLE);
+  // The clock's time when Play started from the start; null once the clock moved (the first step landed)
+  // or when Play went on after a pause. Adjusted during render, so no frame announces the old moment.
+  const [startedAtMin, setStartedAtMin] = useState<number | null>(null);
+  if (startedAtMin !== null && clockMin !== startedAtMin) setStartedAtMin(null);
   const latest = useRef({ control, runId, clockPlaying, clockMin, journey });
   latest.current = { control, runId, clockPlaying, clockMin, journey };
 
@@ -65,12 +74,13 @@ export function useJourneyPlay({ control, runId, clockPlaying, clockMin, shipmen
     if (!j || !run) return;
     const windows = journeyWindows(j);
     const state = currentPlay(player.state(), j.shipmentId, run);
-    player.start({
-      shipmentId: j.shipmentId, runId: run, windows, fromMin: playFromMin(state, windows, now), clockPlaying: playing,
-    });
+    const fromMin = playFromMin(state, windows, now);
+    setStartedAtMin(fromMin === -Infinity ? now : null);
+    player.start({ shipmentId: j.shipmentId, runId: run, windows, fromMin, clockPlaying: playing });
   }, [player]);
   const pause = useCallback(() => player.pause(), [player]);
   const reset = useCallback(() => player.reset(), [player]);
 
-  return { state: currentPlay(stored, shipmentId, runId), play, pause, reset };
+  const state = currentPlay(stored, shipmentId, runId);
+  return { state, play, pause, reset, settling: state.status === 'running' && startedAtMin === clockMin };
 }
