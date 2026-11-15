@@ -11,7 +11,9 @@ import { describe, expect, it } from 'vitest';
 import type { AdviseOption, ShipmentResponse } from '../../shared/v2/api';
 import type { ParseDraft, ParseRequestResponse } from '../../shared/v2/parseRequest';
 import { ApiRequestError } from '../../client/src/api/v2';
-import { ADVICE_COPY, adviceCard, noOptionsText, type AdviseDraft } from '../../client/src/components/business/v2/adviceModel';
+import {
+  ADVICE_COPY, adviceCard, noOptions, type AdviseAsk, type AdviseDraft, type NoOptions,
+} from '../../client/src/components/business/v2/adviceModel';
 import { NewDeliveryFormView } from '../../client/src/components/business/v2/NewDeliveryForm';
 import {
   NEEDS_INPUT_HINT, RESULT_COPY, emptyDraft, initialSubmitState, statusForError, submitReducer,
@@ -160,9 +162,17 @@ describe('#919 the Options card: who made the options', () => {
   it('the wait, a failed call and an answer with no option are plain too', () => {
     expectPlain(ADVICE_COPY.loadingLine);
     expectPlain(ADVICE_COPY.failed);
-    expectPlain(noOptionsText({ options: [], source: 'offline' }));
-    expectPlain(noOptionsText({ nonsense: true }));
-    expect(noOptionsText('Internal Server Error')).toBe(ADVICE_COPY.failed);
+    // #948: the card stays without an option; its line, the names under it and what to do next are plain.
+    const ask: AdviseAsk = { ...DRAFT };
+    const lines = (n: NoOptions) => [n.note, n.lead, ...n.fields, n.next].filter((line): line is string => Boolean(line));
+    for (const none of [
+      noOptions({ options: [], source: 'offline' }, ask),
+      noOptions({ nonsense: true }, ask),
+      noOptions({ options: [], source: 'offline' }, { ...ask, destinationBusinessId: null, readyMin: null, deadlineMin: null }),
+      noOptions(null, ask, { deadlineTime: 'Deliver-by must be after ready time' }),
+    ]) for (const line of lines(none)) expectPlain(line);
+    expectPlain(ADVICE_COPY.neededHint);
+    expect(noOptions('Internal Server Error', ask).note).toBe(ADVICE_COPY.failed);
   });
 });
 
