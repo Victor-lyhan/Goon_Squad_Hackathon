@@ -214,15 +214,18 @@ describe('self-hosted Inter and IBM Plex Mono (#408, #651)', () => {
     for (const m of paragraphs) expect(['jt__status', 'jt__time']).toContain(m[1]);
   });
 
-  it('strong, b and th get 600 from one rule in global.css, not the 700 the browser gives them (#743)', () => {
+  it('h1 to h6, strong, b and th get 600 from global.css, not the 700 the browser gives them (#743, #757)', () => {
     // No stylesheet says 700 for these: it is the browser's own weight, and no 700 face is loaded, so the
-    // bold was faked (seen in headless Chrome on the New delivery form's result line, #743).
+    // bold was faked (seen in headless Chrome on the New delivery form's result line, #743). Every h3 has a
+    // class rule at 600 today; a new h3 to h6 without one would be faked the same way (#757).
     const sheet = SHEETS.filter((s) => s.file.endsWith('styles/global.css'));
     expect(sheet).toHaveLength(1);
     const { uses } = weightUses(sheet);
     const sans = importedWeights('sans');
     const mono = importedWeights('mono');
-    for (const tag of ['strong', 'b', 'th']) {
+    const TITLES = ['h1', 'h2'];
+    const BOLD_BY_DEFAULT = ['h3', 'h4', 'h5', 'h6', 'strong', 'b', 'th'];
+    for (const tag of [...TITLES, ...BOLD_BY_DEFAULT]) {
       const own = uses.filter((u) => u.where.split(': ')[1] === tag);
       expect(own.map((u) => u.weight), tag).toEqual([600]);
       // The tag takes its family from the text around it, so the weight must be a loaded face of both.
@@ -232,20 +235,33 @@ describe('self-hosted Inter and IBM Plex Mono (#408, #651)', () => {
         expect(mono.has(u.weight), `${tag}: IBM Plex Mono ${u.weight}`).toBe(true);
       }
     }
-    // One rule for the three tags, with no class in front, so it reaches every page.
-    const rule = rulesOf(sheet[0].css).filter((r) => ['strong', 'b', 'th'].some((t) => r.selectors.includes(t)));
+    // One rule for h3 to h6 and the three tags, with no class in front, so it reaches every page. It sets
+    // the weight only: h3 to h6 keep the browser's margin and line height, so no heading moves.
+    const rule = rulesOf(sheet[0].css).filter((r) => BOLD_BY_DEFAULT.some((t) => r.selectors.includes(t)));
     expect(rule).toHaveLength(1);
-    expect([...rule[0].selectors].sort()).toEqual(['b', 'strong', 'th']);
+    expect([...rule[0].selectors].sort()).toEqual([...BOLD_BY_DEFAULT].sort());
     expect([...rule[0].decls]).toEqual([['font-weight', '600']]);
+    // h1 and h2 have had their 600 from one rule of their own since the kit, also with no class in front.
+    const titleRule = rulesOf(sheet[0].css).filter((r) => TITLES.some((t) => r.selectors.includes(t)) && r.decls.has('font-weight'));
+    expect(titleRule).toHaveLength(1);
+    expect([...titleRule[0].selectors].sort()).toEqual(TITLES);
+    expect(titleRule[0].decls.get('font-weight')).toBe('600');
     // global.css is the stylesheet App.tsx loads for every page.
     expect(readFileSync('client/src/App.tsx', 'utf8')).toMatch(/import\s+['"]\.\/styles\/global\.css['"]/);
     // No stylesheet sets one of these tags back to a weight with no face (also caught by the test above).
-    const heavier = weightUses(SHEETS).uses.filter((u) => /(^|[\s>+~])(strong|b|th)([.:[][^\s>+~]*)?$/.test(u.where.split(': ')[1]) && u.weight > 600);
-    expect(heavier).toEqual([]);
-    // What the check reports when the rule is missing its weight or says bold.
+    const isTag = (selector: string) => /(^|[\s>+~])(h[1-6]|strong|b|th)([.:[#][^\s>+~]*)?$/.test(selector);
+    const all = weightUses(SHEETS).uses.filter((u) => isTag(u.where.split(': ')[1]));
+    // The check sees the component rules too (`.ew h1`, `.bp-missing h2`), not only global.css.
+    expect(all.some((u) => /\sh1$/.test(u.where.split(': ')[1]) && !u.where.startsWith('client/src/styles/global.css'))).toBe(true);
+    expect(all.filter((u) => u.weight > 600)).toEqual([]);
+    for (const s of ['h4', '.card h4', '.card > h5.title', 'h3:first-child', 'h6[id]', 'h2#top', 'td strong', 'b', 'tr > th.num']) expect(isTag(s), s).toBe(true);
+    for (const s of ['.h4', '.th', '.job-v2__h3', 'h4 span', 'thead', 'h7', '.b']) expect(isTag(s), s).toBe(false);
+    // What the check reports when the rule is missing its weight, says bold, or has lost a tag.
     const found = (css: string) => weightUses([{ file: 'x.css', css }]).uses.map((u) => `${u.where.split(': ')[1]} = ${u.family} ${u.weight}`);
     expect(found('strong, b, th { font-weight: bold; }')).toEqual(['strong = sans 700', 'b = sans 700', 'th = sans 700']);
     expect(found('strong, b, th { color: red; }')).toEqual([]);
+    expect(found('h3, h5, h6 { font-weight: 600; }')).toEqual(['h3 = sans 600', 'h5 = sans 600', 'h6 = sans 600']); // no h4
+    expect(found('.panel h4 { font-weight: 700; }')).toEqual(['.panel h4 = sans 700']);
   });
 
   it('the check itself: what it reports for a faked bold, an inherited family and an unreadable weight', () => {
