@@ -15,13 +15,17 @@
 
 .ep-state {
   margin: var(--space-4, 16px);
-  padding: var(--space-4, 16px);
+  padding: var(--space-6, 24px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
 }
-.ep-state h1 { font-size: 18px; font-weight: 600; margin: 0 0 var(--space-2, 8px); }
-.ep-state p { margin: 0 0 var(--space-2, 8px); }
+/* A loading line is only text (issue 941): no box that looks like content, in the muted colour. */
+p.ep-state { padding: var(--space-2, 8px) 0; border: 0; background: none; color: var(--muted, #5B6472); }
+/* The heading of a not-found or error state is the size of the employee's name it stands in for. */
+.ep-state h1 { font-size: 20px; font-weight: 600; line-height: 1.2; margin: 0 0 var(--space-2, 8px); }
+.ep-state p { max-width: 64ch; margin: 0 0 var(--space-4, 16px); }
+.ep-state > :last-child { margin-bottom: 0; }
 .ep-links { display: flex; flex-wrap: wrap; gap: var(--space-3, 12px); }
 .ep-links a { color: var(--accent, #1D5075); }
 
@@ -29,7 +33,7 @@
 .ep-notices:empty { display: none; }
 .ep-notice {
   margin: var(--space-2, 8px) 0;
-  padding: var(--space-2, 8px) var(--space-3, 12px);
+  padding: var(--space-2, 8px) var(--space-4, 16px);
   border: 1px solid var(--border, #E3E3DE);
   border-left: 2px solid var(--accent, #1D5075);
   border-radius: var(--radius, 4px);
@@ -39,8 +43,8 @@
 .ep-success { border-left-color: var(--ok, #2F6B4F); }
 
 .ep-editor {
-  margin-bottom: var(--space-4, 16px);
-  padding: var(--space-3, 12px);
+  margin-bottom: var(--space-6, 24px);
+  padding: var(--space-4, 16px);
   border: 1px solid var(--border, #E3E3DE);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
@@ -50,7 +54,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2, 8px);
-  margin-bottom: var(--space-2, 8px);
+  margin-bottom: var(--space-4, 16px);
 }
 .ep-editor-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
 /* In the editor the form and the address search are as wide as the card (#882): on their own they stop
@@ -63,7 +67,7 @@
    accent, 600. Before, these two had a grey border and regular weight. */
 .ep-btn {
   min-height: 36px;
-  padding: 0 var(--space-3, 12px);
+  padding: 0 var(--space-4, 16px);
   border: 1px solid var(--accent, #1D5075);
   border-radius: var(--radius, 4px);
   background: var(--panel, #FFFFFF);
@@ -73,7 +77,8 @@
   cursor: pointer;
 }
 .ep-btn:hover:not(:disabled) { background: var(--bg, #F7F7F4); }
-.ep-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+/* Switched off like Edit commute: muted words and a hairline, not a faded button. */
+.ep-btn:disabled { color: var(--muted, #5B6472); border-color: var(--border, #E3E3DE); cursor: not-allowed; }
 .ep-btn:focus-visible, .ep-links a:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
 .ep-btn-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--accent, #1D5075); font-weight: 400; text-decoration: underline; }
 .ep-btn-link:hover:not(:disabled) { background: none; }
@@ -84,8 +89,8 @@
 /* The list heading that takes focus after a job without a row is closed (#634). */
 .ep h2[tabindex="-1"]:focus { outline: none; }
 .ep h2[tabindex="-1"]:focus-visible { outline: 2px solid var(--accent, #1D5075); outline-offset: 2px; }
-.ep-route { margin: var(--space-4, 16px) 0; min-width: 0; }
-.ep-route-note { margin: var(--space-3, 12px) 0 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
+.ep-route { margin: var(--space-6, 24px) 0; min-width: 0; }
+.ep-route-note { margin: var(--space-2, 8px) 0 0; font-size: var(--text-sm, 13px); color: var(--muted, #5B6472); }
 .ep-route-note.ep-problem { color: var(--danger, #A4322A); }
 
 /* Phone rules from 480 px down (#882), like the workspace's, so a 412 or 430 px phone gets them. */
@@ -94,7 +99,8 @@
   .ep-btn { min-height: 44px; }
   .ep-links { gap: 0 var(--space-4, 16px); }
   .ep-links a, .ep-btn-link { display: inline-flex; align-items: center; min-height: 44px; }
-  .ep-state { margin: var(--space-2, 8px); padding: var(--space-3, 12px); }
+  .ep-state { margin: var(--space-2, 8px); padding: var(--space-4, 16px); }
+  p.ep-state { padding: var(--space-2, 8px) 0; }
   .ep-notices, .ep-job, .ep-name { padding-left: var(--space-2, 8px); padding-right: var(--space-2, 8px); }
   .ep-name { font-size: 18px; }
   .ep-editor { padding: var(--space-2, 8px); }
