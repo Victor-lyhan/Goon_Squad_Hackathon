@@ -16,6 +16,13 @@
   --warn: #8A5A00;
   --danger: #A4322A;
 
+  /* Keyboard focus ring (#895), used by :focus-visible in global.css: the primary on the light pages, white
+     on the dark grounds (the homepage hero, the Play pill and the legend on the map), where the primary is
+     only 2:1. No single colour is 3:1 on white, on ink and on a pill over a day map, so there are two. */
+  --focus-ring: var(--accent);
+  --focus-ring-on-dark: var(--panel);
+  --focus-ring-offset: 2px;
+
   /* Shape and spacing (4px / 8px scale). 6px is the largest radius. */
   --radius: 4px;
   --radius-lg: 6px;
