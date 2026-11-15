@@ -14,7 +14,7 @@ import { hasAutoPlayKey, parseSimUrl, simUrlFor, wantsAutoPlay, withoutAutoPlay 
 
 // ---------- URL <-> selection ----------
 
-/** The selection a query string asks for. Unknown IDs are kept: the body shows them as "not in the current scenario". */
+/** The selection a query string asks for. Unknown IDs are kept: the body says "That package isn't in this run.". */
 export function selectionFromSearch(search: string): Selection {
   return parseSimUrl(search).selection;
 }

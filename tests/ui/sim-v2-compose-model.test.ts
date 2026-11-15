@@ -38,8 +38,8 @@ describe('simPageView: data states', () => {
   });
 
   it('error carries the message and the reconnecting flag', () => {
-    const v = view({ ...INITIAL_SIM_DATA, view: 'error', error: "Can't reach the Relay server. Retrying every second.", reconnecting: true });
-    expect(v).toEqual({ view: 'error', message: "Can't reach the Relay server. Retrying every second.", reconnecting: true });
+    const v = view({ ...INITIAL_SIM_DATA, view: 'error', error: "Can't reach the Relay server. Retrying…", reconnecting: true });
+    expect(v).toEqual({ view: 'error', message: "Can't reach the Relay server. Retrying…", reconnecting: true });
   });
 
   it('reconnecting keeps the last good data on screen', () => {
@@ -233,7 +233,7 @@ describe('simPageView: unmatched and unknown packages', () => {
     const v = asReady(view(data, { kind: 'package', id: 'shp-404' }));
     expect(v.mode).toBe('journey');
     expect(v.right).toEqual({ kind: 'missing', message: MISSING_PACKAGE_TEXT });
-    expect(MISSING_PACKAGE_TEXT).toBe('This package is not in the current scenario');
+    expect(MISSING_PACKAGE_TEXT).toBe("That package isn't in this run.");
     expect(BACK_TO_NETWORK).toBe('Back to network');
     expect(v.selectedPackageId).toBeUndefined();
     expect(v.map.selectedIds).toEqual([]);

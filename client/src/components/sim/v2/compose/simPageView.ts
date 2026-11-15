@@ -13,7 +13,7 @@ import { dayNightAt, dayNightClockText, type DayNight } from '../../../map/dayNi
 import type { PackageListItem } from '../PackageList';
 import type { FocusOption } from '../FocusSelector';
 import { NO_FOCUS, type Focus, type LayerVisibility } from '../workspaceModel';
-import { CONNECTION_LOST_MESSAGE, type SimDataState } from '../live/simDataModel';
+import { CONNECTION_LOST_MESSAGE, SERVER_ERROR_MESSAGE, type SimDataState } from '../live/simDataModel';
 import { buildNetworkView } from '../network/networkModel';
 import { commuteLabel, journeyLegLabel } from '../network/networkIndex';
 import { decodePath } from '../../../map/layers';
@@ -27,12 +27,14 @@ import {
 import type { LegendMode } from '../legend/legendModel';
 
 // ---------- Copy ----------
+// #894: each page state is one plain sentence. A stale link (an ID the run does not have) says what
+// is wrong; "Back to network" under it leads back to the package list (DECISIONS pass 47).
 export const LOADING_TEXT = 'Loading the simulator…';
 export const RECONNECTING_TEXT = CONNECTION_LOST_MESSAGE;
 export const MAP_PENDING_TEXT = 'Loading places…';
-export const MISSING_PACKAGE_TEXT = 'This package is not in the current scenario';
-export const MISSING_BUSINESS_TEXT = 'This business is not in the current scenario';
-export const MISSING_EMPLOYEE_TEXT = 'This employee is not in the current scenario';
+export const MISSING_PACKAGE_TEXT = "That package isn't in this run.";
+export const MISSING_BUSINESS_TEXT = "That business isn't in this run.";
+export const MISSING_EMPLOYEE_TEXT = "That employee isn't in this run.";
 export const BACK_TO_NETWORK = 'Back to network';
 export const COMPARE_FAILED_TEXT = 'The comparison could not run. Try again.';
 
@@ -101,6 +103,11 @@ export type SimLegendView = {
 export type SimReadyView = {
   view: 'ready';
   reconnecting: boolean;
+  /**
+   * The banner over the map while `reconnecting` (#894): one sentence, the server unreachable or
+   * answering with an error; null otherwise. The last good data stays on screen under it.
+   */
+  reconnectingText: string | null;
   mode: 'network' | 'journey';
   /** The map response has not arrived yet for this run (it follows the first poll). */
   mapPending: boolean;
@@ -286,7 +293,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
   if (data.view === 'unavailable') {
     return { view: 'unavailable', message: data.unavailable?.message || 'The simulator is unavailable.', reconnecting };
   }
-  if (data.view === 'error') return { view: 'error', message: data.error || 'Request failed', reconnecting };
+  if (data.view === 'error') return { view: 'error', message: data.error || SERVER_ERROR_MESSAGE, reconnecting };
   if (data.view === 'loading' || !data.sim) return { view: 'loading', reconnecting };
 
   const sim = data.sim;
@@ -297,6 +304,7 @@ export function simPageView({ data, selection, focus = NO_FOCUS, layers }: SimPa
   const base = {
     view: 'ready' as const,
     reconnecting,
+    reconnectingText: reconnecting ? data.error || RECONNECTING_TEXT : null,
     mapPending,
     packages,
     packageList: mapPending ? { kind: 'pending' as const, items: packages } : { kind: 'panel' as const, sim, map },

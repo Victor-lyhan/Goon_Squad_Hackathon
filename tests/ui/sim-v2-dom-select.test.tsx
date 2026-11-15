@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The MVP II simulator page in a real DOM (#519): pick a package from the left panel's list, see its
 // numbered journey and the selection reported, leave it with "Back to network" or Esc, seek from a
-// journey step, keep typed input across a 1 s poll, the "not in the current scenario" message for a
+// journey step, keep typed input across a 1 s poll, the "isn't in this run" message for a
 // package a new run does not have, and a collapsed panel that leaves the tab order.
 // The map runs in its no-key state: the Google loader is replaced by a recorder that must stay unused.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -120,7 +120,7 @@ describe('a 1 s poll', () => {
     expect(server.calls).toEqual([]);
   }, T);
 
-  it('a selected package missing from a new run shows "not in the current scenario" with a way back', () => {
+  it('a selected package missing from a new run shows "isn\'t in this run" with a way back', () => {
     const server = new FakeSimServer(readyState(1000));
     const { container: c } = mountBody(server, { kind: 'package', id: 'shp-2' });
     expect(journeySteps(c)).toHaveLength(4);
@@ -128,7 +128,7 @@ describe('a 1 s poll', () => {
     server.poll(emptyRunState());
     const right = rightBody(c);
     expect(textOf(right.querySelector('[role="alert"]')!)).toBe(MISSING_PACKAGE_TEXT);
-    expect(MISSING_PACKAGE_TEXT).toContain('not in the current scenario');
+    expect(MISSING_PACKAGE_TEXT).toBe("That package isn't in this run.");
     expect(journeySteps(c)).toHaveLength(0);
     click(button(right, /Back to network/));
     expect(server.selections).toEqual([null]);
