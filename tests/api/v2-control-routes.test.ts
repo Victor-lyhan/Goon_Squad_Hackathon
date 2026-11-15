@@ -37,7 +37,7 @@ describe('POST /api/v2/simulator/control: valid controls', () => {
 
     expect(status).toBe(200);
     expect(Object.keys(body).sort()).toEqual(
-      ['clock', 'computeMs', 'jobs', 'nextEventMin', 'plans', 'runId', 'shipments', 'snapshot', 'unmatched', 'version'],
+      ['clock', 'computeMs', 'jobs', 'nextEventMin', 'plans', 'runId', 'shipments', 'snapshot', 'trips', 'unmatched', 'version'],
     );
     expect(body.runId).toBe('run-3');
     expect(body.clock.timeMin).toBe(1090);

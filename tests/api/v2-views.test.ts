@@ -219,7 +219,18 @@ describe('v2 simulatorResponse', () => {
       unmatched: [{ shipmentId: 'shp-3', reason: UNMATCHED_REASON }],
       computeMs: 3,
       nextEventMin: 1930, // events: 1052, 1072, 1082, 1108 | clock 1110 | 1930, 1952
+      // #761: only the trips a plan leg rides on, in run.trips order (not samMorn, leeEve, leeMorn).
+      trips: [samEve, anaEve, anaMorn],
     });
+  });
+
+  it('trips: exactly the trips of the plan legs, in run.trips order; none without a plan', () => {
+    const shuffled: Run = { ...run, trips: [leeMorn, anaMorn, samMorn, anaEve, leeEve, samEve] };
+    expect(simulatorResponse(shuffled, snapshotEvening).trips).toStrictEqual([anaMorn, anaEve, samEve]);
+    const noPlans: Run = { ...run, assignments: { ...run.assignments, plans: [] } };
+    expect(simulatorResponse(noPlans, snapshotEvening).trips).toStrictEqual([]);
+    const oneLeg: Run = { ...run, assignments: { ...run.assignments, plans: [directPlan] } };
+    expect(simulatorResponse(oneLeg, snapshotEvening).trips).toStrictEqual([anaEve]);
   });
 
   const at = (timeMin: number, evts = events): Run => ({ ...run, events: evts, clock: { ...run.clock, timeMin } });

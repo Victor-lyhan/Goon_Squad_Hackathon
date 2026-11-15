@@ -52,6 +52,8 @@ export const T = 30_000;
  * 86 jobs and 141.5 KB. The Random preset reads no story file, so a story retune does not move it.
  * If a generator change puts it over 150 KB, keep the number: mark the size check `it.fails` with the
  * measurement and report it (DECISIONS pass 54), do not pick a lighter seed.
+ * Since #761 the simulator answer also carries the carriers' trips (86 here, 17.1 KB): this city is at
+ * 158.6 KB at the end of the day, which is the `it.fails` case of v2-poll-budget-simulator.test.ts.
  */
 export const LARGEST_RANDOM: GenerateScenarioRequest = { preset: 'random', seed: 35, employees: 120, packages: 60, maxExtraMin: 13 };
 
