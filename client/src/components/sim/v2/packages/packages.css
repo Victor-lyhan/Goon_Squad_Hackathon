@@ -1,6 +1,9 @@
 /* Left-panel package list: search, status filter chips, count line, empty state (#418).
    MVP III look (#701): token colours, hairline borders, radius 4px; the chip counts are IBM Plex Mono. */
-.pk-panel { display: grid; gap: var(--space-2, 8px); }
+/* One column as wide as the panel body, never wider (#846). With the default `auto` column the grid
+   grew to the widest package row's nowrap width (342 px in a 320 px panel at a mid-run time), so the
+   status chip row wrapped at that width and "Delivered 12" ran past the panel's right edge. */
+.pk-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2, 8px); }
 
 .pk-filters { display: grid; gap: var(--space-2, 8px); }
 .pk-search { display: grid; gap: var(--space-1, 4px); }
